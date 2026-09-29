@@ -12,6 +12,7 @@ import {
   RiExternalLinkLine,
   RiEyeLine,
   RiEyeOffLine,
+  RiInformationLine,
   RiRefreshLine,
 } from "react-icons/ri";
 
@@ -25,6 +26,7 @@ import { useFormSheet } from "@/components/app/FormOutlet";
 import useToastStore from "@/store/toast-store";
 
 import Combobox from "@/components/app/Combobox";
+import FixCommand from "./FixCommand";
 import SetupHelp, { genPassword, parseKnock } from "./SetupHelp";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 
@@ -38,6 +40,9 @@ const EMPTY_FORM = {
   sshPort: "22",
   knockSequence: "",
   jumpRecordId: "",
+  // Новое устройство — с обновлением из HD (решение владельца); модель по
+  // умолчанию хранит false, у существующих записей флаг приезжает с бэкенда.
+  firmwareUpgradeEnabled: true,
 };
 
 // Форма устройства мониторинга (создание и правка — одна). Сабмит — живая
@@ -85,6 +90,9 @@ const DeviceForm = () => {
   const [isLinked, setIsLinked] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [jumpEnabled, setJumpEnabled] = useState(false);
+  // Было ли обновление включено до правки: включили у настроенного раньше
+  // устройства — показываем команду расширить права группы.
+  const [upgradeWasEnabled, setUpgradeWasEnabled] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -150,8 +158,10 @@ const DeviceForm = () => {
         user: creds?.user ?? "",
         sshPort: creds?.sshPort != null ? String(creds.sshPort) : prev.sshPort,
         jumpRecordId: data.record?.jumpRecordId || "",
+        firmwareUpgradeEnabled: Boolean(data.record?.firmwareUpgradeEnabled),
       }));
       setJumpEnabled(Boolean(data.record?.jumpRecordId));
+      setUpgradeWasEnabled(Boolean(data.record?.firmwareUpgradeEnabled));
     })();
     return () => {
       cancelled = true;
@@ -264,6 +274,7 @@ const DeviceForm = () => {
         knockSequence: form.jumpRecordId ? [] : parseKnock(form.knockSequence),
         sshPort: Number(form.sshPort),
         jumpRecordId: form.jumpRecordId || null,
+        firmwareUpgradeEnabled: form.firmwareUpgradeEnabled,
         ...(isLinked ? {} : { companyId: form.companyId, label: form.label }),
       };
       const response = isEdit
@@ -763,6 +774,34 @@ const DeviceForm = () => {
         </Field>
       )}
 
+      <SwitchField
+        id="mikrotik-upgrade"
+        checked={form.firmwareUpgradeEnabled}
+        onCheckedChange={(checked) =>
+          setForm((prev) => ({ ...prev, firmwareUpgradeEnabled: checked }))
+        }
+        label="Обновление прошивки из HD"
+        hint="HD сможет обновлять RouterOS и RouterBOOT этого устройства. Пользователю на устройстве нужны права write и reboot."
+        divider
+      />
+      {/* Включили у устройства, настроенного раньше: у группы только чтение */}
+      {isEdit && !upgradeWasEnabled && form.firmwareUpgradeEnabled && (
+        <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-info/30 bg-info/10 p-3">
+          <RiInformationLine
+            size={16}
+            className="mt-0.5 flex-none text-info"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1 text-sm">
+            Если устройство настраивали раньше, у группы hd-mgmt только чтение.
+            Добавьте права — выполните на нём:
+            <div className="mt-2">
+              <FixCommand command="/user group set hd-mgmt policy=api,read,write,reboot,test,ssh" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <SetupHelp
         host={form.host}
         user={form.user}
@@ -772,6 +811,7 @@ const DeviceForm = () => {
         knockSequence={form.knockSequence}
         onChange={changeHandler}
         jumpSelected={Boolean(form.jumpRecordId)}
+        upgradeEnabled={form.firmwareUpgradeEnabled}
       />
 
       {/* Телефон: подсказка своей строкой, «Сохранить» — во всю оставшуюся

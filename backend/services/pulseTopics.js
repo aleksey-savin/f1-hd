@@ -121,6 +121,7 @@ module.exports = {
   ProductionCalendar: { topics: ["team"], noise: isBookkeeping },
   Mikrotik: { topics: ["mikrotik"], noise: monitorNoise },
   MikrotikArtifact: { topics: ["mikrotik"], noise: isBookkeeping },
+  MikrotikUpgradeJob: { topics: ["mikrotik"], noise: isBookkeeping },
   KnowledgeNote: { topics: ["knowledge"], noise: isBookkeeping },
   ServicePlanReport: { topics: ["approval"], noise: isBookkeeping },
   ServicePlan: { topics: ["approval"], noise: isBookkeeping },

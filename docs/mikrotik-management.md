@@ -147,6 +147,8 @@ lastSuccessfulConnectionAt, lastCheckedAt, lastError
 offlineSince, offlineAlertedAt, alertTicketId   // offline-alert state (one ticket per outage)
 failedPolls, firstFailureAt                     // anti-flap (see below)
 schedules { export, backup }                    // see _Schedules & scheduler_
+firmwareUpgradeEnabled       → Boolean, default false — opt-in to upgrades from HD
+                               (see _Firmware upgrades_)
 timestamps                                      // createdAt = monitoredSince
 ```
 
@@ -318,8 +320,9 @@ itself; record mutations add `canManageMikrotik`; config routes
 `canManageMikrotikConfigs`. **The password and knock sequence are
 never returned**, and every endpoint that opens an outbound connection is
 rate-limited per user (`parametersLimiter`, 30/min). Route order matters: the
-literal `standalone`, `records`, `report` and `firmware` segments are declared
-**before** `:clientDeviceId`, or they would be captured as a device id.
+literal `standalone`, `records`, `report`, `firmware` and `upgrades` segments
+are declared **before** `:clientDeviceId`, or they would be captured as a
+device id.
 
 | Method & path (under `/mikrotik-devices`) | Handler | Behavior |
 | --- | --- | --- |
@@ -335,9 +338,16 @@ literal `standalone`, `records`, `report` and `firmware` segments are declared
 | `GET /records/:recordId/availability?days=1\|7\|30\|90` | `getAvailability` | Availability report over the window (invalid `days` ⇒ 30). `isAuth`. |
 | `GET /report/networks` | `networksReport` | IP/network aggregation over all records + duplicate-network flagging. |
 | `GET /firmware/releases` | `getFirmwareReleases` | The release cache + CVE-sync freshness: `{channels[], cveSync}`. `isAuth`. |
+| `POST /upgrades/plan` | `planUpgrades` (`controllers/inventory/mikrotikUpgrade.js`) | Dry run for `{recordIds[], channel}`: `{items[{recordId, name, channel, fromVersion, toVersion}], skipped[{recordId, name, reason}]}`. `canUpgradeMikrotikFirmware` + `parametersLimiter`. |
+| `POST /upgrades` | `createUpgrades` | Creates the batch — **201** `{job, skipped}`; **409** «Уже идёт обновление» while another batch runs (the partial unique index catches the race); **422** «Нечего обновлять» on an empty plan. Same guards. |
+| `GET /upgrades/current` | `getCurrentUpgrade` | The running batch (`publicJob`) or `null`. `isAuth`. |
+| `GET /upgrades/:jobId` | `getUpgrade` | One batch by id (404 otherwise). `isAuth`. |
+| `POST /upgrades/:jobId/cancel` | `cancelUpgrade` | Stamps `cancelRequestedAt` — the current device is finished, the queued ones are skipped; **409** when the batch is over or a stop was already requested. `canUpgradeMikrotikFirmware`. |
 
 **Config exports** live under the same `records/:recordId` prefix, gated by
-`canManageMikrotikConfigs` — see _Config export_.
+`canManageMikrotikConfigs` — see _Config export_. **Firmware upgrades** are
+gated by `canUpgradeMikrotikFirmware` (`mikrotik.upgradeFirmware`) — see
+_Firmware upgrades_.
 
 **Every live operation is keyed by the record id.** The `:clientDeviceId`
 addressing (`getOne`, `updateParameters`, `connect`, `disconnect`, `detach`) and the
@@ -370,7 +380,8 @@ the pool of "manageable but not configured" devices no longer exists.
   location{name,address}, status, monitoringEnabled, host, port, boardName,
   currentFirmware, addresses[], lastSuccessfulConnectionAt, lastCheckedAt,
   lastError, offlineSince, offlineAlertedAt, alertTicket{id,num}, monitoredSince,
-  schedules, lastExportAt, lastBackupAt, uptime30d, uptimeDays, firmwareStatus }
+  schedules, lastExportAt, lastBackupAt, uptime30d, uptimeDays, firmwareStatus,
+  upgrade }
 ```
 
 - `displayName` — RouterOS identity if polled, else `<model> · SN <serial>`
@@ -385,8 +396,14 @@ the pool of "manageable but not configured" devices no longer exists.
   `initializeInventoryData.js` / `seedMikrotikModels.js`.
 - `uptime30d` / `uptimeDays` — 30-day availability % (`null` = not enough data)
   and its per-day buckets.
+- `upgrade` — `{enabled, jobId, state, step, stepStartedAt, rebootRequestedAt,
+  finishedAt, error}` (`services/mikrotik/upgradeView.js#upgradeFor`): the
+  per-device switch plus the device's place in the running batch; `state` and
+  `step` are `null` when it is not in one. See _Firmware upgrades_.
 - `getRecordOne` adds `record` (without secrets), `reconciliation` (card ↔ device
-  mismatches, linked only) and `inventory`.
+  mismatches, linked only), `inventory` and `lastUpgrade` (`{jobId, state, from,
+  to, error, fix, finishedAt, by}` — the device's most recent finished upgrade
+  item, or `null`).
 
 ### Cron scheduling — `backend/app.js`
 
@@ -658,6 +675,43 @@ Rows of `GET /mikrotik-devices` and `getRecordOne` carry **`firmwareStatus`**
 (one `loadFirmwareContext()` per request, like `computeUptimeStats`);
 `GET /mikrotik-devices/firmware/releases` returns `{channels[], cveSync}`.
 
+## Firmware upgrades
+
+HD upgrades RouterOS and then RouterBOOT on selected devices, one device at a
+time, within the branch chosen for the batch (`current` = each device's own
+branch, or `long-term` / `stable`). Design: `docs/superpowers/specs/2026-09-29-mikrotik-firmware-upgrade-design.md`.
+
+- **Opt-in per device**: `Mikrotik.firmwareUpgradeEnabled` (default false). HD
+  cannot read the account's rights; a device without `write,reboot` fails with
+  the fix command. Permission: `mikrotik.upgradeFirmware`.
+- **Planning** (`services/mikrotik/upgradePlan.js`, pure): skip reasons (switch
+  off, monitoring off, not online, already in a batch, firmware unknown, no
+  release data, downgrade, already current); dependents before their transit
+  router. Downgrades are refused, never attempted.
+- **Job**: `MikrotikUpgradeJob` — one running batch (partial unique index on
+  `status: "running"`), items embedded with `step`, versions, `error`/`fix`, a
+  50-line log. The pulse topic is `mikrotik`.
+- **Worker** (`services/mikrotik/upgradeWorker.js`, `guardedCron` every 20 s,
+  watchdog 15 min): one step per tick. Steps (`upgradeSteps.js`, pure over
+  `upgradeDevice.js`): export (`createArtifact`, trigger `pre-upgrade`) →
+  channel (always `set channel`, idempotent — the build's branch is not the
+  configured channel) → check (`check-for-updates`, then `print` every 3 s
+  until the status is final, at most 45 s — `upgradeCheck.js`; a missing
+  `latest-version`, a non-final status or a channel other than the target fails
+  the item) → download (SSH, 10 min) → reboot (`rebootRequestedAt` stamped
+  first) → wait (first poll after 45 s; old version after 3 min fails; no
+  answer for 10 min fails and **stops** the batch) → routerboot → reboot → wait
+  (an unreadable RouterBOOT version is "not yet", failing only at 10 min) →
+  verify (`recoverToOnline`). Cancel skips the queued devices after the current
+  one; a finished batch re-syncs the security ticket.
+- **Monitoring**: `upgradeGuard.js` — health-check, offline alerts and the
+  export scheduler skip a device with a fresh `upgrade` flag and devices behind
+  it; a flag older than 90 minutes is ignored.
+- **Transport**: short commands over the API (`withApiSession`, no confirmation
+  prompts), the download over SSH (`withSshSession` with `opTimeoutMs`).
+- **Probe**: `scripts/mikrotikUpgradeProbe.js` runs the read-only commands
+  against one device with direct parameters.
+
 ## Config export (`.rsc`)
 
 Any configured record can produce a **config export** — the running config as
@@ -928,7 +982,11 @@ re-encrypts records via the `v1` version prefix.
 2. **Least-privilege user:** a custom group with `policy=api,read,test,ssh`
    (`ssh` lets the poller run `/export`; no `ftp` needed — nothing is
    transferred; add only the writes you use — never `full`/`policy`/`sensitive`),
-   with a unique generated password per device. Without `policy` this user
+   with a unique generated password per device. Devices upgraded from HD need
+   `write,reboot` in `hd-mgmt`:
+   `/user group set hd-mgmt policy=api,read,write,reboot,test,ssh`; leave the
+   group read-only and the per-device switch off to keep a device out of
+   upgrades. Without `policy` this user
    **cannot read `/user`**: RouterOS simply never replies. That is why the
    full-group guard is best-effort — verify-on-save bounds the read and skips the
    check, and the health-check doesn't even attempt it (`verifyFullGroup: false`).

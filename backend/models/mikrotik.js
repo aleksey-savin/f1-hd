@@ -114,6 +114,16 @@ const mikrotikSchema = new Schema(
     // downtime is still measured from the moment connectivity actually died.
     failedPolls: { type: Number, default: 0 },
     firstFailureAt: Date,
+    // Обновление прошивки из HD разрешено: у пользователя на устройстве есть
+    // write и reboot. HD прочитать права не может — это переключатель формы.
+    firmwareUpgradeEnabled: { type: Boolean, default: false },
+    // Идёт обновление прошивки (services/mikrotik/upgradeWorker.js): мониторинг
+    // не считает перезагрузки простоем. Снимается, когда шаги устройства
+    // закончились; флаг старше 90 минут мониторинг игнорирует.
+    upgrade: {
+      jobId: { type: Schema.Types.ObjectId, ref: "MikrotikUpgradeJob" },
+      since: Date,
+    },
     // Automated backup / config-export schedules with retention (keep last N).
     // A cron tick runs any whose nextRunAt is due; frequency "off" = disabled.
     schedules: {

@@ -52,6 +52,7 @@ const {
   runMikrotikFirmwareRefresh,
   runMikrotikFirmwareRefreshIfStale,
 } = require("./services/mikrotik/firmware");
+const { runUpgradeTick } = require("./services/mikrotik/upgradeWorker");
 const {
   runKnowledgeApprovalExpiry,
 } = require("./services/knowledgeApprovalExpiry");
@@ -317,12 +318,25 @@ const EVERY_5_MIN_AT_4 = "4,9,14,19,24,29,34,39,44,49,54,59 * * * *";
 // single hung run (a stalled DB op, a wedged poll) would hold the lock forever: the
 // health-check would stop updating statuses while the alert cron kept ticketing them
 // from the frozen `status: "offline"`.
-const guardedCron = (name, expression, run, timeoutMs) => {
+//
+// `quietSkip`: a cron that legitimately outlives its own interval (the upgrade
+// worker holds a tick through a 10-minute download) logs the skip at "debug" —
+// otherwise it would warn every other tick for the whole batch.
+const guardedCron = (
+  name,
+  expression,
+  run,
+  timeoutMs,
+  { quietSkip = false } = {},
+) => {
   let inFlight = false;
 
   cron.schedule(expression, () => {
     if (inFlight) {
-      logger.log("warn", `Skipping ${name}: previous run is still active`);
+      logger.log(
+        quietSkip ? "debug" : "warn",
+        `Skipping ${name}: previous run is still active`,
+      );
       return;
     }
     if (mongoose.connection.readyState !== 1) {
@@ -401,6 +415,18 @@ guardedCron(
   EVERY_5_MIN_AT_4,
   runMikrotikOfflineAlerts,
   240000,
+);
+
+// Firmware upgrade batches: one step of the current device per tick
+// (docs/mikrotik-management.md, «Firmware upgrades»). A step may hold a package
+// download for up to 10 minutes; the in-flight lock keeps ticks from stacking,
+// and those skips are expected — hence quietSkip.
+guardedCron(
+  "Mikrotik upgrade worker",
+  "*/20 * * * * *",
+  () => runUpgradeTick(),
+  15 * 60 * 1000,
+  { quietSkip: true },
 );
 
 // Кэш релизов RouterOS + CVE из NVD + авто-заявка «уязвимая прошивка». Суточного

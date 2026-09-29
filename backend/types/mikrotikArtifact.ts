@@ -3,7 +3,7 @@ import type { Types } from "mongoose";
 export interface IMikrotikArtifact {
   mikrotik: Types.ObjectId;
   type: "backup" | "export";
-  trigger: "manual" | "scheduled";
+  trigger: "manual" | "scheduled" | "pre-upgrade";
   storageKey: string;
   fileName: string;
   size?: number;

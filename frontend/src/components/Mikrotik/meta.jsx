@@ -97,6 +97,8 @@ export const DeviceTile = ({ row, size = "md", className }) => {
   const Icon = deviceIcon(row);
   const status = row?.monitoringEnabled ? row?.status || "offline" : "disabled";
   const meta = STATUS_META[status] || STATUS_META.offline;
+  // Идёт обновление прошивки — точка в тон «Обновляется» (info), а не «в сети»
+  const dot = row?.upgrade?.state === "running" ? "bg-info" : meta.dot;
   return (
     <span
       aria-hidden
@@ -111,7 +113,7 @@ export const DeviceTile = ({ row, size = "md", className }) => {
         className={cn(
           "absolute -right-0.5 -bottom-0.5 rounded-full ring-2 ring-card",
           size === "lg" ? "size-3.5" : "size-2.5",
-          meta.dot,
+          dot,
         )}
       />
     </span>

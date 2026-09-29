@@ -16,9 +16,9 @@ const {
   staffAccessStatements,
 } = require("./access");
 
-test("dictionary has 17 groups and 59 actions in the agreed order", () => {
+test("dictionary has 17 groups and 60 actions in the agreed order", () => {
   assert.equal(GROUPS.length, 17);
-  assert.equal(ALL_ACTIONS.length, 59);
+  assert.equal(ALL_ACTIONS.length, 60);
   assert.deepEqual(ALL_ACTIONS.slice(0, 8), [
     "ticket.readCompanies",
     "ticket.readAll",
@@ -49,7 +49,7 @@ test("every action has an audience; clientHint only on both", () => {
     for (const action of group.actions) {
       assert.ok(["staff", "client", "both"].includes(action.audience), action.id);
       if (action.clientHint) assert.equal(action.audience, "both", action.id);
-      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться|Отвечать) /, action.id);
+      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться|Отвечать|Обновлять) /, action.id);
     }
   }
 });

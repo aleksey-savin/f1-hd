@@ -1,13 +1,19 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
-import { RiDraftLine } from "react-icons/ri";
+import {
+  RiArrowUpCircleLine,
+  RiCheckboxMultipleLine,
+  RiDraftLine,
+} from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 
 import ListWrapper from "@/components/app/ListWrapper";
 import ListGroupLabel from "@/components/app/ListGroupLabel";
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
+import SelectionBar from "@/components/app/SelectionBar";
+import BulkActionBar from "@/components/app/BulkActionBar";
 
 import DeviceFilter, {
   FIRMWARE_OPTIONS,
@@ -17,8 +23,12 @@ import DeviceRow from "../../components/Mikrotik/DeviceRow";
 import RouterOsStrip, {
   BRANCH_LABEL,
 } from "../../components/Mikrotik/RouterOsStrip";
+import UpgradeBanner from "../../components/Mikrotik/UpgradeBanner";
+import UpgradeDialog from "../../components/Mikrotik/UpgradeDialog";
+import UpgradeSheet from "../../components/Mikrotik/UpgradeSheet";
 
 import useLiveTopic from "@/hooks/use-live-topic";
+import useListSelection from "@/hooks/use-list-selection";
 import { useCan } from "@/store/authed-user";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
@@ -34,6 +44,10 @@ const GROUPS = [
 const optionLabel = (options, value) =>
   options.find((option) => option.value === value)?.label || value;
 
+// Стабильный пустой список для закрытого диалога: новый `[]` на каждом
+// рендере перезапускал бы его эффект плана.
+const NO_IDS = [];
+
 // Мониторинг Mikrotik: статус-борд парка устройств. Список идёт от записей
 // мониторинга (добавление — только «Новое устройство», связь с инвентарём —
 // шагом после проверки); строки группируются по статусу, обновляются тихо по
@@ -41,21 +55,39 @@ const optionLabel = (options, value) =>
 const MikrotikDevices = () => {
   const can = useCan();
   const canManage = can({ mikrotik: ["manage"] });
+  const canUpgrade = can({ mikrotik: ["upgradeFirmware"] });
+  const currentUpgrade = useMikrotikDeviceFilterStore(
+    (state) => state.currentUpgrade,
+  );
+  const [upgradeIds, setUpgradeIds] = useState(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const filterStore = useMikrotikDeviceFilterStore();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     filterStore.fetch();
+    filterStore.fetchCurrentUpgrade();
   }, []);
+
+  // Пакет закончился — шторка не должна всплыть сама на следующем.
+  useEffect(() => {
+    if (!currentUpgrade) setSheetOpen(false);
+  }, [currentUpgrade]);
 
   // Живое обновление (docs/live-updates.md): переход онлайн/офлайн, смена
   // прошивки, правки записей и тревожные заявки подтягиваются без спиннера,
   // когда пульс сообщает об изменении. Раз в 5 минут — в любом случае: «время
-  // проверки» и доступность за 30 дней текут и без событий.
-  useLiveTopic("mikrotik", () => filterStore.silentRefresh(), {
-    maxStaleMs: 5 * 60_000,
-  });
+  // проверки» и доступность за 30 дней текут и без событий. Идущий пакет
+  // обновления прошивки едет тем же пульсом — вместе со списком.
+  useLiveTopic(
+    "mikrotik",
+    () => {
+      filterStore.silentRefresh();
+      filterStore.fetchCurrentUpgrade();
+    },
+    { maxStaleMs: 5 * 60_000 },
+  );
 
   // Deep-link из заявки, «Окружения» и карточки устройства: ?recordId= ведёт
   // сразу на страницу записи; ?clientDeviceId= — как только список приехал и
@@ -114,6 +146,24 @@ const MikrotikDevices = () => {
       rows: byStatus[group.key],
     })).filter((group) => group.rows.length > 0);
   }, [filterStore.filteredList]);
+
+  // Выбор устройств для обновления прошивки (макет, экран 1). Хук ждёт `_id`,
+  // у строки борда адрес — recordId.
+  const selectionItems = useMemo(
+    () => filterStore.filteredList.map((row) => ({ _id: row.recordId })),
+    [filterStore.filteredList],
+  );
+  const selection = useListSelection({
+    items: selectionItems,
+    enabled: canUpgrade,
+  });
+
+  const upgradeReason =
+    selection.count === 0
+      ? "Выберите устройства"
+      : currentUpgrade
+        ? "Идёт другое обновление — дождитесь его окончания"
+        : null;
 
   const { facets, setFacet } = filterStore;
   const activeFilters = [
@@ -183,61 +233,149 @@ const MikrotikDevices = () => {
   );
 
   return (
-    <ListWrapper
-      title={() => "Мониторинг Mikrotik"}
-      filterStore={filterStore}
-      filter={
-        <DeviceFilter
-          companyOptions={companyOptions}
-          typeOptions={typeOptions}
-        />
-      }
-      filterActive={activeFilters.length > 0}
-      activeFilters={activeFilters}
-      toolbar={
-        <ChipMultiCombobox
-          placeholder="Все компании"
-          searchPlaceholder="Найти компанию…"
-          countLabel={(count) => `Компании: ${count}`}
-          value={facets.companies}
-          options={companyOptions}
-          onChange={(value) => setFacet("companies", value)}
-        />
-      }
-      showAddButton={canManage}
-      addRoute="add"
-      addLabel="Новое устройство"
-      topContent={
-        // Ряд под шапкой: полоса RouterOS + «Диапазоны сетей» (переехали из
-        // меню «Отчёты»; строка инструментов и без того плотная, а правый
-        // край этого ряда свободен). На телефоне ссылка уезжает в строку
-        // заголовка полосы — рядом с плитками ей места нет.
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <div className="min-w-0 flex-1">
-            <RouterOsStrip mobileAside={networksLink || null} />
-          </div>
-          {networksLink && <div className="max-md:hidden">{networksLink}</div>}
-        </div>
-      }
-    >
-      <div className="appear-children">
-        {groups.map((group) => (
-          <div key={group.key} className="appear-children">
-            {groups.length > 1 && (
-              <ListGroupLabel
-                label={group.label}
-                count={group.rows.length}
-                tone={group.tone || "on"}
-                className={group.labelClass}
+    <>
+      <ListWrapper
+        title={() => "Мониторинг Mikrotik"}
+        filterStore={filterStore}
+        filter={
+          <DeviceFilter
+            companyOptions={companyOptions}
+            typeOptions={typeOptions}
+          />
+        }
+        filterActive={activeFilters.length > 0}
+        activeFilters={activeFilters}
+        toolbar={
+          <>
+            <ChipMultiCombobox
+              placeholder="Все компании"
+              searchPlaceholder="Найти компанию…"
+              countLabel={(count) => `Компании: ${count}`}
+              value={facets.companies}
+              options={companyOptions}
+              onChange={(value) => setFacet("companies", value)}
+            />
+            {canUpgrade && !selection.isActive && (
+              <Button
+                variant="outline"
+                size="icon"
+                title="Выбрать несколько"
+                aria-label="Выбрать несколько устройств"
+                onClick={() => selection.enter()}
+              >
+                <RiCheckboxMultipleLine />
+              </Button>
+            )}
+          </>
+        }
+        selection={
+          selection.isActive ? (
+            <SelectionBar
+              count={selection.count}
+              total={selection.total}
+              allSelected={selection.allSelected}
+              someSelected={selection.someSelected}
+              onToggleAll={
+                selection.allSelected
+                  ? selection.clearSelection
+                  : selection.selectAll
+              }
+              onSelectAll={selection.selectAll}
+              onExit={selection.exit}
+            />
+          ) : null
+        }
+        showAddButton={canManage}
+        addRoute="add"
+        addLabel="Новое устройство"
+        topContent={
+          // Ряд под шапкой: полоса RouterOS + «Диапазоны сетей» (переехали из
+          // меню «Отчёты»; строка инструментов и без того плотная, а правый
+          // край этого ряда свободен). На телефоне ссылка уезжает в строку
+          // заголовка полосы — рядом с плитками ей места нет. Ниже — баннер
+          // идущего пакета обновления прошивки (макет, экран 3).
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <div className="min-w-0 flex-1">
+                <RouterOsStrip mobileAside={networksLink || null} />
+              </div>
+              {networksLink && (
+                <div className="max-md:hidden">{networksLink}</div>
+              )}
+            </div>
+            {currentUpgrade && (
+              <UpgradeBanner
+                job={currentUpgrade}
+                onOpen={() => setSheetOpen(true)}
               />
             )}
-            {group.rows.map((row) => (
-              <DeviceRow key={row.recordId} row={row} canManage={canManage} />
-            ))}
-          </div>
-        ))}
-      </div>
-    </ListWrapper>
+          </>
+        }
+      >
+        <div className="appear-children">
+          {groups.map((group) => (
+            <div key={group.key} className="appear-children">
+              {groups.length > 1 && (
+                <ListGroupLabel
+                  label={group.label}
+                  count={group.rows.length}
+                  tone={group.tone || "on"}
+                  className={group.labelClass}
+                />
+              )}
+              {group.rows.map((row) => (
+                <DeviceRow
+                  key={row.recordId}
+                  row={row}
+                  canManage={canManage}
+                  selectionActive={selection.isActive}
+                  isSelected={selection.isSelected(row.recordId)}
+                  onToggle={selection.toggle}
+                  pressProps={selection.pressProps(row.recordId)}
+                  consumeSuppressedClick={selection.consumeSuppressedClick}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </ListWrapper>
+
+      {canUpgrade && (
+        <BulkActionBar
+          count={selection.count}
+          show={selection.isActive}
+          actions={[
+            {
+              key: "upgrade",
+              icon: RiArrowUpCircleLine,
+              label: "Обновить прошивку",
+              reason: upgradeReason,
+            },
+          ]}
+          onPick={() => setUpgradeIds(selection.selectedIds)}
+          statusText={
+            selection.count > 0
+              ? `Выбрано: ${selection.count}`
+              : "Ничего не выбрано"
+          }
+        />
+      )}
+      <UpgradeDialog
+        open={Boolean(upgradeIds)}
+        onOpenChange={(open) => !open && setUpgradeIds(null)}
+        recordIds={upgradeIds || NO_IDS}
+        onStarted={() => {
+          selection.exit();
+          filterStore.fetchCurrentUpgrade();
+        }}
+      />
+      <UpgradeSheet
+        job={currentUpgrade}
+        open={sheetOpen && Boolean(currentUpgrade)}
+        onOpenChange={setSheetOpen}
+        canCancel={canUpgrade}
+      />
+    </>
   );
 };
 

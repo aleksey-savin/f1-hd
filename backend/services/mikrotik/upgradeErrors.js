@@ -1,0 +1,38 @@
+const { describeConnectionError } = require("./connector");
+
+// Plain-Russian messages for a failed upgrade step (stored in item.error) plus,
+// where one command fixes it, that command (item.fix — shown with a copy button).
+const RIGHTS_FIX =
+  "/user group set hd-mgmt policy=api,read,write,reboot,test,ssh";
+
+const describeUpgradeError = (error) => {
+  const raw = `${error?.code || ""} ${error?.message || ""}`;
+
+  // Checked first: RouterOS reports it over the API (!trap) AND in SSH output
+  // (then it arrives inside MIKROTIK_DOWNLOAD_INCOMPLETE).
+  if (/not enough permissions/i.test(raw)) {
+    return {
+      message:
+        "У пользователя HD на устройстве нет прав write и reboot. Выполните на устройстве и повторите:",
+      fix: RIGHTS_FIX,
+    };
+  }
+  // The step machine already wrote the whole sentence («Устройство сообщило
+  // ветку … вместо … — обновление остановлено»).
+  if (error?.code === "MIKROTIK_CHANNEL_MISMATCH") {
+    return { message: error.message };
+  }
+  if (error?.code === "MIKROTIK_UPDATE_STATUS") {
+    return {
+      message: `Устройство не смогло связаться с сервером обновлений MikroTik (${error.message}). Проверьте его доступ в интернет и DNS.`,
+    };
+  }
+  if (error?.code === "MIKROTIK_DOWNLOAD_INCOMPLETE") {
+    return { message: `Загрузка пакета не завершилась: ${error.message}` };
+  }
+  const described = describeConnectionError(error);
+  if (described) return { message: described.message };
+  return { message: `Ошибка: ${error?.message || "неизвестная"}` };
+};
+
+module.exports = { RIGHTS_FIX, describeUpgradeError };

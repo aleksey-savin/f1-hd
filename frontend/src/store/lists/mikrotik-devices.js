@@ -190,6 +190,38 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       // фоновая загрузка полосы: сбой сети молча переживаем
     }
   },
+  // --- Обновление прошивки (docs/mikrotik-management.md, «Firmware upgrades»)
+  // Идущий пакет для баннера и шторки; null — пакета нет.
+  currentUpgrade: null,
+  fetchCurrentUpgrade: async () => {
+    try {
+      const response = await fetch(`${API}/upgrades/current`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) return;
+      set({ currentUpgrade: await response.json() });
+    } catch {
+      // фоновая загрузка по пульсу: сбой сети молча переживаем
+    }
+  },
+  // План для диалога подтверждения: кто и до чего обновится, кто пропущен.
+  planUpgrade: (recordIds, channel) =>
+    fetch(`${API}/upgrades/plan`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ recordIds, channel }),
+    }),
+  startUpgrade: (recordIds, channel) =>
+    fetch(`${API}/upgrades`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ recordIds, channel }),
+    }),
+  cancelUpgrade: (jobId) =>
+    fetch(`${API}/upgrades/${jobId}/cancel`, {
+      method: "POST",
+      headers: jsonHeaders(),
+    }),
   fullTextSearch: (query) =>
     set((state) => {
       const searchTerm = String(query || "").toLowerCase();

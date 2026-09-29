@@ -175,30 +175,28 @@ const buildTlsOptions = (pinnedCertPem) => {
   return { rejectUnauthorized: false };
 };
 
-// Opens a live RouterOS session (knock -> API-SSL), runs the read commands, and
-// always closes the socket. Returns the poll result plus the observed TLS cert
-// (PEM) for pinning/TOFU. Throws on any failure (treated as offline); when a
-// device is pinned, a mismatched cert makes connect() throw before login.
+// Per-command bound for upgrade commands (check-for-updates contacts
+// upgrade.mikrotik.com from the device and can take tens of seconds).
+const API_COMMAND_TIMEOUT_MS = envInt("MIKROTIK_API_COMMAND_TIMEOUT_MS", 60000);
+
+// Opens ONE live RouterOS session (transit leg or knock → API-SSL login), runs
+// fn({ conn, routeros, jumpHostKey }) and always closes everything.
 //
 // API-SSL (TLS) is MANDATORY — plaintext API is never used, so device
 // credentials and polled data never travel in the clear. A device without
 // api-ssl configured simply fails to connect (and shows a clear error).
 //
-// The two optional reads are opt-out because they are pure overhead on the
-// 5-minute health-check: /user/print never answers for a least-privilege user
-// (it burns USER_READ_TIMEOUT_MS every tick), and the serial number can't change
-// between polls. Verify-on-save keeps both (defaults) — it needs the full-group
-// guard and a fresh serial for the inventory reconciliation.
-const pollDevice = async (
+// Watchdog: the library's `timeout` guards inactivity on the socket but can't
+// abort a knock touch or bound a read that RouterOS never answers. Arm it first
+// so it covers the WHOLE cycle (jump + knock + connect + fn) — otherwise the
+// knock runs outside the deadline. On timeout the cleanup destroys the sockets,
+// which unblocks a pending connect; the "ETIMEDOUT" text routes through
+// describeConnectionError to a clear 502.
+const runApiSession = async (
   { host, port, user, password, tlsCert, knockSequence, jump },
-  { verifyFullGroup = true, readRouterboard = true } = {},
+  fn,
+  { deadlineMs = POLL_DEADLINE_MS } = {},
 ) => {
-  // Watchdog: the library's `timeout` guards inactivity on the socket but can't
-  // abort a knock touch or bound a read that RouterOS never answers. Arm it first
-  // so it covers the WHOLE cycle (jump + knock + connect + reads) — otherwise the
-  // knock runs outside the deadline and the real budget is knock + POLL_DEADLINE_MS.
-  // On timeout the cleanup destroys the sockets, which unblocks a pending connect;
-  // the "ETIMEDOUT" text routes through describeConnectionError to a clear 502.
   let watchdogTimer;
   let routeros;
   let jumpConn = null;
@@ -231,9 +229,9 @@ const pollDevice = async (
         reject(
           new Error("ETIMEDOUT: device did not respond within poll deadline"),
         ),
-      // A tunneled poll pays for the transit leg before the target's TLS
+      // A tunneled session pays for the transit leg before the target's TLS
       // connect even starts — give it the extra allowance.
-      POLL_DEADLINE_MS + (jump ? JUMP_POLL_EXTRA_MS : 0),
+      deadlineMs + (jump ? JUMP_POLL_EXTRA_MS : 0),
     );
   });
 
@@ -270,64 +268,7 @@ const pollDevice = async (
     });
 
     const conn = await routeros.connect();
-
-    const observedCert = peerCertPem(routeros);
-
-    const addresses = await conn.write(["/ip/address/print"]);
-    const identity = await conn.write(["/system/identity/print"]);
-    const resource = await conn.write(["/system/resource/print"]);
-
-    // /user/print requires the `policy` privilege; a least-privilege managed user
-    // (the recommended setup) lacks it, so RouterOS sends no reply and this read
-    // hangs forever. That was the real 504: the first three reads succeed, then the
-    // poll stalls here until nginx times out. Bound it and treat a failure as "group
-    // unknown" so the poll still succeeds; the full-group guard just no-ops when the
-    // list couldn't be read.
-    let users = null;
-    if (verifyFullGroup) {
-      try {
-        users = await withReadTimeout(
-          conn.write(["/user/print"]),
-          USER_READ_TIMEOUT_MS,
-        );
-      } catch (error) {
-        logger.log(
-          "warn",
-          "Mikrotik /user/print unavailable — skipping full-group check",
-          { host, error: error.message },
-        );
-      }
-    }
-
-    // Serial number lives in /system/routerboard (absent on CHR) — best-effort,
-    // used for reconciling the inventory card with the live device.
-    let routerboard = null;
-    if (readRouterboard) {
-      try {
-        routerboard = await withReadTimeout(
-          conn.write(["/system/routerboard/print"]),
-          ROUTERBOARD_READ_TIMEOUT_MS,
-        );
-      } catch (error) {
-        logger.log(
-          "warn",
-          "Mikrotik /system/routerboard unavailable — skipping serial number",
-          { host, error: error.message },
-        );
-      }
-    }
-
-    return {
-      addresses,
-      identity,
-      resource,
-      users,
-      routerboard,
-      tlsCert: observedCert,
-      // Наблюдённый SSH-ключ транзитного роутера — для опортунистического
-      // пиннинга при verify-on-save (см. контроллер).
-      ...(jumpHostKey ? { jumpHostKey } : {}),
-    };
+    return fn({ conn, routeros, jumpHostKey });
   })();
 
   // The race consumes both promises, but a run that settles AFTER the race has
@@ -347,6 +288,89 @@ const pollDevice = async (
     cleanup();
   }
 };
+
+// One monitoring poll: the read commands over one session, plus the observed
+// TLS cert (PEM) for pinning/TOFU. Throws on any failure (treated as offline);
+// when a device is pinned, a mismatched cert makes connect() throw before login.
+//
+// The two optional reads are opt-out because they are pure overhead on the
+// 5-minute health-check: /user/print never answers for a least-privilege user
+// (it burns USER_READ_TIMEOUT_MS every tick), and the serial number can't change
+// between polls. Verify-on-save keeps both (defaults) — it needs the full-group
+// guard and a fresh serial for the inventory reconciliation.
+const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } = {}) =>
+  runApiSession(params, async ({ conn, routeros, jumpHostKey }) => {
+    const observedCert = peerCertPem(routeros);
+
+    const addresses = await conn.write(["/ip/address/print"]);
+    const identity = await conn.write(["/system/identity/print"]);
+    const resource = await conn.write(["/system/resource/print"]);
+
+    // /user/print requires the `policy` privilege; a least-privilege managed user
+    // (the recommended setup) lacks it, so RouterOS sends no reply and this read
+    // hangs forever. Bound it and treat a failure as "group unknown" so the poll
+    // still succeeds; the full-group guard just no-ops when the list couldn't be
+    // read.
+    let users = null;
+    if (verifyFullGroup) {
+      try {
+        users = await withReadTimeout(
+          conn.write(["/user/print"]),
+          USER_READ_TIMEOUT_MS,
+        );
+      } catch (error) {
+        logger.log(
+          "warn",
+          "Mikrotik /user/print unavailable — skipping full-group check",
+          { host: params.host, error: error.message },
+        );
+      }
+    }
+
+    // Serial number lives in /system/routerboard (absent on CHR) — best-effort,
+    // used for reconciling the inventory card with the live device.
+    let routerboard = null;
+    if (readRouterboard) {
+      try {
+        routerboard = await withReadTimeout(
+          conn.write(["/system/routerboard/print"]),
+          ROUTERBOARD_READ_TIMEOUT_MS,
+        );
+      } catch (error) {
+        logger.log(
+          "warn",
+          "Mikrotik /system/routerboard unavailable — skipping serial number",
+          { host: params.host, error: error.message },
+        );
+      }
+    }
+
+    return {
+      addresses,
+      identity,
+      resource,
+      users,
+      routerboard,
+      tlsCert: observedCert,
+      // Наблюдённый SSH-ключ транзитного роутера — для опортунистического
+      // пиннинга при verify-on-save (см. контроллер).
+      ...(jumpHostKey ? { jumpHostKey } : {}),
+    };
+  });
+
+// Several commands over one session (firmware upgrade). `run` resolves the
+// reply rows, rejects on !trap with RouterOS's own message, and on silence
+// after timeoutMs ("read timeout") — a socket the device closed never settles
+// the library's promise, so the timeout is the only way out.
+const withApiSession = (params, fn, { deadlineMs } = {}) =>
+  runApiSession(
+    params,
+    ({ conn }) =>
+      fn((words, { timeoutMs = API_COMMAND_TIMEOUT_MS } = {}) =>
+        withReadTimeout(conn.write(words), timeoutMs),
+      ),
+    { deadlineMs },
+  );
 
 // Is a failed poll worth retrying right away? Timeouts and reset connections are
 // weather — a lost SYN, a busy CPU mid-handshake, a jittery WAN link. A rejected
@@ -677,16 +701,21 @@ const openSshSession = async (params) => {
 };
 
 // Opens a session, runs fn(conn), always closes it (both legs for a tunneled
-// session), bounded by a watchdog.
+// session), bounded by a watchdog (default SSH_OP_TIMEOUT_MS; a package
+// download passes its own, longer bound).
 // Returns { result, hostKey } (hostKey is for TOFU pinning by the caller).
-const withSshSession = async (params, fn) => {
+const withSshSession = async (
+  params,
+  fn,
+  { opTimeoutMs = SSH_OP_TIMEOUT_MS } = {},
+) => {
   const { conn, hostKey, close } = await openSshSession(params);
   let watchdogTimer;
   try {
     const watchdog = new Promise((_, reject) => {
       watchdogTimer = setTimeout(
         () => reject(new Error("SSH operation watchdog timeout")),
-        SSH_OP_TIMEOUT_MS,
+        opTimeoutMs,
       );
     });
     const result = await Promise.race([fn(conn), watchdog]);
@@ -852,11 +881,14 @@ module.exports = {
   buildSshParams,
   assertUserNotFullGroup,
   knockDevice,
+  runApiSession,
+  withApiSession,
   pollDevice,
   pollWithRetry,
   isTransientPollError,
   mapPollToFields,
   describeConnectionError,
   withSshSession,
+  sshExec,
   exportConfig,
 };

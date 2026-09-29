@@ -15,6 +15,7 @@ const {
   loadJumpContexts,
   recoverToOnline,
 } = require("./monitorState");
+const { quietUnderUpgrade } = require("./upgradeGuard");
 const logger = require("../../utils/logger");
 
 // How many candidates to re-poll concurrently.
@@ -141,6 +142,12 @@ const runMikrotikOfflineAlerts = async () => {
   // Один запрос: контексты транзитов кандидатов (для подавления и re-poll).
   const jumpContexts = await loadJumpContexts(devices);
 
+  // Под обновлением прошивки заявки о недоступности не создаются.
+  const now = new Date();
+  const byId = new Map(devices.map((device) => [String(device._id), device]));
+  for (const ctx of jumpContexts.values()) byId.set(String(ctx.doc._id), ctx.doc);
+  const candidates = devices.filter((device) => !quietUnderUpgrade(device, byId, now));
+
   const alertIfDown = async (record) => {
     const jumpCtx = record.jumpRecordId
       ? jumpContexts.get(String(record.jumpRecordId))
@@ -168,8 +175,8 @@ const runMikrotikOfflineAlerts = async () => {
     await raiseTicket(record, cfg, prefs);
   };
 
-  for (let i = 0; i < devices.length; i += BATCH_SIZE) {
-    const batch = devices.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+    const batch = candidates.slice(i, i + BATCH_SIZE);
     await Promise.allSettled(batch.map((record) => alertIfDown(record)));
   }
 };

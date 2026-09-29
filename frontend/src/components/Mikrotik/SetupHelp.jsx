@@ -28,8 +28,11 @@ export const genPassword = () => {
   return Array.from(bytes, (n) => alphabet[n % alphabet.length]).join("");
 };
 
-// Least-privilege group policy for the managed user (never full/policy/sensitive).
-const MANAGED_POLICY = "api,read,test,ssh";
+// Группа пользователя HD. С «Обновлением прошивки из HD» — плюс write и reboot
+// (установка пакета и перезагрузка); без — только чтение. Никогда full/policy/
+// sensitive.
+const READ_POLICY = "api,read,test,ssh";
+const UPGRADE_POLICY = "api,read,write,reboot,test,ssh";
 
 // Three distinct random high ports (20000–39999) for the knock sequence.
 const genKnockPorts = () => {
@@ -49,6 +52,7 @@ const buildSetupCommands = ({
   apiPort,
   sshPort,
   knockPorts,
+  upgradeEnabled,
 }) => {
   const commonName = host?.trim() || "<имя-устройства>";
   const login = user?.trim() || "<логин>";
@@ -62,8 +66,12 @@ const buildSetupCommands = ({
 
   if (presets.user) {
     blocks.push(
-      `# Пользователь с минимальными правами (без full/policy/sensitive)
-/user group add name=hd-mgmt policy=${MANAGED_POLICY}
+      upgradeEnabled
+        ? `# Пользователь HD: чтение + обновление прошивки (write, reboot); без full/policy/sensitive
+/user group add name=hd-mgmt policy=${UPGRADE_POLICY}
+/user add name=${login} group=hd-mgmt password="${pass}"`
+        : `# Пользователь с минимальными правами: только чтение (без full/policy/sensitive)
+/user group add name=hd-mgmt policy=${READ_POLICY}
 /user add name=${login} group=hd-mgmt password="${pass}"`,
     );
   }
@@ -124,6 +132,7 @@ const SetupHelp = ({
   knockSequence,
   onChange,
   jumpSelected = false,
+  upgradeEnabled = false,
 }) => {
   const [open, setOpen] = useState(false);
   // Пометки «уже скопировано» — постоянные (прогресс переноса команд в
@@ -174,6 +183,7 @@ const SetupHelp = ({
     apiPort,
     sshPort,
     knockPorts,
+    upgradeEnabled,
   });
 
   const isComment = (line) => line.trimStart().startsWith("#");
@@ -352,6 +362,12 @@ const SetupHelp = ({
             <code className="font-mono">/certificate sign</code> занимает
             ~минуту.
           </div>
+          {upgradeEnabled && effectivePresets.user && (
+            <div className="mt-1 text-xs text-faint">
+              Без «Обновления прошивки из HD» группа получает только{" "}
+              {READ_POLICY}.
+            </div>
+          )}
         </div>
       )}
     </div>

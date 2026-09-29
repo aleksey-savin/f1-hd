@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Mikrotik = require("../../models/mikrotik");
 const MikrotikArtifact = require("../../models/mikrotikArtifact");
 const MikrotikDownloadCode = require("../../models/mikrotikDownloadCode");
+const MikrotikUpgradeJob = require("../../models/mikrotikUpgradeJob");
 const ClientDevice = require("../../models/inventory/clientDevice");
 const DeviceModel = require("../../models/inventory/deviceModel");
 const Vendor = require("../../models/inventory/vendor");
@@ -49,6 +50,10 @@ const {
   loadFirmwareContext,
   evaluateFirmware,
 } = require("../../services/mikrotik/firmware");
+const {
+  upgradeFor,
+  lastUpgradeView,
+} = require("../../services/mikrotik/upgradeView");
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
@@ -415,6 +420,13 @@ const verifyAndBuild = async (body, existing) => {
     // A live poll just succeeded — reset the anti-flap counter. (firstFailureAt is
     // cleared with $unset by the callers: a stored null would freeze its $min.)
     failedPolls: 0,
+    // Переключатель «Обновление прошивки из HD». Нет поля в теле (старый
+    // клиент) — сохраняем прежнее значение.
+    firmwareUpgradeEnabled:
+      body.firmwareUpgradeEnabled === undefined
+        ? Boolean(existing?.firmwareUpgradeEnabled)
+        : body.firmwareUpgradeEnabled === true ||
+          body.firmwareUpgradeEnabled === "true",
   };
 };
 
@@ -468,6 +480,24 @@ const summarizeArtifacts = async (recordIds) => {
     map.set(`${row._id.mikrotik}:${row._id.type}`, row.last);
   }
   return map;
+};
+
+// Идущий пакет обновления прошивки — одна выборка на запрос списка.
+const loadRunningUpgrade = () =>
+  MikrotikUpgradeJob.findOne({ status: "running" }).select("items").lean();
+
+// Последнее завершённое обновление устройства — строка секции «Прошивка».
+const loadLastUpgrade = async (recordId) => {
+  const match = { mikrotik: recordId, state: { $in: ["done", "failed"] } };
+  const job = await MikrotikUpgradeJob.findOne({ items: { $elemMatch: match } })
+    .sort({ createdAt: -1 })
+    .select({ createdBy: 1, items: { $elemMatch: match } })
+    .lean();
+  if (!job) return null;
+  const creator = await User.findById(job.createdBy)
+    .select("firstName lastName")
+    .lean();
+  return lastUpgradeView(job, creator);
 };
 
 const protectionFor = (map, recordId) => ({
@@ -706,6 +736,7 @@ exports.getManagedDevices = async (req, res, next) => {
     // каждой строки — чистое вычисление. Питает индикаторы «доступно обновление»
     // / «опасная уязвимость» у прошивки.
     const firmware = await loadFirmwareContext();
+    const runningUpgrade = await loadRunningUpgrade();
 
     // Имена транзитов для «через <имя>» — по уже загруженным записям, без
     // дополнительных запросов. Карточка, выпавшая из выборки (устройство
@@ -740,6 +771,7 @@ exports.getManagedDevices = async (req, res, next) => {
         uptime30d: stats?.pct ?? null,
         uptimeDays: stats?.days ?? null,
         firmwareStatus: evaluateFirmware(record, firmware),
+        upgrade: upgradeFor(record, runningUpgrade),
       };
     });
 
@@ -780,6 +812,10 @@ exports.getRecordOne = async (req, res, next) => {
     const uptimeStats = await computeUptimeStats([record]);
     const firmware = await loadFirmwareContext();
     const jump = await jumpInfoFor(record);
+    const [runningUpgrade, lastUpgrade] = await Promise.all([
+      loadRunningUpgrade(),
+      loadLastUpgrade(record._id),
+    ]);
 
     const protection = protectionFor(artifactSummary, record._id);
     const stats = uptimeStats.get(String(record._id));
@@ -792,6 +828,8 @@ exports.getRecordOne = async (req, res, next) => {
       uptime30d: stats?.pct ?? null,
       uptimeDays: stats?.days ?? null,
       firmwareStatus: evaluateFirmware(record, firmware),
+      upgrade: upgradeFor(record, runningUpgrade),
+      lastUpgrade,
       record,
       // Стоячее предупреждение о расхождениях карточки с устройством.
       reconciliation: device ? computeReconciliation(device, record) : null,

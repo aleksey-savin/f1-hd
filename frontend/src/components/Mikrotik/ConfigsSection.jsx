@@ -25,7 +25,11 @@ import { formatSchedule } from "./meta";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 import { formatDate } from "../../util/format-date";
 
-const TRIGGER_LABEL = { manual: "вручную", scheduled: "по расписанию" };
+const TRIGGER_LABEL = {
+  manual: "вручную",
+  scheduled: "по расписанию",
+  "pre-upgrade": "перед обновлением",
+};
 const STORAGE_LABEL = { s3: "облако", local: "локально" };
 
 const formatBytes = (bytes) => {

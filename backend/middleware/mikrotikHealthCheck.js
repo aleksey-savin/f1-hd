@@ -10,6 +10,7 @@ const {
   recoverToOnline,
   recordFailure,
 } = require("../services/mikrotik/monitorState");
+const { quietUnderUpgrade } = require("../services/mikrotik/upgradeGuard");
 const logger = require("../utils/logger");
 
 // How many units to poll concurrently per batch. Polling is IO-bound, so this can
@@ -105,10 +106,18 @@ const runMikrotikHealthCheck = async () => {
   // Один запрос на тик: контексты всех уникальных транзитов.
   const jumpContexts = await loadJumpContexts(devices);
 
+  // Устройства под обновлением прошивки и зависимые их транзитов молчат:
+  // перезагрузки — не простой (services/mikrotik/upgradeGuard.js). Транзит мог
+  // не попасть в выборку (мониторинг выключен) — берём его из контекстов.
+  const now = new Date();
+  const byId = new Map(devices.map((device) => [String(device._id), device]));
+  for (const ctx of jumpContexts.values()) byId.set(String(ctx.doc._id), ctx.doc);
+  const active = devices.filter((device) => !quietUnderUpgrade(device, byId, now));
+
   // Direct devices are units of one; dependents are grouped per router.
   const unitByRouter = new Map();
   const units = [];
-  for (const device of devices) {
+  for (const device of active) {
     if (!device.jumpRecordId) {
       units.push([device]);
       continue;

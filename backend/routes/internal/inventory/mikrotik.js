@@ -1,11 +1,13 @@
 const Router = require("express");
 const router = new Router();
 const mikrotikController = require("@/controllers/inventory/mikrotik");
+const upgradeController = require("@/controllers/inventory/mikrotikUpgrade");
 const isAuth = require("@/middleware/isAuth");
 const {
   canManageDevices,
   canManageMikrotik,
   canManageMikrotikConfigs,
+  canUpgradeMikrotikFirmware,
 } = require("@/middleware/permissions");
 const rateLimit = require("express-rate-limit");
 
@@ -47,6 +49,38 @@ router.get(
   "/mikrotik-devices/firmware/releases",
   isAuth,
   mikrotikController.getFirmwareReleases,
+);
+// --- Firmware upgrade batches (services/mikrotik/upgradeWorker.js). Starting
+// one reboots client routers — its own permission, throttled per user. ---
+router.post(
+  "/mikrotik-devices/upgrades/plan",
+  isAuth,
+  canUpgradeMikrotikFirmware,
+  parametersLimiter,
+  upgradeController.planUpgrades,
+);
+router.post(
+  "/mikrotik-devices/upgrades",
+  isAuth,
+  canUpgradeMikrotikFirmware,
+  parametersLimiter,
+  upgradeController.createUpgrades,
+);
+router.get(
+  "/mikrotik-devices/upgrades/current",
+  isAuth,
+  upgradeController.getCurrentUpgrade,
+);
+router.get(
+  "/mikrotik-devices/upgrades/:jobId",
+  isAuth,
+  upgradeController.getUpgrade,
+);
+router.post(
+  "/mikrotik-devices/upgrades/:jobId/cancel",
+  isAuth,
+  canUpgradeMikrotikFirmware,
+  upgradeController.cancelUpgrade,
 );
 // --- Standalone device (no inventory ClientDevice, e.g. Cloud Hosted Router):
 // заводится тем же мастером, дальше живёт как обычная запись. ---

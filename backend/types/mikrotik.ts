@@ -72,6 +72,8 @@ export interface IMikrotik {
   // Anti-flap: consecutive failed poll cycles and the candidate loss edge.
   failedPolls: number;
   firstFailureAt?: Date;
+  firmwareUpgradeEnabled?: boolean;
+  upgrade?: { jobId?: Types.ObjectId; since?: Date };
   schedules?: {
     backup?: IMikrotikSchedule;
     export?: IMikrotikSchedule;

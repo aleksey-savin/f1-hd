@@ -426,6 +426,12 @@ const GROUPS = [
         audience: "staff",
         hint: "Резервные копии, выгрузки и расписания.",
       },
+      {
+        id: "mikrotik.upgradeFirmware",
+        label: "Обновлять прошивку Mikrotik",
+        audience: "staff",
+        hint: "Перезагружает устройства клиентов.",
+      },
     ],
   },
   {

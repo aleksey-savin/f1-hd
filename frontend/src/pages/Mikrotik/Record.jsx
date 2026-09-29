@@ -21,7 +21,6 @@ import {
   RiPauseCircleLine,
   RiPlayCircleLine,
   RiPulseLine,
-  RiShieldFlashLine,
   RiTerminalBoxLine,
   RiTimeLine,
   RiUserLine,
@@ -46,6 +45,7 @@ import useToastStore from "@/store/toast-store";
 import ConfirmDialog from "../../components/Mikrotik/ConfirmDialog";
 import AvailabilitySection from "../../components/Mikrotik/AvailabilitySection";
 import ConfigsSection from "../../components/Mikrotik/ConfigsSection";
+import FirmwareSection from "../../components/Mikrotik/FirmwareSection";
 import {
   DeviceTile,
   STATUS_META,
@@ -258,6 +258,7 @@ const MikrotikRecordPage = () => {
   const can = useCan();
   const canManage = can({ mikrotik: ["manage"] });
   const canManageConfigs = can({ mikrotik: ["manageConfigs"] });
+  const canUpgrade = can({ mikrotik: ["upgradeFirmware"] });
 
   const connectRecord = useMikrotikDeviceFilterStore(
     (state) => state.connectRecord,
@@ -287,7 +288,6 @@ const MikrotikRecordPage = () => {
 
   const status = rowStatus(row);
   const statusMeta = STATUS_META[status] || STATUS_META.offline;
-  const firmware = row.firmwareStatus;
   const activeAddresses = (row.addresses || []).filter(
     (address) => address.disabled === "false",
   );
@@ -554,76 +554,12 @@ const MikrotikRecordPage = () => {
             </div>
           </Panel>
 
-          {/* ── Прошивка и безопасность ── */}
-          <Eyebrow id="firmware">Прошивка и безопасность</Eyebrow>
-          <Panel>
-            <div className="text-base">
-              <span className="font-mono font-semibold">
-                RouterOS {firmware?.installedVersion || row.currentFirmware || "—"}
-              </span>
-              {firmware?.channel && (
-                <span className="text-faint"> · ветка {firmware.channel}</span>
-              )}
-            </div>
-            {firmware?.vulnerable ? (
-              <>
-                <div className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-warning">
-                  <RiShieldFlashLine size={15} aria-hidden />
-                  {firmware.cves.length === 1
-                    ? "1 уязвимость"
-                    : `Уязвимости: ${firmware.cves.length}`}{" "}
-                  · исправлены в {firmware.latestVersion}
-                </div>
-                <div className="mt-1.5">
-                  {firmware.cves.map((cve) => (
-                    <div
-                      key={cve.id}
-                      className="flex items-baseline gap-2.5 border-t border-border-soft py-1.5 text-sm first:border-t-0 max-md:flex-wrap max-md:gap-y-0.5 max-md:py-2"
-                    >
-                      <span className="flex-none font-mono">{cve.id}</span>
-                      <span
-                        className={cn(
-                          "flex-none font-semibold whitespace-nowrap",
-                          cve.score >= 9 ? "text-destructive" : "text-warning",
-                        )}
-                      >
-                        {cve.score} {cve.severity?.toLowerCase()}
-                      </span>
-                      {/* Телефон: описание своей строкой, до двух строк */}
-                      <span className="min-w-0 text-muted-foreground max-md:line-clamp-2 max-md:basis-full md:truncate">
-                        {cve.description}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : firmware?.updateAvailable ? (
-              <div className="mt-1.5 text-sm text-muted-foreground">
-                Доступно обновление до{" "}
-                <span className="font-mono font-semibold text-foreground">
-                  {firmware.latestVersion}
-                </span>{" "}
-                ·{" "}
-                <a
-                  href="https://mikrotik.com/download/changelogs"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-medium text-accent-text no-underline hover:underline"
-                >
-                  changelog
-                </a>
-              </div>
-            ) : firmware ? (
-              <div className="mt-1.5 text-sm text-faint">
-                Актуальная версия ветки. Известных уязвимостей ≥ порога из
-                настроек нет.
-              </div>
-            ) : (
-              <div className="mt-1.5 text-sm text-faint">
-                Версия прошивки ещё не считана.
-              </div>
-            )}
-          </Panel>
+          {/* ── Прошивка и безопасность (версии, CVE, обновление из HD) ── */}
+          <FirmwareSection
+            row={row}
+            canUpgrade={canUpgrade}
+            canManage={canManage}
+          />
 
           {/* ── Доступность ── */}
           <AvailabilitySection recordId={row.recordId} />

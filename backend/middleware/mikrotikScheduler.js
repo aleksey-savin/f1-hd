@@ -5,6 +5,7 @@ const Preferences = require("../models/preferences");
 const { mikrotikEnabled } = require("../services/mikrotik/enabled");
 const { createArtifact } = require("../services/mikrotik/artifacts");
 const { computeNextRun } = require("../services/mikrotik/schedule");
+const { isUpgrading } = require("../services/mikrotik/upgradeGuard");
 const logger = require("../utils/logger");
 
 // How many devices to process concurrently per batch.
@@ -70,9 +71,11 @@ const runMikrotikScheduler = async () => {
     return;
   }
 
-  const records = await Mikrotik.find({
-    "schedules.export.frequency": { $in: ACTIVE_FREQUENCIES },
-  });
+  const records = (
+    await Mikrotik.find({
+      "schedules.export.frequency": { $in: ACTIVE_FREQUENCIES },
+    })
+  ).filter((record) => !isUpgrading(record));
   if (records.length === 0) {
     return;
   }

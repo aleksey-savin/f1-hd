@@ -116,8 +116,8 @@ is safe to repeat after a restart:
 | Step | What happens | Next / failure |
 |---|---|---|
 | export | `createArtifact(record, { trigger: "pre-upgrade", userId })` | fail → item failed, device untouched |
-| channel | only when `item.channel` differs from the device's channel: `/system/package/update/set channel=…` | — |
-| check | `check-for-updates`, read `/system/package/update/print` (`installed-version`, `latest-version`, `status`) | no newer version → skip to routerboot |
+| channel | always `/system/package/update/set channel=…` (idempotent; the device's configured update channel can differ from its build's branch) | — |
+| check | `check-for-updates`, then re-read `/system/package/update/print` until the status is final (`installed-version`, `latest-version`, `status`) | no newer version → skip to routerboot; missing `latest-version`, a non-final status or a different reported channel → failed |
 | download | `/system package update download`, wait for «Downloaded» (bound: 10 min) | no internet / timeout → failed |
 | reboot | stamp `rebootRequestedAt` **first**, then `/system/reboot` (the dropped session is expected) | — |
 | wait | each tick: a light poll; online and version = target → next | 10 min without an answer → failed **and batch stopped**; answers with the old version → failed |

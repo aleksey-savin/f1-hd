@@ -10,6 +10,7 @@ import {
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,9 +32,11 @@ import {
   formatUptime,
   uptimeToneClass,
 } from "./meta";
+import { rowUpgradeView } from "./upgrade-format.js";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
 } from "../../store/lists/mikrotik-devices";
+import { formatTime } from "../../util/format-date";
 
 // Строка борда мониторинга — жёсткие колонки: плитка с live-точкой · имя + мета
 // · хост · прошивка · доступность (лента 30 дней) · статус · гнездо «⋯».
@@ -51,7 +54,15 @@ import useMikrotikDeviceFilterStore, {
 // мониторинг, удалить (диалог — вне radix-меню, иначе размонтируется вместе с
 // ним). На телефоне гнезда нет: правка и удаление живут на странице записи,
 // куда ведёт тап; колонки добираются с md/lg.
-const DeviceRow = ({ row, canManage }) => {
+const DeviceRow = ({
+  row,
+  canManage,
+  selectionActive = false,
+  isSelected = false,
+  onToggle,
+  pressProps,
+  consumeSuppressedClick,
+}) => {
   const navigate = useNavigate();
   const showToast = useToastStore((state) => state.showToast);
   const connectRecord = useMikrotikDeviceFilterStore(
@@ -128,20 +139,54 @@ const DeviceRow = ({ row, canManage }) => {
     }
   };
 
+  // Режим выбора (hooks/use-list-selection): клик по строке выбирает, а не
+  // открывает запись; долгий тап на телефоне включает режим.
+  const handleLinkClick = (event) => {
+    if (consumeSuppressedClick?.()) {
+      event.preventDefault();
+      return;
+    }
+    if (selectionActive) {
+      event.preventDefault();
+      onToggle?.(row.recordId, { range: event.shiftKey });
+    }
+  };
+
+  // Строка во время пакета обновления (макет, экран 3): «Обновляется» со
+  // шагом, «в очереди», «обновлено в HH:MM», «не обновлено». После пакета —
+  // обычная строка.
+  const upgradeView = rowUpgradeView(row.upgrade);
+
   return (
     <div
       className={cn(
-        "group relative flex items-center transition-colors",
-        // Разделитель — от правого края плитки (20 + 48 + 16), как у любой
-        // строки с плиткой
-        "before:absolute before:top-0 before:right-5 before:left-21 before:h-px before:bg-border-soft first:before:hidden",
-        "hover:bg-accent/60",
+        "longpress-target group relative flex items-center transition-colors",
+        // Разделитель — от правого края плитки (20 + 48 + 16), в режиме выбора —
+        // ещё на 32 px правее (строка сдвигается под чекбокс)
+        "before:absolute before:top-0 before:right-5 before:h-px before:bg-border-soft first:before:hidden",
+        selectionActive ? "before:left-29" : "before:left-21",
+        isSelected ? "bg-primary/10" : "hover:bg-accent/60",
         dimmed && "opacity-70",
       )}
+      {...(pressProps || {})}
     >
+      {selectionActive && (
+        <Checkbox
+          checked={isSelected}
+          aria-label={`Выбрать ${row.displayName}`}
+          onClick={(event) =>
+            onToggle?.(row.recordId, { range: event.shiftKey })
+          }
+          className="absolute start-4 top-1/2 z-10 -translate-y-1/2 md:start-5"
+        />
+      )}
       <Link
         to={`/devices/mikrotik/records/${row.recordId}`}
-        className="flex min-w-0 flex-1 items-center gap-4 py-3 ps-5 pe-5 text-foreground no-underline outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 md:pe-0"
+        onClick={handleLinkClick}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-4 py-3 pe-5 text-foreground no-underline outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 md:pe-0",
+          selectionActive ? "ps-13" : "ps-5",
+        )}
       >
         <DeviceTile row={row} />
 
@@ -157,24 +202,49 @@ const DeviceRow = ({ row, canManage }) => {
               статуса (иначе фильтр «отстают» на телефоне нечем проверить);
               актуальная прошивка ничего не добавляет */}
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5 whitespace-nowrap md:hidden">
-            <DeviceStatusText tone={statusMeta.tone}>
-              {statusMeta.label}
-            </DeviceStatusText>
+            {upgradeView?.kind === "running" ? (
+              <DeviceStatusText tone="info" className="text-info-text">
+                Обновляется
+              </DeviceStatusText>
+            ) : (
+              <DeviceStatusText tone={statusMeta.tone}>
+                {statusMeta.label}
+              </DeviceStatusText>
+            )}
+            {upgradeView?.kind === "running" && (
+              <span className="text-xs text-muted-foreground">
+                · {upgradeView.sub}
+              </span>
+            )}
+            {upgradeView?.kind === "queued" && (
+              <span className="text-xs text-faint">· в очереди</span>
+            )}
+            {upgradeView?.kind === "done" && (
+              <span className="text-xs text-faint">
+                · обновлено до {installedVersion}
+              </span>
+            )}
+            {upgradeView?.kind === "failed" && (
+              <span className="text-xs font-semibold text-destructive">
+                · не обновлено
+              </span>
+            )}
             {offlineFor && (
               <span className="text-xs text-muted-foreground">
                 · {offlineFor}
               </span>
             )}
-            {firmware?.vulnerable ? (
-              <span className="flex items-center gap-1 text-xs font-semibold text-warning">
-                · <RiShieldFlashLine size={12} aria-hidden />
-                уязвимость
-              </span>
-            ) : firmware?.updateAvailable && installedVersion ? (
-              <span className="min-w-0 truncate font-mono text-xs text-faint">
-                · {installedVersion} → {firmware.latestVersion}
-              </span>
-            ) : null}
+            {!upgradeView &&
+              (firmware?.vulnerable ? (
+                <span className="flex items-center gap-1 text-xs font-semibold text-warning">
+                  · <RiShieldFlashLine size={12} aria-hidden />
+                  уязвимость
+                </span>
+              ) : firmware?.updateAvailable && installedVersion ? (
+                <span className="min-w-0 truncate font-mono text-xs text-faint">
+                  · {installedVersion} → {firmware.latestVersion}
+                </span>
+              ) : null)}
           </span>
         </span>
 
@@ -193,7 +263,15 @@ const DeviceRow = ({ row, canManage }) => {
           <span className="block truncate font-mono text-sm">
             {installedVersion || <span className="text-faint">—</span>}
           </span>
-          {firmware?.vulnerable ? (
+          {upgradeView?.kind === "done" ? (
+            <span className="block truncate text-xs text-faint">
+              обновлено в {formatTime(upgradeView.finishedAt)}
+            </span>
+          ) : upgradeView?.kind === "failed" ? (
+            <span className="block truncate text-xs font-semibold text-destructive">
+              не обновлено
+            </span>
+          ) : firmware?.vulnerable ? (
             <span className="flex items-center gap-1 text-xs font-semibold text-warning">
               <RiShieldFlashLine size={12} aria-hidden />
               уязвимость
@@ -227,13 +305,29 @@ const DeviceRow = ({ row, canManage }) => {
         {/* Статус — тихим форматом; длительность офлайна под словом,
             с отступом на точку и зазор */}
         <span className="hidden w-32 flex-none md:block">
-          <DeviceStatusText tone={statusMeta.tone} className="text-sm">
-            {statusMeta.label}
-          </DeviceStatusText>
-          {offlineFor && (
-            <span className="block ps-3 text-xs text-muted-foreground">
-              {offlineFor}
-            </span>
+          {upgradeView?.kind === "running" ? (
+            <>
+              <DeviceStatusText tone="info" className="text-sm text-info-text">
+                Обновляется
+              </DeviceStatusText>
+              <span className="block ps-3 text-xs text-muted-foreground">
+                {upgradeView.sub}
+              </span>
+            </>
+          ) : (
+            <>
+              <DeviceStatusText tone={statusMeta.tone} className="text-sm">
+                {statusMeta.label}
+              </DeviceStatusText>
+              {offlineFor && (
+                <span className="block ps-3 text-xs text-muted-foreground">
+                  {offlineFor}
+                </span>
+              )}
+              {upgradeView?.kind === "queued" && (
+                <span className="block ps-3 text-xs text-faint">в очереди</span>
+              )}
+            </>
           )}
         </span>
       </Link>

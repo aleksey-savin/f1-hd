@@ -453,6 +453,10 @@ module.exports.canManageMikrotikConfigs = requirePermission(
   { mikrotik: ["manageConfigs"] },
   "Недостаточно прав для управления резервными копиями конфигураций Mikrotik",
 );
+module.exports.canUpgradeMikrotikFirmware = requirePermission(
+  { mikrotik: ["upgradeFirmware"] },
+  "Недостаточно прав для обновления прошивки Mikrotik",
+);
 
 // --- удалённая помощь и настройки ----------------------------------------
 
