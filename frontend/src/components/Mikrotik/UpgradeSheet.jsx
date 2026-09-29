@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { isMobile } from "react-device-detect";
 import {
   RiCheckLine,
@@ -23,12 +23,15 @@ import { plural } from "../../util/plural";
 import FixCommand from "./FixCommand";
 import {
   VISIBLE_STEPS,
-  WAIT_LIMIT_MS,
   channelModeLabel,
   currentItem,
   formatClock,
+  legCount,
+  legLabel,
+  pathView,
   stepIndex,
   versionLine,
+  waitLimitMs,
 } from "./upgrade-format.js";
 import useUpgradeClock from "./use-upgrade-clock.js";
 
@@ -90,7 +93,7 @@ const RunningSteps = ({ item, now }) => {
           {index === current && waiting && item.rebootRequestedAt && (
             <span className="text-xs text-faint tabular-nums">
               {formatClock(now - new Date(item.rebootRequestedAt).getTime())} из{" "}
-              {formatClock(WAIT_LIMIT_MS)}
+              {formatClock(waitLimitMs(item))}
             </span>
           )}
         </div>
@@ -98,6 +101,29 @@ const RunningSteps = ({ item, now }) => {
     </div>
   );
 };
+
+// Путь версий элемента с переходами (RouterOS 6 → 7): пройденные — приглушённые
+// с галочкой, текущая цель — в тоне info, будущие — бледные.
+const PathLine = ({ item }) => (
+  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+    {pathView(item).map((entry, index) => (
+      <Fragment key={`${index}-${entry.version}`}>
+        {index > 0 && <span className="text-faint">→</span>}
+        <span
+          className={cn(
+            "font-mono",
+            entry.state === "done" && "text-muted-foreground",
+            entry.state === "now" && "font-semibold text-info-text",
+            entry.state === "todo" && "text-faint",
+          )}
+        >
+          {entry.version}
+          {entry.state === "done" && index > 0 ? " ✓" : ""}
+        </span>
+      </Fragment>
+    ))}
+  </div>
+);
 
 // Ход пакета обновления (макет, экраны 4 и «Телефон · 4»): справа на десктопе,
 // снизу на телефоне. «Остановить после текущего» не прерывает перезагрузку.
@@ -155,6 +181,7 @@ const UpgradeSheet = ({ job, open, onOpenChange, canCancel }) => {
               ? `Запустил ${job.createdBy.name} в ${formatTime(job.createdAt)} · `
               : ""}
             {channelModeLabel(job.channelMode)}
+            {job.toV7 ? " · с переходом на RouterOS 7" : ""}
           </SheetDescription>
           <div className="mt-3.5 flex items-center gap-3">
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
@@ -197,7 +224,12 @@ const UpgradeSheet = ({ job, open, onOpenChange, canCancel }) => {
                     )}
                   >
                     {item.state === "running"
-                      ? `шаг ${stepIndex(item.step) + 1} из ${VISIBLE_STEPS.length}`
+                      ? [
+                          legLabel(item),
+                          `шаг ${stepIndex(item.step) + 1} из ${VISIBLE_STEPS.length}`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
                       : item.state === "queued"
                         ? "в очереди"
                         : item.finishedAt
@@ -205,11 +237,15 @@ const UpgradeSheet = ({ job, open, onOpenChange, canCancel }) => {
                           : ""}
                   </span>
                 </div>
-                {item.state !== "failed" && item.state !== "skipped" && (
-                  <div className="mt-0.5 font-mono text-xs text-muted-foreground">
-                    {versionLine(item)}
-                  </div>
-                )}
+                {item.state !== "failed" &&
+                  item.state !== "skipped" &&
+                  (legCount(item) > 1 ? (
+                    <PathLine item={item} />
+                  ) : (
+                    <div className="mt-0.5 font-mono text-xs text-muted-foreground">
+                      {versionLine(item)}
+                    </div>
+                  ))}
                 {item.state === "running" && (
                   <RunningSteps item={item} now={now} />
                 )}

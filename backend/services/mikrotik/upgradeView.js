@@ -6,20 +6,30 @@ const LOG_TAIL = 20;
 const userName = (user) =>
   user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || "—" : "—";
 
-const publicPlan = ({ items, skipped }) => ({
+const publicPlan = ({ items, skipped, hasV6 = false }) => ({
   items: items.map((item) => ({
     recordId: item.mikrotik,
     name: item.name,
     channel: item.channel,
     fromVersion: item.fromVersion,
     toVersion: item.toVersion,
+    legs: item.legs,
+    via: item.via,
+    majorUpgrade: item.majorUpgrade,
   })),
   skipped: skipped.map((entry) => ({
     recordId: entry.mikrotik,
     name: entry.name,
     reason: entry.reason,
   })),
+  hasV6,
 });
+
+// Items written before legs existed: Mongoose reads their `legs`/`path` as
+// empty arrays, not undefined — a single leg on the item's channel.
+const itemLegs = (item) => (item.legs?.length ? item.legs : [item.channel]);
+const itemPath = (item) =>
+  item.path?.length ? item.path : [item.from?.os, item.to?.os].filter(Boolean);
 
 const FINISHED = new Set(["done", "failed", "skipped"]);
 
@@ -29,6 +39,7 @@ const publicJob = (job, creator) => {
     id: job._id,
     status: job.status,
     channelMode: job.channelMode,
+    toV7: Boolean(job.toV7),
     createdBy: creator ? { id: creator._id, name: userName(creator) } : null,
     createdAt: job.createdAt,
     finishedAt: job.finishedAt || null,
@@ -46,6 +57,10 @@ const publicJob = (job, creator) => {
       recordId: item.mikrotik,
       name: item.name,
       channel: item.channel,
+      legs: itemLegs(item),
+      leg: item.leg ?? 0,
+      hopTo: item.hopTo || null,
+      path: itemPath(item),
       state: item.state,
       step: item.step || null,
       stepStartedAt: item.stepStartedAt || null,

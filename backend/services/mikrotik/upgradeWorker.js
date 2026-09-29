@@ -43,6 +43,17 @@ const clearDeviceFlag = (mikrotikId, jobId) =>
     { $unset: { upgrade: "" } },
   );
 
+// A patch that moves the leg cursor starts a new hop (RouterOS 6 → 7). Pure — tested.
+const startsNewLeg = (set) => Number.isInteger(set?.leg);
+
+// Monitoring ignores an `upgrade` flag older than STALE_UPGRADE_MS (90 min); a
+// three-leg item can run longer than that, so every new leg re-stamps `since`.
+const refreshDeviceFlag = (mikrotikId, jobId, now) =>
+  Mikrotik.updateOne(
+    { _id: mikrotikId, "upgrade.jobId": jobId },
+    { $set: { "upgrade.since": now } },
+  );
+
 // Close the batch: whatever is still queued becomes skipped. Then refresh the
 // vulnerability ticket at once (upgraded devices leave its checklist).
 const finishJob = async (job, status, { stopReason, skipText }, now) => {
@@ -120,6 +131,7 @@ const runUpgradeTick = async ({ deps = deviceOps, clock = () => new Date() } = {
   if (!patch) return;
 
   await applyItemPatch(job._id, item._id, patch.set, patch.log, now);
+  if (startsNewLeg(patch.set)) await refreshDeviceFlag(item.mikrotik, job._id, now);
   if (patch.set.state === "done" || patch.set.state === "failed") {
     await clearDeviceFlag(item.mikrotik, job._id);
     logger.log(patch.set.state === "done" ? "info" : "warn", "Mikrotik upgrade item finished", {
@@ -134,4 +146,4 @@ const runUpgradeTick = async ({ deps = deviceOps, clock = () => new Date() } = {
   }
 };
 
-module.exports = { runUpgradeTick, nextAction };
+module.exports = { runUpgradeTick, nextAction, startsNewLeg };

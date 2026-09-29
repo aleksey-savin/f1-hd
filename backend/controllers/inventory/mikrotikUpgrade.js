@@ -36,14 +36,16 @@ const parseBody = (body) => {
   if (!ids.every((id) => mongoose.isValidObjectId(id))) {
     throw new AppError("Некорректный идентификатор устройства", 422);
   }
-  return { ids, channel };
+  // «Перейти на RouterOS 7»: only an explicit true — v6 devices then get the
+  // multi-leg plan (services/mikrotik/upgradePlan.js); v7 devices are unaffected.
+  return { ids, channel, toV7: body?.toV7 === true };
 };
 
-const buildPlan = async ({ ids, channel }) => {
+const buildPlan = async ({ ids, channel, toV7 }) => {
   const [records, firmware, running] = await Promise.all([
     Mikrotik.find({ _id: { $in: ids } })
       .select(
-        "name label credentials.host firmwareUpgradeEnabled monitoringEnabled status currentFirmware jumpRecordId",
+        "name label credentials.host firmwareUpgradeEnabled monitoringEnabled status currentFirmware totalMemory jumpRecordId",
       )
       .lean(),
     loadFirmwareContext(),
@@ -62,6 +64,7 @@ const buildPlan = async ({ ids, channel }) => {
       channelMode: channel,
       releases: firmware.releases,
       busyIds,
+      toV7,
     }),
     running,
   };
@@ -95,11 +98,15 @@ exports.createUpgrades = async (req, res, next) => {
     try {
       job = await MikrotikUpgradeJob.create({
         channelMode: input.channel,
+        toV7: input.toV7,
         createdBy: req.userId,
         items: plan.items.map((item) => ({
           mikrotik: item.mikrotik,
           name: item.name,
           channel: item.channel,
+          legs: item.legs,
+          leg: 0,
+          path: [item.fromVersion, ...item.via, item.toVersion],
           from: { os: item.fromVersion },
           to: { os: item.toVersion },
         })),
@@ -113,6 +120,7 @@ exports.createUpgrades = async (req, res, next) => {
       actor: req.userId,
       jobId: job._id,
       channel: input.channel,
+      toV7: input.toV7,
       items: plan.items.length,
       skipped: plan.skipped.length,
       ip: req.ip,

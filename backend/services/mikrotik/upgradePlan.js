@@ -1,5 +1,5 @@
 const { parseFirmware, compareVersions } = require("./firmware");
-const { CHANNEL_MODES } = require("./upgradeConstants");
+const { CHANNEL_MODES, V7_MIN_MEMORY } = require("./upgradeConstants");
 
 // Firmware upgrade planning — pure: who is upgraded to what, who is skipped and
 // why (shown as is in the confirmation dialog), and in which order.
@@ -21,7 +21,42 @@ const branchKey = (parsed, channel) =>
 const recordName = (record) =>
   record.name || record.label || record.credentials?.host || "устройство Mikrotik";
 
-const verdictFor = (record, { channelMode, releases, busyIds }) => {
+const MIB = 1024 * 1024;
+
+// RouterOS 6 → 7, the way MikroTik does it: the latest v6 of the device's own
+// branch first, then check-for-updates on the `upgrade` channel (lands on some
+// v7 build), then the chosen v7 branch to its latest. `via` is what the dialog
+// shows between from and to; the version the `upgrade` leg lands on is not
+// known in advance, hence «7.x».
+const majorVerdict = (record, parsed, { channelMode, releases }) => {
+  if (!record.totalMemory) {
+    return { reason: "объём памяти ещё не считан — повторите через 5 минут" };
+  }
+  if (record.totalMemory < V7_MIN_MEMORY) {
+    return {
+      reason: `мало памяти для RouterOS 7 (${Math.round(record.totalMemory / MIB)} МБ)`,
+    };
+  }
+  const channel = targetChannel(channelMode, parsed);
+  const toVersion = releases.get(`7.${channel}`)?.version;
+  if (!toVersion) return { reason: `нет данных о версиях ветки ${channel}` };
+
+  const v6Channel = parsed.channel === "long-term" ? "long-term" : "stable";
+  const v6Latest = releases.get(`6.${v6Channel}`)?.version;
+  const needsV6 = Boolean(v6Latest) && compareVersions(v6Latest, parsed.version) > 0;
+  return {
+    plan: {
+      channel,
+      fromVersion: parsed.version,
+      toVersion,
+      legs: [...(needsV6 ? [v6Channel] : []), "upgrade", channel],
+      via: [...(needsV6 ? [v6Latest] : []), "7.x"],
+      majorUpgrade: true,
+    },
+  };
+};
+
+const verdictFor = (record, { channelMode, releases, busyIds, toV7 }) => {
   if (!record.firmwareUpgradeEnabled) return { reason: "обновление из HD выключено" };
   if (!record.monitoringEnabled) return { reason: "мониторинг выключен" };
   if (record.status !== "online") return { reason: "не в сети" };
@@ -30,6 +65,10 @@ const verdictFor = (record, { channelMode, releases, busyIds }) => {
   const parsed = parseFirmware(record.currentFirmware);
   if (!parsed) return { reason: "версия прошивки ещё не считана" };
 
+  if (toV7 && parsed.major <= 6) {
+    return majorVerdict(record, parsed, { channelMode, releases });
+  }
+
   const channel = targetChannel(channelMode, parsed);
   const latest = releases.get(branchKey(parsed, channel))?.version;
   if (!latest) return { reason: `нет данных о версиях ветки ${channel}` };
@@ -37,7 +76,16 @@ const verdictFor = (record, { channelMode, releases, busyIds }) => {
   const cmp = compareVersions(latest, parsed.version);
   if (cmp < 0) return { reason: `это откат с ${parsed.version} на ${latest}` };
   if (cmp === 0) return { reason: "уже актуальна" };
-  return { plan: { channel, fromVersion: parsed.version, toVersion: latest } };
+  return {
+    plan: {
+      channel,
+      fromVersion: parsed.version,
+      toVersion: latest,
+      legs: [channel],
+      via: [],
+      majorUpgrade: false,
+    },
+  };
 };
 
 // Devices behind a transit router go before it: upgrading the router first
@@ -56,7 +104,18 @@ const orderItems = (items, recordsById) => {
   );
 };
 
-const planUpgrade = ({ records, channelMode, releases, busyIds = new Set() }) => {
+const isV6 = (record) => {
+  const parsed = parseFirmware(record.currentFirmware);
+  return Boolean(parsed) && parsed.major <= 6;
+};
+
+const planUpgrade = ({
+  records,
+  channelMode,
+  releases,
+  busyIds = new Set(),
+  toV7 = false,
+}) => {
   if (!CHANNEL_MODES.includes(channelMode)) {
     throw new Error(`unknown channel mode ${channelMode}`);
   }
@@ -64,7 +123,7 @@ const planUpgrade = ({ records, channelMode, releases, busyIds = new Set() }) =>
   const skipped = [];
   for (const record of records) {
     const name = recordName(record);
-    const verdict = verdictFor(record, { channelMode, releases, busyIds });
+    const verdict = verdictFor(record, { channelMode, releases, busyIds, toV7 });
     if (verdict.reason) {
       skipped.push({ mikrotik: record._id, name, reason: verdict.reason });
     } else {
@@ -75,6 +134,9 @@ const planUpgrade = ({ records, channelMode, releases, busyIds = new Set() }) =>
   return {
     items: orderItems(items, recordsById),
     skipped: skipped.sort((a, b) => a.name.localeCompare(b.name, "ru")),
+    // Drives the «Перейти на RouterOS 7» checkbox: any of the given devices,
+    // eligible or not, is still on v6.
+    hasV6: records.some(isV6),
   };
 };
 

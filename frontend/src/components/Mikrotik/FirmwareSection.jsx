@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import {
   RiArrowUpCircleLine,
@@ -10,6 +10,7 @@ import {
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Panel, Eyebrow } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
 import { cn } from "@/lib/utils";
@@ -22,8 +23,11 @@ import UpgradeSheet from "./UpgradeSheet";
 import {
   VISIBLE_STEPS,
   branchTargets,
+  compareVersions,
+  installsLabel,
   stepIndex,
   stepPhrase,
+  v7Option,
   versionLine,
 } from "./upgrade-format.js";
 import useUpgradeClock from "./use-upgrade-clock.js";
@@ -73,6 +77,10 @@ const StepBar = ({ current }) => (
 // версии и CVE как раньше, плюс обновление из HD — ветка (текущая отмечена,
 // откат погашен), «Обновить до X», ход, результат, ошибка с командой, или
 // подсказка включить обновление в параметрах. Без права — только версии и CVE.
+// Устройство на RouterOS 6 получает чекбокс «Перейти на RouterOS 7» (макет
+// «Переход с RouterOS 6 на 7», борд 9 и «Телефон · 8»): ветки становятся
+// ветками семёрки, путь — через последнюю шестёрку и «7.x». Ряд действий
+// показывается и на последней шестёрке (обновления внутри v6 нет, переход есть).
 const FirmwareSection = ({ row, canUpgrade, canManage }) => {
   const releases = useMikrotikDeviceFilterStore((state) => state.releases);
   const fetchReleases = useMikrotikDeviceFilterStore(
@@ -91,9 +99,15 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
   const inBatch = upgrade?.state === "running" || upgrade?.state === "queued";
 
   const targets = branchTargets({ firmwareStatus: firmware, releases });
+  const v7 = v7Option({
+    firmwareStatus: firmware,
+    releases,
+    totalMemory: row.totalMemory,
+  });
   const [channel, setChannel] = useState(
     firmware?.channel === "stable" ? "stable" : "long-term",
   );
+  const [toV7, setToV7] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const now = useUpgradeClock(upgrade?.state === "running");
@@ -120,7 +134,11 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
       ? `RouterOS ${runningItem.from.os} → ${runningItem.to.os}`
       : `RouterOS ${firmware?.installedVersion || row.currentFirmware || "—"}`;
 
-  const target = targets.find((entry) => entry.channel === channel);
+  // Переход на RouterOS 7 включён: ветка и цель — семёрки, а не своей ветки.
+  const useV7 = Boolean(v7?.available && toV7);
+  const v6Target = targets.find((entry) => entry.channel === channel);
+  const v7Target = v7?.targets.find((entry) => entry.channel === channel);
+  const target = useV7 ? v7Target : v6Target;
   // Идёт чужой пакет (это устройство не в нём): сервер ответит 409 — не даём
   // дойти до него.
   const otherUpgradeRunning = Boolean(currentUpgrade) && !inBatch;
@@ -129,77 +147,193 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
     upgrade?.enabled &&
     !inBatch &&
     !otherUpgradeRunning &&
-    target?.version &&
-    !target.downgrade &&
-    !target.upToDate;
+    (useV7
+      ? Boolean(v7Target?.version)
+      : v6Target?.version && !v6Target.downgrade && !v6Target.upToDate);
   const offline = row.status !== "online" || !row.monitoringEnabled;
 
   // Стабильный список для диалога: новый `[id]` на каждом рендере (тихая
   // ревалидация по пульсу) перезапускал бы его эффект плана.
   const recordIds = useMemo(() => [row.recordId], [row.recordId]);
 
-  const segmentOptions = targets.map((entry) => ({
-    value: entry.channel,
-    label: entry.current ? `${entry.channel} · текущая` : entry.channel,
-    disabled: entry.downgrade,
-    title: entry.downgrade
-      ? `Это откат с ${firmware.installedVersion} на ${entry.version} — из HD не делается`
-      : undefined,
-  }));
+  const segmentOptions = useV7
+    ? v7.targets.map((entry) => ({
+        value: entry.channel,
+        label: entry.channel,
+        disabled: !entry.version,
+        title: entry.version
+          ? undefined
+          : `Нет данных о версиях ветки ${entry.channel}`,
+      }))
+    : targets.map((entry) => ({
+        value: entry.channel,
+        label: entry.current ? `${entry.channel} · текущая` : entry.channel,
+        disabled: entry.downgrade,
+        title: entry.downgrade
+          ? `Это откат с ${firmware.installedVersion} на ${entry.version} — из HD не делается`
+          : undefined,
+      }));
+
+  // Путь перехода: установленная → последняя шестёрка (если она ещё не стоит)
+  // → 7.x (версия ветки upgrade заранее неизвестна) → цель.
+  const v7Path = useV7
+    ? [
+        firmware.installedVersion,
+        ...(v7.v6Latest &&
+        compareVersions(v7.v6Latest, firmware.installedVersion) > 0
+          ? [v7.v6Latest]
+          : []),
+        "7.x",
+        v7Target?.version || "—",
+      ]
+    : null;
+
+  const v7Hint = !v7
+    ? null
+    : !v7.available
+      ? v7.reason
+      : useV7
+        ? `Сначала до ${v7.v6Latest}, затем на RouterOS 7 и до последней версии выбранной ветки.`
+        : (
+            // На телефоне чекбокс стоит над переключателем ветки
+            // (max-md:order-first ниже) — «выше» там было бы неправдой
+            <>
+              {v7.v6Latest} — последняя версия RouterOS 6.{" "}
+              <span className="max-md:hidden">
+                Ветка выше применится к RouterOS 7.
+              </span>
+              <span className="md:hidden">
+                Ветка ниже применится к RouterOS 7.
+              </span>
+            </>
+          );
 
   const controls = canUpgrade &&
     upgrade?.enabled &&
     !inBatch &&
     targets.length > 0 && (
       <>
-        <div className="mt-3 flex flex-wrap items-center gap-3.5 border-t border-border pt-3.5 max-md:flex-col max-md:items-stretch">
-          <Segmented
-            options={segmentOptions}
-            value={channel}
-            onChange={setChannel}
-            ariaLabel="Ветка RouterOS"
-            fit
-          />
-          {target?.version && (
-            <span className="font-mono text-sm text-muted-foreground max-md:hidden">
-              {firmware.installedVersion} → {target.version}
-            </span>
+        {/* Колонка: ряд действий, чекбокс перехода, подпись. На телефоне
+            чекбокс идёт первым (макет «Телефон · 8»). */}
+        <div className="mt-3 flex flex-col border-t border-border pt-3.5">
+          <div className="flex flex-wrap items-center gap-3.5 max-md:flex-col max-md:items-stretch">
+            <Segmented
+              options={segmentOptions}
+              value={channel}
+              onChange={setChannel}
+              ariaLabel={useV7 ? "Ветка RouterOS 7" : "Ветка RouterOS"}
+              fit
+            />
+            {v7Path ? (
+              <span className="flex flex-wrap items-center gap-1.5 font-mono text-sm text-muted-foreground max-md:text-xs">
+                {v7Path.map((version, index) => (
+                  <Fragment key={`${index}-${version}`}>
+                    {index > 0 && <span className="text-faint">→</span>}
+                    <span
+                      className={
+                        index === v7Path.length - 1
+                          ? "font-semibold text-foreground"
+                          : undefined
+                      }
+                    >
+                      {version}
+                    </span>
+                  </Fragment>
+                ))}
+              </span>
+            ) : (
+              target?.version && (
+                <span className="font-mono text-sm text-muted-foreground max-md:hidden">
+                  {firmware.installedVersion} → {target.version}
+                </span>
+              )
+            )}
+            <span className="flex-1 max-md:hidden" />
+            <Button
+              onClick={() => setDialogOpen(true)}
+              disabled={!canStart || offline}
+              title={
+                otherUpgradeRunning
+                  ? "Идёт другое обновление — дождитесь его окончания"
+                  : offline
+                    ? "Устройство не в сети"
+                    : useV7
+                      ? v7Target?.version
+                        ? undefined
+                        : `Нет данных о версиях ветки ${channel}`
+                      : target?.upToDate
+                        ? v7?.available
+                          ? "Уже последняя версия RouterOS 6 — отметьте «Перейти на RouterOS 7»"
+                          : "Уже актуальная версия ветки"
+                        : undefined
+              }
+            >
+              <RiArrowUpCircleLine />
+              {target?.version ? `Обновить до ${target.version}` : "Обновить"}
+            </Button>
+          </div>
+          {v7 && (
+            <label
+              className={cn(
+                "mt-3 flex items-start gap-2.5 max-md:order-first max-md:mt-0 max-md:mb-3",
+                v7.available ? "cursor-pointer" : "cursor-not-allowed",
+              )}
+            >
+              <Checkbox
+                checked={useV7}
+                disabled={!v7.available}
+                onCheckedChange={(value) => setToV7(value === true)}
+                className="mt-0.5"
+              />
+              <span className="min-w-0">
+                <span
+                  className={cn(
+                    "block text-sm font-medium",
+                    !v7.available && "text-faint",
+                  )}
+                >
+                  Перейти на RouterOS 7
+                </span>
+                <span className="text-xs text-faint">{v7Hint}</span>
+              </span>
+            </label>
           )}
-          <span className="flex-1 max-md:hidden" />
-          <Button
-            onClick={() => setDialogOpen(true)}
-            disabled={!canStart || offline}
-            title={
-              otherUpgradeRunning
-                ? "Идёт другое обновление — дождитесь его окончания"
-                : offline
-                  ? "Устройство не в сети"
-                  : target?.upToDate
-                    ? "Уже актуальная версия ветки"
-                    : undefined
-            }
-          >
-            <RiArrowUpCircleLine />
-            {target?.version ? `Обновить до ${target.version}` : "Обновить"}
-          </Button>
+          {useV7 ? (
+            <div className="mt-2.5 flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm max-md:text-xs">
+              <RiErrorWarningLine
+                size={16}
+                className="mt-0.5 flex-none text-warning max-md:hidden"
+                aria-hidden
+              />
+              <div>
+                {/* Установок столько, сколько переходов в пути: три, или две
+                    с последней шестёрки; перезагрузок — до четырёх. */}
+                Переход на RouterOS 7 — большое обновление:{" "}
+                {installsLabel(v7Path.length - 1)} и до четырёх перезагрузок,
+                около 20 минут. Конфигурация конвертируется автоматически —
+                после проверьте маршрутизацию (OSPF, BGP). Вернуть устройство
+                на RouterOS 6 из HD нельзя.
+              </div>
+            </div>
+          ) : v6Target && !v6Target.current ? (
+            <div className="mt-2 text-xs text-warning">
+              Устройство перейдёт на ветку {v6Target.channel} и дальше будет
+              получать её версии. Вернуться обратно из HD не получится: это
+              откат, его делают вручную.
+            </div>
+          ) : v7 ? null : (
+            <div className="mt-2 text-xs text-faint">
+              RouterBOOT обновится следом · две перезагрузки, около 5 минут ·
+              перед обновлением сохраним копию конфигурации
+            </div>
+          )}
         </div>
-        {target && !target.current ? (
-          <div className="mt-2 text-xs text-warning">
-            Устройство перейдёт на ветку {target.channel} и дальше будет
-            получать её версии. Вернуться обратно из HD не получится: это откат,
-            его делают вручную.
-          </div>
-        ) : (
-          <div className="mt-2 text-xs text-faint">
-            RouterBOOT обновится следом · две перезагрузки, около 5 минут ·
-            перед обновлением сохраним копию конфигурации
-          </div>
-        )}
         <UpgradeDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           recordIds={recordIds}
           channel={channel}
+          toV7={useV7}
           lockChannel
           singleName={row.displayName}
           onStarted={() => fetchCurrentUpgrade()}
@@ -231,18 +365,21 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
                 upgrade.state === "queued" ? -1 : stepIndex(upgrade.step)
               }
             />
-            <div className="mt-3.5 text-xs text-faint">
-              {currentUpgrade
-                ? `В пакете из ${currentUpgrade.counts.total} · запустил ${currentUpgrade.createdBy?.name || "—"} · `
-                : ""}
-              <button
-                type="button"
-                onClick={() => setSheetOpen(true)}
-                className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-xs font-semibold text-accent-text hover:underline"
-              >
-                Ход пакета
-              </button>
-            </div>
+            {/* Запуск со страницы (пакет из одного устройства) — без строки
+                про пакет, только ссылка на ход обновления */}
+            {currentUpgrade && (
+              <div className="mt-3.5 text-xs text-faint">
+                {currentUpgrade.counts.total > 1 &&
+                  `В пакете из ${currentUpgrade.counts.total} · запустил ${currentUpgrade.createdBy?.name || "—"} · `}
+                <button
+                  type="button"
+                  onClick={() => setSheetOpen(true)}
+                  className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-xs font-semibold text-accent-text hover:underline"
+                >
+                  Ход обновления
+                </button>
+              </div>
+            )}
             <UpgradeSheet
               job={currentUpgrade}
               open={sheetOpen && Boolean(currentUpgrade)}
@@ -349,7 +486,10 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
               </div>
             )}
 
-            {firmware.updateAvailable && controls}
+            {/* Устройство на последней шестёрке: внутри v6 ставить нечего, но
+                переход на RouterOS 7 — с этой же страницы, поэтому ряд действий
+                остаётся (кнопка погашена, пока чекбокс не отмечен). */}
+            {(firmware.updateAvailable || Boolean(v7?.available)) && controls}
           </>
         )}
       </Panel>

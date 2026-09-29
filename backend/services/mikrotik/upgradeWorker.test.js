@@ -4,7 +4,7 @@ require("module-alias/register");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { nextAction } = require("./upgradeWorker");
+const { nextAction, startsNewLeg } = require("./upgradeWorker");
 
 const job = (states, over = {}) => ({
   items: states.map((state, i) => ({ _id: `i${i}`, state })),
@@ -35,4 +35,13 @@ test("a cancel request lets the running device finish", () => {
 
 test("nothing left finishes the batch as done", () => {
   assert.deepEqual(nextAction(job(["done", "failed", "skipped"])), { kind: "finish", status: "done" });
+});
+
+test("a patch that moves the leg cursor starts a new hop (the device flag is refreshed)", () => {
+  // A slow three-leg item must not outlive the 90-minute stale cutoff of the
+  // monitoring guard: every new leg re-stamps `upgrade.since`.
+  assert.equal(startsNewLeg({ step: "channel", stepStartedAt: new Date(), leg: 2, hopTo: null }), true);
+  assert.equal(startsNewLeg({ step: "download", hopTo: "7.12.1" }), false);
+  assert.equal(startsNewLeg({ state: "failed", error: "x" }), false);
+  assert.equal(startsNewLeg(undefined), false);
 });

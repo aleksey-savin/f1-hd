@@ -8,9 +8,9 @@ const coded = (code, message) => Object.assign(new Error(message), { code });
 
 test("missing rights yield the group fix command", () => {
   const out = describeUpgradeError(new Error("not enough permissions (9)"), { step: "download" });
-  assert.match(out.message, /нет прав write и reboot/);
+  assert.match(out.message, /write, reboot и policy/);
   assert.equal(out.fix, RIGHTS_FIX);
-  assert.equal(RIGHTS_FIX, "/user group set hd-mgmt policy=api,read,write,reboot,test,ssh");
+  assert.equal(RIGHTS_FIX, "/user group set hd-mgmt policy=api,read,write,reboot,test,ssh,policy");
 });
 
 test("rights text inside an incomplete download output is still a rights error", () => {

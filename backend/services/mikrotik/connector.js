@@ -157,22 +157,90 @@ const peerCertPem = (routeros) => {
   return cert && cert.raw ? derToPem(cert.raw) : null;
 };
 
+// PEM string -> DER (Buffer): strip the armour lines and all whitespace,
+// base64-decode. Used to compare the pinned cert with the live peer cert byte
+// for byte.
+const pemToDer = (pem) =>
+  Buffer.from(
+    String(pem)
+      .replace(/-----BEGIN [^-]+-----/g, "")
+      .replace(/-----END [^-]+-----/g, "")
+      .replace(/\s+/g, ""),
+    "base64",
+  );
+
 // TLS options for API-SSL. RouterOS uses a self-signed cert, so we pin to the
-// device's own cert (TOFU):
-//   - pinned cert known  -> validate against it; a different cert fails the
-//     handshake BEFORE credentials are sent (MITM-safe).
-//   - first contact      -> encrypt the channel and capture the cert to pin next
-//     time (trust-on-first-use). checkServerIdentity is skipped because RouterOS
-//     certs rarely match the hostname.
-const buildTlsOptions = (pinnedCertPem) => {
-  if (pinnedCertPem) {
-    return {
-      ca: [pinnedCertPem],
-      rejectUnauthorized: true,
-      checkServerIdentity: () => undefined,
-    };
+// device's own cert (TOFU) — but the pin is NOT enforced here. OpenSSL is never
+// asked to validate the pinned cert (`rejectUnauthorized: false` always):
+//   - the pin is about identity, not dates: devices without NTP (CRS switches
+//     have no RTC) issue certs dated 1970–1984, and `ca: [pinned]` made OpenSSL
+//     reject them with "certificate has expired" — a false «certificate
+//     changed» on every poll after the first (the first contact never
+//     validated, so adding the device worked);
+//   - a self-signed cert has no chain to validate anyway, and hostname checks
+//     were already off (RouterOS certs rarely match the host).
+// The pin is enforced by guardLoginWithPin below: an exact DER match of the
+// negotiated peer cert BEFORE credentials are sent. First contact (no pin) is
+// unchanged: encrypt the channel and capture the cert to pin next time.
+// eslint-disable-next-line no-unused-vars -- the pin is consumed by guardLoginWithPin
+const buildTlsOptions = (pinnedCertPem) => ({ rejectUnauthorized: false });
+
+// Compares the live peer certificate with the pinned PEM. Returns null on an
+// exact (DER) match, otherwise an Error coded MIKROTIK_TLS_PIN_MISMATCH. The
+// word "cert" in the message is load-bearing: routeros-node rewraps socket
+// errors as RouterosException(message) — the code is lost — and both
+// describeConnectionError (→ 409 «Сертификат … не совпадает») and
+// isTransientPollError (verdict, no retry) key on it.
+const pinError = (socket, pinnedCertPem) => {
+  const cert =
+    socket && typeof socket.getPeerCertificate === "function"
+      ? socket.getPeerCertificate(true)
+      : null;
+  const raw = cert && cert.raw;
+  if (!raw) {
+    const error = new Error(
+      "certificate pin mismatch: the device presented no certificate",
+    );
+    error.code = "MIKROTIK_TLS_PIN_MISMATCH";
+    return error;
   }
-  return { rejectUnauthorized: false };
+  if (Buffer.isBuffer(raw) && raw.equals(pemToDer(pinnedCertPem))) return null;
+  const error = new Error(
+    "certificate pin mismatch: the device presented a different certificate",
+  );
+  error.code = "MIKROTIK_TLS_PIN_MISMATCH";
+  return error;
+};
+
+// Enforces the TLS pin before login. routeros-node calls `this.login()` on the
+// TLSSocket's TCP "connect" event — BEFORE the handshake finishes — which would
+// queue the credentials for whoever is on the other end. We shadow the
+// instance's `login` so it first waits for "secureConnect" (or checks at once if
+// the socket is already secure), compares the peer cert with the pin and only
+// then runs the original login. On a mismatch the socket is destroyed with the
+// pin error, which routeros-node's own "error" handler turns into a rejected
+// connect() — credentials never leave the process.
+//
+// `routeros.socket` is read at login time, not here: the constructor holds a
+// placeholder net.Socket and connect() swaps in the TLSSocket.
+const guardLoginWithPin = (routeros, pinnedCertPem) => {
+  const originalLogin = routeros.login.bind(routeros);
+  routeros.login = () => {
+    const socket = routeros.socket;
+    const check = () => {
+      const error = pinError(socket, pinnedCertPem);
+      if (error) {
+        socket.destroy(error);
+        return;
+      }
+      originalLogin();
+    };
+    if (socket && socket.secureConnecting === false) {
+      check();
+      return;
+    }
+    socket.once("secureConnect", check);
+  };
 };
 
 // Per-command bound for upgrade commands (check-for-updates contacts
@@ -262,10 +330,13 @@ const runApiSession = async (
       password,
       timeout: CONNECT_TIMEOUT_SECONDS,
       // TLS runs end-to-end to the device even through the relay: the pin
-      // validates the device's cert, not the TCP endpoint (hostname checks are
-      // disabled in buildTlsOptions, so 127.0.0.1 changes nothing).
+      // compares the device's cert, not the TCP endpoint (no hostname checks in
+      // buildTlsOptions, so 127.0.0.1 changes nothing).
       tlsOptions: buildTlsOptions(tlsCert),
     });
+    // Pinned device: exact cert match before credentials are sent. First
+    // contact (no pin yet) stays TOFU — the cert is captured by peerCertPem.
+    if (tlsCert) guardLoginWithPin(routeros, tlsCert);
 
     const conn = await routeros.connect();
     return fn({ conn, routeros, jumpHostKey });
@@ -291,7 +362,8 @@ const runApiSession = async (
 
 // One monitoring poll: the read commands over one session, plus the observed
 // TLS cert (PEM) for pinning/TOFU. Throws on any failure (treated as offline);
-// when a device is pinned, a mismatched cert makes connect() throw before login.
+// when a device is pinned, a mismatched cert makes connect() throw before login
+// (guardLoginWithPin — exact match, validity dates deliberately not checked).
 //
 // The two optional reads are opt-out because they are pure overhead on the
 // 5-minute health-check: /user/print never answers for a least-privilege user
@@ -449,17 +521,20 @@ const pollWithRetry = async (params, { retry = true, ...opts } = {}) => {
 };
 
 // Maps a successful poll result onto Mikrotik document fields. The serial number
-// is emitted only when the routerboard read succeeded — an unconditional
+// and the memory size are emitted only when read — an unconditional
 // `serialNumber: undefined` would erase a previously captured value via the
-// health-check's Object.assign.
+// health-check's Object.assign. `totalMemory` (bytes) gates the RouterOS 6 → 7
+// upgrade (services/mikrotik/upgradePlan.js).
 const mapPollToFields = ({ addresses, identity, resource, routerboard }) => {
   const serialNumber = routerboard?.[0]?.["serial-number"];
+  const totalMemory = Number(resource?.[0]?.["total-memory"]);
   return {
     name: identity?.[0]?.name,
     boardName: resource?.[0]?.["board-name"],
     currentFirmware: resource?.[0]?.version,
     addresses,
     ...(serialNumber ? { serialNumber } : {}),
+    ...(Number.isFinite(totalMemory) && totalMemory > 0 ? { totalMemory } : {}),
   };
 };
 
@@ -806,6 +881,7 @@ const describeConnectionError = (error) => {
 
   // Our client rejected the presented certificate: it differs from the one
   // pinned on first contact (the cert was regenerated — or a possible MITM).
+  // Raised by guardLoginWithPin ("certificate pin mismatch: …").
   if (
     raw.includes("cert") ||
     raw.includes("self-signed") ||
@@ -818,6 +894,21 @@ const describeConnectionError = (error) => {
         "Сертификат устройства не совпадает с ранее закреплённым. Если его " +
         "меняли намеренно — отключите устройство и добавьте заново; иначе это " +
         "может быть попыткой подмены соединения.",
+    };
+  }
+
+  // The device closed the TCP connection during the TLS handshake (Node's
+  // "Client network socket disconnected before secure TLS connection was
+  // established"). RouterOS does this when api-ssl has no usable certificate —
+  // typically a cert that is invalid for the device's OWN clock (no RTC, no
+  // NTP: the clock reads 1970 and the cert was issued "in the future").
+  if (raw.includes("socket disconnected before secure tls connection")) {
+    return {
+      status: 502,
+      message:
+        "Устройство оборвало TLS-соединение до его установки. Чаще всего у " +
+        "службы api-ssl нет действующего сертификата — проверьте часы " +
+        "устройства (/system clock, NTP) и сертификат (/certificate print).",
     };
   }
 
@@ -881,6 +972,10 @@ module.exports = {
   buildSshParams,
   assertUserNotFullGroup,
   knockDevice,
+  buildTlsOptions,
+  pemToDer,
+  pinError,
+  guardLoginWithPin,
   runApiSession,
   withApiSession,
   pollDevice,

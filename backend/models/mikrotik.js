@@ -75,6 +75,9 @@ const mikrotikSchema = new Schema(
     boardName: String,
     serialNumber: String,
     currentFirmware: String,
+    // Объём ОЗУ в байтах (/system/resource total-memory) — порог для перехода
+    // на RouterOS 7 (services/mikrotik/upgradePlan.js).
+    totalMemory: Number,
     addresses: [
       {
         address: String,
@@ -115,7 +118,8 @@ const mikrotikSchema = new Schema(
     failedPolls: { type: Number, default: 0 },
     firstFailureAt: Date,
     // Обновление прошивки из HD разрешено: у пользователя на устройстве есть
-    // write и reboot. HD прочитать права не может — это переключатель формы.
+    // write, reboot и policy (RouterOS требует policy даже для
+    // check-for-updates). HD прочитать права не может — это переключатель формы.
     firmwareUpgradeEnabled: { type: Boolean, default: false },
     // Идёт обновление прошивки (services/mikrotik/upgradeWorker.js): мониторинг
     // не считает перезагрузки простоем. Снимается, когда шаги устройства

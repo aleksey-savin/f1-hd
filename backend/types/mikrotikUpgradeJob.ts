@@ -18,11 +18,23 @@ export interface IUpgradeVersions {
   boot?: string;
 }
 
+export type UpgradeChannel = "long-term" | "stable";
+// A leg may also set MikroTik's `upgrade` channel — the v6 → v7 bridge.
+export type UpgradeLegChannel = UpgradeChannel | "upgrade";
+
 export interface IMikrotikUpgradeItem {
   _id: Types.ObjectId;
   mikrotik: Types.ObjectId;
   name: string;
-  channel: "long-term" | "stable";
+  // The final branch; `legs` is the route there (a single leg = [channel]).
+  channel: UpgradeChannel;
+  legs?: UpgradeLegChannel[];
+  // Cursor into `legs`.
+  leg?: number;
+  // The version the current leg installs (from check-for-updates).
+  hopTo?: string | null;
+  // Planned versions for the UI: [from, ...via, to].
+  path?: string[];
   state: "queued" | "running" | "done" | "failed" | "skipped";
   step?: UpgradeStep;
   stepStartedAt?: Date;
@@ -40,6 +52,8 @@ export interface IMikrotikUpgradeItem {
 export interface IMikrotikUpgradeJob {
   status: "running" | "done" | "stopped" | "cancelled";
   channelMode: "current" | "long-term" | "stable";
+  // «Перейти на RouterOS 7» for the v6 devices of the batch.
+  toV7?: boolean;
   createdBy: Types.ObjectId;
   finishedAt?: Date;
   cancelRequestedAt?: Date;

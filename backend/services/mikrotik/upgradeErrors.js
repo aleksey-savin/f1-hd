@@ -3,7 +3,7 @@ const { describeConnectionError } = require("./connector");
 // Plain-Russian messages for a failed upgrade step (stored in item.error) plus,
 // where one command fixes it, that command (item.fix — shown with a copy button).
 const RIGHTS_FIX =
-  "/user group set hd-mgmt policy=api,read,write,reboot,test,ssh";
+  "/user group set hd-mgmt policy=api,read,write,reboot,test,ssh,policy";
 
 const describeUpgradeError = (error) => {
   const raw = `${error?.code || ""} ${error?.message || ""}`;
@@ -13,7 +13,8 @@ const describeUpgradeError = (error) => {
   if (/not enough permissions/i.test(raw)) {
     return {
       message:
-        "У пользователя HD на устройстве нет прав write и reboot. Выполните на устройстве и повторите:",
+        // RouterOS требует read + write + policy даже для check-for-updates
+        "У пользователя HD на устройстве не хватает прав: для обновления RouterOS требует write, reboot и policy. Выполните на устройстве и повторите:",
       fix: RIGHTS_FIX,
     };
   }

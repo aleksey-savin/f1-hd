@@ -28,11 +28,12 @@ export const genPassword = () => {
   return Array.from(bytes, (n) => alphabet[n % alphabet.length]).join("");
 };
 
-// Группа пользователя HD. С «Обновлением прошивки из HD» — плюс write и reboot
-// (установка пакета и перезагрузка); без — только чтение. Никогда full/policy/
-// sensitive.
+// Группа пользователя HD. С «Обновлением прошивки из HD» — плюс write, reboot
+// и policy: RouterOS требует read + write + policy даже для check-for-updates
+// (policy даёт управлять пользователями — цена обновлений из HD). Без
+// переключателя — только чтение. Никогда full/sensitive.
 const READ_POLICY = "api,read,test,ssh";
-const UPGRADE_POLICY = "api,read,write,reboot,test,ssh";
+const UPGRADE_POLICY = "api,read,write,reboot,test,ssh,policy";
 
 // Three distinct random high ports (20000–39999) for the knock sequence.
 const genKnockPorts = () => {
@@ -67,7 +68,7 @@ const buildSetupCommands = ({
   if (presets.user) {
     blocks.push(
       upgradeEnabled
-        ? `# Пользователь HD: чтение + обновление прошивки (write, reboot); без full/policy/sensitive
+        ? `# Пользователь HD: чтение + обновление прошивки (write, reboot, policy — RouterOS требует для проверки обновлений); без full/sensitive
 /user group add name=hd-mgmt policy=${UPGRADE_POLICY}
 /user add name=${login} group=hd-mgmt password="${pass}"`
         : `# Пользователь с минимальными правами: только чтение (без full/policy/sensitive)

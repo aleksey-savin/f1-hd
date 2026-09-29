@@ -33,9 +33,11 @@ with `api,read,test,ssh`. Installing an update and rebooting needs `write` and
    would be a downgrade is refused** (the branch's latest version is older than
    the installed one): RouterOS does not downgrade through `update install`, and
    HD never attempts `/system package downgrade`.
-4. **Account rights: `write` + `reboot`, opt-in per device.** The group becomes
-   `api,read,write,reboot,test,ssh`, but only for devices where the owner enables
-   upgrades. A new per-device switch **«Обновление прошивки из HD»**
+4. **Account rights: `write` + `reboot` + `policy`, opt-in per device.** The
+   group becomes `api,read,write,reboot,test,ssh,policy`, but only for devices
+   where the owner enables upgrades. (Amended 29.09 after the first live run:
+   RouterOS refuses `check-for-updates` without `policy`; the owner accepted
+   that the account can then manage users on those devices.) A new per-device switch **«Обновление прошивки из HD»**
    (`firmwareUpgradeEnabled`, default off) gates the feature. Existing devices
    start off. HD cannot read the account's rights (RouterOS hides `/user` from a
    least-privilege account), so the switch is the source of truth; a device that
@@ -268,10 +270,25 @@ build. Live check by the owner, starting with one device.
 - `docs/ux-ui-changelog.md` and the guide: the selection mode on the Mikrotik
   board, the `--info-text` token.
 
+## Major upgrade 6 → 7 (added 29.09)
+
+A batch (or the record page) may ask for `toV7`. A v6 device is then planned
+as legs: its own branch to the latest v6 (skipped when already there),
+MikroTik's `upgrade` channel (lands on some v7 build, shown as «7.x» until the
+check names it), then the chosen v7 branch to its latest. The step machine
+repeats channel → check → download → reboot → wait per leg; export runs once
+first, RouterBOOT and verify once last. The wait after the `upgrade` leg allows
+20 minutes (the first v7 boot converts the configuration). Eligibility: MikroTik
+asks for 64 MB RAM — `Mikrotik.totalMemory` from every poll, threshold 60 MiB
+(64-MB boards report a little less); unknown or too little memory is a skip
+reason. The dialog gets the checkbox «Перейти на RouterOS 7» whenever the
+selection holds a v6 device, the record page under the branch control; both
+show the amber note (up to four reboots, about 20 minutes, no way back to v6
+from HD). Devices on v7 and batches without `toV7` behave exactly as before.
+
 ## Out of scope
 
 - Scheduled batches (a night window) — the owner chose immediate batches.
-- Major-version upgrades (v6 → v7): devices stay within their major.
 - Downgrades.
 - Uploading packages from HD to devices without internet access.
 - Reading the account's rights from the device.

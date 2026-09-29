@@ -781,7 +781,7 @@ const DeviceForm = () => {
           setForm((prev) => ({ ...prev, firmwareUpgradeEnabled: checked }))
         }
         label="Обновление прошивки из HD"
-        hint="HD сможет обновлять RouterOS и RouterBOOT этого устройства. Пользователю на устройстве нужны права write и reboot."
+        hint="HD сможет обновлять RouterOS и RouterBOOT этого устройства. Пользователю на устройстве нужны права write, reboot и policy."
         divider
       />
       {/* Включили у устройства, настроенного раньше: у группы только чтение */}
@@ -796,7 +796,7 @@ const DeviceForm = () => {
             Если устройство настраивали раньше, у группы hd-mgmt только чтение.
             Добавьте права — выполните на нём:
             <div className="mt-2">
-              <FixCommand command="/user group set hd-mgmt policy=api,read,write,reboot,test,ssh" />
+              <FixCommand command="/user group set hd-mgmt policy=api,read,write,reboot,test,ssh,policy" />
             </div>
           </div>
         </div>

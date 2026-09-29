@@ -205,17 +205,19 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
     }
   },
   // План для диалога подтверждения: кто и до чего обновится, кто пропущен.
-  planUpgrade: (recordIds, channel) =>
+  // toV7 — «Перейти на RouterOS 7»: устройства на шестёрке идут через
+  // 6.49.x и ветку upgrade (сервер строит многошаговый план).
+  planUpgrade: (recordIds, channel, toV7 = false) =>
     fetch(`${API}/upgrades/plan`, {
       method: "POST",
       headers: jsonHeaders(),
-      body: JSON.stringify({ recordIds, channel }),
+      body: JSON.stringify({ recordIds, channel, toV7: toV7 === true }),
     }),
-  startUpgrade: (recordIds, channel) =>
+  startUpgrade: (recordIds, channel, toV7 = false) =>
     fetch(`${API}/upgrades`, {
       method: "POST",
       headers: jsonHeaders(),
-      body: JSON.stringify({ recordIds, channel }),
+      body: JSON.stringify({ recordIds, channel, toV7: toV7 === true }),
     }),
   cancelUpgrade: (jobId) =>
     fetch(`${API}/upgrades/${jobId}/cancel`, {

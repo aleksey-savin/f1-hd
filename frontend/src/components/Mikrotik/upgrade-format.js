@@ -27,6 +27,70 @@ const STEP_INDEX = {
 };
 
 export const WAIT_LIMIT_MS = 10 * 60 * 1000;
+// Первая загрузка в RouterOS 7 конвертирует конфигурацию — переход по ветке
+// `upgrade` ждут вдвое дольше (upgradeConstants.js#MAJOR_WAIT_LIMIT_MS).
+export const MAJOR_WAIT_LIMIT_MS = 20 * 60 * 1000;
+// Порог памяти для RouterOS 7 (как upgradeConstants.js#V7_MIN_MEMORY): платы
+// на 64 МБ отдают чуть меньше 64 МиБ.
+const V7_MIN_MEMORY = 60 * 1024 * 1024;
+const MIB = 1024 * 1024;
+
+// Переходы RouterOS 6 → 7: у элемента пакета несколько «ног» (item.legs),
+// item.leg — текущая. Одноногий элемент — обычное обновление, подписей нет.
+export const legCount = (item) => item?.legs?.length || 1;
+
+export const legChannel = (item) =>
+  item?.legs?.[item.leg ?? 0] ?? item?.channel ?? null;
+
+export const waitLimitMs = (item) =>
+  legChannel(item) === "upgrade" ? MAJOR_WAIT_LIMIT_MS : WAIT_LIMIT_MS;
+
+export const legLabel = (item) => {
+  const n = legCount(item);
+  return n > 1 ? `переход ${(item.leg ?? 0) + 1} из ${n}` : null;
+};
+
+// Путь версий для шторки: path = [from, ...via, to]; переход i ведёт
+// path[i] → path[i+1]. Цель текущего перехода — реальная версия (hopTo), пока
+// проверка не прошла — плановая («7.x»). Первый элемент — то, что уже стоит.
+export const pathView = (item) => {
+  const path = item?.path || [];
+  if (path.length === 0) return [];
+  if (item.state === "done") {
+    return path.map((version) => ({ version, state: "done" }));
+  }
+  const leg = item.leg ?? 0;
+  return path.map((version, index) => {
+    if (index <= leg) return { version, state: "done" };
+    if (index === leg + 1) return { version: item.hopTo || version, state: "now" };
+    return { version, state: "todo" };
+  });
+};
+
+export const installsLabel = (n) =>
+  ({ 2: "две установки", 3: "три установки" })[n] ?? `${n} установок`;
+
+// Переход на RouterOS 7 для секции «Прошивка»: null, если устройство не на
+// шестёрке; иначе — можно ли (память), причина и цели по веткам семёрки.
+export const v7Option = ({ firmwareStatus, releases, totalMemory }) => {
+  if (!firmwareStatus?.branchKey?.startsWith("6.")) return null;
+  const versionOf = (key) =>
+    releases?.channels?.find((entry) => entry.key === key)?.version || null;
+  const reason = !totalMemory
+    ? "Объём памяти ещё не считан — повторите через 5 минут"
+    : totalMemory < V7_MIN_MEMORY
+      ? `Мало памяти для RouterOS 7: ${Math.round(totalMemory / MIB)} МБ, нужно не меньше 64 МБ. Устройство остаётся на RouterOS 6.`
+      : null;
+  return {
+    available: reason === null,
+    reason,
+    v6Latest: versionOf(firmwareStatus.branchKey) || firmwareStatus.latestVersion || null,
+    targets: ["long-term", "stable"].map((channel) => ({
+      channel,
+      version: versionOf(`7.${channel}`),
+    })),
+  };
+};
 
 export const stepIndex = (step) => STEP_INDEX[step] ?? 0;
 

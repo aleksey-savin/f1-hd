@@ -193,7 +193,7 @@ Uses `routeros-node` (`new Routeros(...)` → `connect()` → `conn.write([...])
   decoder.
 - `pollDevice({host, …}, {verifyFullGroup = true, readRouterboard = true})` —
   knocks, opens an **API-SSL** session (TLS cert pinned via `tlsCert`, captured
-  TOFU on first connect), reads `/ip/address/print`, `/system/identity/print`,
+  TOFU on first connect — see _TLS pin_ below), reads `/ip/address/print`, `/system/identity/print`,
   `/system/resource/print` and — **best-effort, opt-out** — `/user/print` and
   `/system/routerboard/print`, always closes the socket, and throws on any
   failure (interpreted as "offline"). The health-check turns both optional reads
@@ -204,6 +204,24 @@ Uses `routeros-node` (`new Routeros(...)` → `connect()` → `conn.write([...])
   knock+connect+read cycle, so nothing stalls the request past nginx's 60 s
   gateway (→ 504); the optional reads have their own 4 s bounds and are skipped
   without failing the poll.
+- **TLS pin = exact certificate match, checked before login.**
+  `buildTlsOptions()` always returns `{ rejectUnauthorized: false }` — OpenSSL is
+  never asked to validate the device cert. The pin is enforced by
+  `guardLoginWithPin(routeros, tlsCert)`: routeros-node arms `login()` on the
+  TLSSocket's TCP `"connect"` event (before the handshake), so the guard shadows
+  the instance's `login`, waits for `"secureConnect"`, compares the peer cert's
+  DER (`getPeerCertificate(true).raw`) with `pemToDer(tlsCert)` byte for byte and
+  only then sends the credentials; on a mismatch it destroys the socket with
+  `MIKROTIK_TLS_PIN_MISMATCH` («certificate pin mismatch: …»), which rejects
+  `connect()` → 409 «Сертификат устройства не совпадает…», no retry. **Validity
+  dates are deliberately not checked**: devices without NTP (CRS switches have no
+  RTC) boot at 1970 and issue certs dated 1970–1984; the former
+  `ca: [pinned], rejectUnauthorized: true` made OpenSSL reject them with
+  «certificate has expired» on every poll after the first (first contact never
+  validated, so adding the device worked) and the UI showed a false «certificate
+  changed». A self-signed cert has no chain to validate anyway, and hostname
+  checks were already off. First contact (no pin yet) is unchanged: encrypt,
+  capture the cert (`peerCertPem`), pin it on save.
 - **What `"Socket timeout"` means.** `CONNECT_TIMEOUT_SECONDS` (15 s) reaches
   routeros-node as a single `socket.setTimeout`, i.e. an *inactivity* timer armed
   during the TCP/TLS connect too. It is the only place the library turns silence
@@ -228,7 +246,11 @@ Uses `routeros-node` (`new Routeros(...)` → `connect()` → `conn.write([...])
 - `encryptSecret` / `decryptSecret` — AES-256-GCM helpers re-exported from
   `services/crypto/secretBox.js` (see _Security model_).
 - `describeConnectionError(error)` — classifies a failed poll (TLS handshake /
-  cert mismatch / login, plus **two distinct timeouts**: «no answer while
+  cert (pin) mismatch → 409 / «socket disconnected before secure TLS
+  connection» → 502 «Устройство оборвало TLS-соединение до его установки…» —
+  RouterOS drops the handshake when api-ssl has no cert valid for the device's
+  *own* clock, so the hint points at `/system clock`, NTP and `/certificate
+  print` / login, plus **two distinct timeouts**: «no answer while
   connecting» → check host/port/knock, vs «poll deadline» → the device is
   reachable but too slow) into a clear operator message + HTTP status; the
   controller's `mapVerifyError` uses it. The raw error is still logged. Transit
@@ -256,8 +278,9 @@ must run RouterOS (see _SwOS is out of scope_).
   mandatory: routeros-node arms its login on the TLSSocket's `"connect"` event,
   which Node does not emit for a socket handed in from outside (verified
   experimentally). TLS still runs **end-to-end to the target**, and pinning is
-  unaffected — the cert is pinned via `ca` with hostname verification disabled,
-  so the `127.0.0.1` endpoint breaks nothing. The relay is loopback-only and
+  unaffected — the pin is an exact match of the target's cert checked before
+  login (no hostname verification), so the `127.0.0.1` endpoint breaks nothing.
+  The relay is loopback-only and
   single-accept, closed in `finally` together with the SSH leg — including the
   watchdog path and a late-arriving run (SSH has no inactivity timer, so without
   explicit cleanup the tunnel would live forever).
@@ -682,8 +705,12 @@ time, within the branch chosen for the batch (`current` = each device's own
 branch, or `long-term` / `stable`). Design: `docs/superpowers/specs/2026-09-29-mikrotik-firmware-upgrade-design.md`.
 
 - **Opt-in per device**: `Mikrotik.firmwareUpgradeEnabled` (default false). HD
-  cannot read the account's rights; a device without `write,reboot` fails with
-  the fix command. Permission: `mikrotik.upgradeFirmware`.
+  cannot read the account's rights; a device without `write,reboot,policy`
+  fails with the fix command. RouterOS demands `read`+`write`+`policy` even for
+  `check-for-updates` (verified 29.09 on a 6.45.9 switch: export and `set
+  channel` passed, the check was refused); `policy` lets the account manage
+  users — the accepted price of upgrades from HD. Permission:
+  `mikrotik.upgradeFirmware`.
 - **Planning** (`services/mikrotik/upgradePlan.js`, pure): skip reasons (switch
   off, monitoring off, not online, already in a batch, firmware unknown, no
   release data, downgrade, already current); dependents before their transit
@@ -704,6 +731,21 @@ branch, or `long-term` / `stable`). Design: `docs/superpowers/specs/2026-09-29-m
   (an unreadable RouterBOOT version is "not yet", failing only at 10 min) →
   verify (`recoverToOnline`). Cancel skips the queued devices after the current
   one; a finished batch re-syncs the security ticket.
+- **Major upgrade 6 → 7** (`toV7` on the plan/start body; added 29.09): a v6
+  device walks several *legs* — `item.legs`, cursor `item.leg`, e.g.
+  `["long-term", "upgrade", "long-term"]`: the latest v6 of its own branch
+  (dropped when already there), then MikroTik's `upgrade` channel
+  (check-for-updates offers some v7 build — `item.hopTo`, shown as «7.x» until
+  known), then the chosen v7 branch (`item.channel`). Per leg: channel → check
+  → download → reboot → wait; export runs once at the start, RouterBOOT and
+  verify once at the end; `item.path` = `[from, ...via, to]` for the UI. The
+  `wait` after the `upgrade` leg allows 20 min (`TIMING.MAJOR_WAIT_LIMIT_MS`;
+  the first v7 boot converts the config), the other legs 10. Eligibility uses
+  `Mikrotik.totalMemory` (bytes, from `/system/resource total-memory` on every
+  poll; a silent pulse field): unknown → «объём памяти ещё не считан»,
+  below 60 MiB (`V7_MIN_MEMORY`; 64-MB boards report a little less) → «мало
+  памяти». Items written before legs existed read as a single leg on
+  `channel`. v7 devices and `toV7: false` are untouched.
 - **Monitoring**: `upgradeGuard.js` — health-check, offline alerts and the
   export scheduler skip a device with a fresh `upgrade` flag and devices behind
   it; a flag older than 90 minutes is ignored.
@@ -927,9 +969,11 @@ hardened in depth:
 - **Transport** is **API-SSL (TLS, port 8729) — mandatory**: `pollDevice` always
   builds TLS options and the plaintext API is never used (the legacy
   `credentials.useTls` toggle is ignored server-side). RouterOS presents a
-  self-signed cert, so trust is **pinned trust-on-first-use** — a MITM cert fails
-  the handshake **before** credentials are sent. The SSH leg pins the host key the
-  same way.
+  self-signed cert, so trust is **pinned trust-on-first-use** — an exact
+  (byte-for-byte) match of the pinned cert, checked **before** credentials are
+  sent; a MITM cert is rejected without a login attempt. Validity dates are not
+  checked (devices without NTP issue certs dated 1970–1984; the pin is about
+  identity, not time). The SSH leg pins the host key the same way.
 - **Least privilege** — a dedicated, non-`full` RouterOS account
   (`assertUserNotFullGroup`; best-effort, see _Connector service_).
 - **Port knocking** — the API stays closed until our server touches the device's
@@ -960,8 +1004,16 @@ re-encrypts records via the `v1` version prefix.
 > steps below are the reference for what it does.
 
 1. **API-SSL + SSH — API-SSL is MANDATORY** (the backend forces TLS, so a device
-   without api-ssl simply fails to connect). Generate a self-signed cert on the
-   device and bind it to api-ssl:
+   without api-ssl simply fails to connect). **Set the clock first:** enable the
+   NTP client on the device (switches can use the router as the time source)
+   *before* generating the api-ssl certificate — a device without NTP and RTC
+   boots at 1970, and a cert issued then is invalid for the device's own clock
+   after every reboot (RouterOS drops the TLS handshake → «Устройство оборвало
+   TLS-соединение до его установки»). HD itself does not check the cert's dates.
+   ```
+   /system ntp client set enabled=yes servers=<router-LAN-address or pool.ntp.org>
+   ```
+   Then generate a self-signed cert on the device and bind it to api-ssl:
    ```
    # Self-signed cert for the API (TOFU-pinned by the backend on first connect —
    # a public-CA cert is NOT required; any cert the device presents is pinned).
@@ -977,16 +1029,18 @@ re-encrypts records via the `v1` version prefix.
    **Do not pin the services by `address=`** — our source IP is dynamic (VPN), so
    access is gated by port knocking (step 3), not an IP allow-list. Keep **ssh**
    enabled (used for `/export`, opened by the same knock); disable
-   winbox/telnet/**ftp**/www from the WAN. A later cert change fails the handshake
-   before credentials are sent — re-save the parameters to re-pin intentionally.
+   winbox/telnet/**ftp**/www from the WAN. A later cert change is rejected by the
+   exact-match pin before credentials are sent — re-save the parameters to re-pin
+   intentionally.
 2. **Least-privilege user:** a custom group with `policy=api,read,test,ssh`
    (`ssh` lets the poller run `/export`; no `ftp` needed — nothing is
    transferred; add only the writes you use — never `full`/`policy`/`sensitive`),
    with a unique generated password per device. Devices upgraded from HD need
-   `write,reboot` in `hd-mgmt`:
-   `/user group set hd-mgmt policy=api,read,write,reboot,test,ssh`; leave the
-   group read-only and the per-device switch off to keep a device out of
-   upgrades. Without `policy` this user
+   `write,reboot,policy` in `hd-mgmt` (RouterOS requires `policy` for
+   `check-for-updates`; with it the account can manage users):
+   `/user group set hd-mgmt policy=api,read,write,reboot,test,ssh,policy`;
+   leave the group read-only and the per-device switch off to keep a device out
+   of upgrades. Without `policy` this user
    **cannot read `/user`**: RouterOS simply never replies. That is why the
    full-group guard is best-effort — verify-on-save bounds the read and skips the
    check, and the health-check doesn't even attempt it (`verifyFullGroup: false`).

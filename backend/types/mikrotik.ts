@@ -59,6 +59,8 @@ export interface IMikrotik {
   boardName?: string;
   serialNumber?: string;
   currentFirmware?: string;
+  // RAM in bytes (/system/resource total-memory); gates the RouterOS 6 → 7 upgrade.
+  totalMemory?: number;
   addresses?: IMikrotikAddress[];
   status?: "online" | "offline";
   monitoringEnabled: boolean;

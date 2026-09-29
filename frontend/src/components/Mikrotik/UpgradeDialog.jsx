@@ -3,6 +3,7 @@ import { isMobile } from "react-device-detect";
 import { RiErrorWarningLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ import useToastStore from "@/store/toast-store";
 
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 import { plural } from "../../util/plural";
+import { installsLabel } from "./upgrade-format.js";
 
 const CHANNEL_OPTIONS = [
   { value: "current", label: "Как на устройстве" },
@@ -32,15 +34,22 @@ const CHANNEL_OPTIONS = [
 // Сколько строк плана видно на телефоне до «Показать ещё» (макет, экран 2).
 const MOBILE_PLAN_LIMIT = 5;
 
+// Оценка времени: обычное устройство — две перезагрузки, около 5 минут;
+// переход 6 → 7 — до четырёх и около 20 (макет «Переход с RouterOS 6 на 7»).
+const MINUTES_PER_ITEM = 5;
+const MINUTES_PER_MAJOR_ITEM = 20;
+
 // Подтверждение обновления прошивки (макет «Обновление прошивки Mikrotik»,
 // экраны 2 и «Телефон · 2»): план с сервера — кто и до чего обновится, кто и
 // почему пропущен; выбор ветки (по умолчанию — как на устройстве) пересчитывает
-// план. Со страницы записи ветка выбрана в секции — lockChannel прячет выбор.
+// план. Со страницы записи ветка и переход на RouterOS 7 выбраны в секции —
+// lockChannel прячет и переключатель, и чекбокс.
 const UpgradeDialog = ({
   open,
   onOpenChange,
   recordIds,
   channel: initialChannel = "current",
+  toV7: initialToV7 = false,
   lockChannel = false,
   singleName = null,
   onStarted,
@@ -54,7 +63,11 @@ const UpgradeDialog = ({
   const showToast = useToastStore((state) => state.showToast);
 
   const [channel, setChannel] = useState(initialChannel);
+  const [toV7, setToV7] = useState(initialToV7);
   const [plan, setPlan] = useState(null);
+  // Липкий: есть ли среди выбранных устройства на RouterOS 6. План на время
+  // пересчёта обнуляется — чекбокс при смене ветки мигать не должен.
+  const [hasV6, setHasV6] = useState(false);
   const [error, setError] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -62,13 +75,15 @@ const UpgradeDialog = ({
   useEffect(() => {
     if (open) {
       setChannel(initialChannel);
+      setToV7(initialToV7);
       setShowAll(false);
     } else {
       // Закрыли — прежний план не должен мигнуть при следующем открытии
       setPlan(null);
+      setHasV6(false);
       setError(null);
     }
-  }, [open, initialChannel]);
+  }, [open, initialChannel, initialToV7]);
 
   useEffect(() => {
     if (!open || recordIds.length === 0) return;
@@ -77,12 +92,15 @@ const UpgradeDialog = ({
     setError(null);
     (async () => {
       try {
-        const response = await planUpgrade(recordIds, channel);
+        const response = await planUpgrade(recordIds, channel, toV7);
         const data = await response.json().catch(() => ({}));
         if (cancelled) return;
-        if (!response.ok)
+        if (!response.ok) {
           setError(data.message || "Не удалось составить план обновления");
-        else setPlan(data);
+        } else {
+          setPlan(data);
+          if (data.hasV6) setHasV6(true);
+        }
       } catch {
         if (!cancelled) setError("Нет связи с сервером");
       }
@@ -90,7 +108,7 @@ const UpgradeDialog = ({
     return () => {
       cancelled = true;
     };
-  }, [open, channel, recordIds]);
+  }, [open, channel, toV7, recordIds]);
 
   const items = plan?.items || [];
   const skipped = plan?.skipped || [];
@@ -99,6 +117,8 @@ const UpgradeDialog = ({
   const single = Boolean(singleName);
   // Пока план грузится, в заголовке и на кнопке — сколько выбрали, а не 0
   const shown = plan === null ? recordIds.length : count;
+  const majorCount = items.filter((item) => item.majorUpgrade).length;
+  const showV7Toggle = !lockChannel && (hasV6 || toV7);
 
   // План пришёл пустым (все пропущены) — без «на 0 устройствах»; кнопка и так погашена
   const title = single
@@ -106,9 +126,16 @@ const UpgradeDialog = ({
     : plan !== null && count === 0
       ? "Обновить прошивку?"
       : `Обновить прошивку на ${shown} ${plural(shown, "устройстве", "устройствах", "устройствах")}?`;
+  // С переходом на RouterOS 7 «две перезагрузки, 3–5 минут» не обещаем —
+  // сроки называет янтарная плашка ниже. Пока план грузится, ориентируемся
+  // на отмеченный переход, чтобы текст не мигал между вариантами.
+  const expectMajor = majorCount > 0 || (plan === null && toV7);
+  const reboots = expectMajor
+    ? "."
+    : " — это две перезагрузки, связь у клиента пропадёт на 3–5 минут.";
   const description = single
-    ? "Перед обновлением HD сохранит копию конфигурации, затем обновит RouterOS и RouterBOOT — это две перезагрузки, связь у клиента пропадёт на 3–5 минут."
-    : "Устройства обновятся по очереди. Перед каждым HD сохранит копию конфигурации, затем обновит RouterOS и RouterBOOT — это две перезагрузки, связь у клиента пропадёт на 3–5 минут.";
+    ? `Перед обновлением HD сохранит копию конфигурации, затем обновит RouterOS и RouterBOOT${reboots}`
+    : `Устройства обновятся по очереди. Перед каждым HD сохранит копию конфигурации, затем обновит RouterOS и RouterBOOT${reboots}`;
   const submitLabel =
     single && items[0]
       ? `Обновить до ${items[0].toVersion}`
@@ -118,7 +145,7 @@ const UpgradeDialog = ({
     setIsStarting(true);
     setError(null);
     try {
-      const response = await startUpgrade(recordIds, channel);
+      const response = await startUpgrade(recordIds, channel, toV7);
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setError(data.message || "Не удалось запустить обновление");
@@ -155,6 +182,26 @@ const UpgradeDialog = ({
         </div>
       )}
 
+      {showV7Toggle && (
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <Checkbox
+            checked={toV7}
+            onCheckedChange={(value) => setToV7(value === true)}
+            className="mt-0.5"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">
+              Перейти на RouterOS 7
+            </span>
+            <span className="text-xs text-faint">
+              {isMobile
+                ? "Для устройств на RouterOS 6"
+                : "Для устройств на RouterOS 6: сначала до 6.49.22, затем на RouterOS 7 в выбранной ветке."}
+            </span>
+          </span>
+        </label>
+      )}
+
       {plan === null && !error && (
         <div className="text-sm text-muted-foreground">Составляем план…</div>
       )}
@@ -164,10 +211,19 @@ const UpgradeDialog = ({
           {visibleItems.map((item) => (
             <div
               key={String(item.recordId)}
-              className="flex h-10 items-center gap-3 border-t border-border-soft px-3.5 text-sm first:border-t-0"
+              className="flex min-h-10 items-center gap-3 border-t border-border-soft px-3.5 py-1.5 text-sm first:border-t-0"
             >
-              <span className="min-w-0 flex-1 truncate font-medium">
-                {item.name}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{item.name}</span>
+                {item.majorUpgrade && (
+                  <span className="block text-xs text-faint">
+                    через {item.via.join(" и ")}
+                    <span className="max-md:hidden">
+                      {" "}
+                      · {installsLabel(item.legs.length)}
+                    </span>
+                  </span>
+                )}
               </span>
               <span className="font-mono text-sm max-md:text-xs">
                 {item.fromVersion} → {item.toVersion}
@@ -206,11 +262,38 @@ const UpgradeDialog = ({
         </div>
       )}
 
+      {majorCount > 0 &&
+        (isMobile ? (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs">
+            Переход на RouterOS 7: до четырёх перезагрузок, около 20 минут на
+            устройство, конфигурация конвертируется автоматически. Вернуть на
+            RouterOS 6 из HD нельзя.
+          </div>
+        ) : (
+          <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm">
+            <RiErrorWarningLine
+              size={16}
+              className="mt-0.5 flex-none text-warning"
+              aria-hidden
+            />
+            <div>
+              Переход на RouterOS 7 — большое обновление: до четырёх
+              перезагрузок и около 20 минут на устройство. Конфигурация
+              конвертируется автоматически — после проверьте маршрутизацию
+              (OSPF, BGP). Вернуть устройство на RouterOS 6 из HD нельзя.
+            </div>
+          </div>
+        ))}
+
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 
-  const estimate = `Около ${Math.max(5, count * 5)} минут. Страницу можно закрыть — HD продолжит сам.`;
+  const minutes = Math.max(
+    MINUTES_PER_ITEM,
+    majorCount * MINUTES_PER_MAJOR_ITEM + (count - majorCount) * MINUTES_PER_ITEM,
+  );
+  const estimate = `Около ${minutes} минут. Страницу можно закрыть — HD продолжит сам.`;
 
   const actions = (
     <>
