@@ -4,6 +4,7 @@ const Mikrotik = require("../../models/mikrotik");
 const MikrotikUpgradeJob = require("../../models/mikrotikUpgradeJob");
 const { mikrotikEnabled } = require("./enabled");
 const { runStep } = require("./upgradeSteps");
+const { RIGHTS_FIX } = require("./upgradeErrors");
 const deviceOps = require("./upgradeDevice");
 const logger = require("../../utils/logger");
 
@@ -45,6 +46,24 @@ const clearDeviceFlag = (mikrotikId, jobId) =>
 
 // A patch that moves the leg cursor starts a new hop (RouterOS 6 → 7). Pure — tested.
 const startsNewLeg = (set) => Number.isInteger(set?.leg);
+
+// What a finished item proves about the account's write rights on the device:
+// the `upgradeRights` verdict to stamp on the record (services/mikrotik/
+// upgradeRights.js — the list row reads it as «нет прав на запись»), or null
+// when the outcome says nothing about rights. A rights failure is recognised
+// by its fix command; success means every write went through. Pure — tested.
+const rightsVerdict = (set, now) => {
+  if (set?.state === "done") {
+    return { ok: true, missing: [], checkedAt: now, source: "upgrade" };
+  }
+  if (set?.state === "failed" && set.fix === RIGHTS_FIX) {
+    return { ok: false, missing: [], checkedAt: now, source: "upgrade" };
+  }
+  return null;
+};
+
+const stampUpgradeRights = (mikrotikId, verdict) =>
+  Mikrotik.updateOne({ _id: mikrotikId }, { $set: { upgradeRights: verdict } });
 
 // Monitoring ignores an `upgrade` flag older than STALE_UPGRADE_MS (90 min); a
 // three-leg item can run longer than that, so every new leg re-stamps `since`.
@@ -134,6 +153,8 @@ const runUpgradeTick = async ({ deps = deviceOps, clock = () => new Date() } = {
   if (startsNewLeg(patch.set)) await refreshDeviceFlag(item.mikrotik, job._id, now);
   if (patch.set.state === "done" || patch.set.state === "failed") {
     await clearDeviceFlag(item.mikrotik, job._id);
+    const verdict = rightsVerdict(patch.set, now);
+    if (verdict) await stampUpgradeRights(item.mikrotik, verdict);
     logger.log(patch.set.state === "done" ? "info" : "warn", "Mikrotik upgrade item finished", {
       jobId: job._id,
       recordId: item.mikrotik,
@@ -146,4 +167,4 @@ const runUpgradeTick = async ({ deps = deviceOps, clock = () => new Date() } = {
   }
 };
 
-module.exports = { runUpgradeTick, nextAction, startsNewLeg };
+module.exports = { runUpgradeTick, nextAction, startsNewLeg, rightsVerdict };

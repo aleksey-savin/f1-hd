@@ -384,6 +384,7 @@ const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } =
     // still succeeds; the full-group guard just no-ops when the list couldn't be
     // read.
     let users = null;
+    let groups = null;
     if (verifyFullGroup) {
       try {
         users = await withReadTimeout(
@@ -396,6 +397,24 @@ const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } =
           "Mikrotik /user/print unavailable — skipping full-group check",
           { host: params.host, error: error.message },
         );
+      }
+      // The group's policy string says whether the account can upgrade from HD
+      // (services/mikrotik/upgradeRights.js). Same `policy` privilege as
+      // /user/print, so it is read only once that one answered — and bounded
+      // the same way; a failure leaves the rights unknown, never fails the poll.
+      if (Array.isArray(users)) {
+        try {
+          groups = await withReadTimeout(
+            conn.write(["/user/group/print"]),
+            USER_READ_TIMEOUT_MS,
+          );
+        } catch (error) {
+          logger.log(
+            "warn",
+            "Mikrotik /user/group/print unavailable — upgrade rights unknown",
+            { host: params.host, error: error.message },
+          );
+        }
       }
     }
 
@@ -422,6 +441,7 @@ const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } =
       identity,
       resource,
       users,
+      groups,
       routerboard,
       tlsCert: observedCert,
       // Наблюдённый SSH-ключ транзитного роутера — для опортунистического

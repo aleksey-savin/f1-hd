@@ -119,8 +119,22 @@ const mikrotikSchema = new Schema(
     firstFailureAt: Date,
     // Обновление прошивки из HD разрешено: у пользователя на устройстве есть
     // write, reboot и policy (RouterOS требует policy даже для
-    // check-for-updates). HD прочитать права не может — это переключатель формы.
+    // check-for-updates). Это переключатель формы; что устройство ответило о
+    // правах — в upgradeRights ниже.
     firmwareUpgradeEnabled: { type: Boolean, default: false },
+    // Вердикт последней проверки прав учётки HD на устройстве для обновления
+    // прошивки: хватает ли (ok), чего не хватает (missing — из
+    // REQUIRED_UPGRADE_POLICIES), когда и кто проверил. Пишется при сохранении
+    // параметров (чтение /user и /user/group; нет ответа /user — нет policy) и
+    // воркером обновления (отказ в правах → ok:false, успех → ok:true). Без
+    // default: поля нет — ещё не проверяли. Строка списка сводит это в `access`
+    // (services/mikrotik/upgradeRights.js#accessView).
+    upgradeRights: {
+      ok: Boolean,
+      missing: { type: [String], default: undefined },
+      checkedAt: Date,
+      source: { type: String, enum: ["save", "upgrade"] },
+    },
     // Идёт обновление прошивки (services/mikrotik/upgradeWorker.js): мониторинг
     // не считает перезагрузки простоем. Снимается, когда шаги устройства
     // закончились; флаг старше 90 минут мониторинг игнорирует.

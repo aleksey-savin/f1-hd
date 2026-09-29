@@ -54,6 +54,10 @@ const {
   upgradeFor,
   lastUpgradeView,
 } = require("../../services/mikrotik/upgradeView");
+const {
+  assessUpgradeRights,
+  accessView,
+} = require("../../services/mikrotik/upgradeRights");
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
@@ -162,6 +166,9 @@ const buildRow = (device, record, protection, jump) => {
       : null,
     status: record ? record.status || "offline" : "notConfigured",
     monitoringEnabled: record?.monitoringEnabled || false,
+    // Право HD на устройстве для строки: null | "read" | "write" | "noWrite"
+    // (переключатель обновления × вердикт upgradeRights).
+    access: accessView(record),
     host: record?.credentials?.host || null,
     port: record?.credentials?.port || null,
     boardName: record?.boardName || null,
@@ -207,6 +214,7 @@ const buildStandaloneRow = (record, protection, jump) => ({
   location: null,
   status: record.status || "offline",
   monitoringEnabled: record.monitoringEnabled || false,
+  access: accessView(record),
   host: record.credentials?.host || null,
   port: record.credentials?.port || null,
   boardName: record.boardName || null,
@@ -358,6 +366,14 @@ const verifyAndBuild = async (body, existing) => {
     throw new AppError(error.message, 422, true, error);
   }
 
+  // Пустое поле knock при правке — «не менял»: стучимся сохранённой
+  // последовательностью (иначе проверка упрётся в файрвол устройства), и она же
+  // остаётся в записи (credentials ниже). Через транзит knock не бывает.
+  const verifyKnock =
+    jumpDoc || knockPorts.length
+      ? knockPorts
+      : decodeKnockSequence(existing?.credentials?.knockSequence) || [];
+
   const poll = await pollDevice({
     host,
     port,
@@ -365,10 +381,19 @@ const verifyAndBuild = async (body, existing) => {
     password,
     // Pin to the device's already-trusted cert (if any) while verifying.
     tlsCert: existing?.credentials?.tlsCert,
-    knockSequence: knockPorts,
+    knockSequence: verifyKnock,
     jump: jumpDoc ? buildSshParams(jumpDoc) : undefined,
   });
   assertUserNotFullGroup(poll.users, user);
+
+  // Права учётки на обновление из HD — по политике её группы (/user +
+  // /user/group; нет ответа /user — нет policy). null — устройство не дало, по
+  // чему судить: ключ не попадает в $set, сохранённый вердикт остаётся.
+  const rights = assessUpgradeRights({
+    users: poll.users,
+    groups: poll.groups,
+    user,
+  });
 
   // Опортунистический TOFU-пиннинг SSH-ключа роутера: транзитный полл мог
   // увидеть ключ раньше первой SSH-операции самого роутера. Guarded — уже
@@ -429,6 +454,9 @@ const verifyAndBuild = async (body, existing) => {
         ? Boolean(existing?.firmwareUpgradeEnabled)
         : body.firmwareUpgradeEnabled === true ||
           body.firmwareUpgradeEnabled === "true",
+    ...(rights
+      ? { upgradeRights: { ...rights, checkedAt: now, source: "save" } }
+      : {}),
   };
 };
 

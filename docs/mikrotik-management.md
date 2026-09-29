@@ -149,6 +149,10 @@ failedPolls, firstFailureAt                     // anti-flap (see below)
 schedules { export, backup }                    // see _Schedules & scheduler_
 firmwareUpgradeEnabled       → Boolean, default false — opt-in to upgrades from HD
                                (see _Firmware upgrades_)
+upgradeRights { ok, missing[], checkedAt, source: "save"|"upgrade" }
+                             // verdict of the last rights check of the managed
+                             // account; ABSENT = never checked (no default).
+                             // See _Firmware upgrades_ → Rights check.
 timestamps                                      // createdAt = monitoredSince
 ```
 
@@ -200,7 +204,11 @@ Uses `routeros-node` (`new Routeros(...)` → `connect()` → `conn.write([...])
   off: for a least-privilege user `/user/print` never answers (so the full-group
   guard there was a permanent no-op burning its timeout), and the serial can't
   change between polls; verify-on-save keeps them — it needs the guard and a
-  fresh serial. A **watchdog** (`POLL_DEADLINE_MS`, 35 s) bounds the whole
+  fresh serial. When `/user/print` answered, `/user/group/print` is read as
+  well (the same `policy` privilege, the same 4 s bound) and returned as
+  `groups` (array, or `null`) next to `users` — verify-on-save turns the pair
+  into the `upgradeRights` verdict (see _Firmware upgrades_ → Rights check).
+  A **watchdog** (`POLL_DEADLINE_MS`, 35 s) bounds the whole
   knock+connect+read cycle, so nothing stalls the request past nginx's 60 s
   gateway (→ 504); the optional reads have their own 4 s bounds and are skipped
   without failing the poll.
@@ -385,7 +393,9 @@ The verify-on-save body (SSRF guard → knock → TLS poll → full-group guard 
 build record) is factored into `verifyAndBuild()`; failures become operator
 messages via `mapVerifyError()` → `describeConnectionError()`. Every save
 endpoint accepts an optional **`jumpRecordId`** — verification then runs live
-through the tunnel.
+through the tunnel. An **empty knock input on edit means "unchanged"**: the
+verification knocks with the stored (decrypted) sequence and the stored blob is
+kept, so re-saving a knock-protected device doesn't require re-typing the ports.
 
 #### Row DTO — `getManagedDevices` / `getRecordOne`
 
@@ -404,7 +414,7 @@ the pool of "manageable but not configured" devices no longer exists.
   currentFirmware, addresses[], lastSuccessfulConnectionAt, lastCheckedAt,
   lastError, offlineSince, offlineAlertedAt, alertTicket{id,num}, monitoredSince,
   schedules, lastExportAt, lastBackupAt, uptime30d, uptimeDays, firmwareStatus,
-  upgrade }
+  upgrade, access }
 ```
 
 - `displayName` — RouterOS identity if polled, else `<model> · SN <serial>`
@@ -423,6 +433,11 @@ the pool of "manageable but not configured" devices no longer exists.
   finishedAt, error}` (`services/mikrotik/upgradeView.js#upgradeFor`): the
   per-device switch plus the device's place in the running batch; `state` and
   `step` are `null` when it is not in one. See _Firmware upgrades_.
+- `access` — `null | "read" | "noWrite" | "write"`
+  (`services/mikrotik/upgradeRights.js#accessView`), emitted by both row
+  builders: `null` — no record; `"read"` — `firmwareUpgradeEnabled` is off;
+  `"noWrite"` — the switch is on but the stored `upgradeRights.ok === false`;
+  `"write"` — the switch is on otherwise (rights confirmed, or never checked).
 - `getRecordOne` adds `record` (without secrets), `reconciliation` (card ↔ device
   mismatches, linked only), `inventory` and `lastUpgrade` (`{jobId, state, from,
   to, error, fix, finishedAt, by}` — the device's most recent finished upgrade
@@ -705,12 +720,31 @@ time, within the branch chosen for the batch (`current` = each device's own
 branch, or `long-term` / `stable`). Design: `docs/superpowers/specs/2026-09-29-mikrotik-firmware-upgrade-design.md`.
 
 - **Opt-in per device**: `Mikrotik.firmwareUpgradeEnabled` (default false). HD
-  cannot read the account's rights; a device without `write,reboot,policy`
-  fails with the fix command. RouterOS demands `read`+`write`+`policy` even for
-  `check-for-updates` (verified 29.09 on a 6.45.9 switch: export and `set
-  channel` passed, the check was refused); `policy` lets the account manage
-  users — the accepted price of upgrades from HD. Permission:
-  `mikrotik.upgradeFirmware`.
+  reads the account's group policy where the device lets it (see _Rights
+  check_) and otherwise learns from the upgrade itself; a device without
+  `write,reboot,policy` fails with the fix command. RouterOS demands
+  `read`+`write`+`policy` even for `check-for-updates` (verified 29.09 on a
+  6.45.9 switch: export and `set channel` passed, the check was refused);
+  `policy` lets the account manage users — the accepted price of upgrades from
+  HD. Permission: `mikrotik.upgradeFirmware`.
+- **Rights check** (`services/mikrotik/upgradeRights.js`, pure):
+  `REQUIRED_UPGRADE_POLICIES = api,read,write,reboot,test,ssh,policy` — the
+  fix command `RIGHTS_FIX` (`upgradeErrors.js`) is built from this list;
+  `parsePolicy` reads a RouterOS policy string (`!name` denies);
+  `assessUpgradeRights({users, groups, user})` → `{ok, missing}` or `null`. The
+  verdict lives on the record as `upgradeRights {ok, missing, checkedAt,
+  source}` — absent until something checked — and is written from two places:
+  **verify-on-save** (`verifyAndBuild`, `source: "save"`, from the poll's
+  `/user` + `/user/group` reads; a `null` assessment leaves the stored value
+  alone — the key is not `$set`) and the **upgrade worker**
+  (`upgradeWorker.js#rightsVerdict`, `source: "upgrade"`, `missing: []` either
+  way: an item that failed with `fix === RIGHTS_FIX` → `ok: false`, an item
+  that finished `done` → `ok: true`). Inference to know: RouterOS answers
+  `/user/print` only to an account holding `policy`, so an unreadable `/user`
+  (`users: null` after the 4 s bound) is read as `{ok: false, missing:
+  ["policy"]}` — an account without `policy` cannot upgrade anyway. The user
+  or its group missing from the lists gives `null` (unknown). Rows expose the
+  combined result as `access` (see _Row DTO_).
 - **Planning** (`services/mikrotik/upgradePlan.js`, pure): skip reasons (switch
   off, monitoring off, not online, already in a batch, firmware unknown, no
   release data, downgrade, already current); dependents before their transit

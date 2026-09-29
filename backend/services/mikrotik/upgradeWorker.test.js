@@ -4,7 +4,8 @@ require("module-alias/register");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { nextAction, startsNewLeg } = require("./upgradeWorker");
+const { RIGHTS_FIX } = require("./upgradeErrors");
+const { nextAction, startsNewLeg, rightsVerdict } = require("./upgradeWorker");
 
 const job = (states, over = {}) => ({
   items: states.map((state, i) => ({ _id: `i${i}`, state })),
@@ -44,4 +45,31 @@ test("a patch that moves the leg cursor starts a new hop (the device flag is ref
   assert.equal(startsNewLeg({ step: "download", hopTo: "7.12.1" }), false);
   assert.equal(startsNewLeg({ state: "failed", error: "x" }), false);
   assert.equal(startsNewLeg(undefined), false);
+});
+
+// --- upgradeRights stamped on the record by a finished item ------------------
+
+const NOW = new Date("2026-09-29T06:00:00Z");
+
+test("an item failed on rights stamps the record: write refused by the device", () => {
+  assert.deepEqual(
+    rightsVerdict({ state: "failed", finishedAt: NOW, error: "…", fix: RIGHTS_FIX }, NOW),
+    { ok: false, missing: [], checkedAt: NOW, source: "upgrade" },
+  );
+});
+
+test("a finished upgrade stamps the record: write confirmed", () => {
+  assert.deepEqual(rightsVerdict({ state: "done", finishedAt: NOW }, NOW), {
+    ok: true,
+    missing: [],
+    checkedAt: NOW,
+    source: "upgrade",
+  });
+});
+
+test("any other outcome says nothing about rights", () => {
+  // A device that never came back, a mid-step patch, no patch at all.
+  assert.equal(rightsVerdict({ state: "failed", finishedAt: NOW, error: "не ответило" }, NOW), null);
+  assert.equal(rightsVerdict({ step: "download", hopTo: "7.12.1" }, NOW), null);
+  assert.equal(rightsVerdict(undefined, NOW), null);
 });

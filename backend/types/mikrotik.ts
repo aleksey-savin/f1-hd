@@ -75,6 +75,15 @@ export interface IMikrotik {
   failedPolls: number;
   firstFailureAt?: Date;
   firmwareUpgradeEnabled?: boolean;
+  // Verdict of the last rights check of the managed account (upgrades from HD):
+  // written by verify-on-save (/user + /user/group reads) and by the upgrade
+  // worker (rights failure / success). Absent = never checked.
+  upgradeRights?: {
+    ok: boolean;
+    missing: string[];
+    checkedAt: Date;
+    source: "save" | "upgrade";
+  };
   upgrade?: { jobId?: Types.ObjectId; since?: Date };
   schedules?: {
     backup?: IMikrotikSchedule;

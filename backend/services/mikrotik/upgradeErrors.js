@@ -1,9 +1,11 @@
 const { describeConnectionError } = require("./connector");
+const { REQUIRED_UPGRADE_POLICIES } = require("./upgradeRights");
 
 // Plain-Russian messages for a failed upgrade step (stored in item.error) plus,
 // where one command fixes it, that command (item.fix — shown with a copy button).
-const RIGHTS_FIX =
-  "/user group set hd-mgmt policy=api,read,write,reboot,test,ssh,policy";
+// The policy list is the single source of what an upgrade needs
+// (upgradeRights.js); the worker compares item.fix with this string.
+const RIGHTS_FIX = `/user group set hd-mgmt policy=${REQUIRED_UPGRADE_POLICIES.join(",")}`;
 
 const describeUpgradeError = (error) => {
   const raw = `${error?.code || ""} ${error?.message || ""}`;

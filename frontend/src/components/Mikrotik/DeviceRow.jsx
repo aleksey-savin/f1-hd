@@ -3,8 +3,11 @@ import { Link, useNavigate } from "react-router";
 import {
   RiDeleteBinLine,
   RiEdit2Line,
+  RiErrorWarningLine,
+  RiEyeLine,
   RiMoreLine,
   RiPauseCircleLine,
+  RiPencilLine,
   RiPlayCircleLine,
   RiShieldFlashLine,
 } from "react-icons/ri";
@@ -54,6 +57,37 @@ import { formatTime } from "../../util/format-date";
 // мониторинг, удалить (диалог — вне radix-меню, иначе размонтируется вместе с
 // ним). На телефоне гнезда нет: правка и удаление живут на странице записи,
 // куда ведёт тап; колонки добираются с md/lg.
+
+// Право HD на устройстве (row.access; макет «Права HD в списке» 29.09,
+// вариант A): первым пунктом строки под именем — видно на любой ширине и не
+// спорит с колонками, один элемент на десктоп и телефон. «Только чтение» —
+// переключатель «Обновление прошивки из HD» выключен; «чтение и запись» —
+// включён (устройство подтвердило или ещё не проверялось); «нет прав на
+// запись» — включён, но группа учётки на устройстве не даёт write/reboot/
+// policy — янтарём: это надо починить на устройстве. Иконка 13 px на базовой
+// линии слова (align-[-1px]), как в макете.
+const ACCESS_META = {
+  read: {
+    Icon: RiEyeLine,
+    label: "только чтение",
+    className: "text-faint",
+    title: "Обновление прошивки из HD выключено",
+  },
+  write: {
+    Icon: RiPencilLine,
+    label: "чтение и запись",
+    className: "text-foreground",
+    title: "Обновление прошивки из HD включено",
+  },
+  noWrite: {
+    Icon: RiErrorWarningLine,
+    label: "нет прав на запись",
+    className: "font-semibold text-warning",
+    title:
+      "Обновление прошивки из HD включено, но группа пользователя HD на устройстве не даёт прав write, reboot и policy",
+  },
+};
+
 const DeviceRow = ({
   row,
   canManage,
@@ -90,6 +124,8 @@ const DeviceRow = ({
   ]
     .filter(Boolean)
     .join(" · ");
+  const access = ACCESS_META[row.access] || null;
+  const AccessIcon = access?.Icon;
 
   const firmware = row.firmwareStatus;
   const installedVersion = firmware?.installedVersion || row.currentFirmware;
@@ -195,7 +231,23 @@ const DeviceRow = ({
             {row.displayName}
           </span>
           <span className="block truncate text-sm text-muted-foreground">
-            {meta || "—"}
+            {access ? (
+              <>
+                <span
+                  title={access.title}
+                  className={cn(
+                    "inline-flex items-center gap-1 align-[-1px]",
+                    access.className,
+                  )}
+                >
+                  <AccessIcon size={13} aria-hidden />
+                  {access.label}
+                </span>
+                {meta && ` · ${meta}`}
+              </>
+            ) : (
+              meta || "—"
+            )}
           </span>
           {/* Узкий экран: статус подстрокой, как у строки устройств. Колонки
               прошивки тут нет, поэтому отставание и уязвимость — хвостом

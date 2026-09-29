@@ -21,8 +21,9 @@ const CHANGELOGS_URL = "https://mikrotik.com/download/changelogs";
 // одновременно (канон «сводка = переключатель», как лента парка и очереди):
 // чип ветки несёт её последнюю версию и число отстающих устройств, клик сужает
 // список до этих устройств (фасет `branch` стора). Ветка, где все актуальны, —
-// справка без клика: сужать нечего, а версия всё равно полезна. Чипы v7 —
-// всегда, v6 — только когда во флоте есть такие устройства. Чейнджлоги —
+// справка без клика: сужать нечего, а версия всё равно полезна. Чип — только у
+// ветки, на которой есть устройства (29.09: чип stable с «все актуальны» при
+// нуле устройств на stable вводил в заблуждение). Чейнджлоги —
 // ссылкой на mikrotik.com в хвосте полосы: шторка с текстом чейнджлога снята
 // 08.09 — чип, который выглядит фильтром, обязан фильтровать. Пустой кэш
 // (первый деплой до boot-рефреша) — полоса не рендерится вовсе.
@@ -55,10 +56,9 @@ const RouterOsStrip = ({ mobileAside = null }) => {
       .filter(Boolean),
   );
 
-  const visible = BRANCH_ORDER.filter((key) => {
-    if (!byKey.get(key)?.version) return false;
-    return key.startsWith("6.") ? fleetBranches.has(key) : true;
-  });
+  const visible = BRANCH_ORDER.filter(
+    (key) => byKey.get(key)?.version && fleetBranches.has(key),
+  );
   if (!visible.length) {
     return mobileAside ? (
       <div className="flex justify-end md:hidden">{mobileAside}</div>
