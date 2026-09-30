@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { isBrowser } from "react-device-detect";
 
 import { cn } from "@/lib/utils";
+import { formatPhone, phoneHref } from "@/util/phone";
 import useInitialPrefs from "../store/prefs";
 import { getLocalStorageData } from "../util/auth";
 import { ThemeContext } from "../store/theme-context";
@@ -28,15 +29,20 @@ const Footer = () => {
   // посередине, и строка не начинается с точки-разделителя (так было на
   // телефоне, когда все три факта шли одним переносимым рядом)
   const contactItems = [
-    contacts?.tel && (
-      <a
-        key="tel"
-        href={`tel:${contacts.tel}`}
-        className="text-muted-foreground no-underline hover:text-foreground"
-      >
-        {contacts.tel}
-      </a>
-    ),
+    contacts?.tel &&
+      (phoneHref(contacts.tel) ? (
+        <a
+          key="tel"
+          href={phoneHref(contacts.tel)}
+          className="text-muted-foreground no-underline tabular-nums hover:text-foreground"
+        >
+          {formatPhone(contacts.tel)}
+        </a>
+      ) : (
+        <span key="tel" className="text-muted-foreground tabular-nums">
+          {formatPhone(contacts.tel)}
+        </span>
+      )),
     contacts?.email && (
       <a
         key="email"

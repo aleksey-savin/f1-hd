@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import PhoneInput from "@/components/app/PhoneInput";
+import { phoneInputError, phoneWireValue } from "@/util/phone";
 import WizardStepper from "@/components/app/WizardStepper";
 import AlertMessage from "@/components/app/AlertMessage";
 import {
@@ -100,14 +101,15 @@ const CompanyForm = () => {
   });
 
   // Телефоны — динамический список; строкам нужны стабильные ключи, иначе
-  // PhoneInput (внутренний стейт маски) «переезжает» при удалении из середины
+  // PhoneInput (внутренний стейт маски) «переезжает» при удалении из середины.
+  // В строке — значение формы, «+цифры» (util/phone)
   const phoneSeq = useRef(0);
   const nextPhoneKey = () => `phone-${phoneSeq.current++}`;
   const [phones, setPhones] = useState(() => {
     const existing = (company?.phones || []).filter(Boolean);
     const rows = (existing.length ? existing : [""]).map((value) => ({
       key: nextPhoneKey(),
-      value,
+      value: phoneWireValue(value),
     }));
     return rows;
   });
@@ -168,17 +170,26 @@ const CompanyForm = () => {
       .map((row) => row.value.trim().replace(/^@/, "").toLowerCase())
       .filter(Boolean);
 
-  // Обязательные поля есть только на первом шаге
-  const stepValid = (index) =>
-    index !== 0 ||
-    (form.alias.trim() !== "" &&
-      form.fullTitle.trim() !== "" &&
-      responsibles.length > 0);
+  // Обязательные поля — на первом шаге; на втором — только годные телефоны
+  const stepValid = (index) => {
+    if (index === 0) {
+      return (
+        form.alias.trim() !== "" &&
+        form.fullTitle.trim() !== "" &&
+        responsibles.length > 0
+      );
+    }
+    if (index === 1) return phones.every((row) => !phoneInputError(row.value));
+    return true;
+  };
 
-  const stepError = (index) =>
-    index === 0 && !stepValid(0)
+  const stepError = (index) => {
+    if (stepValid(index)) return null;
+    // Что не так с номером, уже написано под строкой — здесь не повторяем
+    return index === 0
       ? "Заполните наименования и выберите хотя бы одного ответственного"
-      : null;
+      : "Проверьте телефоны — подсказка под строкой";
+  };
 
   const handleNext = () => {
     if (!stepValid(step)) {
@@ -208,15 +219,16 @@ const CompanyForm = () => {
   const saving = fetcher.state !== "idle";
 
   const handleSubmit = () => {
-    if (!stepValid(0)) {
+    const badStep = [0, 1].find((index) => !stepValid(index));
+    if (badStep !== undefined) {
       setAttempted(true);
       // Показать человеку незаполненное поле. В мастере это переключение шага,
       // в правке — прокрутка к секции: шагов там нет, и `setStep` молчал бы,
       // а форма выглядела бы сломанной — нажал «Сохранить», не случилось ничего
       if (isEdit) {
-        scrollToSection(scroller, sectionAnchorId(SECTION_KEYS[0]));
+        scrollToSection(scroller, sectionAnchorId(SECTION_KEYS[badStep]));
       } else {
-        setStep(0);
+        setStep(badStep);
       }
       return;
     }
@@ -226,7 +238,7 @@ const CompanyForm = () => {
       fullTitle: form.fullTitle.trim(),
       // Бэкенд сплитит строку доменов сам (легаси-контракт сохранён)
       emailDomains: cleanDomains().join(", "),
-      phones: phones.map((row) => row.value.trim()).filter(Boolean),
+      phones: phones.map((row) => row.value).filter(Boolean),
       address: form.address.trim(),
       linkToMap: form.linkToMap.trim(),
       responsibles: responsibles.map((resp) => resp._id),
@@ -371,13 +383,13 @@ const CompanyForm = () => {
           <Field label="Телефоны">
             <div className="grid gap-2">
               {phones.map((row) => (
-                <div key={row.key} className="flex items-center gap-1.5">
+                <div key={row.key} className="flex items-start gap-1.5">
                   <div className="min-w-0 flex-1">
                     <PhoneInput
                       id={row.key}
-                      name={row.key}
                       value={row.value}
-                      setValue={(value) => setPhone(row.key, value)}
+                      onValueChange={(value) => setPhone(row.key, value)}
+                      showErrors={attempted}
                     />
                   </div>
                   {(phones.length > 1 || row.value) && (
@@ -386,7 +398,7 @@ const CompanyForm = () => {
                       onClick={() => removePhone(row.key)}
                       title="Убрать телефон"
                       aria-label="Убрать телефон"
-                      className="grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-accent hover:text-destructive"
+                      className="mt-1 grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-accent hover:text-destructive"
                     >
                       <RiCloseLine size={16} />
                     </button>

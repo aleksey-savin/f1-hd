@@ -1,5 +1,7 @@
 const { body } = require("express-validator");
 
+const { phoneBody } = require("../phone");
+
 const supplierValidation = [
   body("name")
     .notEmpty()
@@ -16,6 +18,7 @@ const supplierValidation = [
     .isEmail()
     .withMessage("Проверьте адрес почты")
     .trim(),
+  phoneBody("phone"),
   // ИНН — 10 цифр у организации, 12 у ИП; КПП — всегда 9.
   body("inn")
     .optional({ values: "falsy" })

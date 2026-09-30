@@ -79,9 +79,9 @@ test("a direct conversation row is named by the linked user", () => {
 test("an unknown direct contact is named by the identity and flagged", () => {
   const row = conversationRow(
     { _id: ids.conv, kind: "direct", network: "whatsapp", title: "", counterpartIdentityId: ids.ident, binding: {}, decision: {}, lastMessage: {} },
-    { identities: new Map([[ids.ident, { _id: ids.ident, phone: "+79142073318" }]]) },
+    { identities: new Map([[ids.ident, { _id: ids.ident, phone: "79142073318" }]]) },
   );
-  assert.equal(row.title, "+79142073318");
+  assert.equal(row.title, "+7 (914) 207-33-18");
   assert.equal(row.unknown, true);
   assert.equal(row.ticket, null);
   assert.equal(row.lastMessage, null);

@@ -20,9 +20,10 @@ const {
   carryOverSpeechResult,
 } = require("../services/speechToTextService");
 const {
-  extractCallerPhone,
+  extractCallerPhones,
   findApplicantByPhone,
   findCompanyByPhone,
+  findByAnyPhone,
   buildKnownCaller,
   isCloudTelephonySender,
 } = require("../services/callerIdentityService");
@@ -637,8 +638,11 @@ exports.handleNewEmails = async () => {
         const isIncomingCall =
           /входящий\s+звонок/i.test(email.name || "") && hasAudioAttachments;
 
-        // Номер звонящего: из темы письма или из тела ("Кто звонил:")
-        const phoneNumber = extractCallerPhone(email);
+        // Номера звонящего: «Кто звонил:», тема, тело — по порядку доверия.
+        // Наша линия (contacts.tel) звонящим не бывает
+        const callerPhones = extractCallerPhones(email, {
+          ownPhones: [prefs.contacts?.tel],
+        });
 
         // Источник «Облачная телефония» определяется по ОТПРАВИТЕЛЮ письма
         // (аккаунт телефонии, с которого пришло письмо), а не по заявителю:
@@ -657,12 +661,12 @@ exports.handleNewEmails = async () => {
           // письмо/звонок падает на defaultCompany как неопознанное.
           // Сам defaultCompany выше намеренно без фильтра: машинный фолбэк
           // должен жить всегда (его отключение закрыто 409-гардом в UI).
-          if (prefs.checkPhoneNumber && phoneNumber) {
+          if (prefs.checkPhoneNumber && callerPhones.length) {
             company =
               (await MongoCompany.findOne({
                 emailDomains: { $in: [emailDomain] },
                 isActive: { $ne: false },
-              })) || (await findCompanyByPhone(phoneNumber));
+              })) || (await findByAnyPhone(callerPhones, findCompanyByPhone));
             if (company && isIncomingCall) ticketTitle = "Входящий звонок";
           } else {
             company = await MongoCompany.findOne({
@@ -688,9 +692,9 @@ exports.handleNewEmails = async () => {
           // Заявители отключённых компаний не опознаются (снапшот
           // company.isActive) — заявка уйдёт от defaultApplicant, чтобы через
           // applicant.company не притащить отключённую компанию.
-          if (prefs.checkPhoneNumber && phoneNumber) {
+          if (prefs.checkPhoneNumber && callerPhones.length) {
             // По номеру находим клиента и привязанную к нему компанию
-            const identity = await findApplicantByPhone(phoneNumber);
+            const identity = await findByAnyPhone(callerPhones, findApplicantByPhone);
             applicant =
               identity?.applicant ||
               (await MongoUser.findOne({

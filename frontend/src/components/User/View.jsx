@@ -50,11 +50,13 @@ import {
 } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 import AnchorRail from "@/components/app/AnchorRail";
+import PhoneLink from "@/components/app/PhoneLink";
 import PropRow from "@/components/app/PropRow";
 import TechSection from "@/components/app/TechSection";
 import WorkScheduleSection from "@/components/User/WorkScheduleSection";
 import ClientTime from "@/components/app/ClientTime";
 import { cn } from "@/lib/utils";
+import { formatPhone } from "@/util/phone";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useInitialPrefs from "../../store/prefs";
@@ -471,15 +473,17 @@ const ViewUser = ({ user, tickets }) => {
             <PropRow
               icon={<RiPhoneLine size={17} />}
               label="Телефон"
-              copy={phone ? { value: phone, label: "Телефон" } : undefined}
+              copy={
+                phone
+                  ? { value: formatPhone(phone), label: "Телефон" }
+                  : undefined
+              }
             >
               {phone ? (
-                <a
-                  href={`tel:${phone}`}
-                  className="text-accent-text no-underline tabular-nums hover:underline"
-                >
-                  {phone}
-                </a>
+                <PhoneLink
+                  value={phone}
+                  className="text-accent-text no-underline hover:underline"
+                />
               ) : (
                 <span className="font-normal text-faint">—</span>
               )}

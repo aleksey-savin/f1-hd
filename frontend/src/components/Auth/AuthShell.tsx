@@ -6,6 +6,7 @@ import { RiMailLine, RiPhoneLine } from "react-icons/ri";
 import BrandMark from "@/components/app/BrandMark";
 import ThemeSegment from "@/components/app/ThemeSegment";
 import { cn } from "@/lib/utils";
+import { formatPhone, phoneHref } from "@/util/phone";
 
 import useMinuteTick from "../../hooks/use-minute-tick";
 import { ThemeContext } from "../../store/theme-context";
@@ -173,8 +174,8 @@ const AuthShell = ({
                 {contacts.tel && (
                   <Contact
                     label="Телефон"
-                    value={contacts.tel}
-                    href={`tel:${contacts.tel.replace(/[^+\d]/g, "")}`}
+                    value={formatPhone(contacts.tel)}
+                    href={phoneHref(contacts.tel)}
                     icon={<RiPhoneLine size={16} />}
                   />
                 )}

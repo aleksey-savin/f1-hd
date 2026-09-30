@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const workSchedule = require("./workSchedule");
+const { toCanonicalPhone } = require("../services/phone");
 
 const Schema = mongoose.Schema;
 
@@ -29,10 +30,13 @@ const companySchema = new Schema(
         required: false,
       },
     ],
+    // Телефоны — цифрами с кодом страны (services/phone.js), как и в снимках
+    // людей ниже
     phones: [
       {
         type: String,
         required: false,
+        set: toCanonicalPhone,
       },
     ],
     address: { type: String, required: false },
@@ -59,7 +63,7 @@ const companySchema = new Schema(
         },
         fullName: String,
         email: String,
-        phone: String,
+        phone: { type: String, set: toCanonicalPhone },
         position: String,
         role: String,
         isActive: Boolean,
@@ -80,7 +84,7 @@ const companySchema = new Schema(
         firstName: String,
         lastName: String,
         email: String,
-        phone: String,
+        phone: { type: String, set: toCanonicalPhone },
         position: String,
         role: String,
         isActive: Boolean,
@@ -95,7 +99,7 @@ const companySchema = new Schema(
         firstName: String,
         lastName: String,
         email: String,
-        phone: String,
+        phone: { type: String, set: toCanonicalPhone },
         position: String,
         role: String,
         isActive: Boolean,

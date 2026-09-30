@@ -29,9 +29,11 @@ import {
   Section,
   SectionEditLink,
 } from "@/components/app/Panel";
+import PhoneLink from "@/components/app/PhoneLink";
 import PropRow from "@/components/app/PropRow";
 import { DeviceStatusText } from "@/components/app/device-status";
 import { cn } from "@/lib/utils";
+import { formatPhone } from "@/util/phone";
 
 import useToastStore from "../../store/toast-store";
 import { formatCalendarDate } from "../../util/format-date";
@@ -180,8 +182,13 @@ const ViewSupplier = ({ supplier = {} }) => {
     supplier.phone && {
       icon: <RiPhoneLine size={17} />,
       label: "Телефон",
-      value: supplier.phone,
-      copy: { value: supplier.phone, label: "Телефон" },
+      value: (
+        <PhoneLink
+          value={supplier.phone}
+          className="text-accent-text no-underline hover:underline"
+        />
+      ),
+      copy: { value: formatPhone(supplier.phone), label: "Телефон" },
     },
     (supplier.email || supplier.website) && {
       icon: <RiMailLine size={17} />,

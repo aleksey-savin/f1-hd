@@ -9,6 +9,7 @@ import {
 import ConfirmDialog from "@/components/app/ConfirmDialog";
 import Field from "@/components/app/Field";
 import PasswordInput from "@/components/app/PasswordInput";
+import PhoneInput from "@/components/app/PhoneInput";
 import QrCode from "@/components/app/QrCode";
 import { ChannelTile } from "@/components/Conversation/ChannelGlyph";
 import { failureText } from "@/components/Conversation/conversation-actions";
@@ -36,6 +37,7 @@ import {
   signatureExample,
   splitProxyPassword,
 } from "@/util/channel-state";
+import { formatPhone, phoneInputError } from "@/util/phone";
 import { plural } from "@/util/plural";
 
 /**
@@ -412,7 +414,8 @@ const TelegramChannelDialog = ({
             {account.displayName || "Корпоративный аккаунт"}
           </div>
           <div className="truncate text-sm text-muted-foreground">
-            {account.phone || (account.username ? `@${account.username}` : "")}
+            {formatPhone(account.phone) ||
+              (account.username ? `@${account.username}` : "")}
           </div>
           <Button
             variant="ghost"
@@ -514,24 +517,30 @@ const TelegramChannelDialog = ({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (phone.trim()) void loginStep("phone", phone.trim());
+            if (phone && !phoneInputError(phone))
+              void loginStep("phone", phone);
           }}
         >
           <Field label="Номер телефона" htmlFor="tg-login-phone">
-            <Input
+            {/* Ключ по каналу: другой канал — поле с нуля, как и прежде */}
+            <PhoneInput
+              key={channelId ?? "none"}
               id="tg-login-phone"
-              type="tel"
-              autoComplete="tel"
-              placeholder="+7 900 000-00-00"
               value={phone}
+              onValueChange={setPhone}
               disabled={pendingFor("phone")}
-              onChange={(event) => setPhone(event.target.value)}
             />
           </Field>
           <Button
             type="submit"
             className="w-full"
-            disabled={busy || !phone.trim() || !keysReady || pendingFor("phone")}
+            disabled={
+              busy ||
+              !phone ||
+              Boolean(phoneInputError(phone)) ||
+              !keysReady ||
+              pendingFor("phone")
+            }
           >
             {pendingFor("phone") ? (
               <>

@@ -55,7 +55,6 @@
     "nodemailer": "^7.0.2",
     "pad": "^3.3.0",
     "pdf-parse": "^2.4.5",
-    "phone": "^3.1.59",
     "routeros-node": "^0.1.0",
     "ssh2": "^1.17.0",
     "urldecode": "^1.0.1",

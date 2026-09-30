@@ -22,6 +22,7 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import { canManageEntity } from "@/components/app/entity-permissions";
 import { useAuthedUser, useCan } from "@/store/authed-user";
 import { cn } from "@/lib/utils";
+import { formatPhone, phoneHref } from "@/util/phone";
 
 import { relativeDay } from "../../util/relative-time";
 import { getPresence } from "./presence";
@@ -140,11 +141,11 @@ const UserItem = ({ item }) => {
 
         {/* десктоп: действия связи (только заполненные каналы) */}
         <div className="hidden flex-none items-center gap-0.5 md:flex">
-          {phone && (
+          {phoneHref(phone) && (
             <a
               className={cn(contactClass, "hover:text-primary")}
-              href={`tel:${phone}`}
-              title={`Позвонить · ${phone}`}
+              href={phoneHref(phone)}
+              title={`Позвонить · ${formatPhone(phone)}`}
               aria-label={`Позвонить ${fullName}`}
               onClick={stop}
             >

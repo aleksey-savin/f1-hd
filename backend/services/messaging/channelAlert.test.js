@@ -54,7 +54,7 @@ test("error alerts at most once per 6 hours per channel; loggedOut and banned al
 test("the bell row names the channel and the reason — never the account's phone or username", () => {
   const channel = {
     name: "Telegram",
-    account: { displayName: "F1Lab Поддержка", phone: "+7 (423) 200-00-00", username: "f1lab_support" },
+    account: { displayName: "F1Lab Поддержка", phone: "74232000000", username: "f1lab_support" },
   };
   assert.deepEqual(
     channelAlertText(channel, "loggedOut", "Сессию завершили в Telegram — войдите заново (SESSION_REVOKED)"),
@@ -70,6 +70,7 @@ test("the bell row names the channel and the reason — never the account's phon
   );
   const rows = JSON.stringify(["loggedOut", "banned", "error"].map((state) => channelAlertText(channel, state)));
   assert.equal(rows.includes("200-00-00"), false);
+  assert.equal(rows.includes("4232000000"), false);
   assert.equal(rows.includes("f1lab_support"), false);
   assert.equal(CHANNEL_SETTINGS_LINK, "/preferences#channels");
 });

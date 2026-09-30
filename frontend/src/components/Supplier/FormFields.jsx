@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Field from "@/components/app/Field";
+import PhoneInput from "@/components/app/PhoneInput";
 import SwitchField from "@/components/app/SwitchField";
+import { phoneWireValue } from "@/util/phone";
 
 // Поля поставщика — ОДИН набор на страницу и на инлайн-создание из мастера
 // устройства. Рендерят `name`-атрибуты (сабмит страницы идёт через
@@ -23,11 +25,15 @@ const EMPTY = {
 };
 
 const SupplierFormFields = ({ supplier, onChange }) => {
-  const [values, setValues] = useState({
-    ...EMPTY,
-    ...Object.fromEntries(
-      Object.keys(EMPTY).map((key) => [key, supplier?.[key] ?? EMPTY[key]]),
-    ),
+  const [values, setValues] = useState(() => {
+    const initial = {
+      ...EMPTY,
+      ...Object.fromEntries(
+        Object.keys(EMPTY).map((key) => [key, supplier?.[key] ?? EMPTY[key]]),
+      ),
+    };
+    // Телефон в форме — «+цифры», как его отдаёт поле (util/phone)
+    return { ...initial, phone: phoneWireValue(initial.phone) };
   });
 
   // Сообщаем начальное состояние, чтобы у диалога был полный объект без правок.
@@ -57,12 +63,15 @@ const SupplierFormFields = ({ supplier, onChange }) => {
 
       <div className="grid gap-x-3 md:grid-cols-2">
         <Field label="Телефон" htmlFor="supplier-phone">
-          <Input
+          <PhoneInput
             id="supplier-phone"
             name="phone"
             value={values.phone}
-            onChange={set("phone")}
-            placeholder="+7 (___) ___-__-__"
+            onValueChange={(phone) => {
+              const next = { ...values, phone };
+              setValues(next);
+              onChange?.(next);
+            }}
           />
         </Field>
         <Field label="Почта" htmlFor="supplier-email">

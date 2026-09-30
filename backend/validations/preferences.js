@@ -1,5 +1,7 @@
 const { body } = require("express-validator");
 
+const { phoneBody } = require("./phone");
+
 // Настройки сохраняются ПО СЕКЦИЯМ: в теле приходит только изменённая группа,
 // поэтому каждое правило optional — иначе сохранение «Модулей» падало бы на
 // пустом адресе почты. Смысловые инварианты включённых каналов (адрес, сервер,
@@ -34,6 +36,7 @@ exports.update = [
   body("htmlTicketDesc").optional().isBoolean(),
   body("deadline").optional().isNumeric(),
   body("contacts").optional().isObject(),
+  phoneBody("contacts.tel"),
   body("taxi").optional().isObject(),
 
   // Ящик-приёмник

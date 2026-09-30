@@ -24,6 +24,7 @@ import {
 import EntityLink from "@/components/app/EntityLink";
 import { ChannelIcon } from "@/components/Conversation/ChannelGlyph";
 import { MESSENGER_SOURCES, dialogLabel } from "@/util/delivery-routes";
+import { formatPhone, phoneHref } from "@/util/phone";
 import UserLink from "@/components/app/UserLink";
 import ApplicantPopup from "./ApplicantPopup";
 import { useCrumbFrom } from "@/components/app/Crumbs";
@@ -553,15 +554,15 @@ export const FactsSection = ({
             action={
               <>
                 {/* Заявителю кнопки нет: инициатор — он сам */}
-                {!isEndUser && applicant?.phone && (
+                {!isEndUser && phoneHref(applicant?.phone) && (
                   <Button
                     asChild
                     variant="ghost"
                     size="icon-xs"
-                    title={`Позвонить: ${applicant.phone}`}
+                    title={`Позвонить: ${formatPhone(applicant.phone)}`}
                     aria-label="Позвонить инициатору"
                   >
-                    <a href={`tel:${applicant.phone}`}>
+                    <a href={phoneHref(applicant.phone)}>
                       <RiPhoneLine />
                     </a>
                   </Button>

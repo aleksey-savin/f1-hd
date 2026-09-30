@@ -97,6 +97,8 @@ adds (on the dev machine: `docker compose run --rm backend node scripts/migrate.
   `docs/typescript-guide.md`.
 - UI rules: `docs/ux-ui-guide.md`. Dates and timezones:
   `docs/datetime-conventions.md`.
+- Phone numbers are stored as canonical digits and formatted only for display:
+  `docs/phone-numbers.md`.
 - Data migrations are scripts in `backend/scripts/` registered in
   `backend/scripts/migrate.js`; never run one on production outside the runner
   without `migrate mark` afterwards.

@@ -11,6 +11,7 @@ import UserLink from "@/components/app/UserLink";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import ClientTime from "@/components/app/ClientTime";
+import PhoneLink from "@/components/app/PhoneLink";
 import { plural } from "../../../util/plural";
 
 const dash = <span className="text-faint">—</span>;
@@ -154,12 +155,10 @@ const SubdivisionPreviewSheet = ({
                 </Info>
                 <Info label="Телефон">
                   {node.phone ? (
-                    <a
-                      href={`tel:${node.phone}`}
-                      className="text-accent-text no-underline tabular-nums hover:underline"
-                    >
-                      {node.phone}
-                    </a>
+                    <PhoneLink
+                      value={node.phone}
+                      className="text-accent-text no-underline hover:underline"
+                    />
                   ) : null}
                 </Info>
                 <Info label="Часовой пояс">

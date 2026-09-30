@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import PhoneInput from "@/components/app/PhoneInput";
 import SettingRow from "@/components/app/SettingRow";
 import useRefreshRoute from "@/components/app/use-refresh-route";
 import { SubLabel } from "@/components/app/Panel";
@@ -10,6 +11,7 @@ import Combobox from "@/components/app/Combobox";
 import { timezoneOptions } from "../../util/timezone-catalog";
 import useToastStore from "../../store/toast-store";
 import { DEFAULT_TIMEZONE } from "../../util/format-date";
+import { phoneInputError, phoneWireValue } from "../../util/phone";
 import { TAXI_OPERATORS } from "../../util/taxi-operators";
 import SectionForm from "./SectionForm";
 
@@ -26,7 +28,9 @@ const PrefsGlobals = ({ prefs }) => {
 
   const [timezone, setTimezone] = useState(prefs.timezone || DEFAULT_TIMEZONE);
   const [orgTitle, setOrgTitle] = useState(prefs.contacts?.title || "");
-  const [tel, setTel] = useState(prefs.contacts?.tel || "");
+  // Телефон в форме — «+цифры», как его отдаёт поле (util/phone): иначе
+  // черновик был бы изменённым уже при открытии
+  const [tel, setTel] = useState(phoneWireValue(prefs.contacts?.tel));
   const [email, setEmail] = useState(prefs.contacts?.email || "");
   const [address, setAddress] = useState(prefs.contacts?.address || "");
   const [taxiOperator, setTaxiOperator] = useState(prefs.taxi?.operator || "");
@@ -89,6 +93,7 @@ const PrefsGlobals = ({ prefs }) => {
         contacts: { title: orgTitle, tel, email, address },
         taxi: { operator: taxiOperator },
       })}
+      blockedReason={phoneInputError(tel) ? "Проверьте номер телефона" : null}
     >
       <SettingRow
         title="Глобальный часовой пояс"
@@ -126,11 +131,10 @@ const PrefsGlobals = ({ prefs }) => {
         />
       </SettingRow>
       <SettingRow title="Телефон" htmlFor="prefs-contact-tel" className="py-3">
-        <Input
+        <PhoneInput
           id="prefs-contact-tel"
-          type="text"
           value={tel}
-          onChange={(event) => setTel(event.target.value)}
+          onValueChange={setTel}
           className="w-72 max-md:w-full"
         />
       </SettingRow>

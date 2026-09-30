@@ -86,9 +86,6 @@ importers:
       pdf-parse:
         specifier: ^2.4.5
         version: 2.4.5
-      phone:
-        specifier: ^3.1.59
-        version: 3.1.59
       routeros-node:
         specifier: ^0.1.0
         version: 0.1.0
@@ -1885,10 +1882,6 @@ packages:
 
   peberminta@0.9.0:
     resolution: {integrity: sha512-XIxfHpEuSJbITd1H3EeQwpcZbTLHc+VVr8ANI9t5sit565tsI4/xK3KWTUFE2e6QiangUkh3B0jihzmGnNrRsQ==}
-
-  phone@3.1.59:
-    resolution: {integrity: sha512-CUv22jw0Zgrb/h7v3sEd262zJXS/66h7zyCCRIynx+2FswAJuuFsXsJkIxMUT4UcosKxDx1bJwdZeGnDELLsCw==}
-    engines: {node: '>=12'}
 
   picomatch@2.3.1:
     resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
@@ -4353,8 +4346,6 @@ snapshots:
       '@napi-rs/canvas': 0.1.80
 
   peberminta@0.9.0: {}
-
-  phone@3.1.59: {}
 
   picomatch@2.3.1: {}
 

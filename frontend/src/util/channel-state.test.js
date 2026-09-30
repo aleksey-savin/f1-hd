@@ -24,7 +24,7 @@ const channel = (extra = {}) => ({
   lastMessageAt: "2026-09-25T07:58:00Z",
   settings: { proxyUrl: "socks5://relay.f1lab.ru:1080", historyDays: 14 },
   login: { qr: null, expiresAt: null },
-  account: { displayName: "F1Lab Поддержка", phone: "+7 (423) 200-00-00" },
+  account: { displayName: "F1Lab Поддержка", phone: "74232000000" },
   ...extra,
 });
 

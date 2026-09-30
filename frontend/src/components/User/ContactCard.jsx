@@ -11,6 +11,7 @@ import {
 import useToastStore from "@/store/toast-store";
 import { useCan } from "@/store/authed-user";
 import { cn } from "@/lib/utils";
+import { formatPhone, phoneHref } from "@/util/phone";
 
 import UserAvatar from "./UserAvatar";
 
@@ -148,11 +149,11 @@ const ContactCard = ({
           <Channel
             compact={compact}
             icon={<RiPhoneLine size={iconSize} />}
-            label="Позвонить"
-            value={phone}
-            href={`tel:${phone}`}
+            label={phoneHref(phone) ? "Позвонить" : "Телефон"}
+            value={formatPhone(phone)}
+            href={phoneHref(phone)}
             copy={{
-              value: phone,
+              value: formatPhone(phone),
               label: "Телефон",
               aria: "Скопировать телефон",
             }}

@@ -22,6 +22,8 @@ const { bindConversation, unbindConversation, attachMessages } = require("@/serv
 const { sendFromInbox, retryMessage } = require("@/services/messaging/outbound");
 const { ticketDraft, deliveryRoutes } = require("@/services/messaging/origin");
 const { enqueueJob } = require("@/services/messaging/jobs");
+const { personSearchClauses } = require("@/services/personSearch");
+const { phoneSearchDigits, phoneDigitsPattern } = require("@/services/phone");
 
 /** «Диалоги» для сотрудников. Маршруты — routes/internal/conversation.js. */
 
@@ -117,6 +119,11 @@ exports.list = async (req, res, next) => {
     if (q) {
       const pattern = new RegExp(escapeRegExp(q), "i");
       extra.$or = [{ title: pattern }, { "lastMessage.preview": pattern }, { "lastMessage.authorName": pattern }];
+      // Номер — ещё и по цифрам через разделители, в заголовке и авторе (превью — длинный текст, \D* склеил бы соседние номера)
+      for (const digits of phoneSearchDigits(q)) {
+        const byDigits = phoneDigitsPattern(digits);
+        extra.$or.push({ title: byDigits }, { "lastMessage.authorName": byDigits });
+      }
     }
     const filter = listFilter(queue, req.auth, extra);
     const before = req.query.before ? new Date(req.query.before) : null;
@@ -551,18 +558,14 @@ const CANDIDATE_SEARCH_FIELDS = ["firstName", "lastName", "email", "phone", "pos
 
 /**
  * Кандидаты для ручной связи собеседника («Кто это?» → «Это он»): каждое слово
- * запроса должно найтись хоть в одном поле; клиенты первыми. Наружу — имя,
+ * запроса должно найтись хоть в одном поле, номер — по цифрам; клиенты первыми. Наружу — имя,
  * должность и компания (present.candidateRow), контактов нет.
  */
 exports.candidates = async (req, res, next) => {
   try {
     await loadVisibleIdentity(req);
-    const terms = String(req.query.q || "").trim().split(/\s+/).filter(Boolean).slice(0, 4);
-    if (!terms.length) return res.status(200).json({ items: [] });
-    const and = terms.map((term) => {
-      const pattern = new RegExp(escapeRegExp(term.slice(0, 64)), "i");
-      return { $or: CANDIDATE_SEARCH_FIELDS.map((field) => ({ [field]: pattern })) };
-    });
+    const and = personSearchClauses(req.query.q, CANDIDATE_SEARCH_FIELDS, 4);
+    if (!and.length) return res.status(200).json({ items: [] });
     const found = await User.find({ $and: [{ isServiceAccount: { $ne: true } }, ...and] })
       .select("firstName lastName position company banned banExpires")
       .sort({ isEndUser: -1, lastName: 1, firstName: 1 })

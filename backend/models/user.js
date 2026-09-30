@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const { WORK_STATUS_CODES } = require("../utils/workStatuses");
+const { toCanonicalPhone } = require("../services/phone");
 const workScheduleSchema = require("./workSchedule");
 
 const Schema = mongoose.Schema;
@@ -31,6 +32,9 @@ const userSchema = new Schema(
     phone: {
       type: String,
       default: "",
+      // Только цифры с кодом страны (services/phone.js): сеттер приводит и
+      // записи, и значения в фильтрах запросов
+      set: toCanonicalPhone,
     },
     // Имя необязательно (2026-09-08): у части людей известна одна фамилия,
     // у служебных учёток здесь лежит наименование. Отображение всюду собирает

@@ -4,6 +4,8 @@
  * тесты рядом (rules.test.js). Спека: docs/superpowers/specs/2026-09-24-omnichannel-dialogs-design.md.
  */
 
+const { formatPhone } = require("../phone");
+
 const NETWORKS = ["telegram", "whatsapp", "max", "site"];
 // Сети, чьи сессии держит шлюз msg-gateway; MAX и форма живут в бэкенде
 const GATEWAY_NETWORKS = ["telegram", "whatsapp"];
@@ -139,7 +141,8 @@ const identityName = (identity) => {
     identity.displayName ||
     full ||
     (identity.username ? `@${identity.username}` : "") ||
-    identity.phone ||
+    // Телефон хранится цифрами — в заголовок идёт в человеческом виде
+    formatPhone(identity.phone) ||
     identity.externalId ||
     ""
   );

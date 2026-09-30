@@ -9,6 +9,7 @@ import {
   dayLabel,
   emptyListText,
   formatFileSize,
+  handleLabel,
   lastMessagePrefix,
   linkAdvice,
   listTimeLabel,
@@ -193,7 +194,13 @@ test("подписи по сети: номер у WhatsApp, аккаунт у о
   assert.match(newCounterpartNote("telegram"), /этого аккаунта нет/);
   assert.match(linkAdvice("telegram"), /^Свяжите аккаунт с пользователем/);
   assert.equal(counterpartHandle({ username: "m_sokolova", phone: "+7914" }), "@m_sokolova");
-  assert.equal(counterpartHandle({ username: "", phone: "+79145550142" }), "+79145550142");
+  assert.equal(
+    counterpartHandle({ username: "", phone: "79145550142" }),
+    "+7 (914) 555-01-42",
+  );
+  assert.equal(handleLabel("@m_sokolova"), "@m_sokolova");
+  assert.equal(handleLabel("79145550142"), "+7 (914) 555-01-42");
+  assert.equal(handleLabel(""), "");
   assert.equal(counterpartHandle(null), "");
 });
 

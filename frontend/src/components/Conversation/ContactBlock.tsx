@@ -3,7 +3,12 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ConversationCard } from "@/types/conversation";
-import { counterpartHandle, networkLabel } from "@/util/conversation-format";
+import {
+  counterpartHandle,
+  handleLabel,
+  networkLabel,
+} from "@/util/conversation-format";
+import { formatPhone, toCanonicalPhone } from "@/util/phone";
 import { monogramFor } from "@/components/app/monogram";
 
 import ContactChannelRow, { CopyAction } from "./ContactChannelRow";
@@ -12,8 +17,8 @@ import ContactChannelRow, { CopyAction } from "./ContactChannelRow";
  * Собеседник, связанный с пользователем HD (канва A1, B3): плитка с
  * инициалами, имя, «должность · компания» и каналы связи — этот диалог,
  * другие мессенджеры человека («Написать» открывает тот диалог), почта и
- * телефон с копированием. Телефон, уже показанный как номер мессенджера,
- * второй строкой не повторяется.
+ * телефон с копированием. Телефон, уже показанный как номер мессенджера
+ * (этот диалог или другой), второй строкой не повторяется.
  */
 const ContactBlock = ({
   card,
@@ -24,7 +29,18 @@ const ContactBlock = ({
 }) => {
   const { contact, counterpart, conversation, otherChannels } = card;
   if (!contact) return null;
-  const handles = new Set(otherChannels.map((item) => item.handle));
+  // Телефон, уже показанный номером мессенджера (этот диалог или другой), второй
+  // строкой не повторяется: сравниваем цифры, а не написание
+  const shownPhones = new Set(
+    [
+      counterpart ? counterpartHandle(counterpart) : "",
+      ...otherChannels.map((item) => item.handle),
+    ]
+      .map((handle) =>
+        !handle || handle.startsWith("@") ? "" : toCanonicalPhone(handle),
+      )
+      .filter(Boolean),
+  );
 
   return (
     <>
@@ -69,7 +85,7 @@ const ContactBlock = ({
             key={`${item.network}-${item.handle}`}
             channel={item.network}
             label={networkLabel(item.network)}
-            value={item.handle || "—"}
+            value={handleLabel(item.handle) || "—"}
             big={big}
             action={
               item.conversationId ? (
@@ -89,13 +105,19 @@ const ContactBlock = ({
             action={<CopyAction value={contact.email} label="Адрес" what="почту" />}
           />
         )}
-        {contact.phone && !handles.has(contact.phone) && (
+        {contact.phone && !shownPhones.has(toCanonicalPhone(contact.phone)) && (
           <ContactChannelRow
             channel="phone"
             label="Телефон"
-            value={contact.phone}
+            value={formatPhone(contact.phone)}
             big={big}
-            action={<CopyAction value={contact.phone} label="Телефон" what="телефон" />}
+            action={
+              <CopyAction
+                value={formatPhone(contact.phone)}
+                label="Телефон"
+                what="телефон"
+              />
+            }
           />
         )}
       </div>

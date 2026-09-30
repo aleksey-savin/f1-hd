@@ -559,7 +559,7 @@ older ticket code used `mimetype`, while later attachment upload code used
   **creation-time** ticket title to `"Входящий звонок"` only when the subject already
   contains it **and** there is audio, so phone-number identification alone (a number
   found in a forwarded thread, signature, or an empty-body email) never rewrites the
-  subject; `extractCallerPhone` is still used to identify the applicant/company. When the
+  subject; `extractCallerPhones` is still used to identify the applicant/company. When the
   overwrite does apply: the original email body is preserved in `htmlDescription` (still
   reachable via "Просмотр оригинала"); if it was empty, the original `description` is
   moved there first. Newlines → `<br>` since both fields render as HTML.
@@ -588,14 +588,24 @@ older ticket code used `mimetype`, while later attachment upload code used
 
 ### Caller identification — `backend/services/callerIdentityService.js`
 For telephony emails the applicant + company are resolved **by phone number only**
-(the service is imported by `emailHandling.js`): `extractCallerPhone` pulls the
-caller's number from the email subject or body (explicit `Кто звонил:` marker
-first, then any phone-like token), normalizes it to E.164 via the `phone` lib, and
-`findApplicantByPhone`/`findCompanyByPhone` match it against `user.phone` /
-`company.phones` using a **digit-suffix regex** (last 10 digits, separator
-tolerant). A user match yields the user *and their linked company*. Gated by the
-existing `identifyApplicant`/`identifyCompany`/`checkPhoneNumber` prefs; this
-replaces the old fragile `email.name.split(" ")[4]` extraction.
+(the service is imported by `emailHandling.js`): `extractCallerPhones` reads the
+caller's number as canonical digits (`services/phone.js`). Non-breaking-space
+entities in the HTML part (`&nbsp;`, `&#160;`, `&#xa0;`) are decoded to spaces
+first, so an HTML-only mail's label is still found. When the explicit
+`Кто звонил:` label is present, the number that follows it (a line break may sit
+between them) is the only candidate and a withheld caller ID gives none — the same
+mail carries `Номер линии` (our own line) and the call time, which must never be
+matched. Without the label: the subject, then the body (a plausible Russian `7[3489]…`
+number or one dialled with `+`, which drops most INNs in a signature — a 10-digit INN
+starting with 3, 4, 8 or 9 still passes as `7…`, harmless under an equality lookup);
+in that search candidates never span a line break. Our own line
+(`Preferences.contacts.tel`) is never a candidate in either search.
+`findApplicantByPhone`/`findCompanyByPhone` match by equality
+on `user.phone` / `company.phones` and only when the number leads to exactly one
+record (a shared office line matches nobody); `emailHandling` tries the numbers in
+turn. A user match yields the user *and their linked company*. Gated by the existing
+`identifyApplicant`/`identifyCompany`/`checkPhoneNumber` prefs; this replaces the old
+fragile `email.name.split(" ")[4]` extraction. See `docs/phone-numbers.md`.
 
 **No name-based guessing.** If the number is not in the database, the ticket keeps
 the **default applicant/company from preferences** (the prior behavior). An earlier

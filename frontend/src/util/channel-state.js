@@ -8,6 +8,7 @@
  * вызывающий (util/format-date#formatAgo), чтобы модуль грузился в тестах.
  */
 import { plural } from "./plural.js";
+import { formatPhone } from "./phone.ts";
 
 /** Сигнала шлюза нет дольше этого — строка состояния предупреждает. */
 export const GATEWAY_SILENCE_MS = 5 * 60_000;
@@ -196,7 +197,9 @@ export const splitProxyPassword = (url) => {
 /** Подсказка строки канала: название аккаунта и номер (канва E1). */
 export const channelHint = (channel) => {
   const account = channel?.account ?? {};
-  const handle = account.phone || (account.username ? `@${account.username}` : "");
+  const handle =
+    formatPhone(account.phone) ||
+    (account.username ? `@${account.username}` : "");
   const parts = [account.displayName, handle].filter(Boolean);
   return parts.length ? parts.join(" · ") : "Корпоративный аккаунт не подключён";
 };

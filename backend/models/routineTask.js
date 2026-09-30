@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const Schema = mongoose.Schema;
+const { toCanonicalPhone } = require('../services/phone');
 
 const routineTaskSchema = new Schema(
     {
@@ -58,7 +59,7 @@ const routineTaskSchema = new Schema(
                 firstName: String,
                 lastName: String,
                 email: String,
-                phone: String,
+                phone: { type: String, set: toCanonicalPhone },
                 position: String,
                 role: String,
                 isActive: Boolean,

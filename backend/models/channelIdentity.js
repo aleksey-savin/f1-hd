@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
+const { toCanonicalPhone } = require("../services/phone");
 
 /**
  * Собеседник в одной сети: Telegram-id, телефон WhatsApp, user_id MAX, почта
@@ -18,7 +19,7 @@ const channelIdentitySchema = new Schema(
     lastName: { type: String, default: "" },
     displayName: { type: String, default: "" },
     username: { type: String, default: "" },
-    phone: { type: String, default: "" },
+    phone: { type: String, default: "", set: toCanonicalPhone },
     email: { type: String, default: "" },
     isBot: { type: Boolean, default: false },
     userId: { type: Schema.Types.ObjectId, ref: "User", default: null },

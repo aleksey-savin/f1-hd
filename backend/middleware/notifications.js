@@ -15,6 +15,7 @@ const {
 } = require("../services/telegramMessage");
 const { resolveTimezone } = require("../utils/datetime");
 const { htmlToPlainLines } = require("../helpers/htmlToPlainText");
+const { formatPhone } = require("../services/phone");
 
 /**
  * Описание заявки для Telegram: цитатой под темой. Разметку туда переслать
@@ -497,7 +498,7 @@ exports.createTicketNotifications = async () => {
                                 <p>
                                     Если у Вас есть вопросы или дополнительная
                                     информация, пожалуйста, позвоните нам по номеру
-                                    ${prefs.contacts.tel} или отправьте ответное
+                                    ${formatPhone(prefs.contacts.tel)} или отправьте ответное
                                     письмо(только не меняйте тему).
                                 </p>
                                 <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
@@ -752,7 +753,7 @@ exports.createTicketNotifications = async () => {
                             <p>
                                 Если у Вас есть вопросы или дополнительная
                                 информация, пожалуйста, позвоните нам по номеру
-                                ${prefs.contacts.tel} или отправьте ответное
+                                ${formatPhone(prefs.contacts.tel)} или отправьте ответное
                                 письмо(только не меняйте тему).
                             </p>
                             <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
@@ -1254,7 +1255,7 @@ exports.createTicketNotifications = async () => {
                             <p>
                                 Если у Вас есть вопросы или дополнительная
                                 информация, пожалуйста, позвоните нам по номеру
-                                ${prefs.contacts.tel} или отправьте ответное
+                                ${formatPhone(prefs.contacts.tel)} или отправьте ответное
                                 письмо(только не меняйте тему).
                             </p>
                             <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
@@ -1467,7 +1468,7 @@ exports.createTicketNotifications = async () => {
                             <p>
                                 Если у Вас есть вопросы или дополнительная
                                 информация, пожалуйста, позвоните нам по номеру
-                                ${prefs.contacts.tel} или отправьте ответное
+                                ${formatPhone(prefs.contacts.tel)} или отправьте ответное
                                 письмо(только не меняйте тему).
                             </p>
                             <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>

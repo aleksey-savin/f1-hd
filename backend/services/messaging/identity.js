@@ -53,20 +53,11 @@ const resolveIdentity = async (network, sender, deps) => {
 
 const USER_FIELDS = "_id company isEndUser isServiceAccount";
 
-// Тот же приём, что и buildPhoneSuffixRegex в services/callerIdentityService
-// (не экспортирован оттуда — не трогаем этот модуль, дублируем маленький кусок):
-// последние 10 цифр, разделители между ними (пробел, скобки, дефис) не считаются
-const buildPhoneSuffixRegex = (normalizedPhone) => {
-  const last10 = String(normalizedPhone).replace(/\D/g, "").slice(-10);
-  if (last10.length !== 10) return null;
-  return new RegExp(`${last10.split("").join("[\\s()-]*")}$`);
-};
-
 const modelDeps = () => {
   const ChannelIdentity = require("@/models/channelIdentity");
   const User = require("@/models/user");
-  const { normalizeRuPhone } = require("@/services/callerIdentityService");
-  const { isBanned } = require("@/services/authBan");
+  const { findUsersByPhone } = require("@/services/callerIdentityService");
+  const { toCanonicalPhone } = require("@/services/phone");
   return {
     findIdentity: (network, externalId) => ChannelIdentity.findOne({ network, externalId }).lean(),
     upsertIdentity: (network, externalId, set) =>
@@ -77,20 +68,13 @@ const modelDeps = () => {
       ).lean(),
     findUserByTelegramId: (id) =>
       User.findOne({ "telegramBot.chatId": String(id), isServiceAccount: { $ne: true } }).select(USER_FIELDS).lean(),
-    // До двух подходящих под номер — этого достаточно, чтобы linkCandidate
-    // понял «больше одного» и отказался связывать (см. Task 7 triage)
-    findUsersByPhone: async (phone) => {
-      const suffixRegex = buildPhoneSuffixRegex(phone);
-      if (!suffixRegex) return [];
-      // Та же годность, что у findApplicantByPhone: не служебная учётка,
-      // компания не отключена; банов Mongo-запрос не знает — isBanned после
-      const candidates = await User.find({ phone: suffixRegex, isServiceAccount: { $ne: true }, "company.isActive": { $ne: false } })
-        .select(`${USER_FIELDS} banned banExpires`)
-        .limit(5)
-        .lean();
-      return candidates.filter((user) => !isBanned(user)).slice(0, 2);
-    },
-    normalizePhone: normalizeRuPhone,
+    // Та же выборка, что у опознания звонков (services/callerIdentityService):
+    // живой человек из действующей компании, не больше двух кандидатов —
+    // linkCandidate связывает, только если он один
+    findUsersByPhone,
+    // Номер из мессенджера — канон цифрами; Telegram и WhatsApp присылают его
+    // без плюса, и повторный разбор испортил бы номер другой страны
+    normalizePhone: toCanonicalPhone,
   };
 };
 

@@ -3120,6 +3120,9 @@ export const stateEvent = (
 });
 ```
 
+> 2026-09-30: the backend canonicalizes every incoming phone itself
+> (`docs/phone-numbers.md`); `phoneOf` may send Telegram's digits as they are.
+
 - [ ] **Step 4: Run the tests — expect pass**
 
 Run: `cd /home/aleksey/projects/hd/msg-gateway && node --test src/telegram/filters.test.ts src/telegram/normalize.test.ts`

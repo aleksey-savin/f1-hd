@@ -1,5 +1,6 @@
 import { config } from "../config.ts";
 import { plainText } from "./text.ts";
+import { formatPhone } from "./phone.ts";
 import type { BotConfig, BoardUser, TicketSummary, WorkStatus } from "../api/types.ts";
 
 /**
@@ -169,7 +170,7 @@ export const renderTicket = (
     if (applicant) {
       const name = `${applicant.lastName || ""} ${applicant.firstName || ""}`.trim();
       lines.push(`Заявитель: ${escapeHtml(name || "—")}`);
-      if (applicant.phone) lines.push(`Телефон: ${escapeHtml(applicant.phone)}`);
+      if (applicant.phone) lines.push(`Телефон: ${escapeHtml(formatPhone(applicant.phone))}`);
     }
 
     // Подпись про местное время клиента приходит готовой с бэкенда: своей

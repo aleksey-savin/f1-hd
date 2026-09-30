@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
+const { toCanonicalPhone } = require("../services/phone");
 
 const CounterSchema = new Schema({
   _id: { type: String, required: true },
@@ -177,7 +178,7 @@ const ticketSchema = new Schema(
       firstName: String,
       lastName: String,
       email: String,
-      phone: String,
+      phone: { type: String, set: toCanonicalPhone },
       position: String,
       role: String,
       isActive: Boolean,
@@ -268,7 +269,7 @@ const ticketSchema = new Schema(
         firstName: String,
         lastName: String,
         email: String,
-        phone: String,
+        phone: { type: String, set: toCanonicalPhone },
         position: String,
         role: String,
         isActive: Boolean,

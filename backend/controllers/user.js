@@ -72,6 +72,7 @@ const toNonNegativeOrNull = (value) => {
 
 const canManageFinances = (req) => req.auth.can({ user: ["manageFinances"] });
 const { tracksFinances, workTimeModeFor } = require("@/services/financeTracking");
+const { personSearchClauses } = require("@/services/personSearch");
 
 const UNTRACKED_SCHEDULE =
   "Режим «По графику» недоступен: у сотрудника не ведётся финансовый учёт";
@@ -217,7 +218,6 @@ const syncAutoWorkStatus = async (user) => {
 // Список «Пользователи» как адресная книга: серверный поиск/скоуп/фасеты/
 // сортировка/пагинация. Поля, по которым ищем (каждый терм должен встретиться
 // в одном из них); статусы присутствия, считающиеся «на связи».
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // Списки кодов больше не хардкодим — семантика живёт в каталоге статусов
 const PRESENCE_ONLINE = WORKING_STATUS_CODES;
 const USER_SEARCH_FIELDS = [
@@ -352,15 +352,10 @@ exports.getAll = async (req, res, next) => {
       and.push({ _id: { $in: await usersWithRoles(roleKeys) } });
     }
 
-    // 8) Поиск: каждый терм должен встретиться хотя бы в одном поле (терм
-    // экранируется и ограничивается по длине/количеству — иначе «.*» в запросе
-    // превращается в скан).
+    // 8) Поиск: каждое слово должно встретиться хотя бы в одном поле, номер —
+    // по цифрам (services/personSearch.js)
     if (typeof q.search === "string" && q.search.trim()) {
-      const terms = q.search.trim().split(/\s+/).filter(Boolean).slice(0, 6);
-      for (const term of terms) {
-        const rx = new RegExp(escapeRegex(term.slice(0, 64)), "i");
-        and.push({ $or: USER_SEARCH_FIELDS.map((field) => ({ [field]: rx })) });
-      }
+      and.push(...personSearchClauses(q.search, USER_SEARCH_FIELDS, 6));
     }
 
     if (and.length) match.$and = and;
@@ -1826,7 +1821,8 @@ exports.updateMyAccount = async (req, res, next) => {
     }
 
     user.email = email ? email : user.email;
-    user.phone = phone ? phone : user.phone;
+    // Пустая строка — «телефона нет»; не прислали — не трогаем
+    user.phone = phone !== undefined ? phone : user.phone;
     user.firstName = firstName ? firstName : user.firstName;
     user.lastName = lastName ? lastName : user.lastName;
     user.position = position ? position : user.position;

@@ -18,6 +18,7 @@ import {
 import useToastStore from "@/store/toast-store";
 import useInitialPrefs from "@/store/prefs";
 import { cn } from "@/lib/utils";
+import { formatPhone, phoneHref } from "@/util/phone";
 
 import { plural } from "../../util/plural";
 import { openTaxi } from "../../util/taxi-operators";
@@ -107,6 +108,48 @@ const AddressRow = ({ entry, label, action }) => {
         onClick={() => copyToClipboard(entry.address, "Адрес")}
         className={copyBtnClass}
         aria-label="Скопировать адрес"
+      >
+        <RiFileCopyLine size={17} />
+      </button>
+    </div>
+  );
+};
+
+// Телефон: номер, который можно набрать, — ссылка «Позвонить»; негодный
+// (старые данные без кода города) — текстом, как записан, без ссылки
+const PhoneRow = ({ phone }) => {
+  const href = phoneHref(phone);
+  const text = formatPhone(phone);
+  const body = (
+    <>
+      <span className={channelIconClass}>
+        <RiPhoneLine size={19} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-xs text-faint">
+          {href ? "Позвонить" : "Телефон"}
+        </span>
+        <span className="block truncate font-medium tabular-nums">{text}</span>
+      </span>
+    </>
+  );
+
+  return (
+    <div className={channelClass}>
+      {href ? (
+        <a href={href} className={channelLinkClass}>
+          {body}
+        </a>
+      ) : (
+        <span className={cn(channelLinkClass, "active:bg-transparent")}>
+          {body}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => copyToClipboard(text, "Телефон")}
+        className={copyBtnClass}
+        aria-label="Скопировать телефон"
       >
         <RiFileCopyLine size={17} />
       </button>
@@ -253,27 +296,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
           )}
 
           {filledPhones.map((phone) => (
-            <div className={channelClass} key={phone}>
-              <a href={`tel:${phone}`} className={channelLinkClass}>
-                <span className={channelIconClass}>
-                  <RiPhoneLine size={19} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-xs text-faint">Позвонить</span>
-                  <span className="block truncate font-medium tabular-nums">
-                    {phone}
-                  </span>
-                </span>
-              </a>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(phone, "Телефон")}
-                className={copyBtnClass}
-                aria-label="Скопировать телефон"
-              >
-                <RiFileCopyLine size={17} />
-              </button>
-            </div>
+            <PhoneRow key={phone} phone={phone} />
           ))}
 
           {!hasChannels && (

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import PhoneInput from "@/components/app/PhoneInput";
+import { phoneInputError, phoneWireValue } from "@/util/phone";
 import { useDraftSection } from "@/components/app/draft-context";
 import ImageUpload from "../ImageUpload";
 import UserAvatar from "../UserAvatar";
@@ -20,7 +21,7 @@ const Profile = ({ user }) => {
   const [firstName, setFirstName] = useState(user.firstName || "");
   const [lastName, setLastName] = useState(user.lastName || "");
   const [email, setEmail] = useState(user.email || "");
-  const [phoneNumber, setPhoneNumber] = useState(user.phone || "");
+  const [phoneNumber, setPhoneNumber] = useState(phoneWireValue(user.phone));
   const [position, setPosition] = useState(user.position || "");
   const [profileImage, setProfileImage] = useState(
     user.profileImagePath
@@ -30,11 +31,14 @@ const Profile = ({ user }) => {
 
   // Пустое обязательное поле бэкенд молча пропустит, оставив прежнее значение,
   // — поэтому причину называем на месте и гасим сохранение до исправления.
+  // Что не так с телефоном, написано под полем; здесь — только что он мешает.
   const blank = (value) => !value.trim();
   const blockedReason =
     blank(firstName) || blank(lastName) || blank(email)
       ? "Имя, фамилия и email не могут быть пустыми"
-      : null;
+      : phoneInputError(phoneNumber)
+        ? "Проверьте номер телефона"
+        : null;
 
   useDraftSection(
     () => ({
@@ -111,7 +115,8 @@ const Profile = ({ user }) => {
           <PhoneInput
             id="phone"
             value={phoneNumber}
-            setValue={setPhoneNumber}
+            onValueChange={setPhoneNumber}
+            autoComplete="tel"
           />
         </Field>
       </div>

@@ -14,6 +14,7 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import SearchBar from "@/components/app/SearchBar";
 import ChipSelect from "@/components/app/ChipSelect";
 import { cn } from "@/lib/utils";
+import { formatPhone, phoneHref, phoneMatches } from "@/util/phone";
 
 import useUserFilterStore from "../../../store/lists/users";
 import UserAvatar from "../../User/UserAvatar";
@@ -77,18 +78,20 @@ const EmployeesSection = ({ company, id }) => {
       );
     }
     if (query) {
-      list = list.filter((user) =>
-        [
-          `${user.lastName} ${user.firstName}`,
-          user.position,
-          user.email,
-          user.phone,
-          user.subdivision?.name,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(query),
+      list = list.filter(
+        (user) =>
+          phoneMatches(query, [user.phone]) ||
+          [
+            `${user.lastName} ${user.firstName}`,
+            user.position,
+            user.email,
+            user.phone,
+            user.subdivision?.name,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(query),
       );
     }
     return list;
@@ -208,10 +211,10 @@ const EmployeesSection = ({ company, id }) => {
                             <RiMailLine size={16} />
                           </a>
                         )}
-                        {user.phone && (
+                        {phoneHref(user.phone) && (
                           <a
-                            href={`tel:${user.phone}`}
-                            title={user.phone}
+                            href={phoneHref(user.phone)}
+                            title={formatPhone(user.phone)}
                             aria-label={`Позвонить — ${user.lastName} ${user.firstName}`}
                             className={iconLinkClass}
                           >

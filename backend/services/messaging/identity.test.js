@@ -3,13 +3,10 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
 const { resolveIdentity, identityPatch } = require("./identity");
+const { toCanonicalPhone: normalizePhone } = require("../phone");
 
 const CLIENT = { _id: "u-client", isEndUser: true, company: { _id: "c-vostok" } };
 const STAFF = { _id: "u-staff", isEndUser: false, company: { _id: "c-f1lab" } };
-const normalizePhone = (raw) => {
-  const digits = String(raw || "").replace(/\D/g, "");
-  return digits.length === 11 ? `+7${digits.slice(1)}` : null;
-};
 
 const fakeDeps = ({ byTelegram = {}, byPhone = {}, existing = null } = {}) => {
   const store = new Map();
@@ -56,22 +53,30 @@ test("a staff member's own account is marked as staff", async () => {
 });
 
 test("a WhatsApp phone that belongs to exactly one user links by phone", async () => {
-  const { deps, calls } = fakeDeps({ byPhone: { "+79145550142": [CLIENT] } });
+  const { deps, calls } = fakeDeps({ byPhone: { "79145550142": [CLIENT] } });
   const identity = await resolveIdentity("whatsapp", { id: "79145550142@s.whatsapp.net", phone: "8 914 555-01-42" }, deps);
   assert.equal(identity.userId, "u-client");
   assert.equal(identity.linkMethod, "phone");
-  assert.equal(identity.phone, "+79145550142");
+  assert.equal(identity.phone, "79145550142");
   // Telegram-привязка у WhatsApp не проверяется
   assert.deepEqual(calls.telegram, []);
 });
 
 test("a phone shared by two users is not hard evidence — nobody gets linked", async () => {
-  const { deps } = fakeDeps({ byPhone: { "+79145550142": [CLIENT, STAFF] } });
+  const { deps } = fakeDeps({ byPhone: { "79145550142": [CLIENT, STAFF] } });
   const identity = await resolveIdentity("whatsapp", { id: "79145550142@s.whatsapp.net", phone: "8 914 555-01-42" }, deps);
   assert.equal(identity.userId, undefined);
   assert.equal(identity.linkMethod, undefined);
   // Телефон при этом сохраняется — это не связь, а то, что принёс собеседник
-  assert.equal(identity.phone, "+79145550142");
+  assert.equal(identity.phone, "79145550142");
+});
+
+test("a foreign WhatsApp number is kept, a Telegram number loses its plus", async () => {
+  const { deps } = fakeDeps();
+  const foreign = await resolveIdentity("whatsapp", { id: "375291234567@s.whatsapp.net", phone: "375291234567" }, deps);
+  assert.equal(foreign.phone, "375291234567");
+  const telegram = await resolveIdentity("telegram", { id: "555", phone: "+79991234567" }, deps);
+  assert.equal(telegram.phone, "79991234567");
 });
 
 test("a name alone links nobody", async () => {

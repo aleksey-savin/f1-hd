@@ -8,6 +8,7 @@ const User = require("@/models/user");
 const { AppError } = require("@/middleware/errorHandling");
 const { isBanned } = require("@/services/authBan");
 const { encryptSecret } = require("@/services/crypto/secretBox");
+const { parsePhoneInput, isValidPhone } = require("@/services/phone");
 const { enqueueJob } = require("@/services/messaging/jobs");
 const { NETWORKS, GATEWAY_NETWORKS } = require("@/services/messaging/rules");
 
@@ -185,8 +186,14 @@ exports.login = command("login", (req) => {
   if (!["start", "phone", "code", "password"].includes(step)) {
     return new AppError("step: start | phone | code | password", 400);
   }
-  const raw = typeof req.body?.value === "string" ? req.body.value.trim() : "";
+  let raw = typeof req.body?.value === "string" ? req.body.value.trim() : "";
   if (step !== "start" && !raw) return new AppError("Нужно значение для шага входа", 400);
+  // Шлюзу номер уходит в E.164 с плюсом, как бы его ни набрали
+  if (step === "phone") {
+    const digits = parsePhoneInput(raw);
+    if (!isValidPhone(digits)) return new AppError("Проверьте номер телефона", 400);
+    raw = `+${digits}`;
+  }
   return { step, value: raw ? encryptSecret(raw) : null };
 });
 exports.logout = command("logout");

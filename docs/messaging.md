@@ -43,10 +43,13 @@ nothing here is Telegram/WhatsApp-specific except the gateway transport itself.
   party per network: a Telegram id, a WhatsApp phone, a MAX user id, or a site
   visitor. Linked to an HD `User` only on hard evidence
   (`services/messaging/identity.js`) — Telegram id ↔ `User.telegramBot.chatId`,
-  or phone ↔ **exactly one** user found by `findUsersByPhone` (same matching as
-  `findApplicantByPhone`/`services/callerIdentityService.js`, plus banned/service
-  filtering); a phone shared by two or more people is not evidence — nobody
-  gets linked. Never by name or username. Unique
+  or phone ↔ **exactly one** user found by `findUsersByPhone`
+  (`services/callerIdentityService.js`, shared with telephony: equality on the
+  canonical number, no service or telephony accounts, no banned users, no users
+  of a deactivated company — users without a company still match); a phone shared
+  by two or more people is not evidence — nobody gets linked. Never by name or
+  username. `phone` holds canonical digits with the country code whatever format
+  the gateway sends (`docs/phone-numbers.md`). Unique
   `{network: 1, externalId: 1}` is the dedup key `resolveIdentity` upserts
   through, so two concurrent events for the same sender never create two
   identities. Also `{network, aliases}` (WhatsApp phone↔LID rewrites),
@@ -335,7 +338,7 @@ into a neighboring router:
 
 | Method & path | Gate | What |
 |---|---|---|
-| `GET /conversations` | read | Paged list (`queue`: awaiting\|mine\|unbound\|all\|hidden; filters `network`, `company`, `q`; per-queue counts) |
+| `GET /conversations` | read | Paged list (`queue`: awaiting\|mine\|unbound\|all\|hidden; filters `network`, `company`, `q` — a substring of the title, last-message preview or author; a whole-number `q` also matches its digits across separators in titles and author names; per-queue counts) |
 | `GET /conversations/counts` | read | `{counts: {awaiting, mine, unbound, all}}` only — the navigation badge; declared before `/conversations/:id` |
 | `GET /conversations/:id` | read | Full card: conversation, channel, counterpart, participants, linked HD contact, that contact's other channels, bound/open tickets (`ticket.boundAt` — when the binding started) |
 | `GET /conversations/:id/messages` | read | A page of messages (`before`+`beforeSeq` chronological, or `changedSince`(+`afterId`) for polling — see below) |
@@ -353,7 +356,7 @@ into a neighboring router:
 | `PATCH /conversations/:id` | manage | Change `companyId` |
 | `POST /identities/:id/link` | manage | Link a counterpart to an HD user |
 | `POST /identities/:id/unlink` | manage | Remove that link |
-| `GET /identities/:id/candidates?q=` | manage | Users to link a counterpart to: every word of `q` must match one of name/email/phone/position/company; returns `{items: [{id, name, position, company}]}` (≤8, clients first, banned and service accounts excluded) — names only, never the contacts it matched on |
+| `GET /identities/:id/candidates?q=` | manage | Users to link a counterpart to: a `q` that looks like a whole number is one phone term (`services/personSearch.js`); otherwise every word must match one of name/email/phone/position/company; returns `{items: [{id, name, position, company}]}` (≤8, clients first, banned and service accounts excluded) — names only, never the contacts it matched on |
 | `GET /tickets/:num/delivery-routes` | read + ticket access | Reply routes for a ticket ("reply via …") |
 | `GET /channels` | settings | List channels (secret *presence* flags only, never values) |
 | `POST /channels` | settings | Create a channel |

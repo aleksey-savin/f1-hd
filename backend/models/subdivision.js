@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
+const { toCanonicalPhone } = require("../services/phone");
 
 const subdivisionSchema = new Schema(
   {
@@ -14,6 +15,7 @@ const subdivisionSchema = new Schema(
     phone: {
       type: String,
       required: false,
+      set: toCanonicalPhone,
     },
     address: {
       type: String,

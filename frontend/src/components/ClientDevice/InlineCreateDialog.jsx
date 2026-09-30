@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
 import { load } from "@/store/form-data";
 import { useNavWait } from "@/components/app/nav-wait";
+import { phoneInputError } from "@/util/phone";
 
 
 import VendorFormFields from "../Vendor/FormFields";
@@ -67,10 +68,14 @@ const KINDS = {
       notes: state.notes,
       isActive: state.isActive !== false,
     }),
-    validate: (state) =>
-      state.name && state.name.trim().length >= 2
-        ? null
-        : "Название должно содержать минимум 2 символа",
+    validate: (state) => {
+      if (!state.name || state.name.trim().length < 2) {
+        return "Название должно содержать минимум 2 символа";
+      }
+      return phoneInputError(state.phone || "")
+        ? "Проверьте номер телефона"
+        : null;
+    },
   },
 
   deviceType: {

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
+const { toCanonicalPhone } = require("../../services/phone");
 
 const supplierSchema = new Schema(
   {
@@ -16,7 +17,7 @@ const supplierSchema = new Schema(
     },
     // Контакты — всё необязательное: поставщик заводится одним названием на
     // бегу, из мастера устройства. Дописывают их, когда доходит до гарантии.
-    phone: { type: String, trim: true },
+    phone: { type: String, trim: true, set: toCanonicalPhone },
     email: { type: String, trim: true },
     website: { type: String, trim: true },
     address: { type: String, trim: true },

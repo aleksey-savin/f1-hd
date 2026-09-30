@@ -11,6 +11,7 @@ import {
 } from "@/components/app/Panel";
 import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
+import { formatPhone, phoneHref } from "@/util/phone";
 
 // Ответственные лица — две группы строками-людьми в одной панели. Данные —
 // снапшоты на компании (могут иметь только fullName), поэтому аватар — простая
@@ -74,10 +75,10 @@ const PersonRow = ({ person, from }) => {
             <RiMailLine size={16} />
           </a>
         )}
-        {person.phone && (
+        {phoneHref(person.phone) && (
           <a
-            href={`tel:${person.phone}`}
-            title={person.phone}
+            href={phoneHref(person.phone)}
+            title={formatPhone(person.phone)}
             aria-label={`Позвонить — ${name}`}
             className={iconLinkClass}
           >

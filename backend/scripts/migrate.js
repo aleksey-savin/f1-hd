@@ -41,6 +41,8 @@ const MIGRATIONS = [
   // Только дописывает `conversation.*`; см. grantConversations.js
   { id: "2026-09-25-grantConversations", script: "grantConversations.js", apply: true },
   { id: "2026-09-25-initMessaging", script: "initMessaging.js", apply: true },
+  // Телефоны — только цифрами с кодом страны; см. normalizePhones.js
+  { id: "2026-09-30-normalizePhones", script: "normalizePhones.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { api } from "@/lib/api";
-
+import { phoneMatches } from "@/util/phone";
 
 // Стор списка компаний. Выборка клиентская (компаний десятки, страниц нет):
 // бэкенд отдаёт компактную проекцию со счётчиками (usersCount,
@@ -66,10 +66,18 @@ const searchItems = (query, items) => {
       ]),
     ];
 
-    return queryTerms.every((term) =>
-      fieldsToSearch.some(
-        (field) => field && String(field).toLowerCase().includes(term),
-      ),
+    // Номер — по цифрам, как бы его ни набрали: «8 914», «+7 (914) 555»
+    const phones = [
+      ...(item.phones ?? []),
+      ...(item.responsibles ?? []).map((responsible) => responsible?.phone),
+    ];
+    return (
+      phoneMatches(query, phones) ||
+      queryTerms.every((term) =>
+        fieldsToSearch.some(
+          (field) => field && String(field).toLowerCase().includes(term),
+        ),
+      )
     );
   });
 };

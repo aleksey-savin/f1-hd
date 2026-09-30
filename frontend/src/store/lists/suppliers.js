@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { api } from "@/lib/api";
 import { businessDayKey } from "@/util/format-date";
+import { phoneMatches } from "@/util/phone";
 
 import { scopeTotals } from "./supplier-scope";
 
@@ -36,7 +37,8 @@ const supplierFilter = (state) => {
       )
       .filter((item) =>
         term
-          ? [item.name, item.phone, item.email, item.inn, item.website]
+          ? phoneMatches(term, [item.phone]) ||
+            [item.name, item.phone, item.email, item.inn, item.website]
               .filter(Boolean)
               .join(" ")
               .toLowerCase()

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const workScheduleSchema = require("./workSchedule");
 const { DEFAULT_OVERTIME_SCHEDULE } = require("../utils/overtimeDefaults");
+const { toCanonicalPhone } = require("../services/phone");
 
 const Schema = mongoose.Schema;
 
@@ -153,7 +154,7 @@ const preferencesSchema = new Schema({
     // везде выводят из автора документа (services/reportCard.js), а до входа
     // автора нет. Поэтому подпись на экране входа берётся отсюда, а не из кода.
     title: { type: String, default: "" },
-    tel: { type: String, default: "" },
+    tel: { type: String, default: "", set: toCanonicalPhone },
     email: { type: String, default: "" },
     address: { type: String, default: "" },
     // Лого компании для навбара; пусто — в баре текстовый бренд «HelpDesk».

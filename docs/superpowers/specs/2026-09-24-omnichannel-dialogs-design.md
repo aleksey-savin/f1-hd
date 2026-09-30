@@ -148,7 +148,8 @@ Channel brand colours (text on tint):
   `historyDays` 14, `importGroups`, `markReadOnOpen`, `signReplies`, `maxMediaMb` 50,
   `ignoredChatIds`, `site {formKey, allowedOrigins, consentText}`); secretBox secrets;
   `serviceUserId` (author of mirrors of messages sent from the phone).
-- `ChannelIdentity` — network, externalId, aliases, names, username, phone (E.164),
+- `ChannelIdentity` — network, externalId, aliases, names, username, phone
+  (canonical digits — E.164 without «+», `docs/phone-numbers.md`),
   isBot, userId, linkMethod (`tgBot | phone | pairing | manual`), companyId, isStaff.
   Unique `{network, externalId}`.
 - `Conversation` — channelId, kind, externalChatId, participants, companyId,

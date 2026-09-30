@@ -153,9 +153,10 @@ test("preview is one line of at most 140 characters", () => {
 
 test("an identity is named by its name, then @username, then phone", () => {
   assert.equal(identityName({ firstName: "Марина", lastName: "Соколова" }), "Марина Соколова");
-  assert.equal(identityName({ displayName: "Андрей", phone: "+79142073318" }), "Андрей");
+  assert.equal(identityName({ displayName: "Андрей", phone: "79142073318" }), "Андрей");
   assert.equal(identityName({ username: "kostya_it" }), "@kostya_it");
-  assert.equal(identityName({ phone: "+79142073318", externalId: "x" }), "+79142073318");
+  assert.equal(identityName({ phone: "79142073318", externalId: "x" }), "+7 (914) 207-33-18");
+  assert.equal(identityName({ phone: "375291234567" }), "+375291234567");
   assert.equal(identityName(null), "");
 });
 

@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
 import PasswordPolicyField from "@/components/app/PasswordPolicyField";
+import PhoneInput from "@/components/app/PhoneInput";
+import { phoneInputError, phoneWireValue } from "@/util/phone";
 import RoleSummary, { effectiveOf, rolesToOptions } from "./RoleSummary";
 import SwitchField from "@/components/app/SwitchField";
 import Segmented from "@/components/app/Segmented";
@@ -193,7 +195,7 @@ const UserForm = ({ onCreated, successTo } = {}) => {
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
     email: user?.email || "",
-    phone: user?.phone || "",
+    phone: phoneWireValue(user?.phone),
     position: user?.position || "",
     password: "",
     // Как человек попадёт внутрь: "invite" — приглашение письмом (по
@@ -377,6 +379,9 @@ const UserForm = ({ onCreated, successTo } = {}) => {
       if (isService && !form.firstName.trim()) return "Укажите наименование";
       if (!isService && !form.lastName.trim()) return "Укажите фамилию";
       if (!form.email.trim()) return "Укажите email";
+      // Что не так с номером, написано под полем — сюда не дублируем
+      if (!isService && phoneInputError(form.phone))
+        return "Проверьте номер телефона — см. подсказку под полем";
       // Пароль требуется ТОЛЬКО на своей дороге: при приглашении его нет
       // вовсе, и это правильное состояние, а не незаполненное поле.
       if (!isEdit && !isService && form.access === "password") {
@@ -717,11 +722,11 @@ const UserForm = ({ onCreated, successTo } = {}) => {
         </Field>
         {!isService && (
           <Field label="Телефон" htmlFor="u-phone">
-            <Input
+            <PhoneInput
               id="u-phone"
               value={form.phone}
-              onChange={(event) => setField("phone", event.target.value)}
-              placeholder="+7 (___) ___-__-__"
+              onValueChange={(value) => setField("phone", value)}
+              showErrors={attempted}
             />
           </Field>
         )}

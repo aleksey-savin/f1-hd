@@ -8,6 +8,7 @@
  * `displayTimeZone()` того же util/format-date.
  */
 import { plural } from "./plural.js";
+import { formatPhone } from "./phone.ts";
 
 /**
  * @typedef {{ now?: Date, timeZone?: string }} TimeOptions
@@ -295,7 +296,11 @@ export const attachmentKindLabel = (kind) =>
 
 /** Ник или телефон собеседника — вторая строка в шапке и строке канала. */
 export const counterpartHandle = (person) =>
-  person?.username ? `@${person.username}` : person?.phone || "";
+  person?.username ? `@${person.username}` : formatPhone(person?.phone);
+
+/** Ручка канала из карточки собеседника («@ник» или телефон цифрами) — для показа. */
+export const handleLabel = (handle) =>
+  !handle || handle.startsWith("@") ? handle || "" : formatPhone(handle);
 
 /** Первая строка ленты неопознанного собеседника (канва C2). */
 export const newCounterpartNote = (network) =>

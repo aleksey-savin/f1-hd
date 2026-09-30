@@ -18,6 +18,7 @@ const {
 
 const { runValidation } = require("@/middleware/runValidation");
 const teamValidation = require("@/validations/team");
+const { phoneBody } = require("@/validations/phone");
 
 const fileUpload = require("@/middleware/fileUpload");
 const { uploadBackgroundImage } = require("@/middleware/imageUpload");
@@ -83,6 +84,7 @@ router.post(
   isAuth,
   canManageUsers,
   teamValidation.workScheduleBlock,
+  phoneBody("phone"),
   runValidation,
   userController.add,
 );
@@ -91,10 +93,17 @@ router.post(
   isAuth,
   canManageUsers,
   teamValidation.workScheduleBlock,
+  phoneBody("phone"),
   runValidation,
   userController.update,
 );
-router.post("/users/update-account", isAuth, userController.updateMyAccount);
+router.post(
+  "/users/update-account",
+  isAuth,
+  phoneBody("phone"),
+  runValidation,
+  userController.updateMyAccount,
+);
 router.post("/users/delete/:id", isAuth, canManageUsers, userController.delete);
 router.post(
   "/users/toggle-active/:id",

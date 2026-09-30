@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { RiPhoneLine } from "react-icons/ri";
 
 import { Eyebrow, Panel } from "@/components/app/Panel";
+import PhoneLink from "@/components/app/PhoneLink";
 import useInitialPrefsStore from "../../store/prefs";
 import { monogramFor } from "@/components/app/monogram";
 
@@ -79,7 +80,14 @@ const MySupport = () => {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">
-                  {supportPhone || supportEmail}
+                  {supportPhone ? (
+                    <PhoneLink
+                      value={supportPhone}
+                      className="text-accent-text no-underline hover:underline"
+                    />
+                  ) : (
+                    supportEmail
+                  )}
                 </span>
                 <span className="block truncate text-sm text-muted-foreground">
                   Общая линия поддержки

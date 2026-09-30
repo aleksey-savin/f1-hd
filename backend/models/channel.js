@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
+const { toCanonicalPhone } = require("../services/phone");
 
 /**
  * Подключённый канал «Диалогов»: корпоративный аккаунт Telegram или WhatsApp
@@ -36,7 +37,7 @@ const channelSchema = new Schema(
       externalId: { type: String, default: "" },
       displayName: { type: String, default: "" },
       username: { type: String, default: "" },
-      phone: { type: String, default: "" },
+      phone: { type: String, default: "", set: toCanonicalPhone },
     },
     // Вход по QR: шлюз присылает код, страница настроек его показывает
     login: {

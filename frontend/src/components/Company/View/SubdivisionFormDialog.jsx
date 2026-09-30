@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
+import PhoneInput from "@/components/app/PhoneInput";
 import AlertMessage from "@/components/app/AlertMessage";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
@@ -93,8 +94,12 @@ const SubdivisionFormDialog = ({
                 defaultValue={node?.email || ""}
               />
             </Field>
-            <Field label="Телефон">
-              <Input name="phone" defaultValue={node?.phone || ""} />
+            <Field label="Телефон" htmlFor="subdivision-phone">
+              <PhoneInput
+                id="subdivision-phone"
+                name="phone"
+                value={node?.phone || ""}
+              />
             </Field>
           </div>
           <Field label="Адрес">

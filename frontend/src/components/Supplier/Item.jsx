@@ -1,4 +1,5 @@
 import ListRow from "@/components/app/ListRow";
+import { formatPhone } from "@/util/phone";
 
 import { formatCalendarDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
@@ -23,7 +24,9 @@ const SupplierItem = ({ item, year = null }) => {
     lastPurchaseAt,
   } = item;
 
-  const contacts = [phone, email, website].filter(Boolean).join(" · ");
+  const contacts = [formatPhone(phone), email, website]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <ListRow

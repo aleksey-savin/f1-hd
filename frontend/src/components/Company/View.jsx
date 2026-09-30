@@ -32,6 +32,7 @@ import {
   SectionEditLink,
 } from "@/components/app/Panel";
 import AnchorRail, { scrollToSection } from "@/components/app/AnchorRail";
+import PhoneLink from "@/components/app/PhoneLink";
 import PropRow from "@/components/app/PropRow";
 import TechSection from "@/components/app/TechSection";
 import { useCan } from "@/store/authed-user";
@@ -304,12 +305,10 @@ const ViewCompany = ({
                     {company.phones.map((phone, index) => (
                       <span key={phone}>
                         {index > 0 && <span className="text-faint"> · </span>}
-                        <a
-                          href={`tel:${phone}`}
+                        <PhoneLink
+                          value={phone}
                           className="text-accent-text no-underline hover:underline"
-                        >
-                          {phone}
-                        </a>
+                        />
                       </span>
                     ))}
                   </span>

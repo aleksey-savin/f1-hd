@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { api } from "@/lib/api";
+import { phoneMatches } from "@/util/phone";
 
 import { getLocalStorageData } from "../../util/auth";
 import {
@@ -48,6 +49,12 @@ const GROUP_KEY = "ticketsGroupByState";
 
 const matchesSearch = (ticket, term) => {
   if (!term) return true;
+  // Номер — по цифрам, как бы его ни набрали
+  const phones = [
+    ticket.applicant?.phone,
+    ...(ticket.responsibles ?? []).map((user) => user?.phone),
+  ];
+  if (phoneMatches(term, phones)) return true;
   const terms = term.toLowerCase().split(" ").filter(Boolean);
   const haystack = [
     String(ticket.num),
