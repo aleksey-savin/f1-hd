@@ -8,6 +8,7 @@ const Company = require("@/models/company");
 const Preferences = require("@/models/preferences");
 const ServicePlan = require("@/models/finances/servicePlan");
 const ServicePlanReport = require("@/models/finances/servicePlanReport");
+const User = require("@/models/user");
 const Work = require("@/models/work");
 
 const { AppError } = require("@/middleware/errorHandling");
@@ -39,7 +40,7 @@ const {
   splitWorkTables,
   toRow,
 } = require("@/services/reportCard");
-const { resolveTimezone } = require("@/utils/datetime");
+const { fmtMonthYear, resolveTimezone } = require("@/utils/datetime");
 
 /**
  * «Согласование работ»: конвейер и карточка отчёта.
@@ -321,6 +322,11 @@ exports.getPreviewCard = async (req, res, next) => {
 
     const company = await Company.findById(companyId).lean();
     const servicePlan = await ServicePlan.findById(servicePlanId).lean();
+    // Исполнитель будущего отчёта — компания того, кто его сформирует: у
+    // сохранённого отчёта это автор (services/reportCard), у превью — зритель
+    const viewer = await User.findById(authedUser?.userId || authedUser?._id)
+      .select("company")
+      .lean();
     const zone = resolveTimezone(preferences);
     const categoryById = new Map(
       categories.map((category) => [String(category._id), category]),
@@ -342,6 +348,13 @@ exports.getPreviewCard = async (req, res, next) => {
         _id: null,
         status: "preview",
         month: row.month,
+        // Месяц подписью — как у сохранённого отчёта (`toRow`). Без него шапка
+        // карточки и выгрузка показывали вместо периода пустое место. Месяц
+        // превью — календарный ключ, а не момент: пояс к нему не применяется
+        period: fmtMonthYear(new Date(`${row.month}-15T12:00:00.000Z`), "UTC"),
+        contractor: viewer?.company?._id
+          ? { _id: viewer.company._id, alias: viewer.company.alias }
+          : null,
         // Срок ответа, если отправить сейчас, — для подтверждения отправки
         sendDeadlineAt: row.approval.required
           ? await computeDeadline(new Date(), preferences, zone)
