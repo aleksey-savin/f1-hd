@@ -125,3 +125,19 @@ test("сводка «только сверх тарифа» суммы дого�
     15631.25,
   );
 });
+
+test("пояснение к отчёту попадает и в книгу — последней строкой сводки", () => {
+  const sheet = bookOf(sampleReport, "extra").getWorksheet("Сводка");
+  const texts = [];
+  sheet.eachRow((row) => texts.push(row.getCell(1).value));
+  assert.equal(
+    texts.at(-1),
+    "Работы в рабочее время (2 работы, 03:30) входят в тариф и в этот отчёт не включены.",
+  );
+  // У полного отчёта пояснять нечего — сводка кончается итогом
+  const full = [];
+  bookOf(sampleReport, "full")
+    .getWorksheet("Сводка")
+    .eachRow((row) => full.push(row.getCell(1).value));
+  assert.equal(full.at(-1), "Итого к оплате");
+});

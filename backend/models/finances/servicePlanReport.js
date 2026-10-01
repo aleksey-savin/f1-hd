@@ -101,6 +101,63 @@ const timelineSchema = new Schema(
   { _id: false },
 );
 
+/** Строка работы в снимке расчёта: сколько минут и денег она принесла. */
+const snapshotRowSchema = new Schema(
+  {
+    work: { type: Schema.Types.ObjectId, ref: "Work" },
+    // Время работы на момент формирования: позднейшая правка работы строку
+    // отчёта не двигает
+    startedAt: Date,
+    finishedAt: Date,
+    minutes: { type: Number, default: 0 },
+    cost: Number,
+  },
+  { _id: false },
+);
+
+/**
+ * Снимок расчёта — что сформировано и подписано (services/reportSnapshot).
+ *
+ * Условия услуги, итоги и разбивка по работам на момент формирования. Карточка,
+ * выгрузка и страница по ссылке читают его, а не считают заново: документ не
+ * должен менять цифры от того, что услугу потом поправили.
+ */
+const snapshotSchema = new Schema(
+  {
+    at: Date,
+    // Пояс расчёта: в нём работы делились на рабочее и нерабочее время
+    zone: String,
+    // Снимок восстановлен задним числом у отчёта, сформированного до его
+    // появления: суммы — сохранённые, разбивка — на день восстановления
+    // (services/reportSnapshot → pinToStored)
+    legacy: { type: Boolean, default: false },
+    terms: {
+      // `tariffType`, а не `type`: ключ `type` у Mongoose служебный
+      tariffType: String,
+      tariffingPeriod: Number,
+      hourPackages: [{ _id: false, hours: Number, pricePerHour: Number }],
+      packageBasis: {
+        type: new Schema(
+          { hours: Number, pricePerHour: Number, mode: String },
+          { _id: false },
+        ),
+        default: null,
+      },
+      fixedPrice: Number,
+      pricePerHour: Number,
+      pricePerHourNonWorking: Number,
+    },
+    workingTimeMinutes: Number,
+    overtimeMinutes: Number,
+    price: Number,
+    additionalPrice: Number,
+    total: Number,
+    worktimeWorks: [snapshotRowSchema],
+    overtimeWorks: [snapshotRowSchema],
+  },
+  { _id: false },
+);
+
 const servicePlanReportSchema = new Schema(
   {
     company: {
@@ -121,6 +178,9 @@ const servicePlanReportSchema = new Schema(
     ],
     price: { type: Number, default: 0 },
     additionalPrice: { type: Number, default: 0 },
+    // null — только у отчёта, до которого не дошёл scripts/snapshotReports.js
+    // (нет компании или услуги): его карточка считается по-старому
+    snapshot: { type: snapshotSchema, default: null },
     periodFrom: Date,
     periodTo: Date,
     invoice: {

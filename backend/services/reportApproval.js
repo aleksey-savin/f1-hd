@@ -29,6 +29,7 @@ const {
   priceWorks,
   resolveSchedule,
 } = require("@/services/servicePlanBilling");
+const { buildSnapshot } = require("@/services/reportSnapshot");
 const { rollbackPlan } = require("@/services/reportStageMoves");
 const {
   notifyApprovalRequested,
@@ -608,6 +609,9 @@ const createReport = async ({
     works: works.map((work) => work._id),
     price: priced.price,
     additionalPrice: priced.additionalPrice,
+    // Расчёт замораживается: карточка и выгрузка покажут именно его, что бы
+    // потом ни сделали с услугой и работами
+    snapshot: buildSnapshot({ priced, works, zone }),
     ...monthBoundsOf(works, zone),
     status: approvalRequired ? "pendingApproval" : "approved",
     approval: {
@@ -1020,6 +1024,8 @@ const resubmit = async ({ report, workIds, authedUser }) => {
   report.works = works.map((work) => work._id);
   report.price = priced.price;
   report.additionalPrice = priced.additionalPrice;
+  // Повторная отправка — новый расчёт по поправленному составу, и новый снимок
+  report.snapshot = buildSnapshot({ priced, works, zone });
   report.status = "pendingApproval";
   report.attempt += 1;
   report.approval.submittedAt = new Date();

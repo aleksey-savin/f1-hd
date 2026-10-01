@@ -11,6 +11,7 @@ import CompanyLogo from "../Company/CompanyLogo";
 
 import DecisionDialog from "./DecisionDialog";
 import ReportLifecycle from "./ReportLifecycle";
+import { legacyCalcNote } from "./export-model";
 import ReportWorksTable from "./ReportWorksTable";
 import SignatureRoute from "./SignatureRoute";
 import UnrelatedWorks from "./UnrelatedWorks";
@@ -531,6 +532,14 @@ const ReportCardBody = ({
                   total
                 />
               </>
+            )}
+            {/* Отчёт сформирован до заморозки расчёта: итог у него —
+                сохранённый, а таблицы и условия восстановлены позже. Без этой
+                строки расхождение таблицы с итогом читалось бы как сбой */}
+            {report.legacyCalc && (
+              <div className="mt-2 border-t border-border-soft pt-2 text-xs text-muted-foreground">
+                {legacyCalcNote(report, dates.shortDate)}
+              </div>
             )}
           </Panel>
         </div>

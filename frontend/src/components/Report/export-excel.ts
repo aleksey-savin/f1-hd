@@ -111,6 +111,16 @@ const summarySheet = (workbook: Workbook, model: ExportModel) => {
     }
     row += 1;
   }
+
+  // Пояснение к отчёту (что не вошло, что восстановлено) — как в PDF
+  if (model.note) {
+    row += 1;
+    sheet.getCell(row, 1).value = model.note;
+    sheet.getCell(row, 1).font = { color: { argb: "FF5B646D" } };
+    sheet.getCell(row, 1).alignment = { wrapText: true, vertical: "top" };
+    sheet.mergeCells(row, 1, row, 4);
+    sheet.getRow(row).height = 48;
+  }
 };
 
 const worksSheet = (workbook: Workbook, table: ExportTable, zone: string) => {

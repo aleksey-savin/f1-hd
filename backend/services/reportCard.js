@@ -12,6 +12,7 @@ const {
   UNASSIGNED,
   buildSubdivisionAttribution,
 } = require("@/services/workSubdivision");
+const { cardFromSnapshot } = require("@/services/reportSnapshot");
 const {
   customerApprovedAt,
   lastRemindedAt,
@@ -29,6 +30,11 @@ const { dayKey, fmtMonthYear, resolveTimezone } = require("@/utils/datetime");
  *
  * Деньги здесь не считаются: их считает `services/servicePlanBilling`, а этот
  * модуль лишь раскладывает результат по секциям карточки.
+ *
+ * У сформированного отчёта результат берётся из СНИМКА (`report.snapshot`,
+ * services/reportSnapshot), а не считается заново: документ показывает то, что
+ * было сформировано, что бы потом ни сделали с услугой и работами. Заново
+ * считается только отчёт без снимка — сформированный до его появления.
  */
 
 /** Populate работ карточки. Один и тот же везде — иначе колонки разъезжаются. */
@@ -370,6 +376,46 @@ const restrictCard = (card, rawParts, viewer) => {
 };
 
 /**
+ * Расчёт отчёта без снимка — по нынешним условиям услуги и нынешним работам.
+ *
+ * Только для отчётов, сформированных до появления снимка и не сошедшихся с ним
+ * (scripts/snapshotReports.js): новые отчёты сюда не попадают.
+ */
+const liveMoney = ({ report, zone, categories, subdivisionOf }) => {
+  const priced = priceWorks({
+    plan: report.servicePlan,
+    company: report.company,
+    works: report.works,
+    zone,
+    categoryById: new Map(
+      categories.map((category) => [String(category._id), category]),
+    ),
+  });
+  const tariff = normalizePlan(report.servicePlan);
+
+  return {
+    ...splitWorkTables(report.works, priced, subdivisionOf),
+    calc: {
+      workingTimeMinutes: priced.workingTimeMinutes,
+      overtimeMinutes: priced.overtimeMinutes,
+      price: priced.price,
+      additionalPrice: priced.additionalPrice,
+      total: priced.total,
+    },
+    terms: {
+      type: tariff.type,
+      tariffingPeriod: tariff.tariffingPeriod,
+      hourPackages: tariff.hourPackages,
+      // Основание цены пакета приходит из того же расчёта, что и деньги
+      packageBasis: priced.packageBasis,
+      fixedPrice: tariff.fixedPrice,
+      pricePerHour: tariff.pricePerHour,
+      pricePerHourNonWorking: tariff.pricePerHourNonWorking,
+    },
+  };
+};
+
+/**
  * Полная карточка сохранённого отчёта: строка списка + расчёт, условия и
  * таблицы работ. Отчёт должен прийти с populate'ом `company`, `servicePlan` и
  * `REPORT_WORKS_POPULATE`.
@@ -384,17 +430,18 @@ const buildReportCard = async ({ report, scope, viewer }) => {
     resolveSubdivisions({ company: report.company, works: report.works }),
   ]);
 
-  const zone = resolveTimezone(preferences);
-  const priced = priceWorks({
-    plan: report.servicePlan,
-    company: report.company,
-    works: report.works,
-    zone,
-    categoryById: new Map(
-      categories.map((category) => [String(category._id), category]),
-    ),
-  });
-  const tariff = normalizePlan(report.servicePlan);
+  // Пояс — тот, в котором отчёт считался: смена пояса организации задним
+  // числом не должна передвигать работы уже подписанного документа
+  const frozen = report.snapshot?.at ? report.snapshot : null;
+  const zone = frozen?.zone || resolveTimezone(preferences);
+  const money = frozen
+    ? cardFromSnapshot(frozen, report.works, attribution.subdivisionOf)
+    : liveMoney({
+        report,
+        zone,
+        categories,
+        subdivisionOf: attribution.subdivisionOf,
+      });
   const row = toRow(report, scope, zone);
 
   const card = {
@@ -426,24 +473,15 @@ const buildReportCard = async ({ report, scope, viewer }) => {
         manager: node ? node.manager : null,
       };
     }),
-    ...splitWorkTables(report.works, priced, attribution.subdivisionOf),
+    worktimeWorks: money.worktimeWorks,
+    overtimeWorks: money.overtimeWorks,
     subdivisions: attribution.subdivisions,
-    calc: {
-      workingTimeMinutes: priced.workingTimeMinutes,
-      overtimeMinutes: priced.overtimeMinutes,
-      price: priced.price,
-      additionalPrice: priced.additionalPrice,
-      total: priced.total,
-    },
+    calc: money.calc,
+    // Расчёт старого отчёта восстановлен задним числом — карточка скажет это
+    legacyCalc: Boolean(money.legacyCalc),
+    frozenAt: money.frozenAt || null,
     terms: {
-      type: tariff.type,
-      tariffingPeriod: tariff.tariffingPeriod,
-      hourPackages: tariff.hourPackages,
-      // Основание цены пакета приходит из того же расчёта, что и деньги
-      packageBasis: priced.packageBasis,
-      fixedPrice: tariff.fixedPrice,
-      pricePerHour: tariff.pricePerHour,
-      pricePerHourNonWorking: tariff.pricePerHourNonWorking,
+      ...money.terms,
       approval: {
         required: report.approval?.required,
         bySubdivisions: report.approval?.bySubdivisions,

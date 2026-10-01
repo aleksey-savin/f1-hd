@@ -180,6 +180,21 @@ const tariffTerm = (terms: any): { text: string; value?: string } => {
   return { text };
 };
 
+/**
+ * Пояснение к отчёту, сформированному до заморозки расчёта: итог у него —
+ * сохранённый при формировании, а условия и разбивка по работам восстановлены
+ * позже и могут с итогом не сходиться. Тот же текст — на карточке.
+ */
+export const legacyCalcNote = (
+  report: { legacyCalc?: boolean; frozenAt?: string | null },
+  shortDate: (value: string) => string | null,
+) =>
+  report.legacyCalc
+    ? `Итог сохранён при формировании отчёта. Условия расчёта и разбивка по работам восстановлены${
+        report.frozenAt ? ` ${shortDate(report.frozenAt)}` : ""
+      } и могут с ним расходиться.`
+    : null;
+
 export const buildExportModel = (
   report: any,
   variant: ExportVariant,
@@ -189,6 +204,7 @@ export const buildExportModel = (
   const calc = report.calc || {};
   const isHourly = terms.type === "hourly";
   const period = report.period || "";
+  const legacyNote = legacyCalcNote(report, fmt.shortDate);
   const rate = terms.pricePerHourNonWorking;
   const rateLabel = rate ? `${formatMoneyExact(rate)} / час` : null;
 
@@ -272,9 +288,14 @@ export const buildExportModel = (
       ],
       tables: [overtime],
       note:
-        worktime.rows.length > 0
-          ? `Работы в рабочее время (${worksLabel(worktime.rows.length)}, ${hhmm(worktime.totalMinutes)}) входят в тариф и в этот отчёт не включены.`
-          : null,
+        [
+          worktime.rows.length > 0
+            ? `Работы в рабочее время (${worksLabel(worktime.rows.length)}, ${hhmm(worktime.totalMinutes)}) входят в тариф и в этот отчёт не включены.`
+            : null,
+          legacyNote,
+        ]
+          .filter(Boolean)
+          .join(" ") || null,
       footer: `${footerBase} · работы сверх тарифа`,
       summary: [
         {
@@ -361,7 +382,7 @@ export const buildExportModel = (
       zoneTerm,
     ],
     tables: [...(split ? [overtime] : []), worktime],
-    note: null,
+    note: legacyNote,
     footer: footerBase,
     summary,
   };

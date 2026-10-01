@@ -43,6 +43,8 @@ const MIGRATIONS = [
   { id: "2026-09-25-initMessaging", script: "initMessaging.js", apply: true },
   // Телефоны — только цифрами с кодом страны; см. normalizePhones.js
   { id: "2026-09-30-normalizePhones", script: "normalizePhones.js", apply: true },
+  // Заморозка расчёта у ранее сформированных отчётов; см. snapshotReports.js
+  { id: "2026-10-01-snapshotReports", script: "snapshotReports.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,
