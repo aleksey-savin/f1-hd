@@ -3,12 +3,15 @@ import { RiAddLine, RiDeleteBinLine } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import { formatPrice } from "../../util/format-string";
-
-const money = (value) => formatPrice(Math.round(Number(value) || 0));
+import {
+  formatMoneyExact,
+  moneyInputValue,
+  parseMoney,
+} from "../../util/money";
 
 // Редактор пакетов часов: карточка на пакет (часы · ставка · авто-«итого»),
 // добавление/удаление. «Итого» = часы × ставка, только для чтения (согласовано).
+// Ставка — с копейками: текстовое поле, как у цен на шаге (см. Tariffing).
 const PackagesEditor = ({ packages, onChange }) => {
   const update = (index, field, value) =>
     onChange(
@@ -17,7 +20,7 @@ const PackagesEditor = ({ packages, onChange }) => {
       ),
     );
   const remove = (index) => onChange(packages.filter((_, i) => i !== index));
-  const add = () => onChange([...packages, { hours: 0, pricePerHour: 0 }]);
+  const add = () => onChange([...packages, { hours: 0, pricePerHour: "0" }]);
 
   return (
     <div>
@@ -31,8 +34,7 @@ const PackagesEditor = ({ packages, onChange }) => {
       </div>
       <div className="grid gap-2">
         {packages.map((pkg, index) => {
-          const total =
-            (Number(pkg.hours) || 0) * (Number(pkg.pricePerHour) || 0);
+          const total = (Number(pkg.hours) || 0) * parseMoney(pkg.pricePerHour);
           return (
             <div
               key={index}
@@ -57,11 +59,19 @@ const PackagesEditor = ({ packages, onChange }) => {
                   Ставка, ₽/ч
                 </span>
                 <Input
-                  type="number"
-                  min={1}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={pkg.pricePerHour}
                   onChange={(event) =>
                     update(index, "pricePerHour", event.target.value)
+                  }
+                  onBlur={(event) =>
+                    update(
+                      index,
+                      "pricePerHour",
+                      moneyInputValue(event.target.value),
+                    )
                   }
                   className="h-9 w-28 tabular-nums"
                 />
@@ -71,7 +81,7 @@ const PackagesEditor = ({ packages, onChange }) => {
                   Итого
                 </div>
                 <div className="text-lg font-bold text-accent-text tabular-nums">
-                  {money(total)}
+                  {formatMoneyExact(total)}
                 </div>
               </div>
               <Button

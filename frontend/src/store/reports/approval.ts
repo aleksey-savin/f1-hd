@@ -1,24 +1,23 @@
 import { create } from "zustand";
 
-import type { PipelineResponse, PipelineStageKey } from "../../types/approval";
+import type { PipelineResponse } from "../../types/approval";
 
 // Конвейер «Согласования работ». Механика та же, что у остальных отчётов
 // (store/reports/*): seq-guard от гонок, ошибка не сбрасывает уже показанные
 // данные. Отличие одно: периода у конвейера нет — это очередь, а не отчёт за
 // месяц, и забытый май обязан оставаться видимым. Сужение по месяцу делает
-// сама страница поверх загруженного набора.
+// сама страница поверх загруженного набора. Выбранные стадия и период — в
+// адресе страницы (pages/Finances/Approval), а не здесь: так возврат из
+// карточки отчёта приводит туда же, откуда ушли.
 const API = import.meta.env.VITE_API_ADDRESS;
 
 type ApprovalState = {
   data: PipelineResponse | null;
   isLoading: boolean;
   error: string | null;
-  /** Выбранная стадия конвейера — она же фильтр списка под рейлом. */
-  stage: PipelineStageKey | "declined";
   fetch: () => void;
   /** Фоновый опрос: без скелета и без гашения уже показанных данных. */
   silentRefresh: () => void;
-  setStage: (stage: PipelineStageKey | "declined") => void;
 };
 
 type Getter = () => ApprovalState;
@@ -51,11 +50,9 @@ const useApprovalStore = create<ApprovalState>()((set, get) => ({
   data: null,
   isLoading: false,
   error: null,
-  stage: "preview",
 
   fetch: () => doFetch(get, set),
   silentRefresh: () => doFetch(get, set, true),
-  setStage: (stage) => set({ stage }),
 }));
 
 export default useApprovalStore;

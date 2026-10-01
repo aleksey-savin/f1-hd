@@ -13,8 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { formatWeekdayDateTime } from "../../util/format-date";
 import { msToHMS } from "../../util/time-helpers";
+import { useReportDates } from "./report-zone";
 import { formatMoney } from "./work-format";
 
 /**
@@ -33,6 +33,10 @@ import { formatMoney } from "./work-format";
  *
  * Длительность — из расчёта (`billedMinutes`), а не размах отметок: в рабочее
  * время попадает только та часть смены, что укладывается в окно обслуживания.
+ *
+ * Время начала — в поясе ОРГАНИЗАЦИИ (Report/report-zone), а не в личном поясе
+ * зрителя: в нём отчёт посчитан. Когда настенное время у зрителя другое, колонка
+ * называет пояс — иначе цифру прочтут как своё местное время.
  */
 
 // Одна строка на шапку и ячейку — разъехаться они не могут
@@ -81,6 +85,7 @@ const ReportWorksTable = ({
   /** Подпись итога: при фильтре по подразделению итог считается по нему. */
   totalLabel?: string;
 }) => {
+  const dates = useReportDates();
   const totalMinutes = works.reduce(
     (sum, work) => sum + (work.billedMinutes || 0),
     0,
@@ -121,7 +126,14 @@ const ReportWorksTable = ({
               <TableHead className="w-36 whitespace-normal">
                 Исполнитель
               </TableHead>
-              <TableHead className="w-36 whitespace-normal">Начало</TableHead>
+              <TableHead className="w-36 whitespace-normal">
+                Начало
+                {dates.differs && (
+                  <span className="block text-xs font-normal text-faint">
+                    пояс — {dates.zoneCity}
+                  </span>
+                )}
+              </TableHead>
               <TableHead className={cn("w-32 whitespace-normal", NUM)}>
                 Длительность
               </TableHead>
@@ -169,7 +181,7 @@ const ReportWorksTable = ({
                   {fullName(work.finishedBy) || "—"}
                 </TableCell>
                 <TableCell className="align-top text-sm tabular-nums whitespace-normal">
-                  {formatWeekdayDateTime(work.startedAt)}
+                  {dates.weekdayDateTime(work.startedAt)}
                 </TableCell>
                 <TableCell className={cn("align-top", NUM)}>
                   {msToHMS((work.billedMinutes || 0) * 60000)}
@@ -208,6 +220,11 @@ const ReportWorksTable = ({
       {/* Узкий экран — запись вместо строки таблицы: шесть колонок на 360px
           не живут ни при каких ширинах */}
       <div className="px-4 py-1 lg:hidden">
+        {dates.differs && works.length > 0 && (
+          <div className="border-b border-border-soft py-2 text-xs text-faint">
+            Время начала — пояс организации: {dates.zoneLabel}
+          </div>
+        )}
         {works.map((work) => (
           <div
             key={work._id}
@@ -232,7 +249,7 @@ const ReportWorksTable = ({
                 </span>
               )}
               <span>{fullName(work.finishedBy) || "—"}</span>
-              <span>{formatWeekdayDateTime(work.startedAt)}</span>
+              <span>{dates.weekdayDateTime(work.startedAt)}</span>
               <b className="ms-auto font-semibold text-foreground">
                 {msToHMS((work.billedMinutes || 0) * 60000)}
               </b>

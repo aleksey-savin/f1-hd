@@ -8,8 +8,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { formatDateTime } from "../../util/format-date";
+import { formatMoneyExact } from "../../util/money";
 import { msToHMS } from "../../util/time-helpers";
+import { orgTimezone } from "../../util/timezone-display";
+import { reportDates, type ReportDates } from "./report-zone";
 
 /**
  * Выгрузка отчёта — Excel и PDF, как у кнопок прежней «расшифровки».
@@ -23,6 +25,10 @@ import { msToHMS } from "../../util/time-helpers";
  *
  * Имя файла — латиницей. Кириллица в атрибуте `download` часть браузеров
  * игнорирует, и файл сохраняется как «download» без расширения.
+ *
+ * Время работ — в поясе организации, как и в карточке, и пояс назван в шапке:
+ * файл уходит клиенту без интерфейса вокруг, и понять, чьё это «19:30», ему
+ * больше не по чему.
  */
 
 const TARIFF_LABEL: Record<string, string> = {
@@ -87,7 +93,7 @@ const money = (value: number) => Math.round(value || 0);
 const fullName = (person?: { firstName?: string; lastName?: string }) =>
   person ? `${person.lastName || ""} ${person.firstName || ""}`.trim() : "";
 
-const headerRows = (report: any) => {
+const headerRows = (report: any, dates: ReportDates) => {
   const terms = report.terms || {};
   return [
     ["Компания", report.company?.fullTitle || report.company?.alias || ""],
@@ -102,13 +108,14 @@ const headerRows = (report: any) => {
     [
       "Стоимость в нерабочее время",
       terms.pricePerHourNonWorking
-        ? `${terms.pricePerHourNonWorking} ₽/час`
+        ? `${formatMoneyExact(terms.pricePerHourNonWorking)}/час`
         : "",
     ],
+    ["Часовой пояс", dates.zoneLabel],
   ];
 };
 
-const worksRows = (works: any[], withCost: boolean) =>
+const worksRows = (works: any[], withCost: boolean, dates: ReportDates) =>
   works.map((work) => {
     const row: (string | number)[] = [
       (work.tickets || []).map((ticket: any) => ticket.num).join(", "),
@@ -118,7 +125,7 @@ const worksRows = (works: any[], withCost: boolean) =>
         .join(", "),
       work.description || "",
       fullName(work.finishedBy),
-      formatDateTime(work.startedAt),
+      dates.dateTime(work.startedAt) || "",
       msToHMS((work.billedMinutes || 0) * 60000),
     ];
     if (withCost) row.push(money(work.cost));
@@ -163,21 +170,30 @@ const escapeHtml = (value: unknown) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] || char,
   );
 
-const ReportExportMenu = ({ report }: { report: any }) => {
+const ReportExportMenu = ({
+  report,
+  zone,
+}: {
+  report: any;
+  /** Пояс организации из ответа сервера — тот же, что у карточки. */
+  zone?: string | null;
+}) => {
+  const dates = reportDates(zone || orgTimezone());
+
   const exportExcel = async () => {
     const XLSX = await import("xlsx");
-    const rows: (string | number)[][] = [...headerRows(report), []];
+    const rows: (string | number)[][] = [...headerRows(report, dates), []];
 
     if ((report.overtimeWorks || []).length > 0) {
       rows.push(["Выполнены в нерабочее время"]);
       rows.push([...HEAD, "Стоимость"]);
-      rows.push(...worksRows(report.overtimeWorks, true));
+      rows.push(...worksRows(report.overtimeWorks, true, dates));
       rows.push([]);
     }
 
     rows.push(["Выполнены в рабочее время"]);
     rows.push([...HEAD]);
-    rows.push(...worksRows(report.worktimeWorks || [], false));
+    rows.push(...worksRows(report.worktimeWorks || [], false, dates));
     rows.push([]);
     rows.push(...totalsRows(report));
 
@@ -237,7 +253,7 @@ const ReportExportMenu = ({ report }: { report: any }) => {
 </style></head><body>
 <h1>Отчёт по оказанным услугам</h1>
 <table class="meta"><tbody>
-  ${headerRows(report)
+  ${headerRows(report, dates)
     .map(
       ([label, value]) =>
         `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`,
@@ -248,12 +264,12 @@ ${
   (report.overtimeWorks || []).length > 0
     ? `<h2>Выполнены в нерабочее время</h2>${table(
         [...HEAD, "Стоимость"],
-        worksRows(report.overtimeWorks, true),
+        worksRows(report.overtimeWorks, true, dates),
       )}`
     : ""
 }
 <h2>Выполнены в рабочее время</h2>
-${table(HEAD, worksRows(report.worktimeWorks || [], false))}
+${table(HEAD, worksRows(report.worktimeWorks || [], false, dates))}
 <h2>Итог</h2>
 <table class="totals"><tbody>
   ${totalsRows(report)

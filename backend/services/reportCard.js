@@ -12,7 +12,11 @@ const {
   UNASSIGNED,
   buildSubdivisionAttribution,
 } = require("@/services/workSubdivision");
-const { fmtMonthYear, resolveTimezone } = require("@/utils/datetime");
+const {
+  customerApprovedAt,
+  lastRemindedAt,
+} = require("@/services/reportStageMoves");
+const { dayKey, fmtMonthYear, resolveTimezone } = require("@/utils/datetime");
 
 /**
  * Сборка карточки отчёта — одна на три поверхности: наш конвейер, кабинет
@@ -124,6 +128,12 @@ const toRow = (report, scope, zone) => ({
   periodFrom: report.periodFrom,
   periodTo: report.periodTo,
   period: zone ? fmtMonthYear(report.periodFrom, zone) : null,
+  // Тот же месяц ключом — для фильтра периода в конвейере. `periodFrom` для
+  // этого не годится: в UTC он попадает на последний день прошлого месяца
+  month:
+    zone && report.periodFrom
+      ? dayKey(report.periodFrom, zone).slice(0, 7)
+      : null,
   price: report.price,
   additionalPrice: report.additionalPrice,
   total: (report.price || 0) + (report.additionalPrice || 0),
@@ -137,6 +147,11 @@ const toRow = (report, scope, zone) => ({
     (report.timeline || []).find((event) => event.action === "submitted")?.by ||
     null,
   awaiting: awaitingLabel(report),
+  // Диалог «Напомнить» называет дату прошлого письма — чтобы не слать второе
+  // через час после первого
+  lastRemindedAt: lastRemindedAt(report),
+  // Возврат утверждённого отчёта в превью называет, какая подпись пропадёт
+  customerApprovedAt: customerApprovedAt(report),
   parts: (report.parts || []).map((part) => ({
     _id: part._id,
     subdivision: part.subdivision,

@@ -1,34 +1,36 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 
-import Crumbs from "@/components/app/Crumbs";
+import Crumbs, { type CrumbOrigin } from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
-import DateField from "@/components/app/DateField";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import ReportCard from "../../components/Report/ReportCard";
 import ReportExportMenu from "../../components/Report/ReportExportMenu";
+import {
+  StageMoreMenu,
+  useStageActions,
+} from "../../components/Report/StageActions";
+import {
+  subjectOfPreview,
+  subjectOfReport,
+} from "../../components/Report/stage-actions";
 import useLiveTopic from "@/hooks/use-live-topic";
 import { useCan } from "@/store/authed-user";
-import { toDateInputValue } from "../../util/format-date";
+import { formatMonthLabel } from "../../util/format-date";
 
 /**
  * Карточка отчёта в приложении — нам и клиенту под логином.
  *
  * Сам документ рисует `Report/ReportCard`: тот же компонент показывает отчёт и
  * по ссылке из письма. Здесь остаётся только то, что у поверхности своё —
- * загрузка, крошки и действия нашей стороны: сформировать, выставить счёт,
- * подтвердить оплату, отправить в архив.
+ * загрузка, крошки и действия нашей стороны: сформировать, напомнить, выставить
+ * счёт, подтвердить оплату, отправить в архив, вернуть на стадию назад (в том
+ * числе из архива).
+ *
+ * Каждый ход, который двигает отчёт, идёт через общий диалог подтверждения
+ * (`Report/StageActions`) — тот же, что у быстрых действий в списке стадии.
  */
 
 const API = import.meta.env.VITE_API_ADDRESS;
@@ -36,6 +38,7 @@ const API = import.meta.env.VITE_API_ADDRESS;
 const ApprovalReport = () => {
   const { id, companyId, servicePlanId, month } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   // Один компонент на две вещи: сохранённый отчёт и строку подбора, которая
   // отчётом ещё не стала. Разбор у них общий, различаются только действия.
   const isPreview = Boolean(companyId);
@@ -43,14 +46,13 @@ const ApprovalReport = () => {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [stageForm, setStageForm] = useState<"invoice" | "payment" | null>(
-    null,
-  );
-  const [invoice, setInvoice] = useState({
-    number: "",
-    date: toDateInputValue(new Date()),
-  });
-  const [paidAt, setPaidAt] = useState(toDateInputValue(new Date()));
+
+  // Куда уходить, когда карточки больше нет (отчёт сформирован из превью или
+  // расформирован): туда, откуда пришли, — конвейер вернётся на ту же стадию и
+  // тот же период
+  const backTo =
+    (location.state as { from?: CrumbOrigin } | null)?.from?.to ||
+    "/finances/approval";
 
   const load = async () => {
     try {
@@ -72,12 +74,26 @@ const ApprovalReport = () => {
     load();
   }, [id, companyId, servicePlanId, month]);
 
+  const stageActions = useStageActions({
+    zone: data?.zone,
+    onDone: ({ kind, dissolved }) => {
+      if (kind === "submit" || dissolved) {
+        navigate(backTo);
+        return;
+      }
+      load();
+    },
+  });
+
   // Карточка живёт своей жизнью: клиент подписывает часть по ссылке из письма,
   // очередь двигается, в предпросмотр добавляются работы — состояние
   // подтягивается само по пульсу (docs/live-updates.md). На время нашего
   // действия пауза: ответ на него всё равно перечитает карточку, а
   // параллельная загрузка перетёрла бы свежий результат
-  useLiveTopic("approval", load, { enabled: !busy, minIntervalMs: 20_000 });
+  useLiveTopic("approval", load, {
+    enabled: !busy && !stageActions.busy,
+    minIntervalMs: 20_000,
+  });
 
   const report = data?.report;
   const can = useCan();
@@ -87,7 +103,7 @@ const ApprovalReport = () => {
   // нажатие возвращало 403 — гейт на маршруте стоял, а в интерфейсе нет.
   const canManageApproval = can({ approval: ["manage"] });
 
-  const post = async (path: string, body: Record<string, unknown>) => {
+  const post = async (path: string, body: Record<string, unknown> = {}) => {
     setBusy(true);
     setError(null);
     try {
@@ -132,11 +148,34 @@ const ApprovalReport = () => {
 
   const blocked = (report.unrelatedWorks || []).length > 0;
 
+  // О чём спрашивает диалог подтверждения. У превью отчёта ещё нет — предмет
+  // собирается из строки подбора, вместе с составом будущего отчёта
+  const subject = isPreview
+    ? subjectOfPreview(
+        {
+          company: report.company,
+          servicePlan: report.servicePlan,
+          approval: {
+            required: Boolean(report.approval?.required),
+            bySubdivisions: Boolean(report.approval?.bySubdivisions),
+            approver: report.approval?.finalApprover ?? null,
+          },
+          worksCount: report.worksCount,
+          workIds: report.workIds,
+          total: report.total,
+        },
+        {
+          period: formatMonthLabel(report.month),
+          sendDeadlineAt: report.sendDeadlineAt,
+        },
+      )
+    : subjectOfReport(report);
+
   // Действия нашей стороны. У каждой стадии ровно одно главное — клиенту эта
   // ветка не достаётся вовсе: счёт и оплата не его процесс
   const actions = (
     <>
-      <ReportExportMenu report={report} />
+      <ReportExportMenu report={report} zone={data.zone} />
 
       {canManageApproval &&
         report.status === "declined" &&
@@ -149,13 +188,30 @@ const ApprovalReport = () => {
           </Button>
         )}
 
+      {/* Решение на этой стадии за клиентом — наш ход только напомнить,
+          поэтому кнопка не залитая */}
+      {canManageApproval && report.status === "pendingApproval" && (
+        <Button
+          variant="outline"
+          disabled={busy}
+          onClick={() => stageActions.open("remind", subject)}
+        >
+          Напомнить
+        </Button>
+      )}
       {canManageApproval && report.status === "approved" && (
-        <Button disabled={busy} onClick={() => setStageForm("invoice")}>
+        <Button
+          disabled={busy}
+          onClick={() => stageActions.open("invoice", subject)}
+        >
           Выставить счёт
         </Button>
       )}
       {canManageApproval && report.status === "awaitingPayment" && (
-        <Button disabled={busy} onClick={() => setStageForm("payment")}>
+        <Button
+          disabled={busy}
+          onClick={() => stageActions.open("payment", subject)}
+        >
           Подтвердить оплату
         </Button>
       )}
@@ -163,13 +219,13 @@ const ApprovalReport = () => {
         <Button
           variant="outline"
           disabled={busy}
-          onClick={() => post(`/api/approval/reports/${id}/archive`)}
+          onClick={() => stageActions.open("archive", subject)}
         >
           В архив
         </Button>
       )}
 
-      {isPreview && (
+      {isPreview && canManageApproval && (
         <Button
           disabled={busy || blocked}
           title={
@@ -177,19 +233,20 @@ const ApprovalReport = () => {
               ? "В отчёт попали бы работы, не привязанные ни к одной услуге"
               : undefined
           }
-          onClick={async () => {
-            const ok = await post("/api/approval/reports", {
-              companyId: report.company._id,
-              servicePlanId: report.servicePlan._id,
-              workIds: report.workIds,
-            });
-            if (ok) navigate("/finances/approval");
-          }}
+          onClick={() => stageActions.open("submit", subject)}
         >
           {report.approval?.required
             ? "Отправить на согласование"
             : "Утвердить"}
         </Button>
+      )}
+
+      {canManageApproval && !isPreview && (
+        <StageMoreMenu
+          status={report.status}
+          disabled={busy}
+          onRollback={() => stageActions.open("rollback", subject)}
+        />
       )}
     </>
   );
@@ -198,6 +255,7 @@ const ApprovalReport = () => {
     <>
       <ReportCard
         report={report}
+        zone={data.zone}
         isPreview={isPreview}
         isClientView={isClientView}
         busy={busy}
@@ -214,82 +272,7 @@ const ApprovalReport = () => {
         breadcrumb={<Crumbs />}
       />
 
-      <Dialog
-        open={Boolean(stageForm)}
-        onOpenChange={(open) => !open && setStageForm(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {stageForm === "invoice"
-                ? "Выставить счёт"
-                : "Подтвердить оплату"}
-            </DialogTitle>
-          </DialogHeader>
-
-          {stageForm === "invoice" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="inv-number" className="mb-1.5 text-sm">
-                  Номер счёта
-                </Label>
-                <Input
-                  id="inv-number"
-                  value={invoice.number}
-                  onChange={(event) =>
-                    setInvoice({ ...invoice, number: event.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="inv-date" className="mb-1.5 text-sm">
-                  Дата счёта
-                </Label>
-                <DateField
-                  id="inv-date"
-                  value={invoice.date}
-                  onChange={(next) => setInvoice({ ...invoice, date: next })}
-                  clearable={false}
-                />
-              </div>
-            </div>
-          ) : (
-            <div>
-              <Label htmlFor="paid-at" className="mb-1.5 text-sm">
-                Дата полной оплаты
-              </Label>
-              <DateField
-                id="paid-at"
-                value={paidAt}
-                onChange={setPaidAt}
-                clearable={false}
-              />
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStageForm(null)}>
-              Отмена
-            </Button>
-            <Button
-              disabled={
-                busy || (stageForm === "invoice" && !invoice.number.trim())
-              }
-              onClick={async () => {
-                const ok =
-                  stageForm === "invoice"
-                    ? await post(`/api/approval/reports/${id}/invoice`, invoice)
-                    : await post(`/api/approval/reports/${id}/payment`, {
-                        paidAt,
-                      });
-                if (ok) setStageForm(null);
-              }}
-            >
-              Сохранить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {stageActions.dialog}
     </>
   );
 };

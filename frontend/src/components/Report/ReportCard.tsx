@@ -14,8 +14,9 @@ import ReportLifecycle from "./ReportLifecycle";
 import ReportWorksTable from "./ReportWorksTable";
 import SignatureRoute from "./SignatureRoute";
 import UnrelatedWorks from "./UnrelatedWorks";
+import { ReportZoneProvider, useReportDates } from "./report-zone";
 import { formatMinutes, formatMoney } from "./work-format";
-import { formatShortDate } from "../../util/format-date";
+import { formatMoneyExact } from "../../util/money";
 import { msToHMS } from "../../util/time-helpers";
 
 /**
@@ -31,6 +32,11 @@ import { msToHMS } from "../../util/time-helpers";
  * филиалов, и подтверждение — один обработчик. Публичная страница просит
  * `decisionBar`, потому что там страница длинная и без оболочки приложения:
  * кнопка обязана быть под рукой в любой точке прокрутки.
+ *
+ * Время в карточке — в поясе ОРГАНИЗАЦИИ (`zone` с сервера, Report/report-zone),
+ * а не в личном поясе зрителя. Деньги: суммы — целыми рублями (`formatMoney`),
+ * а ставки и цены в «Условиях расчёта» — как заданы в услуге, с копейками
+ * (`formatMoneyExact`): округлённая ставка не сходилась бы со строками таблицы.
  */
 
 const TARIFF_LABEL: Record<string, string> = {
@@ -45,18 +51,7 @@ type DecisionInput = {
   subdivisionId?: string;
 };
 
-const ReportCard = ({
-  report,
-  isPreview = false,
-  isClientView = false,
-  breadcrumb,
-  actions,
-  busy = false,
-  error,
-  onDecision,
-  onFixed,
-  decisionBar = false,
-}: {
+type ReportCardProps = {
   report: any;
   isPreview?: boolean;
   /** Клиенту не показываем наш денежный конвейер: счёт и оплата — не его процесс. */
@@ -72,7 +67,34 @@ const ReportCard = ({
   onFixed?: () => void;
   /** Решение — липкой полосой внизу, а не в шапке (страница по ссылке). */
   decisionBar?: boolean;
-}) => {
+};
+
+/** Пояс отчёта приходит с сервера и раздаётся всему, что рисует карточку. */
+const ReportCard = ({
+  zone,
+  ...props
+}: ReportCardProps & {
+  /** Пояс организации из ответа сервера — в нём отчёт посчитан. */
+  zone?: string | null;
+}) => (
+  <ReportZoneProvider value={zone ?? null}>
+    <ReportCardBody {...props} />
+  </ReportZoneProvider>
+);
+
+const ReportCardBody = ({
+  report,
+  isPreview = false,
+  isClientView = false,
+  breadcrumb,
+  actions,
+  busy = false,
+  error,
+  onDecision,
+  onFixed,
+  decisionBar = false,
+}: ReportCardProps) => {
+  const dates = useReportDates();
   const [dialog, setDialog] = useState<{
     approve: boolean;
     subdivisionId?: string;
@@ -272,7 +294,7 @@ const ReportCard = ({
             <SignatureRoute report={report} isClientView={isClientView} />
             {report.approval?.deadlineAt ? (
               <div className="mt-3 border-t border-border-soft pt-3 text-sm text-muted-foreground">
-                Ответить нужно до {formatShortDate(report.approval.deadlineAt)}.
+                Ответить нужно до {dates.shortDate(report.approval.deadlineAt)}.
                 Без ответа отчёт будет согласован автоматически.
               </div>
             ) : report.status === "declined" ? (
@@ -310,8 +332,8 @@ const ReportCard = ({
                   label="Пакет часов"
                   value={
                     terms.packageBasis.mode === "overflow"
-                      ? `${terms.packageBasis.hours} ч + сверх по ${formatMoney(terms.packageBasis.pricePerHour)}/ч`
-                      : `${terms.packageBasis.hours} ч · ${formatMoney(
+                      ? `${terms.packageBasis.hours} ч + сверх по ${formatMoneyExact(terms.packageBasis.pricePerHour)}/ч`
+                      : `${terms.packageBasis.hours} ч · ${formatMoneyExact(
                           terms.packageBasis.hours *
                             terms.packageBasis.pricePerHour,
                         )}`
@@ -321,20 +343,20 @@ const ReportCard = ({
               {terms.type === "fixedPrice" && (
                 <Term
                   label="Фиксированная оплата"
-                  value={formatMoney(terms.fixedPrice)}
+                  value={formatMoneyExact(terms.fixedPrice)}
                 />
               )}
               {terms.type === "hourly" && (
                 <Term
                   label="Стоимость в рабочее время"
-                  value={`${formatMoney(terms.pricePerHour)} / час`}
+                  value={`${formatMoneyExact(terms.pricePerHour)} / час`}
                 />
               )}
               <Term
                 label="Стоимость в нерабочее время"
                 value={
                   terms.pricePerHourNonWorking
-                    ? `${formatMoney(terms.pricePerHourNonWorking)} / час`
+                    ? `${formatMoneyExact(terms.pricePerHourNonWorking)} / час`
                     : "—"
                 }
               />
@@ -352,6 +374,9 @@ const ReportCard = ({
                     : "Не требуется"
                 }
               />
+              {/* Пояс — условие расчёта наравне с тарифом: по нему работа
+                  попадает в рабочее или нерабочее время */}
+              <Term label="Часовой пояс отчёта" value={dates.zoneLabel} />
             </div>
           </Panel>
         </>
@@ -480,7 +505,7 @@ const ReportCard = ({
                   hint={
                     terms.type === "hourPackage" && terms.packageBasis
                       ? terms.packageBasis.mode === "overflow"
-                        ? `сверх пакета по ${formatMoney(terms.packageBasis.pricePerHour)}/ч — так дешевле следующего`
+                        ? `сверх пакета по ${formatMoneyExact(terms.packageBasis.pricePerHour)}/ч — так дешевле следующего`
                         : `израсходовано ${Math.round(
                             ((calc.workingTimeMinutes || 0) /
                               60 /
@@ -518,7 +543,7 @@ const ReportCard = ({
                 className="flex gap-3 border-t border-border-soft py-2 text-sm first:border-t-0 first:pt-0"
               >
                 <span className="w-20 flex-none text-faint tabular-nums">
-                  {formatShortDate(event.at)}
+                  {dates.shortDate(event.at)}
                 </span>
                 <span
                   className={cn(
@@ -539,7 +564,7 @@ const ReportCard = ({
         <div className="sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center gap-3 border-t border-border bg-card px-4 py-3 shadow-[0_-6px_16px_-12px_rgba(0,0,0,0.5)]">
           <p className="my-0 min-w-40 flex-1 text-sm text-muted-foreground">
             {report.approval?.deadlineAt
-              ? `${formatShortDate(report.approval.deadlineAt)} отчёт будет согласован автоматически.`
+              ? `${dates.shortDate(report.approval.deadlineAt)} отчёт будет согласован автоматически.`
               : ""}
           </p>
           {decisionButtons("sm")}
@@ -702,7 +727,13 @@ const eventLabel = (event: any) => {
     case "autoApproved":
       return "Отчёт согласован автоматически — истёк срок ответа";
     case "reminded":
-      return "Отправлено напоминание о сроке";
+      // Вручную напоминает человек, за сутки до срока — автоматика
+      return who
+        ? `${who} напомнил согласующим о подписи`
+        : "Отправлено напоминание о сроке";
+    case "rolledBack":
+      // Куда и что при этом снято, записал сервер: «„Сформировать счёт“: счёт 201 снят»
+      return `${who || "Исполнитель"} вернул отчёт в ${event.comment}`;
     case "invoiced":
       return `${who || "Исполнитель"} выставил счёт${event.comment ? ` ${event.comment}` : ""}`;
     case "paid":

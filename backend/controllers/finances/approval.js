@@ -19,11 +19,14 @@ const {
 const TicketCategory = require("@/models/ticketCategory");
 const {
   archiveReport,
+  computeDeadline,
   confirmPayment,
   createReport,
   decide,
   issueInvoice,
+  remindApprovers,
   resubmit,
+  rollbackReport,
 } = require("@/services/reportApproval");
 const {
   resolveReportApprovalScope,
@@ -223,6 +226,13 @@ exports.getPipeline = async (req, res, next) => {
     res.status(200).json({
       scope: serializeApprovalScope(scope),
       zone,
+      // Срок ответа клиента, если отчёт отправить сейчас: подтверждение
+      // отправки называет его ДО того, как письмо ушло. Считает тот же код,
+      // что заведёт срок при отправке
+      sendDeadlineAt:
+        scope.kind === "all"
+          ? await computeDeadline(now, preferences, zone)
+          : null,
       preview,
       reports: rows,
       stages,
@@ -332,6 +342,10 @@ exports.getPreviewCard = async (req, res, next) => {
         _id: null,
         status: "preview",
         month: row.month,
+        // Срок ответа, если отправить сейчас, — для подтверждения отправки
+        sendDeadlineAt: row.approval.required
+          ? await computeDeadline(new Date(), preferences, zone)
+          : null,
         company: { _id: company._id, alias: company.alias, fullTitle: company.fullTitle },
         servicePlan: { _id: servicePlan._id, title: servicePlan.title },
         periodFrom: `${row.month}-01`,
@@ -499,6 +513,33 @@ exports.payment = stageAction(({ report, body, authedUser }) =>
 exports.archive = stageAction(({ report, authedUser }) =>
   archiveReport({ report, authedUser }),
 );
+
+exports.remind = stageAction(({ report, authedUser }) =>
+  remindApprovers({ report, authedUser }),
+);
+
+/**
+ * Возврат на стадию назад. Отчёт до счёта расформировывается — документа
+ * после этого нет, и ответ говорит об этом прямо (`dissolved`): интерфейсу
+ * надо уйти с карточки, а не перечитывать её.
+ */
+exports.rollback = async (req, res, next) => {
+  try {
+    const authedUser = req.auth?.legacy ?? null;
+    const report = await ServicePlanReport.findById(req.params.id);
+    if (!report) {
+      return next(new AppError("Отчёт не найден", 404));
+    }
+    const kept = await rollbackReport({ report, authedUser });
+    res.status(200).json(kept ? { report: kept } : { dissolved: true });
+  } catch (error) {
+    next(
+      error instanceof AppError
+        ? error
+        : new AppError("Не удалось вернуть отчёт на стадию назад", 500, true, error),
+    );
+  }
+};
 
 exports.decision = async (req, res, next) => {
   try {

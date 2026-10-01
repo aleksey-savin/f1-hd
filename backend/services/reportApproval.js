@@ -29,10 +29,12 @@ const {
   priceWorks,
   resolveSchedule,
 } = require("@/services/servicePlanBilling");
+const { rollbackPlan } = require("@/services/reportStageMoves");
 const {
   notifyApprovalRequested,
   notifyAutoApproved,
   notifyDecision,
+  notifyWithdrawn,
 } = require("@/services/reportApprovalNotifications");
 const { resolveTimezone } = require("@/utils/datetime");
 const { permissionFilter } = require("@/services/permissions");
@@ -1086,11 +1088,120 @@ const resubmit = async ({ report, workIds, authedUser }) => {
   return report;
 };
 
+/**
+ * Возврат на стадию назад — ручной ход нашей стороны.
+ *
+ * Что именно произойдёт, решает `rollbackPlan` (services/reportStageMoves):
+ * после счёта — один шаг назад с записью в историю, до счёта — отчёт
+ * расформировывается и работы возвращаются в превью. Возвращает `null`, если
+ * отчёта больше нет.
+ */
+const rollbackReport = async ({ report, authedUser }) => {
+  const plan = rollbackPlan(report);
+  if (!plan) {
+    throw new AppError("Этот отчёт вернуть на стадию назад нельзя", 400);
+  }
+
+  if (plan.kind === "step") {
+    // Поля снимаем по одному: `invoice` — вложенный путь, и присваивание
+    // объекта без ключа само по себе его из документа не убирает
+    for (const field of plan.unsetInvoice) {
+      report.set(`invoice.${field}`, undefined);
+    }
+    report.status = plan.status;
+    pushEvent(report, {
+      actor: "contractor",
+      by: actorOf(authedUser),
+      action: "rolledBack",
+      comment: plan.comment,
+    });
+    report.updatedBy = authedUser.userId || authedUser._id;
+    await report.save();
+    return report;
+  }
+
+  // Получателей и справочники читаем ДО удаления: после него спрашивать не у чего
+  const [company, servicePlan, preferences, recipients] = await Promise.all([
+    Company.findById(report.company).lean(),
+    ServicePlan.findById(report.servicePlan).lean(),
+    Preferences.findOne({}).lean(),
+    plan.notifyApprovers ? pendingApprovers(report) : [],
+  ]);
+
+  // Работы возвращаются в подбор без подписей сторон: новый отчёт по ним — это
+  // новый документ, и подписывать его будут заново
+  await Work.updateMany(
+    { _id: { $in: report.works } },
+    {
+      $set: { "finances.status": "preview" },
+      $unset: { "finances.contractor": "", "finances.customer": "" },
+    },
+  );
+  await ServicePlanReport.deleteOne({ _id: report._id });
+
+  if (recipients.length > 0) {
+    await notifyWithdrawn({
+      report,
+      company,
+      servicePlan,
+      recipients,
+      timezone: resolveTimezone(preferences),
+    });
+  }
+
+  return null;
+};
+
+/**
+ * Напоминание согласующим по нашей просьбе — тем, чьей подписи отчёт ждёт
+ * прямо сейчас. Отметку автонапоминания (`approval.remindedAt`) не трогаем:
+ * письмо за сутки до срока должно уйти независимо от ручных.
+ */
+const remindApprovers = async ({ report, authedUser }) => {
+  if (report.status !== "pendingApproval") {
+    throw new AppError("Напомнить можно только об отчёте на утверждении", 400);
+  }
+
+  const recipients = await pendingApprovers(report);
+  if (recipients.length === 0) {
+    throw new AppError(
+      "Напоминать некому — у отчёта нет действующего согласующего. Проверьте настройки услуги в карточке компании.",
+      400,
+    );
+  }
+
+  const [company, servicePlan, preferences] = await Promise.all([
+    Company.findById(report.company).lean(),
+    ServicePlan.findById(report.servicePlan).lean(),
+    Preferences.findOne({}).lean(),
+  ]);
+
+  await notifyApprovalRequested({
+    report,
+    company,
+    servicePlan,
+    recipients,
+    isReminder: true,
+    timezone: resolveTimezone(preferences),
+  });
+
+  pushEvent(report, {
+    actor: "contractor",
+    by: actorOf(authedUser),
+    action: "reminded",
+  });
+  report.updatedBy = authedUser.userId || authedUser._id;
+  await report.save();
+  return report;
+};
+
 module.exports = {
   advanceWaves,
   buildPartTree,
   isDelegatedPart,
   archiveReport,
+  rollbackReport,
+  remindApprovers,
   assertApprovalRoute,
   confirmPayment,
   issueInvoice,

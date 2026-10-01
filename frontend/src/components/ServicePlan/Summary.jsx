@@ -3,12 +3,12 @@ import { RiFileList2Line } from "react-icons/ri";
 import { cn } from "@/lib/utils";
 
 import { formatCalendarDate } from "../../util/format-date";
-import { formatPrice } from "../../util/format-string";
+import { formatMoneyExact, parseMoney } from "../../util/money";
 import { plural } from "../../util/plural";
 import { tariffTypeName } from "./tariff-types";
 
-// formatPrice уже добавляет «₽»
-const money = (value) => formatPrice(Math.round(Number(value) || 0));
+// Цены услуги — как заданы, с копейками; в форме они лежат строкой поля
+const money = formatMoneyExact;
 
 const SHORT_DAYS = {
   Monday: "Пн",
@@ -24,7 +24,7 @@ const priceLabel = (form, packages) => {
   if (form.type === "fixedPrice") return money(form.fixedPrice);
   if (form.type === "hourly") return `${money(form.pricePerHour)}/ч`;
   const rates = packages
-    .map((pkg) => Number(pkg.pricePerHour) || 0)
+    .map((pkg) => parseMoney(pkg.pricePerHour))
     .filter((rate) => rate > 0);
   const min = rates.length ? Math.min(...rates) : 0;
   const count = packages.length;

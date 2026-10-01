@@ -84,6 +84,22 @@ router.post(
   approvalController.archive,
 );
 
+// Ручные ходы нашей стороны: вернуть отчёт на стадию назад и напомнить
+// согласующим. Что именно произойдёт, решает сервер по состоянию отчёта
+// (services/reportStageMoves) — в теле запроса ничего нет
+router.post(
+  "/reports/:id/rollback",
+  isAuth,
+  canManageApproval,
+  approvalController.rollback,
+);
+router.post(
+  "/reports/:id/remind",
+  isAuth,
+  canManageApproval,
+  approvalController.remind,
+);
+
 // Право на вход — read, право подписи — decide; чью именно подпись ждёт
 // отчёт, решает скоуп внутри контроллера
 router.post(

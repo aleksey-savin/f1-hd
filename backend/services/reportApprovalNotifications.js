@@ -395,9 +395,41 @@ const notifyAutoApproved = async ({
   });
 };
 
+/**
+ * Мы отозвали отчёт с согласования — он расформирован и вернулся в превью.
+ *
+ * Пишем тем, у кого на руках живая ссылка: без этого письма человек откроет её
+ * и увидит «ссылка недействительна», не понимая, что от него больше ничего не
+ * ждут. Ссылки на карточку нет — отчёта уже не существует.
+ */
+const notifyWithdrawn = async ({
+  report,
+  company,
+  servicePlan,
+  recipients,
+  timezone,
+}) => {
+  const zone = timezone || resolveTimezone(await Preferences.findOne({}).lean());
+  const lines = [
+    "Отчёт отозван исполнителем — подписывать его не нужно",
+    `${company?.alias || "Компания"} · ${servicePlan?.title || "услуга"}`,
+    `Период: ${periodLabel(report, zone)}`,
+    "Ссылка из прошлого письма больше не открывается. Исправленный отчёт придёт отдельным письмом.",
+  ];
+
+  return queue({
+    recipients,
+    category: "reportApproval",
+    title: "Отчёт отозван",
+    text: lines.join("\n"),
+    linkFor: () => "/finances/approval",
+  });
+};
+
 module.exports = {
   approvalLink,
   notifyApprovalRequested,
   notifyDecision,
   notifyAutoApproved,
+  notifyWithdrawn,
 };

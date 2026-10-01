@@ -22,7 +22,7 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 
 import { formatShortDate } from "../../util/format-date";
-import { formatPrice } from "../../util/format-string";
+import { formatMoneyExact } from "../../util/money";
 import { plural } from "../../util/plural";
 import { tariffTypeName } from "./tariff-types";
 import { useCan } from "@/store/authed-user";
@@ -38,7 +38,8 @@ const WEEK = [
   ["Вс", "Sunday"],
 ];
 
-const money = (value) => formatPrice(Math.round(Number(value) || 0));
+// Цены услуги — как заданы, с копейками: карточка показывает то, что сохранено
+const money = formatMoneyExact;
 
 // Имя автора (populate createdBy/updatedBy на getOne) — «Фамилия Имя»
 const personName = (person) =>

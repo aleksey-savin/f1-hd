@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import Segmented from "@/components/app/Segmented";
 
+import { moneyInputValue } from "../../util/money";
 import PackagesEditor from "./PackagesEditor";
 
 const TYPE_SEGMENTS = [
@@ -15,10 +16,32 @@ const NON_WORKING_METHODS = [
   { value: "coefficient", label: "Коэффициент ко времени" },
 ];
 
-// Число с единицей-суффиксом внутри поля (₽, ₽/ч, мин)
+// Целое число с единицей-суффиксом внутри поля (мин)
 const UnitInput = ({ unit, ...props }) => (
   <div className="relative">
     <Input type="number" className="pr-12 tabular-nums" {...props} />
+    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-faint">
+      {unit}
+    </span>
+  </div>
+);
+
+// Цена с копейками и единицей-суффиксом. Поле текстовое: `type="number"` не
+// понимает ни запятую, ни пробелы разрядов, а его шаг по умолчанию — целые.
+// Пока человек печатает, значение не трогаем; на выходе из поля приводим к
+// виду «1 250,50» (целое — «1 250»).
+const MoneyInput = ({ unit, value, onChange, ...props }) => (
+  <div className="relative">
+    <Input
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
+      className="pr-12 tabular-nums"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={(event) => onChange(moneyInputValue(event.target.value))}
+      {...props}
+    />
     <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-faint">
       {unit}
     </span>
@@ -48,24 +71,22 @@ const Tariffing = ({ form, setField, packages, setPackages }) => {
 
       {form.type === "fixedPrice" && (
         <Field label="Общая стоимость" htmlFor="fixedPrice">
-          <UnitInput
+          <MoneyInput
             id="fixedPrice"
             unit="₽"
-            min={0}
             value={form.fixedPrice}
-            onChange={(event) => setField("fixedPrice", event.target.value)}
+            onChange={(value) => setField("fixedPrice", value)}
           />
         </Field>
       )}
 
       {form.type === "hourly" && (
         <Field label="Стоимость часа в рабочее время" htmlFor="pricePerHour">
-          <UnitInput
+          <MoneyInput
             id="pricePerHour"
             unit="₽/ч"
-            min={0}
             value={form.pricePerHour}
-            onChange={(event) => setField("pricePerHour", event.target.value)}
+            onChange={(value) => setField("pricePerHour", value)}
           />
         </Field>
       )}
@@ -119,14 +140,11 @@ const Tariffing = ({ form, setField, packages, setPackages }) => {
                 : undefined
             }
           >
-            <UnitInput
+            <MoneyInput
               id="pricePerHourNonWorking"
               unit="₽/ч"
-              min={0}
               value={form.pricePerHourNonWorking}
-              onChange={(event) =>
-                setField("pricePerHourNonWorking", event.target.value)
-              }
+              onChange={(value) => setField("pricePerHourNonWorking", value)}
             />
           </Field>
         )}

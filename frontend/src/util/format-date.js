@@ -32,6 +32,13 @@ const isEmpty = (date) => date === null || date === undefined || date === "";
 
 /* ── Отображение ИНСТАНТОВ (моментов времени) — в бизнес-таймзоне ── */
 
+// Хелперы, которыми пользуется отчёт по услуге, принимают вторым аргументом
+// `{ timeZone }`: документ организации показывается в поясе ОРГАНИЗАЦИИ, каким
+// бы личным поясом ни пользовался зритель, — в нём отчёт посчитан, и работа
+// «в нерабочее время» обязана выглядеть нерабочей (Report/report-zone).
+// Аргумент — объект, а не строка: `list.map(formatShortDate)` передаёт вторым
+// индекс, и строковый параметр принял бы его за пояс.
+
 // «пн, 08.07.2026, 14:30» — канонический формат «дата и время».
 export const formatDate = (date) =>
   isEmpty(date)
@@ -47,11 +54,11 @@ export const formatDate = (date) =>
       });
 
 // «08.07.2026» — только дата инстанта.
-export const formatShortDate = (date) =>
+export const formatShortDate = (date, { timeZone } = {}) =>
   isEmpty(date)
     ? null
     : new Date(date).toLocaleDateString("ru", {
-        timeZone: tz(),
+        timeZone: timeZone || tz(),
         year: "numeric",
         month: "numeric",
         day: "numeric",
@@ -73,11 +80,11 @@ export const formatShortDateTime = (date) =>
       });
 
 // «8 июля в 14:30» — компактный вариант без года («в» подставляет CLDR).
-export const formatDateTime = (date) =>
+export const formatDateTime = (date, { timeZone } = {}) =>
   isEmpty(date)
     ? null
     : new Date(date).toLocaleDateString("ru", {
-        timeZone: tz(),
+        timeZone: timeZone || tz(),
         month: "long",
         day: "numeric",
         hour: "2-digit",
@@ -87,11 +94,11 @@ export const formatDateTime = (date) =>
 // «пт, 8 июля в 14:30» — с днём недели. Нужен там, где день недели объясняет
 // смысл строки: в отчёте по услуге он показывает, почему работа попала в
 // нерабочее время (выходной), — без него это надо вычислять в уме.
-export const formatWeekdayDateTime = (date) =>
+export const formatWeekdayDateTime = (date, { timeZone } = {}) =>
   isEmpty(date)
     ? null
     : new Date(date).toLocaleDateString("ru", {
-        timeZone: tz(),
+        timeZone: timeZone || tz(),
         weekday: "short",
         month: "long",
         day: "numeric",

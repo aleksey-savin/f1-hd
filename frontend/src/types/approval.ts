@@ -126,6 +126,8 @@ export type ReportRow = {
    * зоне клиента, и в другой зоне она попадает на предыдущий месяц.
    */
   period: string | null;
+  /** Тот же месяц ключом «2026-09» — по нему режет фильтр периода. */
+  month?: string | null;
   /** Компания-исполнитель — по автору отчёта. */
   contractor?: { _id: string; alias: string } | null;
   price: number | null;
@@ -138,6 +140,10 @@ export type ReportRow = {
   /** Кто отправил отчёт клиенту — первый узел маршрута подписей. */
   submittedBy: Actor | null;
   awaiting: Awaiting;
+  /** Когда согласующим напоминали в последний раз — вручную или по сроку. */
+  lastRemindedAt?: string | null;
+  /** Когда клиент согласовал отчёт целиком (подпись или автосогласование). */
+  customerApprovedAt?: string | null;
   /**
    * Сколько денег вправе видеть зритель. `overtimeOnly` — руководитель филиала:
    * итог договора и ставки сервер не отдаёт вовсе, видна только оплата работ в
@@ -171,6 +177,8 @@ export type ApprovalScope = {
 export type PipelineResponse = {
   scope: ApprovalScope;
   zone: string;
+  /** Срок ответа клиента, если отчёт отправить сейчас; null — срока нет. */
+  sendDeadlineAt?: string | null;
   preview: PreviewRow[];
   reports: ReportRow[];
   stages: Partial<Record<PipelineStageKey | "declined", StageStat>>;

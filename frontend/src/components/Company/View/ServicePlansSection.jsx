@@ -42,14 +42,15 @@ import {
   formatCalendarDate,
   toDateInputValue,
 } from "../../../util/format-date";
-import { formatPrice } from "../../../util/format-string";
+import { formatMoneyExact } from "../../../util/money";
 import { tariffTypeName } from "../../ServicePlan/tariff-types";
 
 // Услуги компании: строки вместо таблицы — название (ссылка на карточку
 // услуги), тип и дата в мете, цена справа; «согласование с клиентом» —
 // warning-пометка. «Добавить услугу» — привязка существующей (диалог: услуга +
 // дата + согласование), открепление — в «⋯» строки с подтверждением.
-const money = (value) => formatPrice(Math.round(Number(value) || 0));
+// Цена услуги — как задана, с копейками (та же подпись, что в её карточке)
+const money = formatMoneyExact;
 
 // Тарификация: актуальная схема — плоские поля (type/hourPackages/fixedPrice/
 // pricePerHour — так пишет мастер и читает карточка услуги); у старых

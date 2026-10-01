@@ -6,7 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import ReportCard from "../../components/Report/ReportCard";
-import { formatShortDate } from "../../util/format-date";
+import { reportDates } from "../../components/Report/report-zone";
+import { orgTimezone } from "../../util/timezone-display";
 
 /**
  * Отчёт по ссылке из письма — без входа в приложение.
@@ -47,13 +48,8 @@ const Public = () => {
         });
         return;
       }
-      // Сессии здесь нет, поэтому в localStorage нет и пояса — util/format-date
-      // падал на московский дефолт и показывал подписанту чужое время рядом с
-      // месяцем, посчитанным в поясе организации. Пояс приезжает в ответе.
-      if (payload?.zone) {
-        localStorage.setItem("timezone", payload.zone);
-        localStorage.removeItem("personalTimezone");
-      }
+      // Сессии здесь нет, и пояса в localStorage взять неоткуда: пояс
+      // организации приезжает в ответе и отдаётся карточке явно (`zone`)
       setData(payload);
       setFailure(null);
     } catch {
@@ -125,7 +121,10 @@ const Public = () => {
           )}
           {data.expiresAt && (
             <span className="ms-auto text-sm text-faint">
-              ссылка действует до {formatShortDate(data.expiresAt)}
+              ссылка действует до{" "}
+              {reportDates(data.zone || orgTimezone()).shortDate(
+                data.expiresAt,
+              )}
             </span>
           )}
         </div>
@@ -145,6 +144,7 @@ const Public = () => {
 
         <ReportCard
           report={data.report}
+          zone={data.zone}
           isClientView
           decisionBar
           busy={busy}

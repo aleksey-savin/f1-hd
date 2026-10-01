@@ -79,6 +79,8 @@ const timelineSchema = new Schema(
         "invoiced",
         "paid",
         "archived",
+        // Возврат на стадию назад; куда и что при этом снято — в `comment`
+        "rolledBack",
       ],
       required: true,
     },

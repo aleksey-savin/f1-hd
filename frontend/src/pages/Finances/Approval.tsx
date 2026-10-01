@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { RiAlertLine } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import MonthStepper from "@/components/app/MonthStepper";
 import { Eyebrow } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
@@ -26,14 +27,36 @@ import PipelineRail, {
 } from "../../components/Report/PipelineRail";
 import PageShell from "@/components/app/PageShell";
 import {
+  inMonthRange,
+  reportMonthKey,
+} from "../../components/Report/period-filter";
+import {
+  ReportZoneProvider,
+  useReportDates,
+} from "../../components/Report/report-zone";
+import {
+  StageMoreMenu,
+  useStageActions,
+} from "../../components/Report/StageActions";
+import {
+  subjectOfPreview,
+  subjectOfReport,
+  type StageActionKind,
+} from "../../components/Report/stage-actions";
+import {
   formatMinutes,
   formatMoney,
 } from "../../components/Report/work-format";
 import { useCan } from "@/store/authed-user";
 import useLiveTopic from "@/hooks/use-live-topic";
 import useApprovalStore from "../../store/reports/approval";
-import type { PreviewRow, ReportRow } from "../../types/approval";
-import { formatMonthLabel, formatShortDate } from "../../util/format-date";
+import type {
+  PipelineStageKey,
+  PreviewRow,
+  ReportRow,
+  ReportStatus,
+} from "../../types/approval";
+import { formatMonthLabel } from "../../util/format-date";
 
 /**
  * «Согласование работ» — конвейер.
@@ -44,25 +67,81 @@ import { formatMonthLabel, formatShortDate } from "../../util/format-date";
  *
  * Периода у конвейера по умолчанию нет: это очередь, а не отчёт за месяц, и
  * забытый май обязан оставаться видимым. Степпер сужает уже загруженный набор.
+ *
+ * Стадия и период живут в АДРЕСЕ (`?stage=…&from=…&to=…`), а не в состоянии
+ * страницы: человек проваливается в отчёт и возвращается — крошкой, кнопкой
+ * «назад» или после перезагрузки — туда же, откуда ушёл. Крошка карточки
+ * получает этот адрес через `useCrumbFrom`.
+ *
+ * Любой ход, который двигает отчёт, идёт через диалог подтверждения
+ * (`Report/StageActions`): из строки списка отчёта целиком не видно, и клик
+ * мимо не должен отправлять клиенту письмо или менять стадию.
  */
 
 const API = import.meta.env.VITE_API_ADDRESS;
-
-const monthOf = (iso: string) => (iso ? String(iso).slice(0, 7) : "");
 
 // Выравнивание числовых колонок задаётся ОДНОЙ строкой и подставляется и в
 // шапку, и в ячейку: пока классы писались по отдельности, они разъезжались —
 // заголовок прижимался к одному краю колонки, значение к другому
 const NUM = "text-right tabular-nums";
 
+type StageFilter = PipelineStageKey | "declined";
+
+const STAGE_FILTERS: string[] = [...STAGES.map((item) => item.key), "declined"];
+
+/**
+ * Быстрое действие строки — главный ход стадии. «Напомнить» не залито: решение
+ * на этой стадии за клиентом, наш ход только подтолкнуть.
+ */
+const QUICK_ACTION: Partial<
+  Record<
+    ReportStatus,
+    { kind: StageActionKind; label: string; filled: boolean }
+  >
+> = {
+  pendingApproval: { kind: "remind", label: "Напомнить", filled: false },
+  approved: { kind: "invoice", label: "Выставить счёт", filled: true },
+  awaitingPayment: {
+    kind: "payment",
+    label: "Подтвердить оплату",
+    filled: true,
+  },
+};
+
 const Approval = () => {
   const store = useApprovalStore();
   const navigate = useNavigate();
-  const [range, setRange] = useState<{ from: string; to: string }>({
-    from: "",
-    to: "",
-  });
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const can = useCan();
+  const [params, setParams] = useSearchParams();
+  const crumb = useCrumbFrom("Согласование работ");
+
+  const stageParam = params.get("stage") || "";
+  const stage: StageFilter = STAGE_FILTERS.includes(stageParam)
+    ? (stageParam as StageFilter)
+    : "preview";
+  const from = params.get("from") || "";
+  const to = params.get("to") || "";
+  const range = useMemo(() => ({ from, to }), [from, to]);
+
+  // Пустое значение убирает параметр: адрес по умолчанию остаётся чистым
+  const patchParams = (patch: Record<string, string>) =>
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        for (const [key, value] of Object.entries(patch)) {
+          if (value) next.set(key, value);
+          else next.delete(key);
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  const setStage = (next: StageFilter) =>
+    patchParams({ stage: next === "preview" ? "" : next });
+  const setRange = (next: { from: string; to: string }) => patchParams(next);
+  // Карточка получает адрес возврата — со стадией и периодом
+  const openCard = (path: string) => navigate(path, { state: crumb });
+
   const [actionError, setActionError] = useState<string | null>(null);
   // Работы вне услуг чинятся прямо здесь, в модалке, а не переходом на карточку
   const [fixQueue, setFixQueue] = useState<any[] | null>(null);
@@ -71,24 +150,28 @@ const Approval = () => {
     store.fetch();
   }, []);
 
+  const data = store.data;
+
+  const stageActions = useStageActions({
+    zone: data?.zone,
+    onDone: () => store.fetch(),
+  });
+
   // Конвейер живёт своей жизнью: работы закрываются, клиент подписывает —
   // данные подтягиваются сами по пульсу (docs/live-updates.md), а не кнопкой
-  // «Обновить». Не чаще раза в 20 секунд: сводка пересчитывает цены всех работ
+  // «Обновить». Не чаще раза в 20 секунд: сводка пересчитывает цены всех работ.
+  // На время нашего хода — пауза: ответ на него всё равно перечитает конвейер
   useLiveTopic("approval", () => store.silentRefresh(), {
+    enabled: !stageActions.busy,
     minIntervalMs: 20_000,
   });
 
-  const data = store.data;
-  const stage = store.stage;
-
-  const inRange = (iso: string) => {
-    if (!range.from || !range.to) return true;
-    const month = monthOf(iso);
-    return month >= monthOf(range.from) && month <= monthOf(range.to);
-  };
+  // Месяц отчёта — ключом с сервера, в поясе организации (Report/period-filter)
+  const inPeriod = (row: { month?: string | null; periodFrom?: string }) =>
+    inMonthRange(reportMonthKey(row), range);
 
   const previewRows = useMemo(
-    () => (data?.preview || []).filter((row) => inRange(`${row.month}-01`)),
+    () => (data?.preview || []).filter(inPeriod),
     [data, range],
   );
 
@@ -96,40 +179,19 @@ const Approval = () => {
     () =>
       (data?.reports || [])
         .filter((row) => row.status === stage)
-        .filter((row) => inRange(row.periodFrom)),
+        .filter(inPeriod),
     [data, stage, range],
   );
 
-  /** Формирование отчёта из строки подбора. */
-  const submit = async (row: PreviewRow) => {
-    const key = `${row.month}|${row.company._id}|${row.servicePlan._id}`;
-    setBusyKey(key);
-    setActionError(null);
-    try {
-      const response = await fetch(`${API}/api/approval/reports`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          companyId: row.company._id,
-          servicePlanId: row.servicePlan._id,
-          workIds: row.workIds,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        // Причина отказа человеческая («Отчёт некому согласовать — …»),
-        // показываем её как есть: она называет, что чинить
-        throw new Error(payload?.message || "Не удалось сформировать отчёт");
-      }
-      store.fetch();
-    } catch (error) {
-      setActionError((error as Error).message);
-    } finally {
-      setBusyKey(null);
-    }
-  };
+  /** Формирование отчёта из строки подбора — через подтверждение. */
+  const submit = (row: PreviewRow) =>
+    stageActions.open(
+      "submit",
+      subjectOfPreview(row, {
+        period: formatMonthLabel(row.month),
+        sendDeadlineAt: data?.sendDeadlineAt,
+      }),
+    );
 
   const openUnrelated = async (row: PreviewRow) => {
     setActionError(null);
@@ -224,16 +286,18 @@ const Approval = () => {
 
     return (
       <PageShell title="Согласование работ" toolbar={toolbar}>
-        <div className={cn("space-y-1", store.isLoading && "opacity-60")}>
-          {errorBanner}
-          <ClientSummary
-            awaiting={awaiting}
-            history={(data.reports || [])
-              .filter((row) => !awaitingIds.has(row._id))
-              .filter((row) => inRange(row.periodFrom))}
-            onOpen={(id) => navigate(`/finances/approval/${id}`)}
-          />
-        </div>
+        <ReportZoneProvider value={data.zone}>
+          <div className={cn("space-y-1", store.isLoading && "opacity-60")}>
+            {errorBanner}
+            <ClientSummary
+              awaiting={awaiting}
+              history={(data.reports || [])
+                .filter((row) => !awaitingIds.has(row._id))
+                .filter(inPeriod)}
+              onOpen={(id) => openCard(`/finances/approval/${id}`)}
+            />
+          </div>
+        </ReportZoneProvider>
       </PageShell>
     );
   }
@@ -241,63 +305,75 @@ const Approval = () => {
   const stageLabel =
     STAGES.find((item) => item.key === stage)?.label || "Отчёты";
 
+  const canManageApproval = can({ approval: ["manage"] });
+
   return (
     <PageShell title="Согласование работ" toolbar={toolbar}>
-      <div className={cn("space-y-1", store.isLoading && "opacity-60")}>
-        {errorBanner}
-        {actionError && <AlertMessage variant="danger" message={actionError} />}
+      <ReportZoneProvider value={data.zone}>
+        <div className={cn("space-y-1", store.isLoading && "opacity-60")}>
+          {errorBanner}
+          {actionError && (
+            <AlertMessage variant="danger" message={actionError} />
+          )}
 
-        <PipelineRail
-          stages={data.stages}
-          active={stage}
-          onSelect={(next) => store.setStage(next)}
-        />
+          <PipelineRail
+            stages={data.stages}
+            active={stage}
+            onSelect={(next) => setStage(next)}
+          />
 
-        {/* Отклонённые — не стадия конвейера, а возврат в нашу работу; строкой
+          {/* Отклонённые — не стадия конвейера, а возврат в нашу работу; строкой
             под рейлом, чтобы не потерялись и не притворялись движением вперёд */}
-        {(data.stages.declined?.count || 0) > 0 && (
-          <button
-            type="button"
-            onClick={() => store.setStage("declined")}
-            className={cn(
-              "mt-2 inline-flex cursor-pointer appearance-none items-center gap-2 rounded-lg border-0 bg-transparent px-1 py-1 text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
-              stage === "declined"
-                ? "text-destructive"
-                : "text-muted-foreground",
-            )}
-          >
-            <RiAlertLine className="text-destructive" />
-            Отклонено клиентом: {data.stages.declined?.count} на{" "}
-            {formatMoney(data.stages.declined?.total || 0)}
-          </button>
-        )}
+          {(data.stages.declined?.count || 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => setStage("declined")}
+              className={cn(
+                "mt-2 inline-flex cursor-pointer appearance-none items-center gap-2 rounded-lg border-0 bg-transparent px-1 py-1 text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
+                stage === "declined"
+                  ? "text-destructive"
+                  : "text-muted-foreground",
+              )}
+            >
+              <RiAlertLine className="text-destructive" />
+              Отклонено клиентом: {data.stages.declined?.count} на{" "}
+              {formatMoney(data.stages.declined?.total || 0)}
+            </button>
+          )}
 
-        {stage === "preview" ? (
-          <PreviewTable
-            rows={previewRows}
-            busyKey={busyKey}
-            onSubmit={submit}
-            onOpen={(row) =>
-              navigate(
-                `/finances/approval/preview/${row.company._id}/${row.servicePlan._id}/${row.month}`,
-              )
-            }
-            onUnrelated={openUnrelated}
-          />
-        ) : (
-          <ReportsTable
-            label={stage === "declined" ? "Отклонено клиентом" : stageLabel}
-            rows={
-              stage === "declined"
-                ? (data.reports || [])
-                    .filter((row) => row.status === "declined")
-                    .filter((row) => inRange(row.periodFrom))
-                : stageReports
-            }
-            onOpen={(id) => navigate(`/finances/approval/${id}`)}
-          />
-        )}
-      </div>
+          {stage === "preview" ? (
+            <PreviewTable
+              rows={previewRows}
+              canManage={canManageApproval}
+              onSubmit={submit}
+              onOpen={(row) =>
+                openCard(
+                  `/finances/approval/preview/${row.company._id}/${row.servicePlan._id}/${row.month}`,
+                )
+              }
+              onUnrelated={openUnrelated}
+            />
+          ) : (
+            <ReportsTable
+              label={stage === "declined" ? "Отклонено клиентом" : stageLabel}
+              rows={
+                stage === "declined"
+                  ? (data.reports || [])
+                      .filter((row) => row.status === "declined")
+                      .filter(inPeriod)
+                  : stageReports
+              }
+              canManage={canManageApproval}
+              onOpen={(id) => openCard(`/finances/approval/${id}`)}
+              onAction={(kind, row) =>
+                stageActions.open(kind, subjectOfReport(row))
+              }
+            />
+          )}
+        </div>
+      </ReportZoneProvider>
+
+      {stageActions.dialog}
 
       <CategoryFixDialog
         works={fixQueue || []}
@@ -318,24 +394,21 @@ const Approval = () => {
  */
 const PreviewTable = ({
   rows,
-  busyKey,
+  canManage: canManageApproval,
   onSubmit,
   onOpen,
   onUnrelated,
 }: {
   rows: PreviewRow[];
-  busyKey: string | null;
+  // Конвейер открыт и клиенту (`approval.read`) — он видит свои отчёты, но
+  // ведёт согласование сторона исполнителя: собрать отчёт, починить работы вне
+  // услуг, отправить на подпись. Отсюда действия — под `approval.manage`, а
+  // не под тем же правом, что сама страница.
+  canManage: boolean;
   onSubmit: (row: PreviewRow) => void;
   onOpen: (row: PreviewRow) => void;
   onUnrelated: (row: PreviewRow) => void;
 }) => {
-  // Конвейер открыт и клиенту (`approval.read`) — он видит свои отчёты, но
-  // ведёт согласование сторона исполнителя: собрать отчёт, починить работы вне
-  // услуг, отправить на подпись. Отсюда действия подбора — под
-  // `approval.manage`, а не под тем же правом, что сама страница.
-  const can = useCan();
-  const canManageApproval = can({ approval: ["manage"] });
-
   if (rows.length === 0) {
     return (
       <>
@@ -479,7 +552,7 @@ const PreviewTable = ({
                                 {canManageApproval && (
                                   <Button
                                     size="sm"
-                                    disabled={blocked || busyKey === key}
+                                    disabled={blocked}
                                     title={
                                       blocked
                                         ? "В отчёт попали бы работы, не привязанные ни к одной услуге"
@@ -649,6 +722,7 @@ const ClientSummary = ({
 
 /** Срок по договору: не дата сама по себе, а сколько дней осталось. */
 const Deadline = ({ at }: { at?: string | null }) => {
+  const { shortDate: formatShortDate } = useReportDates();
   if (!at) return null;
   const days = Math.ceil((new Date(at).getTime() - Date.now()) / 86400000);
   return (
@@ -679,6 +753,7 @@ const Deadline = ({ at }: { at?: string | null }) => {
  * от его имени.
  */
 const ClientStateCell = ({ row }: { row: ReportRow }) => {
+  const { shortDate: formatShortDate } = useReportDates();
   if (row.status === "declined") {
     return (
       <span className="inline-flex items-center gap-2 text-sm font-semibold text-destructive">
@@ -716,15 +791,68 @@ const ClientStateCell = ({ row }: { row: ReportRow }) => {
   );
 };
 
-/** Отчёты выбранной стадии. Строка ведёт в карточку. */
+/**
+ * Действия строки: главный ход стадии и меню «⋯» с возвратом назад.
+ *
+ * Один блок на таблицу и на запись телефона — различается только размер: на
+ * узком экране кнопка тянется на всю ширину и держит 44 px под палец.
+ */
+const RowActions = ({
+  row,
+  onOpen,
+  onAction,
+}: {
+  row: ReportRow;
+  onOpen: (id: string) => void;
+  onAction: (kind: StageActionKind, row: ReportRow) => void;
+}) => {
+  const quick = QUICK_ACTION[row.status];
+  return (
+    <div className="flex items-center justify-end gap-2">
+      {quick && (
+        <Button
+          size="sm"
+          variant={quick.filled ? "default" : "outline"}
+          className="max-xl:h-11 max-xl:flex-1"
+          onClick={() => onAction(quick.kind, row)}
+        >
+          {quick.label}
+        </Button>
+      )}
+      <StageMoreMenu
+        status={row.status}
+        size="sm"
+        onOpen={() => onOpen(row._id)}
+        onRollback={() => onAction("rollback", row)}
+      />
+    </div>
+  );
+};
+
+/** Сверх тарифа: ноль не пишем цифрой — «0 ₽» заставляет искать подвох. */
+const extraOf = (value: number | null | undefined) =>
+  value ? formatMoney(value) : "—";
+
+/**
+ * Отчёты выбранной стадии. Строка ведёт в карточку, а главный ход стадии
+ * делается прямо из неё.
+ *
+ * Сумма разложена на «в тарифе» и «сверх тарифа» теми же словами, что в
+ * превью: счёт выставляют по обеим частям, и видеть их надо до карточки.
+ */
 const ReportsTable = ({
   label,
   rows,
+  canManage,
   onOpen,
+  onAction,
 }: {
   label: string;
   rows: ReportRow[];
+  /** Ходы по конвейеру — только держателю `approval.manage`. */
+  canManage: boolean;
   onOpen: (id: string) => void;
+  onAction: (kind: StageActionKind, row: ReportRow) => void;
 }) => {
   if (rows.length === 0) {
     return (
@@ -740,56 +868,151 @@ const ReportsTable = ({
 
   // Итог у ограниченного зрителя скрыт сервером; в нашем конвейере такого не
   // бывает, но складывать null молча нельзя
-  const total = rows.reduce((sum, row) => sum + (row.total ?? 0), 0);
+  const totals = rows.reduce(
+    (sum, row) => ({
+      price: sum.price + (row.price ?? 0),
+      additional: sum.additional + (row.additionalPrice ?? 0),
+      total: sum.total + (row.total ?? 0),
+    }),
+    { price: 0, additional: 0, total: 0 },
+  );
 
   return (
     <>
       <Eyebrow count={rows.length}>{label}</Eyebrow>
-      <div className="overflow-x-auto rounded-xl border border-border bg-card px-2 py-1.5">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Компания и услуга</TableHead>
-              <TableHead>Период</TableHead>
-              <TableHead>Состояние</TableHead>
-              <TableHead className={cn("w-36 whitespace-normal", NUM)}>
-                Сумма
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row._id}
-                onClick={() => onOpen(row._id)}
-                className="cursor-pointer"
-              >
-                <TableCell className="font-medium">
-                  {row.company?.alias}
-                  <div className="text-sm font-normal text-muted-foreground">
-                    {row.servicePlan?.title}
-                    {row.attempt > 1 && ` · попытка ${row.attempt}`}
-                  </div>
-                </TableCell>
-                <TableCell className="whitespace-nowrap">
-                  {row.period}
-                </TableCell>
-                <TableCell>
-                  <StateCell row={row} />
-                </TableCell>
-                <TableCell className={cn(NUM, "font-semibold")}>
-                  {formatMoney(row.total)}
-                </TableCell>
+      <div className="rounded-xl border border-border bg-card">
+        {/* Широкий экран — таблица: стадию сверяют по колонкам сумм */}
+        <div className="hidden px-2 py-1.5 xl:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Компания и услуга</TableHead>
+                <TableHead className="w-34">Период</TableHead>
+                <TableHead className="w-62">Состояние</TableHead>
+                <TableHead className={cn("w-34 whitespace-normal", NUM)}>
+                  В тарифе
+                </TableHead>
+                <TableHead className={cn("w-34 whitespace-normal", NUM)}>
+                  Сверх тарифа
+                </TableHead>
+                <TableHead className={cn("w-36 whitespace-normal", NUM)}>
+                  Итого
+                </TableHead>
+                {canManage && <TableHead className="w-54" />}
               </TableRow>
-            ))}
-          </TableBody>
-          <TableFooter>
-            <TableRow className="text-base font-semibold">
-              <TableCell colSpan={3}>Итого</TableCell>
-              <TableCell className={NUM}>{formatMoney(total)}</TableCell>
-            </TableRow>
-          </TableFooter>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow
+                  key={row._id}
+                  onClick={() => onOpen(row._id)}
+                  className="cursor-pointer"
+                >
+                  <TableCell className="font-medium whitespace-normal">
+                    {row.company?.alias}
+                    <div className="text-sm font-normal text-muted-foreground">
+                      {row.servicePlan?.title}
+                      {row.attempt > 1 && ` · попытка ${row.attempt}`}
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {row.period}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <StateCell row={row} />
+                  </TableCell>
+                  <TableCell className={NUM}>
+                    {formatMoney(row.price)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(NUM, !row.additionalPrice && "text-faint")}
+                  >
+                    {extraOf(row.additionalPrice)}
+                  </TableCell>
+                  <TableCell className={cn(NUM, "font-semibold")}>
+                    {formatMoney(row.total)}
+                  </TableCell>
+                  {canManage && (
+                    <TableCell
+                      className="whitespace-nowrap"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <RowActions
+                        row={row}
+                        onOpen={onOpen}
+                        onAction={onAction}
+                      />
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+            <TableFooter>
+              <TableRow className="text-base font-semibold">
+                <TableCell colSpan={3}>Итого</TableCell>
+                <TableCell className={NUM}>
+                  {formatMoney(totals.price)}
+                </TableCell>
+                <TableCell className={NUM}>
+                  {formatMoney(totals.additional)}
+                </TableCell>
+                <TableCell className={NUM}>
+                  {formatMoney(totals.total)}
+                </TableCell>
+                {canManage && <TableCell />}
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </div>
+
+        {/* Узкий экран — запись вместо строки: семь колонок с кнопкой на
+            360 px не живут ни при каких ширинах */}
+        <div className="px-4 xl:hidden">
+          {rows.map((row) => (
+            <div
+              key={row._id}
+              className="border-t border-border-soft py-3.5 first:border-t-0"
+            >
+              <div onClick={() => onOpen(row._id)} className="cursor-pointer">
+                <div className="flex items-baseline gap-3">
+                  <div className="min-w-0 flex-1 font-semibold break-words">
+                    {row.company?.alias}
+                  </div>
+                  <div className="font-semibold whitespace-nowrap tabular-nums">
+                    {formatMoney(row.total)}
+                  </div>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {row.servicePlan?.title}
+                  {row.attempt > 1 && ` · попытка ${row.attempt}`}
+                  {row.period && ` · ${row.period}`}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground tabular-nums">
+                  В тарифе {formatMoney(row.price)} · сверх тарифа{" "}
+                  {extraOf(row.additionalPrice)}
+                </div>
+                <div className="mt-1.5">
+                  <StateCell row={row} />
+                </div>
+              </div>
+              {canManage && (
+                <div className="mt-2.5">
+                  <RowActions row={row} onOpen={onOpen} onAction={onAction} />
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="border-t border-border py-3">
+            <div className="flex items-baseline gap-3 text-base font-semibold tabular-nums">
+              <span className="flex-1">Итого</span>
+              <span>{formatMoney(totals.total)}</span>
+            </div>
+            <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+              В тарифе {formatMoney(totals.price)} · сверх тарифа{" "}
+              {extraOf(totals.additional)}
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -800,6 +1023,7 @@ const ReportsTable = ({
  * срок, и всё это должно быть видно без открытия карточки.
  */
 const StateCell = ({ row }: { row: ReportRow }) => {
+  const { shortDate: formatShortDate } = useReportDates();
   if (row.status === "declined") {
     const declined = row.parts?.find((part) => part.status === "declined");
     return (

@@ -25,6 +25,7 @@ import { OverlayScrollContext } from "@/components/app/overlay-context";
 import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import { useFormSheet } from "@/components/app/FormOutlet";
 
+import { moneyInputValue, parseMoney } from "../../util/money";
 import Tariffing from "./Tariffing";
 import ScheduleEditor, {
   SCHEDULE_DAYS,
@@ -86,11 +87,12 @@ const ServicePlanForm = ({ title, attach = null }) => {
     title: servicePlan.title || "",
     ticketCategories: servicePlan.ticketCategories || [],
     type: servicePlan.type || "fixedPrice",
-    fixedPrice: servicePlan.fixedPrice ? Math.round(servicePlan.fixedPrice) : 0,
-    pricePerHour: servicePlan.pricePerHour
-      ? Math.round(servicePlan.pricePerHour)
-      : 0,
-    pricePerHourNonWorking: servicePlan.pricePerHourNonWorking || 0,
+    // Цены лежат в форме СТРОКОЙ, как их видит человек («1 250,50»): поле
+    // текстовое, а число из неё получается один раз — в payload. Округлять при
+    // открытии нельзя: форма сохраняла бы обратно уже целые рубли
+    fixedPrice: moneyInputValue(servicePlan.fixedPrice),
+    pricePerHour: moneyInputValue(servicePlan.pricePerHour),
+    pricePerHourNonWorking: moneyInputValue(servicePlan.pricePerHourNonWorking),
     packagesNonWorkingCalcMethod:
       servicePlan.packagesNonWorkingCalcMethod || "separatePayment",
     packagesNonWorkingCoefficient:
@@ -103,9 +105,9 @@ const ServicePlanForm = ({ title, attach = null }) => {
     servicePlan.hourPackages?.length
       ? servicePlan.hourPackages.map((pkg) => ({
           hours: pkg.hours,
-          pricePerHour: Math.round(pkg.pricePerHour || 0),
+          pricePerHour: moneyInputValue(pkg.pricePerHour),
         }))
-      : [{ hours: 12, pricePerHour: 1000 }],
+      : [{ hours: 12, pricePerHour: moneyInputValue(1000) }],
   );
 
   const [schedule, setSchedule] = useState(
@@ -180,17 +182,17 @@ const ServicePlanForm = ({ title, attach = null }) => {
         form.type === "hourPackage"
           ? hourPackages.map((pkg) => {
               const hours = Number(pkg.hours) || 0;
-              const pricePerHour = Number(pkg.pricePerHour) || 0;
+              const pricePerHour = parseMoney(pkg.pricePerHour);
               return {
                 hours,
                 pricePerHour,
-                totalPrice: Math.round(hours * pricePerHour),
+                totalPrice: parseMoney(hours * pricePerHour),
               };
             })
           : [],
-      fixedPrice: Number(form.fixedPrice) || 0,
-      pricePerHour: Number(form.pricePerHour) || 0,
-      pricePerHourNonWorking: Number(form.pricePerHourNonWorking) || 0,
+      fixedPrice: parseMoney(form.fixedPrice),
+      pricePerHour: parseMoney(form.pricePerHour),
+      pricePerHourNonWorking: parseMoney(form.pricePerHourNonWorking),
       packagesNonWorkingCalcMethod:
         form.type === "hourPackage"
           ? form.packagesNonWorkingCalcMethod

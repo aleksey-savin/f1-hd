@@ -3,7 +3,7 @@ import { RiCheckLine } from "react-icons/ri";
 import { cn } from "@/lib/utils";
 
 import type { ReportRow } from "../../types/approval";
-import { formatShortDate } from "../../util/format-date";
+import { useReportDates } from "./report-zone";
 
 /**
  * Ход отчёта — тонкая полоса под шапкой карточки.
@@ -29,6 +29,7 @@ const ALL_STEPS = [
 ];
 
 const ReportLifecycle = ({ report }: { report: ReportRow }) => {
+  const { shortDate: formatShortDate } = useReportDates();
   // Этап согласования не показываем вовсе, если оно не требуется: подпись
   // «не требуется» — это шум про то, чего в жизни документа не было
   const ORDER = report.approval?.required

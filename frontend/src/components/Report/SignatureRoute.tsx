@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { plural } from "./PipelineRail";
 import type { Actor, ReportPart, ReportRow } from "../../types/approval";
-import { formatShortDate } from "../../util/format-date";
+import { useReportDates } from "./report-zone";
 import { initials } from "./work-format";
 
 /**
@@ -161,6 +161,7 @@ const SignatureRoute = ({
   /** Клиенту первый узел — не «Мы», а название компании-исполнителя. */
   isClientView?: boolean;
 }) => {
+  const dates = useReportDates();
   const [open, setOpen] = useState(
     () => sessionStorage.getItem(OPEN_KEY) === "1",
   );
@@ -199,7 +200,7 @@ const SignatureRoute = ({
     report.status === "archived";
   const finalDetail = finalDone
     ? report.approval?.autoApprovedAt
-      ? `по сроку · ${formatShortDate(report.approval.autoApprovedAt)}`
+      ? `по сроку · ${dates.shortDate(report.approval.autoApprovedAt)}`
       : "подпись поставлена"
     : hasFork && signed < parts.length
       ? "ждёт части"
@@ -250,7 +251,7 @@ const SignatureRoute = ({
         state={submitted ? "done" : "wait"}
         detail={
           submitted
-            ? `отправлен · ${formatShortDate(submitted)}`
+            ? `отправлен · ${dates.shortDate(submitted)}`
             : "ещё не отправлен"
         }
       />
@@ -344,8 +345,9 @@ const SignatureRoute = ({
 
 /** Строка дерева. Отступ = вложенность подразделения, а не украшение. */
 const PartRow = ({ part, depth }: { part: ReportPart; depth: number }) => {
+  const dates = useReportDates();
   const state = partState(part);
-  const when = part.decidedAt ? ` · ${formatShortDate(part.decidedAt)}` : "";
+  const when = part.decidedAt ? ` · ${dates.shortDate(part.decidedAt)}` : "";
   const meta =
     state === "done"
       ? `подписано${when}`
