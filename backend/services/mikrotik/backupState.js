@@ -10,7 +10,8 @@ const scheduleOn = (schedule) =>
 // Row field `backup`. `state`:
 //   "ok"         — schedule on, a copy exists, the last run did not fail
 //   "pending"    — schedule on, the first copy has not been taken yet
-//   "failed"     — schedule on, the last run ended with an error
+//   "failed"     — schedule on, the last run ended with an error and no copy
+//                  has been taken since (a later manual copy supersedes it)
 //   "noSchedule" — schedule off, only manual copies exist
 //   "none"       — schedule off and no copies at all
 const backupView = (schedule, lastExportAt) => {
@@ -19,7 +20,13 @@ const backupView = (schedule, lastExportAt) => {
   if (!scheduleOn(schedule)) {
     return { state: lastAt ? "noSchedule" : "none", lastAt, nextAt: null };
   }
-  if (schedule.lastError) return { state: "failed", lastAt, nextAt };
+  const superseded =
+    lastAt &&
+    schedule.lastRunAt &&
+    new Date(lastAt) > new Date(schedule.lastRunAt);
+  if (schedule.lastError && !superseded) {
+    return { state: "failed", lastAt, nextAt };
+  }
   return { state: lastAt ? "ok" : "pending", lastAt, nextAt };
 };
 

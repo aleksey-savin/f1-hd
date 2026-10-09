@@ -40,3 +40,18 @@ test("schedule on with a failed last run: failed, even with older copies", () =>
   assert.equal(backupView(schedule, LAST).state, "failed");
   assert.equal(backupView(schedule, null).state, "failed");
 });
+
+// Prod, 09.10: SSH was fixed on the device, a manual export succeeded, and the
+// record still showed the error of the last scheduled run.
+test("a copy taken after the failed run supersedes the error", () => {
+  const failedRun = new Date("2026-10-08T17:02:00Z");
+  const schedule = {
+    frequency: "daily",
+    lastError: "Timed out while waiting for handshake",
+    lastRunAt: failedRun,
+    nextRunAt: NEXT,
+  };
+  assert.equal(backupView(schedule, new Date("2026-10-09T03:00:00Z")).state, "ok");
+  // A copy older than the failed run does not.
+  assert.equal(backupView(schedule, new Date("2026-10-07T17:02:00Z")).state, "failed");
+});

@@ -460,8 +460,11 @@ the pool of "manageable but not configured" devices no longer exists.
 - `backup` — `services/mikrotik/backupState.js#backupView` over
   `schedules.export` and the latest export date: `{state, lastAt, nextAt}`,
   `state` = `ok` (schedule on, a copy exists) | `pending` (on, no copy yet) |
-  `failed` (on, last run errored) | `noSchedule` (off, manual copies only) |
+  `failed` (on, last run errored and no copy taken since) | `noSchedule` (off, manual copies only) |
   `none` (off, no copies).
+  Any successful `createArtifact` (manual and pre-upgrade included) clears
+  `schedules.export.lastError`: the error of the last scheduled run does not
+  outlive a later successful copy.
 - `upgrade` — `{enabled, jobId, state, step, stepStartedAt, rebootRequestedAt,
   finishedAt, error}` (`services/mikrotik/upgradeView.js#upgradeFor`): the
   per-device switch plus the device's place in the running batch; `state` and

@@ -101,10 +101,17 @@ const createArtifact = async (
     .select("contentHash");
 
   // Trust-on-first-use: pin the observed SSH host key on the first successful op.
-  if (hostKey && !record.credentials.sshHostKey) {
-    record.credentials.sshHostKey = hostKey;
-    await record.save();
+  // Any successful export — manual or pre-upgrade too — also retires the error
+  // of the last scheduled run: the device has just proved it can be copied, and
+  // the stale error otherwise hangs on the record until the next scheduled run.
+  const pinHostKey = hostKey && !record.credentials.sshHostKey;
+  const staleError = Boolean(record.schedules?.export?.lastError);
+  if (pinHostKey) record.credentials.sshHostKey = hostKey;
+  if (staleError) {
+    record.schedules.export.lastError = undefined;
+    record.markModified("schedules");
   }
+  if (pinHostKey || staleError) await record.save();
 
   // Envelope-encrypt the config before it leaves the process, so what lands in S3
   // / on disk is ciphertext an operator can't read without MIKROTIK_ENC_KEY (an
