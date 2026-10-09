@@ -27,12 +27,42 @@ const {
   loadAddressSubdivisions,
 } = require("../services/clientAddress");
 const { resolveMapLink } = require("../services/mapLink");
+const { organizationId } = require("../services/permissions");
+const { assertNoOrphanedStaffActions } = require("../services/roles");
+const {
+  withoutCompany,
+  withoutUsers,
+} = require("../services/permissionHolders");
 
 /** Клиент видит только свою компанию — любую ручку карточки, не только getOne. */
 const assertCompanyVisible = (authedUser, companyId) => {
   if (authedUser.isEndUser && String(companyId) !== String(authedUser.company?._id)) {
     throw new AppError("Компания вам недоступна", 403);
   }
+};
+
+/**
+ * Компания для ответа: простой объект (то, во что `res.json` сериализует
+ * документ) без значений API-ключей.
+ *
+ * ЗНАЧЕНИЕ КЛЮЧА НАРУЖУ НЕ УХОДИТ — даже пока поле ещё существует.
+ *
+ * Смысл перехода на отпечаток в том, что выданный ключ нельзя прочитать
+ * повторно. Оставить его в ответе на время миграции значило бы оставить и дыру:
+ * интерфейс перестал бы его показывать, а API продолжал бы отдавать.
+ *
+ * Поэтому каждая ручка, что отдаёт компанию, берёт её отсюда. Документ,
+ * отданный в `res.json` как есть, уносит `apiKeys[].key` и `apiKeys[].keyHash`
+ * (так было у `update`). Значение нового ключа покидает сервер один раз — в
+ * ответе `createApiKey` и `reissueApiKey`; в списке остаются имя, хвост и
+ * состояние.
+ */
+const withoutApiKeyValues = (company) => {
+  const plain = company.toJSON();
+  plain.apiKeys = (plain.apiKeys || []).map(
+    ({ key, keyHash, ...rest }) => rest,
+  );
+  return plain;
 };
 
 // Точка из ссылки на карту при сохранении: пересчитываем, когда ссылка
@@ -131,19 +161,8 @@ exports.getOne = async (req, res, next) => {
     // `employees` array (typed as [ObjectId]) doesn't persist added fields like
     // `lastActivity` — index assignment is a no-op and reassigning casts each
     // entry back to an ObjectId. toJSON() yields the same shape res.json would.
-    const companyObj = company.toJSON();
-
-    /**
-     * ЗНАЧЕНИЕ КЛЮЧА НАРУЖУ НЕ УХОДИТ — даже пока поле ещё существует.
-     *
-     * Смысл перехода на отпечаток в том, что выданный ключ нельзя прочитать
-     * повторно. Оставить его в ответе карточки компании на время миграции
-     * значило бы оставить и дыру: интерфейс перестал бы его показывать, а API
-     * продолжал бы отдавать.
-     */
-    companyObj.apiKeys = (companyObj.apiKeys || []).map(
-      ({ key, keyHash, ...rest }) => rest,
-    );
+    // Значения API-ключей из него уже убраны — см. withoutApiKeyValues.
+    const companyObj = withoutApiKeyValues(company);
 
     // Subdivisions: fetch the whole set for this company in one query and
     // assemble the tree in JS by `parent`. This replaces the previous
@@ -448,7 +467,7 @@ exports.add = async (req, res, next) => {
 
     res.status(201).json({
       message: "Company added successfully!",
-      company: company,
+      company: withoutApiKeyValues(company),
     });
   } catch (error) {
     next(new AppError(`Failed to add company`, 500, true, error));
@@ -543,7 +562,8 @@ exports.update = async (req, res, next) => {
 
     res.status(200).json({
       message: "Данные компании успешно обновлены.",
-      company: company,
+      // Сохранённый документ как есть унёс бы ключи интеграций компании
+      company: withoutApiKeyValues(company),
     });
   } catch (error) {
     next(
@@ -561,6 +581,21 @@ exports.delete = async (req, res, next) => {
   try {
     const company = await Company.findById(req.params.id);
 
+    // Вместе с компанией уходят её люди — последнего носителя права так не
+    // теряем (services/permissionHolders.js). До любых удалений. Ушедшими
+    // считаются и список `employees` (его удаление и снимает), и учётные
+    // записи, что указывают на компанию: списки могли разойтись, а компании,
+    // на которую они указывают, больше не будет.
+    const companyId = String(company._id);
+    await assertNoOrphanedStaffActions(await organizationId(), (state) =>
+      withoutUsers(state, [
+        ...company.employees.map((employee) => String(employee._id)),
+        ...state.accounts
+          .filter((account) => account.companyId === companyId)
+          .map((account) => account.id),
+      ]),
+    );
+
     for (let user of company.employees) {
       await User.deleteOne({ _id: user._id.toString() });
     }
@@ -570,13 +605,16 @@ exports.delete = async (req, res, next) => {
       message: "Company & all it's users deleted successfully!",
     });
   } catch (error) {
+    // Отказ проверки носителей (409) — со своим кодом и фразой, не 500
     next(
-      new AppError(
-        `Failed to delete company ${req.params.id}`,
-        500,
-        true,
-        error,
-      ),
+      error instanceof AppError
+        ? error
+        : new AppError(
+            `Failed to delete company ${req.params.id}`,
+            500,
+            true,
+            error,
+          ),
     );
   }
 };
@@ -609,6 +647,13 @@ exports.toggleActive = async (req, res, next) => {
             "(Настройки → Сбор заявок). Сначала выберите другую компанию по умолчанию.",
         });
       }
+
+      // Люди отключённой компании не входят и носителями прав не считаются —
+      // последнего носителя права так не теряем
+      // (services/permissionHolders.js). Включение прав ни у кого не отнимает.
+      await assertNoOrphanedStaffActions(await organizationId(), (state) =>
+        withoutCompany(state, String(company._id)),
+      );
     }
 
     company.isActive = nextActive;
@@ -624,13 +669,16 @@ exports.toggleActive = async (req, res, next) => {
       isActive: company.isActive,
     });
   } catch (error) {
+    // Отказ проверки носителей (409) — со своим кодом и фразой, не 500
     next(
-      new AppError(
-        `Failed to toggle company ${req.params.id} active status`,
-        500,
-        true,
-        error,
-      ),
+      error instanceof AppError
+        ? error
+        : new AppError(
+            `Failed to toggle company ${req.params.id} active status`,
+            500,
+            true,
+            error,
+          ),
     );
   }
 };

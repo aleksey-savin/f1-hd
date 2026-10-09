@@ -5,6 +5,7 @@ const { Client } = require("ssh2");
 
 const { encryptSecret, decryptSecret } = require("../crypto/secretBox");
 const logger = require("../../utils/logger");
+const { parseLicense } = require("./license");
 
 // Reads a positive-integer tunable from the environment, falling back to a default.
 const envInt = (name, fallback) => {
@@ -39,6 +40,9 @@ const ROUTERBOARD_READ_TIMEOUT_MS = envInt(
   "MIKROTIK_ROUTERBOARD_READ_TIMEOUT_MS",
   4000,
 );
+// /system/license/print is best-effort as well: the license is shown, never
+// relied on, so a device that does not answer must not stall or fail the poll.
+const LICENSE_READ_TIMEOUT_MS = envInt("MIKROTIK_LICENSE_READ_TIMEOUT_MS", 4000);
 // Per knock-port touch. We only need the SYN to reach the firewall, so waiting out
 // a long timeout on a (deliberately) unanswered port is pure latency.
 const KNOCK_TOUCH_TIMEOUT_MS = envInt("MIKROTIK_KNOCK_TOUCH_TIMEOUT_MS", 800);
@@ -436,6 +440,22 @@ const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } =
       }
     }
 
+    // License level and, on CHR, its renewal deadline (services/mikrotik/
+    // license.js). Read on every poll: `limited-upgrades` flips on the device.
+    let license = null;
+    try {
+      license = await withReadTimeout(
+        conn.write(["/system/license/print"]),
+        LICENSE_READ_TIMEOUT_MS,
+      );
+    } catch (error) {
+      logger.log(
+        "warn",
+        "Mikrotik /system/license unavailable — skipping license",
+        { host: params.host, error: error.message },
+      );
+    }
+
     return {
       addresses,
       identity,
@@ -443,6 +463,7 @@ const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } =
       users,
       groups,
       routerboard,
+      license,
       tlsCert: observedCert,
       // Наблюдённый SSH-ключ транзитного роутера — для опортунистического
       // пиннинга при verify-on-save (см. контроллер).
@@ -544,10 +565,18 @@ const pollWithRetry = async (params, { retry = true, ...opts } = {}) => {
 // and the memory size are emitted only when read — an unconditional
 // `serialNumber: undefined` would erase a previously captured value via the
 // health-check's Object.assign. `totalMemory` (bytes) gates the RouterOS 6 → 7
-// upgrade (services/mikrotik/upgradePlan.js).
-const mapPollToFields = ({ addresses, identity, resource, routerboard }) => {
+// upgrade (services/mikrotik/upgradePlan.js). `license` follows the same rule:
+// an unanswered read keeps the stored one.
+const mapPollToFields = ({
+  addresses,
+  identity,
+  resource,
+  routerboard,
+  license: licenseRows,
+}) => {
   const serialNumber = routerboard?.[0]?.["serial-number"];
   const totalMemory = Number(resource?.[0]?.["total-memory"]);
+  const license = parseLicense(licenseRows);
   return {
     name: identity?.[0]?.name,
     boardName: resource?.[0]?.["board-name"],
@@ -555,6 +584,7 @@ const mapPollToFields = ({ addresses, identity, resource, routerboard }) => {
     addresses,
     ...(serialNumber ? { serialNumber } : {}),
     ...(Number.isFinite(totalMemory) && totalMemory > 0 ? { totalMemory } : {}),
+    ...(license ? { license } : {}),
   };
 };
 

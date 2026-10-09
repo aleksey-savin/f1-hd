@@ -41,6 +41,7 @@ const {
   toRow,
 } = require("@/services/reportCard");
 const { fmtMonthYear, resolveTimezone } = require("@/utils/datetime");
+const { approvalActionResult } = require("@/services/approvalActionResult");
 
 /**
  * «Согласование работ»: конвейер и карточка отчёта.
@@ -462,7 +463,7 @@ exports.create = async (req, res, next) => {
       authedUser,
     });
 
-    res.status(201).json({ report });
+    res.status(201).json(approvalActionResult(report));
   } catch (error) {
     next(
       error instanceof AppError
@@ -481,7 +482,7 @@ exports.resubmit = async (req, res, next) => {
     }
 
     await resubmit({ report, workIds: req.body.workIds, authedUser });
-    res.status(200).json({ report });
+    res.status(200).json(approvalActionResult(report));
   } catch (error) {
     next(
       error instanceof AppError
@@ -500,7 +501,7 @@ const stageAction = (run) => async (req, res, next) => {
       return next(new AppError("Отчёт не найден", 404));
     }
     await run({ report, body: req.body, authedUser });
-    res.status(200).json({ report });
+    res.status(200).json(approvalActionResult(report));
   } catch (error) {
     next(
       error instanceof AppError
@@ -544,7 +545,10 @@ exports.rollback = async (req, res, next) => {
       return next(new AppError("Отчёт не найден", 404));
     }
     const kept = await rollbackReport({ report, authedUser });
-    res.status(200).json(kept ? { report: kept } : { dissolved: true });
+    // Как у остальных ходов конвейера — только {ok, id}: документ отчёта несёт
+    // токены согласующих (services/approvalActionResult). Экран читает лишь
+    // `dissolved`
+    res.status(200).json(kept ? approvalActionResult(kept) : { dissolved: true });
   } catch (error) {
     next(
       error instanceof AppError
@@ -581,7 +585,7 @@ exports.decision = async (req, res, next) => {
       subdivisionId,
     });
 
-    res.status(200).json({ report });
+    res.status(200).json(approvalActionResult(report));
   } catch (error) {
     next(
       error instanceof AppError

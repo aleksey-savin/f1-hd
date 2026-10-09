@@ -158,6 +158,17 @@ const ticketSchema = new Schema(
       type: String,
       required: false,
     },
+    // Message-ID письма, из которого заведена заявка: повтор того же письма
+    // (пометка \Seen не дошла до сервера, копия в ящике) второй заявкой не
+    // становится (middleware/emailHandling, services/mail/inbound). У заявок
+    // не из почты поля нет вовсе — разреженный индекс их не держит. По
+    // умолчанию поле не читается: карточку заявки видят и клиенты, а в
+    // Message-ID бывает имя внутреннего сервера. Поиск повторов фильтрует по
+    // нему и проекцию берёт свою; нужно значение — `.select("+emailMessageId")`.
+    emailMessageId: {
+      type: String,
+      select: false,
+    },
     applicantId: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -536,6 +547,8 @@ ticketSchema.index({ "company._id": 1, isClosed: 1, createdAt: -1 }); // For com
 ticketSchema.index({ "responsibles._id": 1, isClosed: 1, createdAt: -1 }); // For user's tickets
 ticketSchema.index({ isClosed: 1, finishedAt: -1, _id: -1 }); // Архив: листинг закрытых по дате закрытия (_id — тай-брейкер сортировки, чтобы sort шёл по индексу)
 ticketSchema.index({ "applicant._id": 1, createdAt: -1 }); // For latest-ticket-per-applicant (legacy embedded applicant)
+// Повтор письма по Message-ID (services/mail/inbound#findImportedMessage)
+ticketSchema.index({ emailMessageId: 1 }, { sparse: true });
 
 // «Последняя активность» пользователя = дата его последней созданной заявки.
 // Денормализуем её на User.lastActivityAt при СОЗДАНИИ заявки, чтобы список

@@ -40,16 +40,12 @@ const companyScope = (req, requested = null) => {
   return ownIds.filter((id) => requested.some((value) => idOf(value) === id));
 };
 
-/**
- * Скоуп в терминах ТЕХНИКИ: у устройства компания лежит в `companyId`.
- *
- * Нужен отдельно от расположения, потому что «расположение своей компании» ещё
- * не значит «вся техника в нём своя»: публичное расположение (`isPublic`) может
- * держать устройства чужой компании, и клиенту в списке видны были бы их модель
- * и инвентарный номер.
- */
-const deviceScopeMatch = (scope) =>
-  scope ? { companyId: { $in: scope } } : {};
+// Скоуп в терминах ТЕХНИКИ (`deviceScopeMatch`) и выборки техники
+// пользователя — чистые построители в services/deviceScope.js, там же тест.
+const {
+  deviceScopeMatch,
+  userTechQueries,
+} = require("../../services/deviceScope");
 
 // Лёгкий populate-граф для виджета окружения заявки: только то, что нужно
 // карточке устройства. userId НЕ populate — сравниваем сырой ObjectId для флага
@@ -553,7 +549,15 @@ exports.add = async (req, res, next) => {
 // Update location
 exports.update = async (req, res, next) => {
   try {
-    const location = await Location.findById(req.params.id).populate("company");
+    // Компания — только подписью (alias, fullTitle), как в `add`. Расположение
+    // уходит в ответ целиком, а раскрытая компания несёт API-ключи (значение у
+    // старых ключей и отпечаток) и контакты людей; тело без `company` валидатор
+    // пропускает, и она оставалась в ответе. Для сверки с компанией назначаемого
+    // пользователя ниже хватает `_id`, он приходит всегда.
+    const location = await Location.findById(req.params.id).populate(
+      "company",
+      "alias fullTitle",
+    );
 
     if (!location) {
       return next(
@@ -793,7 +797,12 @@ exports.getAssignableUsers = async (req, res, next) => {
 // Soft delete location
 exports.delete = async (req, res, next) => {
   try {
-    const location = await Location.findById(req.params.id).populate("company");
+    // Компания здесь ничему не нужна; подпись оставлена, как у `update`, чтобы
+    // ответ, дополненный расположением, не вынес API-ключи компании
+    const location = await Location.findById(req.params.id).populate(
+      "company",
+      "alias fullTitle",
+    );
 
     if (!location) {
       return next(
@@ -871,8 +880,13 @@ exports.getUserEnvironment = async (req, res, next) => {
     const deviceFilter = { deletedAt: null, parentDeviceId: null };
 
     // Личная техника (по userId) — показывается всегда, даже без рабочего места.
+    // В скоупе компании, как узлы цепочки ниже и техника пользователя
+    // (getUserTech): закреплённое за человеком устройство может числиться за
+    // другой компанией или ни за какой, и клиенту его модель и инвентарный
+    // номер не показываются (services/deviceScope).
     const personalDevicesRaw = await ClientDevice.find({
       ...deviceFilter,
+      ...deviceScopeMatch(scope),
       userId,
     }).populate(ENV_DEVICE_POPULATE);
     const personalMikroMap = await buildMikrotikStatusMap(
@@ -1262,10 +1276,11 @@ exports.getUserTech = async (req, res, next) => {
       return next(new AppError(`User with id ${userId} not found`, 404));
     }
 
-    // Техника сотрудника чужой компании клиенту не видна (см. getOne). Своё
-    // рабочее место проходит всегда: в getMyTech id приходит из токена, и
-    // отказывать человеку в его собственном столе из-за пустой компании в
-    // учётке было бы регрессией «Моего рабочего места».
+    // Сотрудника чужой компании клиенту не показываем: 404, как в getOne. Своя
+    // карточка проходит всегда: в getMyTech id приходит из токена, и 404 на
+    // собственный стол был бы регрессией «Моего рабочего места». Клиент без
+    // компании в учётке получает не отказ, а пустой список: обе выборки ниже
+    // заперты скоупом компании (userTechQueries), а у такого клиента он пуст.
     const scope = companyScope(req);
     if (
       scope &&
@@ -1275,26 +1290,28 @@ exports.getUserTech = async (req, res, next) => {
       return next(new AppError(`User with id ${userId} not found`, 404));
     }
 
-    const deviceFilter = { deletedAt: null, parentDeviceId: null };
     const workplaces = await Location.getUserWorkplaces(userId);
     const workplace = workplaces[0] || null;
     const parent = workplace?.parent || null;
 
-    const ownRaw = await ClientDevice.find({
-      ...deviceFilter,
-      $or: [
-        { userId },
-        ...(workplace ? [{ locationId: workplace._id }] : []),
-      ],
-    }).populate(ENV_DEVICE_POPULATE);
+    // Обе выборки — в скоупе компании: на рабочем месте и в помещении может
+    // стоять техника чужой компании (публичное расположение), и клиенту её
+    // модель и инвентарный номер не показываются (services/deviceScope)
+    const queries = userTechQueries({
+      userId,
+      workplaceId: workplace?._id ?? null,
+      parentId: parent?._id ?? null,
+      scope,
+    });
+
+    const ownRaw = await ClientDevice.find(queries.own).populate(
+      ENV_DEVICE_POPULATE,
+    );
 
     const ownIds = new Set(ownRaw.map((d) => String(d._id)));
-    const parentRaw = parent
+    const parentRaw = queries.parent
       ? (
-          await ClientDevice.find({
-            ...deviceFilter,
-            locationId: parent._id,
-          }).populate(ENV_DEVICE_POPULATE)
+          await ClientDevice.find(queries.parent).populate(ENV_DEVICE_POPULATE)
         ).filter((d) => !ownIds.has(String(d._id)))
       : [];
 

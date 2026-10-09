@@ -16,6 +16,7 @@ const {
 const { resolveTimezone } = require("../utils/datetime");
 const { htmlToPlainLines } = require("../helpers/htmlToPlainText");
 const { formatPhone } = require("../services/phone");
+const { ticketSubjectTag } = require("../services/emailReplyStripper");
 
 /**
  * Описание заявки для Telegram: цитатой под темой. Разметку туда переслать
@@ -486,7 +487,7 @@ exports.createTicketNotifications = async () => {
                 email: applicant.email,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              title: `[F1-HD-${ticket.num}] Создана новая Заявка`,
+              title: `${ticketSubjectTag(ticket.num)} Создана новая Заявка`,
               text: `
                             <div>
                                 <h3>Создана новая Заявка ${ticket.num}.</h3>
@@ -533,7 +534,7 @@ exports.createTicketNotifications = async () => {
                   email: user.email,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Вы назначенны ответственным(ой) за Заявку`,
+                title: `${ticketSubjectTag(ticket.num)} Вы назначены ответственным(ой) за Заявку`,
                 text: `
                                     <div>
                                         <h3>Вы назначены ответственным(ой) за Заявку ${ticket.num}.</h3>
@@ -648,7 +649,7 @@ exports.createTicketNotifications = async () => {
                   email: user.email,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Вы назначены ответственным(ой) за Заявку`,
+                title: `${ticketSubjectTag(ticket.num)} Вы назначены ответственным(ой) за Заявку`,
                 text: `
                                     <div>
                                         <h3>Вы назначены ответственным(ой) за Заявку ${ticket.num}.</h3>
@@ -741,7 +742,7 @@ exports.createTicketNotifications = async () => {
                 email: ticket.applicantId.email,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} принята в работу. ${ticket.title}`,
+              title: `${ticketSubjectTag(ticket.num)} Заявка ${ticket.num} принята в работу. ${ticket.title}`,
               text: `
                         <div>
                             <h3>Заявка ${ticket.num} принята в работу.</h3>
@@ -848,9 +849,9 @@ exports.createTicketNotifications = async () => {
                 ticketId: ticket._id,
                 to: {
                   email: user.email,
-                  responsible: `${user.lastName} + ${user.firstName}`,
+                  responsible: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Вы назначены ответственным(ой) за Заявку`,
+                title: `${ticketSubjectTag(ticket.num)} Вы назначены ответственным(ой) за Заявку`,
                 text: `
                                 <div>
                                     <h3>Вы назначены ответственным(ой) за Заявку ${ticket.num}.</h3>
@@ -991,7 +992,7 @@ exports.createTicketNotifications = async () => {
                   email: user.email,
                   manager: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Пользователь отказался от выполнения Заявки ${ticket.num}`,
+                title: `${ticketSubjectTag(ticket.num)} Пользователь отказался от выполнения Заявки ${ticket.num}`,
                 text: `
                                 <div>
                                     <h3>Пользователь отказался от выполнения Заявки ${
@@ -1053,7 +1054,7 @@ exports.createTicketNotifications = async () => {
                   email: user.email,
                   manager: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Пользователь отказался от выполнения Заявки ${ticket.num}`,
+                title: `${ticketSubjectTag(ticket.num)} Пользователь отказался от выполнения Заявки ${ticket.num}`,
                 text: `
                                 <div>
                                     <h3>Пользователь отказался от выполнения Заявки ${
@@ -1243,7 +1244,7 @@ exports.createTicketNotifications = async () => {
                 email: ticket.applicantId.email,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} выполнена. ${ticket.title}`,
+              title: `${ticketSubjectTag(ticket.num)} Заявка ${ticket.num} выполнена. ${ticket.title}`,
               text: `
                         <div>
                             <h3>Заявка ${ticket.num} выполнена.</h3>
@@ -1290,7 +1291,7 @@ exports.createTicketNotifications = async () => {
                   email: user.email,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} выполнена. ${ticket.title}`,
+                title: `${ticketSubjectTag(ticket.num)} Заявка ${ticket.num} выполнена. ${ticket.title}`,
                 text: `
                             <div>
                                 <h3>Заявка ${ticket.num} выполнена.</h3>
@@ -1456,7 +1457,7 @@ exports.createTicketNotifications = async () => {
                 email: ticket.applicantId.email,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} возвращена в работу`,
+              title: `${ticketSubjectTag(ticket.num)} Заявка ${ticket.num} возвращена в работу`,
               text: `
                         <div>
                             <h3>Заявка ${ticket.num} возвращена в работу.</h3>
@@ -1503,7 +1504,7 @@ exports.createTicketNotifications = async () => {
                   email: user.email,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} выполнена. ${ticket.title}`,
+                title: `${ticketSubjectTag(ticket.num)} Заявка ${ticket.num} выполнена. ${ticket.title}`,
                 text: `
                             <div>
                                 <h3>Заявка ${ticket.num} выполнена.</h3>
@@ -1624,7 +1625,7 @@ exports.createTicketNotifications = async () => {
                   email: user.email,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Изменён срок заявки ${ticket.num}`,
+                title: `${ticketSubjectTag(ticket.num)} Изменён срок заявки ${ticket.num}`,
                 text: `
                             <div>
                                 <h3>Изменён срок заявки ${ticket.num}.</h3>
@@ -1852,7 +1853,7 @@ exports.createCommentNotifications = async () => {
                 email: applicant.email,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              title: `[F1-HD-${ticket.num}] Новый комментарий к Заявке ${ticket.num}`,
+              title: `${ticketSubjectTag(ticket.num)} Новый комментарий к Заявке ${ticket.num}`,
               text: `<div>
                 <h3>${ticket.isClosed ? "Ответ в закрытую заявку." : "Новый комментарий."}</h3>
                 <p>
@@ -1893,7 +1894,7 @@ exports.createCommentNotifications = async () => {
                   email: user.email,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Новый комментарий к Заявке ${ticket.num}`,
+                title: `${ticketSubjectTag(ticket.num)} Новый комментарий к Заявке ${ticket.num}`,
                 text: `<div>
                                 <h3>${ticket.isClosed ? "Ответ в закрытую заявку." : "Новый комментарий."}</h3>
                                 <p>

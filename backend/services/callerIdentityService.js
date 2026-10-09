@@ -2,6 +2,7 @@ const MongoUser = require("@/models/user");
 const MongoCompany = require("@/models/company");
 const { isBanned } = require("@/services/authBan");
 const { parsePhoneInput, toCanonicalPhone, isValidPhone } = require("@/services/phone");
+const { stripTags } = require("@/helpers/textScan");
 
 // Любая последовательность, похожая на номер телефона. Внутри номера — пробел,
 // табуляция и неразрывный пробел (его приносит почта из HTML), но не перевод
@@ -18,12 +19,12 @@ const KTO_ZVONIL = /кто\s+звонил\s*:?\s*(\+?\d[\d \t\xa0()-]{4,}\d)?/i;
 // счета и прочие десятизначные числа, которыми полна подпись письма.
 const PLAUSIBLE_RU = /^7[3489]\d{9}$/;
 
-// Теги — в пробелы. Из сущностей — только неразрывный пробел (&nbsp;, &#160;,
-// &#xa0;): им телефония отделяет слова метки «Кто звонил» и группы цифр номера.
+// Теги — в пробелы (за линейное время, helpers/textScan: `<[^>]+>` на «<» ×N
+// думала секунды, а тело письма приходит от кого угодно). Из сущностей — только
+// неразрывный пробел (&nbsp;, &#160;, &#xa0;): им телефония отделяет слова
+// метки «Кто звонил» и группы цифр номера.
 const stripHtml = (html) =>
-  String(html || "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&(?:nbsp|#160|#xa0);/gi, " ");
+  stripTags(String(html || ""), " ").replace(/&(?:nbsp|#160|#xa0);/gi, " ");
 
 // Номера письма по порядку доверия. Метка «Кто звонил» есть — это письмо
 // телефонии, и звонящий тот, что стоит в её строке: годный номер — единственный
@@ -129,9 +130,12 @@ const findByAnyPhone = async (phones, lookup) => {
 };
 
 // Первый email из строки отправителя ("Имя <a@b.ru>" или "a@b.ru").
+// Совпадение обязано кончаться там, где кончается адрес: иначе из
+// «calls@mango.ru.1» или «boss@client.ru_evil.com» вышел бы чужой
+// «calls@mango.ru», и письмо с такого адреса прошло бы за телефонию
 const extractEmail = (value) => {
   const match = String(value || "").match(
-    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?![\w.%+@-])/,
   );
   return match ? match[0] : "";
 };
@@ -222,4 +226,5 @@ module.exports = {
   findByAnyPhone,
   buildKnownCaller,
   isCloudTelephonySender,
+  extractEmail,
 };

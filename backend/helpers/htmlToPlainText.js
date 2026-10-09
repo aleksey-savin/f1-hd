@@ -1,15 +1,24 @@
+const { clampInput, stripTags, stripBlocks } = require("./textScan");
+
 // Снимает HTML-теги и базовые entity, оставляя текст для глобального поиска.
 // Всё вместе одной строкой: поиску переводы строк не нужны, а лишние пробелы
 // мешают. Где строки важны (Telegram) — `htmlToPlainLines` ниже.
+//
+// Теги и блоки <style>/<script> снимаются за линейное время (helpers/textScan):
+// прежние регулярки на «<» ×40 000 думали секунды, а описание заявки приходит
+// из письма от кого угодно.
 module.exports.htmlToPlainText = (html = "") => {
   if (!html || typeof html !== "string") {
     return "";
   }
 
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
+  const withoutBlocks = stripBlocks(
+    stripBlocks(clampInput(html), ["style"], " "),
+    ["script"],
+    " ",
+  );
+
+  return stripTags(withoutBlocks, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
@@ -39,11 +48,11 @@ module.exports.htmlToPlainLines = (html = "", limit = 0) => {
     return "";
   }
 
-  const text = html
-    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ")
+  const withBreaks = stripBlocks(clampInput(html), ["style", "script"], " ")
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|tr|h[1-6]|blockquote)\s*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
+    .replace(/<\/(p|div|li|tr|h[1-6]|blockquote)\s*>/gi, "\n");
+
+  const text = stripTags(withBreaks, "")
     .replace(/&nbsp;/gi, " ")
     .replace(/&laquo;/gi, "«")
     .replace(/&raquo;/gi, "»")
@@ -55,6 +64,8 @@ module.exports.htmlToPlainLines = (html = "", limit = 0) => {
     .replace(/&gt;/gi, ">")
     // Амперсанд — последним, иначе «&amp;lt;» развернулся бы в тег
     .replace(/&amp;/gi, "&")
+    // Сначала схлопываем пробелы: следующая замена ищет их по обе стороны
+    // перевода строки, и на длинной серии пробелов без него была бы квадратичной
     .replace(/[ \t]+/g, " ")
     .replace(/[ \t]*\n[ \t]*/g, "\n")
     .replace(/\n{2,}/g, "\n")

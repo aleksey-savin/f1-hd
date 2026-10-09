@@ -242,7 +242,7 @@ rest of the batch; a failure while writing the outcome into the linked
 stands either way.
 
 **The repair cron** — `messagingRepair`, every minute (`backend/app.js`, next
-to the other `guardedCron` registrations; 50 s watchdog) →
+to the other `jobs.register` registrations; 50 s watchdog) →
 `services/messaging/outbound.js#repairOutbound`. It returns immediately when
 `Channel.exists({isActive: true})` is false, so an idle deployment doesn't scan
 anything every minute. Otherwise it finds outbound messages stuck

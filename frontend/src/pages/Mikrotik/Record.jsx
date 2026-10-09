@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Link,
-  useLoaderData,
-  useNavigate,
-  useRevalidator,
-} from "react-router";
+import { Link, useLoaderData, useNavigate, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 
 import {
@@ -15,6 +10,7 @@ import {
   RiCpuLine,
   RiDeleteBinLine,
   RiEdit2Line,
+  RiErrorWarningLine,
   RiGlobalLine,
   RiLinksLine,
   RiMoreLine,
@@ -34,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import AnchorRail from "@/components/app/AnchorRail";
+import AnchorRail, { scrollToSection } from "@/components/app/AnchorRail";
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { Panel, Eyebrow } from "@/components/app/Panel";
 import PropRow from "@/components/app/PropRow";
@@ -47,6 +43,11 @@ import AvailabilitySection from "../../components/Mikrotik/AvailabilitySection";
 import ConfigsSection from "../../components/Mikrotik/ConfigsSection";
 import FirmwareSection from "../../components/Mikrotik/FirmwareSection";
 import {
+  backupFlag,
+  capitalize,
+  licenseFlag,
+} from "../../components/Mikrotik/health-flags.js";
+import {
   DeviceTile,
   STATUS_META,
   formatAgo,
@@ -56,7 +57,11 @@ import useLiveRouteRevalidate from "@/hooks/use-live-route-revalidate";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
 } from "../../store/lists/mikrotik-devices";
-import { formatDate, formatShortDate } from "../../util/format-date";
+import {
+  formatDate,
+  formatDayMonth,
+  formatShortDate,
+} from "../../util/format-date";
 import { plural } from "../../util/plural";
 import { useCan } from "@/store/authed-user";
 
@@ -97,6 +102,41 @@ const EpisodeLine = ({ row, status, className }) => {
         </Link>
       )}
     </div>
+  );
+};
+
+/**
+ * Флаг шапки (макет «Mikrotik: лицензия и копии», 09.10): проблема лицензии
+ * или копий конфигурации янтарём в строке статуса, щелчок ведёт к секции, где
+ * её чинят. Без `target` (секция скрыта правами) — тот же текст без перехода.
+ */
+const HeroFlag = ({ flag, text, target }) => {
+  const className = "inline-flex items-center gap-1 font-semibold text-warning";
+  const content = (
+    <>
+      <RiErrorWarningLine size={14} aria-hidden className="flex-none" />
+      {text}
+    </>
+  );
+  if (!target) {
+    return (
+      <span title={flag.title} className={className}>
+        {content}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      title={flag.title}
+      onClick={() => scrollToSection(null, target)}
+      className={cn(
+        className,
+        "cursor-pointer appearance-none border-0 bg-transparent p-0 hover:underline",
+      )}
+    >
+      {content}
+    </button>
   );
 };
 
@@ -293,6 +333,8 @@ const MikrotikRecordPage = () => {
   );
   const record = row.record || {};
   const linked = Boolean(row.clientDeviceId);
+  const licenseProblem = licenseFlag(row.license, formatDayMonth);
+  const backupProblem = backupFlag(row.backup);
 
   // Рейл собирается только из реально отрисованных секций.
   const railSections = [
@@ -397,6 +439,25 @@ const MikrotikRecordPage = () => {
               {activeAddresses.length}{" "}
               {plural(activeAddresses.length, "адрес", "адреса", "адресов")}
             </span>
+            {/* Проблемы лицензии и копий; на телефоне — своей строкой */}
+            {(licenseProblem || backupProblem) && (
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-1 max-md:basis-full">
+                {licenseProblem && (
+                  <HeroFlag
+                    flag={licenseProblem}
+                    text={capitalize(licenseProblem.text)}
+                    target="license"
+                  />
+                )}
+                {backupProblem && (
+                  <HeroFlag
+                    flag={backupProblem}
+                    text={backupProblem.heroText}
+                    target={canManageConfigs ? "configs" : null}
+                  />
+                )}
+              </span>
+            )}
           </div>
           {/* Телефон: ошибка эпизода — сразу под статусом, до карточки */}
           <EpisodeLine row={row} status={status} className="md:hidden" />
@@ -476,7 +537,10 @@ const MikrotikRecordPage = () => {
                       : dash}
                   </span>
                 </PropRow>
-                <PropRow icon={<RiTerminalBoxLine size={17} />} label="SSH-порт">
+                <PropRow
+                  icon={<RiTerminalBoxLine size={17} />}
+                  label="SSH-порт"
+                >
                   <span className="font-mono text-sm">
                     {record.credentials?.sshPort ?? 22}
                   </span>
@@ -518,7 +582,10 @@ const MikrotikRecordPage = () => {
                     </>
                   )}
                 </PropRow>
-                <PropRow icon={<RiPulseLine size={17} />} label="Последняя связь">
+                <PropRow
+                  icon={<RiPulseLine size={17} />}
+                  label="Последняя связь"
+                >
                   {row.lastSuccessfulConnectionAt
                     ? formatDate(row.lastSuccessfulConnectionAt)
                     : dash}

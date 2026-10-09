@@ -140,6 +140,8 @@ credentials { host, port, user, password, useTls, tlsCert, knockSequence,
              // password + knockSequence are AES-256-GCM blobs; tlsCert = pinned PEM,
              // sshHostKey = pinned sha256 fingerprint. useTls is legacy: TLS is forced.
 name, boardName, serialNumber, currentFirmware               // polled
+license { level, softwareId, systemId, deadlineAt, nextRenewalAt, limitedUpgrades }
+                             // polled from /system/license; absent = not read yet
 addresses[] { address, network, interface, invalid, dynamic, disabled, comment }
 status                       → "online" | "offline"   // CONFIRMED connectivity
 monitoringEnabled            → Boolean, default false
@@ -199,7 +201,9 @@ Uses `routeros-node` (`new Routeros(...)` → `connect()` → `conn.write([...])
   knocks, opens an **API-SSL** session (TLS cert pinned via `tlsCert`, captured
   TOFU on first connect — see _TLS pin_ below), reads `/ip/address/print`, `/system/identity/print`,
   `/system/resource/print` and — **best-effort, opt-out** — `/user/print` and
-  `/system/routerboard/print`, always closes the socket, and throws on any
+  `/system/routerboard/print`, then — best-effort and **always**, the health-check
+  included — `/system/license/print` (bounded by
+  `MIKROTIK_LICENSE_READ_TIMEOUT_MS`, default 4 s), always closes the socket, and throws on any
   failure (interpreted as "offline"). The health-check turns both optional reads
   off: for a least-privilege user `/user/print` never answers (so the full-group
   guard there was a permanent no-op burning its timeout), and the serial can't
@@ -248,6 +252,8 @@ Uses `routeros-node` (`new Routeros(...)` → `connect()` → `conn.write([...])
   `addresses`, and `serialNumber` (from routerboard) — the serial key is emitted
   **only when the read succeeded**, so a CHR / skipped / timed-out read never
   erases a previously captured value when the result is `$set` onto the record.
+  `license` (`services/mikrotik/license.js#parseLicense`) follows the same rule:
+  an unanswered read keeps the stored subdocument.
 - `assertUserNotFullGroup(users, user)` — rejects RouterOS accounts in the `full`
   group. **Best-effort**: when `/user/print` was unreadable (least-privilege
   user) `users` is null and the check is skipped.
@@ -413,7 +419,7 @@ the pool of "manageable but not configured" devices no longer exists.
   location{name,address}, status, monitoringEnabled, host, port, boardName,
   currentFirmware, addresses[], lastSuccessfulConnectionAt, lastCheckedAt,
   lastError, offlineSince, offlineAlertedAt, alertTicket{id,num}, monitoredSince,
-  schedules, lastExportAt, lastBackupAt, uptime30d, uptimeDays, firmwareStatus,
+  license, backup, schedules, lastExportAt, lastBackupAt, uptime30d, uptimeDays, firmwareStatus,
   upgrade, access }
 ```
 
@@ -429,6 +435,21 @@ the pool of "manageable but not configured" devices no longer exists.
   `initializeInventoryData.js` / `seedMikrotikModels.js`.
 - `uptime30d` / `uptimeDays` — 30-day availability % (`null` = not enough data)
   and its per-day buckets.
+- `license` — `services/mikrotik/license.js#licenseView`: `null` until the
+  license has been read, else `{kind: "routeros"|"chr", level, label, state,
+  until, soon, softwareId, systemId}`. RouterBOARD/x86 report `nlevel` (0–6):
+  levels 2–6 are perpetual (`state: "ok"`), 0–1 are demo (`"inactive"`). CHR
+  reports `free | p1 | p10 | p-unlimited`: `free` is `"inactive"`; a passed
+  `deadline-at` or `limited-upgrades` is `"expired"` (the router keeps
+  forwarding but refuses RouterOS upgrades); `soon` marks a still-valid license
+  whose deadline is within 14 days. The device does not say whether a CHR
+  license is a trial. Device dates come in two formats (`may/10/2016 …` and
+  ISO-like) and are read as UTC.
+- `backup` — `services/mikrotik/backupState.js#backupView` over
+  `schedules.export` and the latest export date: `{state, lastAt, nextAt}`,
+  `state` = `ok` (schedule on, a copy exists) | `pending` (on, no copy yet) |
+  `failed` (on, last run errored) | `noSchedule` (off, manual copies only) |
+  `none` (off, no copies).
 - `upgrade` — `{enabled, jobId, state, step, stepStartedAt, rebootRequestedAt,
   finishedAt, error}` (`services/mikrotik/upgradeView.js#upgradeFor`): the
   per-device switch plus the device's place in the running batch; `state` and
@@ -447,10 +468,13 @@ the pool of "manageable but not configured" devices no longer exists.
 
 The three connectivity crons used to share `*/5 * * * *` and fired in the same
 second. That was a correctness bug, not just contention: the alert cron read
-`status` while the health-check was still polling. They are staggered by
-`guardedCron(name, expr, fn, timeoutMs)`, which pairs an in-flight lock with a
-**watchdog** (a hung run used to hold the lock forever — health-check dead,
-alerts still ticketing off a frozen `offline`).
+`status` while the health-check was still polling. They are staggered, and each
+is registered through the job registry (`services/jobs/guardedCron.js`,
+`jobs.register(name, expr, fn, timeoutMs)`): an in-flight lock held until the
+run settles — runs never overlap — and a **watchdog** that logs an error when a
+run outlives `timeoutMs`. The watchdog cannot cancel a run, so a run that never
+settles would stop its cron until restart; the Mikrotik jobs bound their own I/O
+(`POLL_DEADLINE_MS`, SSH `opTimeoutMs`, `AbortSignal.timeout`).
 
 | Cron | Minutes | Watchdog |
 | --- | --- | --- |
@@ -634,8 +658,8 @@ checklist.
 ### Service — `backend/services/mikrotik/firmware.js`
 
 Pure helpers plus never-throw refreshers (every outbound `fetch` uses
-`AbortSignal.timeout(20s)` — the guardedCron watchdog only logs, it can't cancel
-a hung promise):
+`AbortSignal.timeout(20s)` — the cron registry's watchdog (`jobs.register`,
+`services/jobs/guardedCron.js`) only logs, it can't cancel a hung promise):
 
 - `parseFirmware("7.15.3 (stable)")` → `{version, major, channel}` — the raw
   `/system/resource/print` `version` string is stored verbatim on the record; the
@@ -752,8 +776,9 @@ branch, or `long-term` / `stable`). Design: `docs/superpowers/specs/2026-09-29-m
 - **Job**: `MikrotikUpgradeJob` — one running batch (partial unique index on
   `status: "running"`), items embedded with `step`, versions, `error`/`fix`, a
   50-line log. The pulse topic is `mikrotik`.
-- **Worker** (`services/mikrotik/upgradeWorker.js`, `guardedCron` every 20 s,
-  watchdog 15 min): one step per tick. Steps (`upgradeSteps.js`, pure over
+- **Worker** (`services/mikrotik/upgradeWorker.js`, a cron-registry job
+  (`jobs.register`, `services/jobs/guardedCron.js`) every 20 s, watchdog 15 min):
+  one step per tick. Steps (`upgradeSteps.js`, pure over
   `upgradeDevice.js`): export (`createArtifact`, trigger `pre-upgrade`) →
   channel (always `set channel`, idempotent — the build's branch is not the
   configured channel) → check (`check-for-updates`, then `print` every 3 s
@@ -786,7 +811,9 @@ branch, or `long-term` / `stable`). Design: `docs/superpowers/specs/2026-09-29-m
 - **Transport**: short commands over the API (`withApiSession`, no confirmation
   prompts), the download over SSH (`withSshSession` with `opTimeoutMs`).
 - **Probe**: `scripts/mikrotikUpgradeProbe.js` runs the read-only commands
-  against one device with direct parameters.
+  against one device with direct parameters. It is excluded from the
+  production image (`backend/.dockerignore`); run it from a checkout or the dev
+  container.
 
 ## Config export (`.rsc`)
 

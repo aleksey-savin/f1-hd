@@ -58,6 +58,13 @@ them in turn. Our own support line (`Preferences.contacts.tel`, passed as
 search, and at the label it means there is no caller. Messenger identities link
 through the same `findUsersByPhone`.
 
+Since 2026-10-03 `emailHandling` uses these candidates only for mail from a
+cloud-telephony account (`isCloudTelephonySender(fromAddress)`, the same check that
+sets the telephony source), and only when the sender check did not fail: in an
+ordinary e-mail a phone number in the text identifies neither the applicant nor the
+company, because an outsider could otherwise open a ticket in a client's name.
+Telephony sender addresses must carry the `isCloudTelephony` flag for this to work.
+
 People search (`services/personSearch.js`) matches the phone by the digits of the
 query; a query that looks like a whole number is one phone term. The «Диалоги» list
 search (`controllers/conversation.js`) also matches such a query by its digits

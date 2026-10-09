@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 
 import {
   RiCalendar2Line,
   RiDeleteBinLine,
   RiDownloadLine,
+  RiErrorWarningLine,
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
@@ -16,8 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Panel, Eyebrow, Section, SectionEditLink } from "@/components/app/Panel";
+import {
+  Panel,
+  Eyebrow,
+  Section,
+  SectionEditLink,
+} from "@/components/app/Panel";
 import Field from "@/components/app/Field";
+import { cn } from "@/lib/utils";
 import useToastStore from "@/store/toast-store";
 
 import ConfirmDialog from "./ConfirmDialog";
@@ -47,11 +55,18 @@ const formatBytes = (bytes) => {
 // сейчас» — действие секции, копии со скачиванием по коду из письма (10 минут)
 // и удалением. `schedule` приходит из loader'а страницы: после сохранения в
 // шторке роутер перечитывает его сам.
+//
+// Выключенное расписание — не серая строка, а янтарная плашка с действием
+// (макет «Mikrotik: лицензия и копии», 09.10): устройство без копий после
+// сбоя настраивают заново. Есть ли копии, секция знает сама (свой список), а
+// не из `row.backup`: после «Экспортировать сейчас» плашка меняется сразу.
 const ConfigsSection = ({ recordId, schedule }) => {
   const showToast = useToastStore((state) => state.showToast);
   const store = useMikrotikDeviceFilterStore();
 
   const [artifacts, setArtifacts] = useState([]);
+  // До первого ответа «копий нет» утверждать нельзя — плашка бы мигнула
+  const [loaded, setLoaded] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   // 2FA-скачивание: {artifact, message, code, error, busy}
@@ -61,6 +76,7 @@ const ConfigsSection = ({ recordId, schedule }) => {
 
   const loadArtifacts = async () => {
     setArtifacts(await store.fetchArtifacts(recordId, "export"));
+    setLoaded(true);
   };
 
   useEffect(() => {
@@ -182,8 +198,44 @@ const ConfigsSection = ({ recordId, schedule }) => {
         Конфигурации
       </Eyebrow>
       <Panel>
+        {!scheduleText && loaded && (
+          <div className="mb-1 flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm max-md:flex-wrap">
+            <RiErrorWarningLine
+              size={16}
+              className="mt-0.5 flex-none text-warning"
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              {artifacts.length === 0 ? (
+                <>
+                  <span className="font-semibold">
+                    Копии конфигурации не настроены.
+                  </span>{" "}
+                  Расписание выключено, сохранённых копий нет: после сбоя
+                  устройство придётся настраивать заново.
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold">Расписание выключено.</span>{" "}
+                  Есть только копии, снятые вручную, и они устаревают.
+                </>
+              )}
+            </div>
+            <Link
+              to="schedule"
+              className="flex-none font-semibold whitespace-nowrap text-accent-text no-underline hover:underline max-md:basis-full max-md:ps-6.5"
+            >
+              Задать расписание
+            </Link>
+          </div>
+        )}
         {/* Расписание — сводка; правка в шторке `schedule` */}
-        <div className="flex items-center gap-2.5 border-b border-border-soft pb-3 text-sm">
+        <div
+          className={cn(
+            "flex items-center gap-2.5 border-b border-border-soft pb-3 text-sm",
+            !scheduleText && "hidden",
+          )}
+        >
           <RiCalendar2Line
             size={16}
             aria-hidden
@@ -216,61 +268,62 @@ const ConfigsSection = ({ recordId, schedule }) => {
         </div>
 
         {/* Копии */}
-        {artifacts.length === 0 ? (
-          <div className="pt-3 text-sm text-faint">
-            Сохранённых копий пока нет — запустите экспорт или включите
-            расписание.
-          </div>
-        ) : (
-          artifacts.map((artifact) => (
-            <div
-              key={artifact.id}
-              className="flex items-center gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0"
-            >
-              {/* Телефон: дата сверху, «как · где · размер» под ней,
+        {artifacts.length === 0
+          ? // С выключенным расписанием то же самое уже сказала плашка выше
+            scheduleText && (
+              <div className="pt-3 text-sm text-faint">
+                Сохранённых копий пока нет — запустите экспорт или включите
+                расписание.
+              </div>
+            )
+          : artifacts.map((artifact) => (
+              <div
+                key={artifact.id}
+                className="flex items-center gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0"
+              >
+                {/* Телефон: дата сверху, «как · где · размер» под ней,
                   кнопки крупнее — под палец */}
-              <span className="min-w-0 flex-1 tabular-nums md:truncate">
-                <span className="max-md:block">
-                  {formatDate(artifact.createdAt)}
-                </span>
-                <span className="text-faint max-md:block max-md:text-xs">
-                  <span className="max-md:hidden"> · </span>
-                  {TRIGGER_LABEL[artifact.trigger] || artifact.trigger} ·{" "}
-                  {STORAGE_LABEL[artifact.storage] || artifact.storage}
-                  <span className="md:hidden">
-                    {" "}
-                    · {formatBytes(artifact.size)}
+                <span className="min-w-0 flex-1 tabular-nums md:truncate">
+                  <span className="max-md:block">
+                    {formatDate(artifact.createdAt)}
+                  </span>
+                  <span className="text-faint max-md:block max-md:text-xs">
+                    <span className="max-md:hidden"> · </span>
+                    {TRIGGER_LABEL[artifact.trigger] || artifact.trigger} ·{" "}
+                    {STORAGE_LABEL[artifact.storage] || artifact.storage}
+                    <span className="md:hidden">
+                      {" "}
+                      · {formatBytes(artifact.size)}
+                    </span>
                   </span>
                 </span>
-              </span>
-              <span className="w-20 flex-none text-muted-foreground tabular-nums max-md:hidden">
-                {formatBytes(artifact.size)}
-              </span>
-              <span className="flex flex-none gap-1.5">
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  title="Скачать (код придёт на почту)"
-                  aria-label="Скачать"
-                  className="max-md:size-9"
-                  onClick={() => startDownload(artifact)}
-                >
-                  <RiDownloadLine />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  className="max-md:size-9"
-                  title="Удалить копию"
-                  aria-label="Удалить копию"
-                  onClick={() => setDeleting(artifact)}
-                >
-                  <RiDeleteBinLine />
-                </Button>
-              </span>
-            </div>
-          ))
-        )}
+                <span className="w-20 flex-none text-muted-foreground tabular-nums max-md:hidden">
+                  {formatBytes(artifact.size)}
+                </span>
+                <span className="flex flex-none gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    title="Скачать (код придёт на почту)"
+                    aria-label="Скачать"
+                    className="max-md:size-9"
+                    onClick={() => startDownload(artifact)}
+                  >
+                    <RiDownloadLine />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    className="max-md:size-9"
+                    title="Удалить копию"
+                    aria-label="Удалить копию"
+                    onClick={() => setDeleting(artifact)}
+                  >
+                    <RiDeleteBinLine />
+                  </Button>
+                </span>
+              </div>
+            ))}
         <div className="pt-3 text-xs text-faint">
           Скачивание — по коду из письма, код действует 10 минут.
         </div>

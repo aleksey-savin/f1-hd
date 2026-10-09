@@ -5,23 +5,24 @@ const storage = require("../../services/storage");
 const Preferences = require("../../models/preferences");
 const { Ticket } = require("../../models/ticket");
 const User = require("../../models/user");
-const Company = require("../../models/company");
+const TicketCategory = require("../../models/ticketCategory");
 const TicketLog = require("../../models/ticketLog");
+const {
+  externalTicketDoc,
+  externalTicketResponse,
+  resolveApiApplicant,
+  resolveApiCategoryId,
+} = require("../../services/externalApi");
 
+/**
+ * Заявка по API-ключу компании. Ключ действует только в своей компании
+ * (спека W1, D3; правила — services/externalApi): заявитель ищется среди её
+ * людей, заявка ложится в неё же, ответственных и срок тело не задаёт.
+ */
 exports.createTicket = async (req, res, next) => {
   try {
-    const { company } = req; // Получаем компанию из middleware isAuthApiKey
-    const {
-      userId,
-      userEmail,
-      title,
-      description,
-      categoryId,
-      responsibles,
-      deadline,
-      customFields,
-      source,
-    } = req.body;
+    const { company } = req; // Компания ключа — из middleware isAuthApiKey
+    const { title, userId, userEmail, categoryId } = req.body;
 
     // Валидация обязательных полей
     if (!title) {
@@ -34,24 +35,14 @@ exports.createTicket = async (req, res, next) => {
       return next(new AppError("Настройки системы не найдены", 500));
     }
 
-    // Поиск пользователя по ID или email. Заявители отключённых компаний не
-    // опознаются (денорм. company.isActive) — заявка уйдёт от defaultApplicant
-    let applicant = null;
+    // Заявитель — только из компании ключа: по id, затем по почте. Не нашёлся
+    // (или он из другой компании) — заявка от пользователя по умолчанию, но
+    // всё равно в компании ключа
+    let applicant = await resolveApiApplicant(
+      { companyId: company._id, userId, userEmail },
+      { findUser: (filter) => User.findOne(filter) },
+    );
 
-    if (userId) {
-      applicant = await User.findById(userId);
-      if (applicant?.company?.isActive === false) {
-        applicant = null;
-      }
-    } else if (userEmail) {
-      applicant = await User.findOne({
-        email: userEmail,
-        banned: { $ne: true },
-        "company.isActive": { $ne: false },
-      });
-    }
-
-    // Если пользователь не найден, используем пользователя по умолчанию из настроек
     if (!applicant) {
       if (!prefs.defaultApplicant || !prefs.defaultApplicant._id) {
         return next(
@@ -73,83 +64,25 @@ exports.createTicket = async (req, res, next) => {
       }
     }
 
-    // Определяем компанию пользователя (отключённую не подставляем — сработает
-    // фолбэк на компанию API-ключа ниже, она заведомо активна)
-    let ticketCompany;
-    if (applicant.company && applicant.company._id) {
-      // Используем компанию пользователя
-      const userCompany = await Company.findOne({
-        _id: applicant.company._id,
-        isActive: { $ne: false },
-      });
-      if (userCompany) {
-        ticketCompany = {
-          _id: userCompany._id,
-          alias: userCompany.alias,
-        };
-      }
-    }
-
-    // Если компания пользователя не найдена, используем компанию из API ключа
-    if (!ticketCompany) {
-      ticketCompany = {
-        _id: company._id,
-        alias: company.alias,
-      };
-    }
-
     // Обработка вложений если есть
-    const attachments = req.files?.map((file) => {
-      return {
-        mimetype: file.mimetype,
-        name: file.key,
-      };
-    });
+    const attachments = (req.files || []).map((file) => ({
+      mimetype: file.mimetype,
+      name: file.key,
+    }));
 
-    // Обработка пользовательских полей
-    const validCustomFields = customFields
-      ? (Array.isArray(customFields) ? customFields : [customFields]).filter(
-          (field) => field && field.name,
-        )
-      : [];
-
-    // Установка deadline
-    const now = new Date();
-    let ticketDeadline;
-    if (deadline) {
-      ticketDeadline = new Date(deadline);
-    } else {
-      // Используем deadline по умолчанию из настроек (в часах)
-      ticketDeadline = new Date(
-        now.getTime() + prefs.deadline * 60 * 60 * 1000,
-      );
-    }
-
-    // Создание заявки
-    const ticket = new Ticket({
-      title,
-      description: description || "",
-      customFields: validCustomFields,
-      attachments: attachments || [],
-      isClosed: false,
-      categoryId: categoryId || null,
-      applicantId: applicant._id,
-      company: ticketCompany,
-      responsibles: responsibles
-        ? Array.isArray(responsibles)
-          ? responsibles
-          : [responsibles]
-        : [],
-      deadline: ticketDeadline,
-      state: "Новая",
-      source: source || "Другое",
-      createdBy: applicant._id,
-      updatedBy: applicant._id,
-      notifications: {
-        lastAction: "new ticket",
-        pending: true,
-      },
-    });
+    const ticket = new Ticket(
+      externalTicketDoc({
+        body: req.body,
+        applicant,
+        company,
+        categoryId: await resolveApiCategoryId(categoryId, {
+          categoryExists: (id) => TicketCategory.exists({ _id: id }),
+        }),
+        attachments,
+        deadlineHours: prefs.deadline,
+        now: new Date(),
+      }),
+    );
 
     await ticket.save();
 
@@ -174,32 +107,15 @@ exports.createTicket = async (req, res, next) => {
       applicantEmail: applicant.email,
     });
 
-    res.status(201).json({
-      success: true,
-      message: "Заявка успешно создана",
-      ticket: {
-        _id: ticket._id,
-        num: ticket.num,
-        title: ticket.title,
-        description: ticket.description,
-        state: ticket.state,
-        createdAt: ticket.createdAt,
-        deadline: ticket.deadline,
-        applicant: {
-          _id: applicant._id,
-          firstName: applicant.firstName,
-          lastName: applicant.lastName,
-          email: applicant.email,
-        },
-        company: ticketCompany,
-      },
-    });
+    res
+      .status(201)
+      .json(externalTicketResponse({ ticket, applicant, company }));
   } catch (error) {
+    // Тело запроса в журнал не пишется: в нём текст обращения и адреса людей
     logger.log("error", "Ошибка при создании заявки через внешний API", {
       error: error.message,
       stack: error.stack,
       companyId: req.company?._id,
-      body: req.body,
     });
 
     // Удаляем загруженные файлы в случае ошибки

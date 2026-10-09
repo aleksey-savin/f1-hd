@@ -53,6 +53,10 @@ services:
       target: prod
     restart: unless-stopped
     init: true
+    # SIGTERM makes the backend stop its crons, give running jobs up to 50 s to
+    # finish and exit by itself by 58 s (backend/app.js, `shutdown`). Docker's
+    # default 10 s would SIGKILL a mail batch or an e-mail intake run halfway.
+    stop_grace_period: 60s
     # The whole .env is the backend's configuration (see .env.example); the
     # other services get only the keys they need.
     env_file: .env

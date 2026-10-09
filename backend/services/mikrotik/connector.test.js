@@ -26,6 +26,18 @@ test("totalMemory comes from /system/resource in bytes", () => {
   assert.equal(fields.currentFirmware, "6.45.9 (long-term)");
 });
 
+test("license is mapped when read and omitted when the device gave none", () => {
+  const fields = mapPollToFields({
+    ...poll({}),
+    license: [{ "software-id": "7XQ4-9BLT", nlevel: "4" }],
+  });
+  assert.equal(fields.license.level, "4");
+  assert.equal(fields.license.softwareId, "7XQ4-9BLT");
+  // Unanswered read (null) must not erase the stored license.
+  assert.equal("license" in mapPollToFields(poll({})), false);
+  assert.equal("license" in mapPollToFields({ ...poll({}), license: [] }), false);
+});
+
 test("totalMemory is omitted (not undefined) when the poll has none", () => {
   // An explicit `totalMemory: undefined` would erase the stored value through
   // the health-check's Object.assign — the key must be absent.

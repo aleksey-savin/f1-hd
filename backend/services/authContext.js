@@ -1,6 +1,6 @@
 const { effectivePermissions } = require("@/services/permissions");
 const { isStaffAdmin } = require("@/auth/access");
-const { isBanned } = require("@/services/authBan");
+const { isDeniedAccount } = require("@/services/accountDenial");
 const { authorizeFor } = require("@/auth/bootstrap");
 
 /**
@@ -17,21 +17,6 @@ const { authorizeFor } = require("@/auth/bootstrap");
  * своя копия модели пользователя, которая отстала от `isActive` → `banned` и от
  * переезда прав на роли. Второй копии правил доступа не заводим.
  */
-
-/**
- * Основания отказать, общие для всех способов входа.
- *
- * `company.isActive` остаётся отдельной проверкой: у better-auth нет понятия
- * «организация отключила сотрудника», это прикладное правило (см. комментарий в
- * `middleware/attachSession`).
- *
- * `banned` читается через `isBanned`, а не напрямую: отключение со сроком после
- * срока не действует (см. `services/authBan`).
- */
-const isDeniedAccount = (user) =>
-  Boolean(
-    isBanned(user) || user.company?.isActive === false || user.isServiceAccount,
-  );
 
 /**
  * Права разрешаются ОДИН РАЗ на запрос: штатный `hasPermission` плагина ходит в

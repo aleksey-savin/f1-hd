@@ -321,7 +321,7 @@ Create `backend/scripts/mikrotikUpgradeProbe.js`:
 // access to the device, whatever MIKROTIK_ENC_KEY the environment has.
 //
 //   MT_PASSWORD='…' node scripts/mikrotikUpgradeProbe.js \
-//     --host 62.249.154.214 --port 8729 --user hd --knock 22046,29551,23786
+//     --host <router-host> --port 8729 --user <api-user> --knock <port1,port2,port3>
 //
 // Runs nothing that changes the device: package/update print, check-for-updates
 // (asks upgrade.mikrotik.com for the latest version; no install), routerboard
@@ -393,7 +393,7 @@ Expected: no output.
 
 - [ ] **Step 5: Owner gate — run the probe on one device**
 
-Ask the owner to run the probe against one device whose group already has `write,reboot` (or before, to see the permission error), e.g. from the dev backend container: `docker exec -e MT_PASSWORD='…' -w /app hd-backend-1 node scripts/mikrotikUpgradeProbe.js --host … --user hd --knock …`. Record in this plan, under this step, the actual field names of `updateAfter[0]` (expected `channel`, `installed-version`, `latest-version`, `status`), the `status` strings, and whether `check` succeeded for the least-privilege user. If a field name differs, adjust Task 6's `checkUpdates` accordingly. **Do not continue past Task 6 until this is recorded.**
+Ask the owner to run the probe against one device whose group already has `write,reboot` (or before, to see the permission error), e.g. from the dev backend container: `docker exec -e MT_PASSWORD='…' -w /app hd-backend-1 node scripts/mikrotikUpgradeProbe.js --host <router-host> --user <api-user> --knock <port1,port2,port3>`. Record in this plan, under this step, the actual field names of `updateAfter[0]` (expected `channel`, `installed-version`, `latest-version`, `status`), the `status` strings, and whether `check` succeeded for the least-privilege user. If a field name differs, adjust Task 6's `checkUpdates` accordingly. **Do not continue past Task 6 until this is recorded.**
 
 - [ ] **Step 6: Checkpoint (no commit)**
 

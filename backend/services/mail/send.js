@@ -2,6 +2,7 @@ const nodemailer = require("nodemailer");
 
 const logger = require("@/utils/logger");
 const { guardRecipient, guardSubject } = require("@/utils/mailGuard");
+const { SecretUnreadableError } = require("@/helpers/preferencesSecrets");
 const {
   buildSmtpOptions,
   buildMailFrom,
@@ -22,9 +23,32 @@ const {
  *
  * Возвращает `{success, failure}`: `failure` — пара фраз для строки состояния
  * канала в настройках, чтобы причина была видна без похода в журнал сервера.
+ * `retryable: false` — повтор бессмыслен (пароль SMTP не читается): очередь не
+ * ждёт новых попыток, а сразу помечает письмо `failed` (services/mail/outbox).
  */
 exports.sendMail = async (creds, to, subject, text, html) => {
-  const options = buildSmtpOptions(creds);
+  let options;
+  try {
+    options = buildSmtpOptions(creds);
+  } catch (error) {
+    // Другое (нет ключа шифрования — ошибка развёртывания) отказом отправки не
+    // притворяется: бросок оставляет письмо в очереди до исправления, а не
+    // хоронит его как неотправляемое.
+    if (!(error instanceof SecretUnreadableError)) throw error;
+
+    // Пароль не расшифровать: к серверу не обращаемся, и со второго раза он не
+    // прочитается. Одна ограниченная строка — путь и причина расшифровки, без
+    // шифртекста и без стека: письмо провалится сразу, повторов не будет.
+    logger.log("error", "Не удалось отправить письмо: пароль SMTP не читается", {
+      module: "mailSend",
+      error: error.message,
+    });
+    return {
+      success: false,
+      retryable: false,
+      failure: describeMailError(error),
+    };
+  }
   const from = buildMailFrom(creds);
 
   if (!from) {

@@ -1,13 +1,16 @@
 const logger = require("../utils/logger");
+const { redactUrl } = require("../helpers/redactUrl");
 
 // Performance monitoring middleware
 const performanceMonitor = (req, res, next) => {
   const start = Date.now();
+  // В журнал — без query и токена согласования (helpers/redactUrl)
+  const url = redactUrl(req.originalUrl);
 
   // Track request details
   const requestInfo = {
     method: req.method,
-    url: req.url,
+    url,
     userAgent: req.get("User-Agent"),
     ip: req.ip || req.connection.remoteAddress,
     timestamp: new Date().toISOString(),
@@ -21,7 +24,7 @@ const performanceMonitor = (req, res, next) => {
     // Log slow requests (>1000ms)
     if (duration > 1000) {
       logger.warn(
-        `Slow request detected: ${req.method} ${req.url} - ${duration}ms`,
+        `Slow request detected: ${req.method} ${url} - ${duration}ms`,
         {
           ...requestInfo,
           duration,
@@ -33,7 +36,7 @@ const performanceMonitor = (req, res, next) => {
     // Log all requests in development
     if (process.env.NODE_ENV === "development") {
       logger.info(
-        `${req.method} ${req.url} - ${duration}ms - ${res.statusCode}`,
+        `${req.method} ${url} - ${duration}ms - ${res.statusCode}`,
       );
     }
 

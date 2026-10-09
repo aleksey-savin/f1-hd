@@ -61,6 +61,16 @@ export interface IMikrotik {
   currentFirmware?: string;
   // RAM in bytes (/system/resource total-memory); gates the RouterOS 6 → 7 upgrade.
   totalMemory?: number;
+  // RouterOS license (/system/license); absent = not read yet. `level` is
+  // "0"–"6" on RouterBOARD/x86, free | p1 | p10 | p-unlimited on CHR.
+  license?: {
+    level: string;
+    softwareId?: string | null;
+    systemId?: string | null;
+    deadlineAt?: Date | null;
+    nextRenewalAt?: Date | null;
+    limitedUpgrades?: boolean;
+  };
   addresses?: IMikrotikAddress[];
   status?: "online" | "offline";
   monitoringEnabled: boolean;

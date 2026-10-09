@@ -8,9 +8,10 @@ const { RIGHTS_FIX } = require("./upgradeErrors");
 const deviceOps = require("./upgradeDevice");
 const logger = require("../../utils/logger");
 
-// The firmware-upgrade worker (guardedCron every 20 s, app.js). One tick = one
-// step of the batch's current device. State lives in MikrotikUpgradeJob, so a
-// deploy mid-batch simply resumes on the next tick.
+// The firmware-upgrade worker (a cron-registry job: `jobs.register` every 20 s in
+// app.js, services/jobs/guardedCron.js). One tick = one step of the batch's
+// current device. State lives in MikrotikUpgradeJob, so a deploy mid-batch simply
+// resumes on the next tick.
 
 const LOG_LIMIT = 50;
 

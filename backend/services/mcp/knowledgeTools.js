@@ -112,14 +112,67 @@ const rankNotes = (notes, query) => {
 
 // Картинки, вставленные в редактор, живут в тексте base64-строкой (Toast UI
 // кладёт data:-URL прямо в Markdown) — агенту от них только расход контекста.
-const DATA_IMAGE = /!\[([^\]]*)\]\(\s*data:[^)]*\)/gi;
+//
+// Картинка — `![подпись](data:…)`: подпись без «]», адрес начинается с «data:»
+// (перед ним допустимы пробелы) и идёт до первой «)». Прежняя регулярка
+// /!\[([^\]]*)\]\(\s*data:[^)]*\)/gi от каждого «![» заново искала «]» и «)» до
+// конца текста: «![](data:» ×N без «)» — 160 КБ за 1,7 с, мегабайт — минуты, а
+// заметку отдают целиком (до 50 МБ). Ближайшие «]» и «)» и проверка «](  data:»
+// считаются один раз и переиспользуются (так же устроен unwrapLinks в
+// helpers/markdownToPlainText); совпадения те же. DATA_URI из helpers/textScan
+// сюда не подходит: он знает только base64, а здесь адрес — любой, до «)».
+const DATA_URL_HEAD = /\s*data:/iy;
+
+/**
+ * Заменяет картинки с data:-адресом; replacement получает подпись картинки.
+ * @param {string} text
+ * @param {(alt: string) => string} replacement
+ */
+const replaceDataImages = (text, replacement) => {
+  let out = "";
+  let from = 0;
+  let bracket = -1; // ближайшая «]» правее текущего кандидата
+  let checked = -1; // для какой «]» посчитан dataEnd
+  let dataEnd = -1; // конец «](  data:» у этой «]»; -1 — это не data-картинка
+  let paren = -1; // ближайшая «)» правее dataEnd
+  let at = text.indexOf("![");
+
+  while (at !== -1) {
+    const label = at + 2;
+    if (bracket < label) bracket = text.indexOf("]", label);
+    // «]» дальше нет — картинок тоже
+    if (bracket === -1) break;
+
+    // Одна «]» бывает у многих «![»: проверку «](  data:» делаем один раз на «]»
+    if (checked !== bracket) {
+      checked = bracket;
+      dataEnd = -1;
+      if (text[bracket + 1] === "(") {
+        DATA_URL_HEAD.lastIndex = bracket + 2;
+        if (DATA_URL_HEAD.test(text)) dataEnd = DATA_URL_HEAD.lastIndex;
+      }
+    }
+    if (dataEnd === -1) {
+      at = text.indexOf("![", at + 1);
+      continue;
+    }
+
+    if (paren < dataEnd) paren = text.indexOf(")", dataEnd);
+    // «)» дальше нет — ни эта, ни следующие картинки не закрываются
+    if (paren === -1) break;
+
+    out += text.slice(from, at) + replacement(text.slice(label, bracket));
+    from = paren + 1;
+    at = text.indexOf("![", from);
+  }
+
+  return out + text.slice(from);
+};
 
 const prepareContent = (content) => {
-  const text = String(content || "")
-    .replace(DATA_IMAGE, (match, alt) =>
-      alt.trim() ? `[изображение: ${alt.trim()}]` : "[изображение]",
-    )
-    .replace(DATA_URI, "[данные]");
+  const text = replaceDataImages(String(content || ""), (alt) =>
+    alt.trim() ? `[изображение: ${alt.trim()}]` : "[изображение]",
+  ).replace(DATA_URI, "[данные]");
   if (text.length <= MAX_CONTENT_LENGTH) return text;
   const rest = text.length - MAX_CONTENT_LENGTH;
   return `${text.slice(0, MAX_CONTENT_LENGTH)}\n\n[…truncated: ${rest} more characters — open the link to read the whole note]`;
@@ -251,4 +304,6 @@ const createKnowledgeTools = ({
   },
 });
 
-module.exports = { scopeFilter, isServable, createKnowledgeTools };
+// prepareContent — наружу ради тестов: getNote разбирает текст уже после await, и
+// vm-таймаут теста, прерывающий регулярку, до него не достаёт
+module.exports = { scopeFilter, isServable, createKnowledgeTools, prepareContent };

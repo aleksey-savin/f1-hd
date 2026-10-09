@@ -1,4 +1,41 @@
 const logger = require("../utils/logger");
+const { redactUrl } = require("../helpers/redactUrl");
+
+/**
+ * Поля исходной ошибки, которые попадают в журнал. Белый список, а не «всё
+ * перечислимое»: у ошибок драйверов и библиотек в собственных свойствах лежит
+ * что угодно — сырое тело запроса у ошибки разбора JSON (с паролем входа),
+ * значение ключа у дубликата в Mongo, заголовки и конфиг у HTTP-клиентов.
+ */
+const LOGGED_ERROR_FIELDS = ["name", "message", "code", "statusCode", "stack"];
+
+/**
+ * Ошибка разбора тела (body-parser, `type: "entity.parse.failed"`): V8 вписывает
+ * в её текст — а значит, и в первую строку stack — окно из сырого тела:
+ * `Unexpected token 'h', ..."password":hunter2}" is not valid JSON`. Белый список
+ * этого не ловит (message в нём есть), поэтому такая ошибка уходит в журнал
+ * фиксированным текстом и без stack. Клиент получает ответ как раньше.
+ */
+const isBodyParseError = (error) => error?.type === "entity.parse.failed";
+const BODY_PARSE_LOG_MESSAGE = "Request body is not valid JSON";
+
+const pickErrorFields = (error) => {
+  if (isBodyParseError(error)) {
+    return {
+      name: error.name,
+      message: BODY_PARSE_LOG_MESSAGE,
+      statusCode: error.statusCode,
+    };
+  }
+  if (error === null || typeof error !== "object") {
+    return { message: String(error) };
+  }
+  const picked = {};
+  for (const field of LOGGED_ERROR_FIELDS) {
+    if (error[field] !== undefined) picked[field] = error[field];
+  }
+  return picked;
+};
 
 class AppError extends Error {
   constructor(
@@ -54,32 +91,19 @@ const errorResponse = (error, req, res, next) => {
           );
 
     // Add request context if available
+    const bodyParseFailed = isBodyParseError(error);
+    const logMessage = bodyParseFailed
+      ? BODY_PARSE_LOG_MESSAGE
+      : standardError.message;
     let logData = {
       statusCode: standardError.statusCode,
       code: standardError.code,
-      stack: standardError.stack,
+      stack: bodyParseFailed ? undefined : standardError.stack,
     };
 
-    // Include original error details if they exist
+    // Исходная ошибка — только поля из белого списка (LOGGED_ERROR_FIELDS)
     if (standardError.originalError) {
-      logData.originalError = {
-        message: standardError.originalError.message,
-        stack: standardError.originalError.stack,
-        name: standardError.originalError.name,
-      };
-
-      // Include all enumerable properties from the original error
-      for (const key in standardError.originalError) {
-        if (
-          Object.prototype.hasOwnProperty.call(
-            standardError.originalError,
-            key,
-          ) &&
-          !logData.originalError[key]
-        ) {
-          logData.originalError[key] = standardError.originalError[key];
-        }
-      }
+      logData.originalError = pickErrorFields(standardError.originalError);
     }
 
     // Include any metadata passed to AppError
@@ -93,7 +117,7 @@ const errorResponse = (error, req, res, next) => {
     if (req) {
       logData = {
         ...logData,
-        route: req.originalUrl,
+        route: redactUrl(req.originalUrl),
         method: req.method,
         ip: req.ip || req.connection?.remoteAddress,
       };
@@ -102,10 +126,10 @@ const errorResponse = (error, req, res, next) => {
     // Log the error with our logger
     if (req) {
       const contextLogger = logger.addNoAuthContext(req);
-      contextLogger.log("error", standardError.message, logData);
+      contextLogger.log("error", logMessage, logData);
     } else {
       // Fallback to direct logging if no request
-      logger.logDirect("error", standardError.message, logData);
+      logger.logDirect("error", logMessage, logData);
     }
 
     // Return appropriate response to client
@@ -129,7 +153,7 @@ const errorResponse = (error, req, res, next) => {
   } catch (loggingError) {
     // If even our error handler fails, log to console as last resort
     console.error("Error in error handling middleware:", loggingError);
-    console.error("Original error:", error);
+    console.error("Original error:", pickErrorFields(error));
 
     // Try to send a response if possible
     if (res && !res.headersSent) {
@@ -143,7 +167,15 @@ const errorResponse = (error, req, res, next) => {
 
   // If next is provided, pass to next middleware (important for Express error chains)
   if (next) {
-    next(error);
+    // Сюда доходят, когда сломался сам журнал (catch) или ответ уже отправлен:
+    // обычный путь возвращается раньше. Финальный обработчик Express печатает
+    // err.stack в stderr, а у ошибки разбора тела в его первой строке — окно из
+    // сырого тела. Поэтому дальше уходит копия без него.
+    next(
+      isBodyParseError(error)
+        ? new AppError(BODY_PARSE_LOG_MESSAGE, error.statusCode)
+        : error,
+    );
   }
 };
 

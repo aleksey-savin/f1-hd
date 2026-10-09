@@ -2,6 +2,8 @@ const winston = require("winston");
 const { combine, timestamp, json, errors } = winston.format;
 const DailyRotateFile = require("winston-daily-rotate-file");
 
+const { redactUrl } = require("../helpers/redactUrl");
+
 const levels = {
   error: 0,
   warn: 1,
@@ -94,7 +96,8 @@ logger.addContext = async function (req) {
       const logData = {
         timestamp: new Date().toISOString(),
         url: process.env.ADDRESS,
-        endpoint: req?.originalUrl,
+        // Без query и токена согласования (helpers/redactUrl)
+        endpoint: redactUrl(req?.originalUrl),
         method: req?.method,
         userId: userData?.userId || "anonymous",
         userName: userData
@@ -117,7 +120,8 @@ logger.addNoAuthContext = function (req) {
       const logData = {
         timestamp: new Date().toISOString(),
         url: process.env.ADDRESS,
-        endpoint: req?.originalUrl,
+        // Без query и токена согласования (helpers/redactUrl)
+        endpoint: redactUrl(req?.originalUrl),
         method: req?.method,
         ...meta,
       };

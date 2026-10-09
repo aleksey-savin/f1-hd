@@ -12,18 +12,41 @@ const REPLY_MARKER = "##- Пожалуйста, пишите ответ над �
 
 /**
  * Тема письма, адресующего заявку: `[F1-HD-51713] Новый комментарий…`. По этому
- * номеру входящий разборщик (middleware/emailHandling) кладёт ответ
- * комментарием в заявку — а не заводит новую.
+ * номеру входящий разборщик (middleware/emailHandling) узнаёт ответ в заявку;
+ * станет ли он комментарием, решает services/mail/replyRouting.
+ *
+ * Префикс один на всё приложение: метку ставят все уведомления по заявкам
+ * (middleware/notifications, через ticketSubjectTag), и только её принимает
+ * разбор. Чужие метки — `[JIRA-123] build`, «Счёт [PO-50123]» — заявку не
+ * адресуют: прежний разбор брал любое «-<что угодно>]», и такое письмо
+ * ложилось комментарием в заявку с тем же номером. Префикс станет настройкой
+ * (W2), поэтому в выражение он попадает экранированным.
  *
  * Разбор темы живёт здесь, рядом с маркером, по той же причине, по которой
  * маркер импортируется отправщиком, а не пишется рядом: отправщик ставит
  * служебную строку «пишите ответ выше» ровно тем письмам, ответ на которые
  * действительно вернётся в заявку. Проверка вместо договорённости.
  */
-const TICKET_SUBJECT_RE = /-([^\]-]+)\]/;
+const TICKET_SUBJECT_PREFIX = "F1-HD";
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Только `[F1-HD-<цифры>]`: без знака, пробелов, 0x и экспоненты
+const TICKET_SUBJECT_RE = new RegExp(
+  `\\[${escapeRegExp(TICKET_SUBJECT_PREFIX)}-(\\d+)\\]`,
+);
 
 /**
- * Номер заявки из темы письма; null — тема заявку не адресует.
+ * Метка заявки для темы уведомления: `[F1-HD-51713]`.
+ * @param {number} num номер заявки
+ * @returns {string}
+ */
+const ticketSubjectTag = (num) => `[${TICKET_SUBJECT_PREFIX}-${num}]`;
+
+/**
+ * Номер заявки из темы письма; null — тема заявку не адресует. Меток
+ * несколько — решает первая: новая заявка из не принятого ответа хранит его
+ * тему, и её собственная метка в уведомлениях стоит раньше.
  * @param {string} subject
  * @returns {number|null}
  */
@@ -31,7 +54,7 @@ const ticketNumFromSubject = (subject) => {
   const match = TICKET_SUBJECT_RE.exec(subject || "");
   if (!match) return null;
   const num = Number(match[1]);
-  return Number.isNaN(num) ? null : num;
+  return Number.isSafeInteger(num) ? num : null;
 };
 
 // Строки-заголовки, которыми клиенты предваряют цитату в plain-text части.
@@ -111,4 +134,10 @@ const stripQuotedReply = (text) => {
   return { content, quotedText };
 };
 
-module.exports = { stripQuotedReply, REPLY_MARKER, ticketNumFromSubject };
+module.exports = {
+  stripQuotedReply,
+  REPLY_MARKER,
+  TICKET_SUBJECT_PREFIX,
+  ticketSubjectTag,
+  ticketNumFromSubject,
+};

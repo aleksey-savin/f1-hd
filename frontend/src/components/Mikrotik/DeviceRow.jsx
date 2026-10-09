@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   RiDeleteBinLine,
@@ -35,11 +35,12 @@ import {
   formatUptime,
   uptimeToneClass,
 } from "./meta";
+import { backupFlag, licenseFlag } from "./health-flags.js";
 import { rowUpgradeView } from "./upgrade-format.js";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
 } from "../../store/lists/mikrotik-devices";
-import { formatTime } from "../../util/format-date";
+import { formatDayMonth, formatTime } from "../../util/format-date";
 
 // Строка борда мониторинга — жёсткие колонки: плитка с live-точкой · имя + мета
 // · хост · прошивка · доступность (лента 30 дней) · статус · гнездо «⋯».
@@ -67,6 +68,12 @@ import { formatTime } from "../../util/format-date";
 // включён, но группа учётки на устройстве не даёт write/reboot/policy —
 // янтарём: это надо починить на устройстве. Иконка 13 px на базовой
 // линии слова (align-[-1px]), как в макете.
+//
+// Лицензия и копии конфигурации (макет «Mikrotik: лицензия и копии», 09.10,
+// вариант B — без новой колонки): уровень лицензии — последним пунктом
+// мета-строки (обрезается первым), проблемы — янтарными флагами В НАЧАЛЕ, перед
+// правом HD, чтобы их не съела обрезка. На телефоне флаги уходят своей третьей
+// строкой, которая есть только у проблемы; уровень там — на странице записи.
 const ACCESS_META = {
   read: {
     Icon: RiEyeLine,
@@ -127,6 +134,20 @@ const DeviceRow = ({
     .join(" · ");
   const access = ACCESS_META[row.access] || null;
   const AccessIcon = access?.Icon;
+  const flags = [
+    licenseFlag(row.license, formatDayMonth),
+    backupFlag(row.backup),
+  ].filter(Boolean);
+  const flagNodes = flags.map((flag) => (
+    <span
+      key={flag.key}
+      title={flag.title}
+      className="inline-flex items-center gap-1 align-[-1px] font-semibold text-warning"
+    >
+      <RiErrorWarningLine size={13} aria-hidden />
+      {flag.text}
+    </span>
+  ));
 
   const firmware = row.firmwareStatus;
   const installedVersion = firmware?.installedVersion || row.currentFirmware;
@@ -232,6 +253,13 @@ const DeviceRow = ({
             {row.displayName}
           </span>
           <span className="block truncate text-sm text-muted-foreground">
+            {flagNodes.length > 0 && (
+              <span className="max-md:hidden">
+                {flagNodes.map((node, index) => (
+                  <Fragment key={flags[index].key}>{node} · </Fragment>
+                ))}
+              </span>
+            )}
             {access ? (
               <>
                 <span
@@ -248,6 +276,12 @@ const DeviceRow = ({
               </>
             ) : (
               meta || "—"
+            )}
+            {row.license && (
+              <span className="max-md:hidden">
+                {" · "}
+                <span className="font-mono">{row.license.label}</span>
+              </span>
             )}
           </span>
           {/* Узкий экран: статус подстрокой, как у строки устройств. Колонки
@@ -299,6 +333,11 @@ const DeviceRow = ({
                 </span>
               ) : null)}
           </span>
+          {flagNodes.length > 0 && (
+            <span className="mt-0.5 flex flex-wrap gap-x-2.5 text-xs md:hidden">
+              {flagNodes}
+            </span>
+          )}
         </span>
 
         <span className="hidden w-44 flex-none lg:block">

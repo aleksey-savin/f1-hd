@@ -19,8 +19,9 @@ const logger = require("../../utils/logger");
 //    (1 запрос/сутки); NVD_API_KEY опционален.
 // Рефрешеры never-throw и деградируют на stale-кэш; вычисления — чистые функции.
 
-// Вотчдог guardedCron только логирует таймаут, но не отменяет промис — без
-// собственного таймаута зависший fetch дожил бы до следующего суточного прогона.
+// Вотчдог реестра крон-заданий (jobs.register, services/jobs/guardedCron.js) только
+// логирует таймаут, но не отменяет промис — без собственного таймаута зависший
+// fetch дожил бы до следующего суточного прогона.
 const FETCH_TIMEOUT_MS = 20000;
 
 const RELEASE_URL_BASE = "https://upgrade.mikrotik.com/routeros/";

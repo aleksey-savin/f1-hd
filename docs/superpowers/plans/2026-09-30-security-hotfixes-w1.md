@@ -12342,3 +12342,70 @@ Include:
    - rotate the router port-knock sequence (S14) and decide what to do about git history;
    - the owner's mail domain should publish DMARC `p=quarantine` or `p=reject`, so forged staff replies fail the sender check.
 6. **The worktree** `/home/aleksey/projects/worktrees/hd/w1-security` stays until the owner confirms. Then remove it with `git worktree remove /home/aleksey/projects/worktrees/hd/w1-security`.
+
+## Amendments during implementation (2026-10-01 … 2026-10-02)
+
+Execution: subagent-driven, in the worktree `.claude/worktrees/w1-security` (base `b3b20cf`), no commits. Every task
+had a task review; most had fix rounds; a final whole-branch review closed the branch. The full record — every ruling
+with its reason and cost — is the SDD ledger `.superpowers/sdd/2026-09-30-security-hotfixes-w1/progress.md` (git-ignored).
+
+### Spec-level changes (behaviour differs from the text above)
+
+- **Auth allow-list:** `POST /api/auth/sign-in/magic-link` is NOT exposed (the table above listed it). It let anyone make
+  the helpdesk mail any known client and burn the SMTP quota; nothing in the app calls it. Magic links are issued only by
+  server code (invitations); the GET verify link stays.
+- **Reply routing (C2; owner decision 2026-10-03):** ANY sender is a participant only when the ticket is visible to it
+  in the UI (`canAccessTicket(ticket, buildAuthContext(sender))`, computed in the mail handler) — staff and clients
+  alike; a plain client no longer replies into a colleague's ticket (the spec allowed any member of the ticket's
+  company). Banned, deactivated-company and service accounts are never participants (`services/accountDenial.js`, shared
+  with `authBan`/`authContext`). The robot log line carries only a plain ASCII address ≤ 254 characters and an explicit
+  event kind `delivery`.
+- **Phone identification (owner decision 2026-10-03):** phone numbers from the mail text identify the applicant and
+  the company only for mail from a cloud-telephony account (`isCloudTelephonySender(fromAddress)`) whose sender check
+  did not fail; in ordinary mail a number identifies nobody. Approval links leaked before W1 are left as they are.
+- **Sender address (C3):** the sender is the single mailbox written in clear text in the single `From` header line
+  (≤ 4096 characters); encoded-word, quoted, multi-mailbox and duplicate-`From` shapes give an unknown sender (default
+  applicant; the raw `From` is logged, bounded). The display line is empty when a reader of the stored string would see
+  another domain. `Message-ID: <>` is no id. Length bounds on name/address/domain/Message-ID.
+- **Robots (C4):** mail with `List-Id` / `List-Unsubscribe` is a robot even if a person wrote it through a group.
+- **Message-ID (C5):** `emailMessageId` is `select: false`.
+- **Body limits / operator guard (B5/B6):** a source-order test pins the mount order in `app.js`.
+- **External API (B4):** unchanged from the spec; the integrations must be told (see the hand-over).
+- **Text helpers (D1):** beyond the spec, every super-linear regex found on untrusted text in the backend was made linear
+  (AI guide/terms/category preprocessing, MCP text/masking/knowledge tools, the KB service-expiry scanner); markdown list
+  indentation is `[ \t]*`; MCP ticket text is capped at 256 KB; KB search and the secrets scan see the first 256 KB of a
+  note's plain text.
+- **Attachments (D2):** exceljs replaced xlsx as planned, but hostile workbooks/documents still crashed or froze the
+  backend inside exceljs/mammoth, so parsing runs in a child process (`services/documentTextChild.js`): 256 MB heap flag,
+  15 s, SIGKILL, max 2 concurrent, `ulimit -c 0 -t 60`, `oom_score_adj 1000`, killed with the parent; in-process fast
+  paths: a 16 MiB declared-inflation cap, ≤ 2000 zip entries, `ignoreNodes` (dataValidations, mergeCells, cols), a
+  bounded row/cell walk; ≤ 10 documents per AI guide.
+- **Cron registry (D3):** jobs also wait for better-auth (`isAuthReady`); a bad timezone falls back to the default for
+  the nightly jobs; a second signal during the drain is ignored; the startup `.catch` handles non-`Error` rejections.
+- **Outbox (D4):** lease 5 minutes; ack retried (3 attempts); delivery is at-least-once; `dnsTimeout` 2 s.
+- **Logs (D5):** body-parser parse errors are logged with a fixed message and no stack (V8 puts a window of the raw body,
+  passwords included, into both); `redactUrl` is case-insensitive and covers `app.js` and `requireMcpKey`.
+- **Secrets (D6):** the mail runtime (IMAP, SMTP, `sendNow`, outbox) handles `SecretUnreadableError` too: one clear
+  health status, no socket, outbox letters marked failed at once (not re-sent after re-entry); the mail check buttons
+  show the reason; a missing `APP_ENC_KEY` is a server error, not «введите заново».
+- **Added tasks:** A7 (no staff permission may lose its last active holder — owner requirement 2026-10-01) and B3b (two
+  more raw-Company responses leaking API key hashes).
+- **Deploy:** TWO data migrations, not one — `2026-10-01-grantUpgradeFirmware`, then `2026-09-30-recomputePluginRoles`,
+  placed right after `normalizePhones` and before `2026-10-01-snapshotReports`.
+- **Merge into main (2026-10-03):** main had moved to `f7b29fc`; three files were merged by hand (`migrate.js`, the UX
+  changelog, the approval controller's imports). The new approval `rollback` handler returned the whole report with the
+  approvers' tokens — it now answers `{ ok, id }` like the other pipeline actions (`{ dissolved: true }` unchanged), with
+  access tests for `remind` and `rollback`.
+
+### Pre-flight rulings (plan text)
+
+F1–F11 (Task Z's grep targets, the D3 `AppError` import, `git status --untracked-files=all`, C2's 4-case route test,
+D1's 500 ms bound, the documented deviations in A2/A3/A5/B3/C6, the stale "unbounded /api/auth bodies" note, the inline
+403 approved, local helper duplication accepted) — see the ledger.
+
+### Parked for W5
+
+Dependency overrides for exceljs's transitive advisories; a streaming or worker extractor with a real memory cap; the
+`app.js` wiring tests (readiness, shutdown); per-sender dedup; attachments saved before dedup; stuck-cron health; log
+hygiene (whole `Error` objects, `AppError.metadata`, e-mail PII); `secretsScanner` recursion at 6 MB; the frontend
+sender display regex; multer `fields`/`parts` caps; Cyrillic upload names.

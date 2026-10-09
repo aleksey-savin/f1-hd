@@ -78,6 +78,18 @@ const mikrotikSchema = new Schema(
     // Объём ОЗУ в байтах (/system/resource total-memory) — порог для перехода
     // на RouterOS 7 (services/mikrotik/upgradePlan.js).
     totalMemory: Number,
+    // RouterOS license from /system/license (services/mikrotik/license.js):
+    // `level` is "0"–"6" on RouterBOARD/x86 and free | p1 | p10 | p-unlimited
+    // on CHR; the dates and limitedUpgrades exist on CHR only. No field — the
+    // license has not been read yet.
+    license: {
+      level: String,
+      softwareId: String,
+      systemId: String,
+      deadlineAt: Date,
+      nextRenewalAt: Date,
+      limitedUpgrades: Boolean,
+    },
     addresses: [
       {
         address: String,

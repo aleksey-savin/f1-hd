@@ -2,6 +2,7 @@ const { Ticket } = require("@/models/ticket");
 const KnowledgeNote = require("@/models/knowledgeNote");
 const { AppError } = require("@/middleware/errorHandling");
 const { markdownToPlainText } = require("@/helpers/markdownToPlainText");
+const { stripTags } = require("@/helpers/textScan");
 const { rescanNoteDerived } = require("@/helpers/knowledgeNoteDerived");
 const logger = require("@/utils/logger");
 
@@ -40,18 +41,31 @@ const INTERRUPTED = "разбор прервался, запустите его 
 // вспомогательные функции, чтобы правка одного молча не меняла ответы другого.
 const stripHtml = (value) => {
   if (!value) return "";
-  return value
-    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-6])\s*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
+  // Теги снимаются за линейное время (helpers/textScan): `<[^>]+>` на «<» ×N
+  // думала секунды, а описание заявки приходит из письма от кого угодно. <br> и
+  // конец абзаца по-прежнему становятся переводами строк до снятия тегов.
+  // Остальные регулярки цепочки тоже без квадратичных проходов: в `<br …>` нет
+  // смежных \s* (было `\s*\/?\s*`), а хвостовые пробелы перед переводом строки
+  // ищутся только от начала серии — иначе серия без перевода строки
+  // сканировалась заново от каждого пробела (100 КБ пробелов — 7 с)
+  return stripTags(
+    value
+      .replace(/<\s*br\s*(?:\/\s*)?>/gi, "\n")
+      .replace(/<\/(p|div|li|h[1-6])\s*>/gi, "\n"),
+    "",
+  )
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/[ \t]+\n/g, "\n")
+    .replace(/(?<![ \t])[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 };
+
+// Наружу — только ради теста на линейное время (services/ticketAiTerms.test.js):
+// остальные экспорты ходят в базу, и до stripHtml без неё не добраться
+exports.stripHtml = stripHtml;
 
 const truncate = (value, max = CONTEXT_LENGTH) => {
   if (!value) return "";

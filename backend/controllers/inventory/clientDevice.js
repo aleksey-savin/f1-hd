@@ -18,6 +18,15 @@ const {
   mikrotikOverlay,
 } = require("../../helpers/mikrotikOverlay");
 const { mikrotikEnabled } = require("../../services/mikrotik/enabled");
+const { ticketListFilter } = require("../../services/ticketScope");
+const {
+  attachableCompanyId,
+  deviceComponentsFilter,
+  deviceTicketsFilter,
+  deviceViewer,
+  deviceVisibleTo,
+  visibleHost,
+} = require("../../services/deviceScope");
 
 // Каталог статусов — из схемы, чтобы второй копии списка не заводить.
 const DEVICE_STATUSES = ClientDevice.schema.path("status").enumValues;
@@ -153,9 +162,11 @@ const LIST_POPULATE = [
   { path: "locationId", select: "name" },
   { path: "userId", select: "firstName lastName" },
   // Хозяин сборки — только у комплектующих: строка помечает, внутри чего деталь.
+  // Компания хозяина выбрана ради клиента (`visibleHost`): чужого хозяина его
+  // строка не называет.
   {
     path: "parentDeviceId",
-    select: "inventoryNumber deviceModelId deviceTypeId",
+    select: "inventoryNumber deviceModelId deviceTypeId companyId",
     populate: [
       { path: "deviceModelId", select: "name" },
       { path: "deviceTypeId", select: "name" },
@@ -554,10 +565,15 @@ exports.getAll = async (req, res, next) => {
 
     await ClientDevice.populate(rows, LIST_POPULATE);
 
+    // Связь «сборка — деталь» не обходит скоуп: состав бывает смешанным (хозяина
+    // переводят в другую компанию, а детали остаются), и клиенту строка не
+    // называет чужого хозяина и не считает чужие детали (services/deviceScope).
+    // Условие счётчика идёт в aggregate, поэтому скоуп в нём — ObjectId.
+    const viewer = deviceViewer(req.auth);
     const ids = rows.map((row) => row._id);
     const [componentCounts, mikroMap] = await Promise.all([
       ClientDevice.aggregate([
-        { $match: { deletedAt: null, parentDeviceId: { $in: ids } } },
+        { $match: deviceComponentsFilter(viewer, { $in: ids }) },
         { $group: { _id: "$parentDeviceId", n: { $sum: 1 } } },
       ]),
       buildMikrotikStatusMap(ids),
@@ -574,10 +590,13 @@ exports.getAll = async (req, res, next) => {
 
     res.status(200).json({
       devices: rows.map((row) =>
-        toListDevice(row, {
-          componentCount: componentMap.get(String(row._id)) || 0,
-          mikro: mikroMap.get(String(row._id)) || null,
-        }),
+        toListDevice(
+          { ...row, parentDeviceId: visibleHost(viewer, row.parentDeviceId) },
+          {
+            componentCount: componentMap.get(String(row._id)) || 0,
+            mikro: mikroMap.get(String(row._id)) || null,
+          },
+        ),
       ),
       total,
       componentsCount,
@@ -779,10 +798,11 @@ exports.getOne = async (req, res, next) => {
     const device = await ClientDevice.findById(req.params.id)
       .populate(devicePopulate({ withModelPhotos: true }))
       // Хозяин сборки: у комплектующего это единственный путь «наверх» —
-      // в общем списке устройств его нет по определению.
+      // в общем списке устройств его нет по определению. Компания хозяина
+      // выбрана ради клиента: чужого хозяина ответ не называет (`visibleHost`).
       .populate({
         path: "parentDeviceId",
-        select: "inventoryNumber deviceModelId deviceTypeId",
+        select: "inventoryNumber deviceModelId deviceTypeId companyId",
         populate: [
           { path: "deviceModelId", select: "name" },
           { path: "deviceTypeId", select: "name" },
@@ -797,23 +817,21 @@ exports.getOne = async (req, res, next) => {
 
     // Тот же скоуп, что у списка: клиент заперт в своей компании. В выборке
     // список это делал (`scopeMatch`), а карточка — нет, и чужое устройство
-    // открывалось прямой ссылкой.
-    const { isEndUser, user } = req.auth;
-    if (
-      isEndUser &&
-      String(device.companyId?._id ?? device.companyId ?? "") !==
-        String(user.company?._id ?? "")
-    ) {
+    // открывалось прямой ссылкой. Правило общее с заявками устройства
+    // (`getTickets`) — services/deviceScope.
+    const viewer = deviceViewer(req.auth);
+    if (!deviceVisibleTo(viewer, device)) {
       return next(
         new AppError(`Device with id ${req.params.id} not found`, 404),
       );
     }
 
     // Комплектующие сборки (если есть) — для отображения/редактирования состава.
-    const components = await ClientDevice.find({
-      parentDeviceId: req.params.id,
-      deletedAt: null,
-    }).populate(DEVICE_POPULATE);
+    // Состав бывает смешанным (хозяина перевели в другую компанию, а детали
+    // остались), и клиенту детали чужой компании не отдаются — как и сама карточка.
+    const components = await ClientDevice.find(
+      deviceComponentsFilter(viewer, device._id),
+    ).populate(DEVICE_POPULATE);
 
     const locationPath = await buildLocationPath(device.locationId?._id);
 
@@ -835,9 +853,14 @@ exports.getOne = async (req, res, next) => {
         }
       : null;
 
-    res
-      .status(200)
-      .json({ ...device.toObject(), components, mikrotik, locationPath });
+    // Хозяин детали — только виденный клиенту: у детали своей компании он мог
+    // остаться чужим, и тогда ответ его не называет
+    const body = device.toObject();
+    if (body.parentDeviceId) {
+      body.parentDeviceId = visibleHost(viewer, body.parentDeviceId);
+    }
+
+    res.status(200).json({ ...body, components, mikrotik, locationPath });
   } catch (error) {
     next(
       new AppError(`Failed to fetch device ${req.params.id}`, 500, true, error),
@@ -855,8 +878,21 @@ exports.getOne = async (req, res, next) => {
  */
 exports.getTickets = async (req, res, next) => {
   try {
+    // Сначала само устройство — тем же скоупом, что карточка (getOne): по
+    // чужому id клиент получает 404, а не историю простоев чужой компании
+    const device = await ClientDevice.findById(req.params.id)
+      .select("companyId")
+      .lean();
+    if (!device || !deviceVisibleTo(deviceViewer(req.auth), device)) {
+      return next(
+        new AppError(`Device with id ${req.params.id} not found`, 404),
+      );
+    }
+
     const limit = Math.min(Number(req.query.limit) || 10, 50);
-    const query = { relatedClientDeviceId: req.params.id };
+    // Заявки — в пределах видимости заявок автора запроса: ярус «свои» у
+    // сотрудника через устройство тоже не видит чужих заявок
+    const query = deviceTicketsFilter(device._id, ticketListFilter(req.auth));
     const [tickets, total] = await Promise.all([
       Ticket.find(query)
         .select("num title state isClosed source createdAt finishedAt")
@@ -1152,7 +1188,12 @@ exports.assignUser = async (req, res, next) => {
 // если задан hostTypeId — совместимые с типом хоста (attachableToTypeIds).
 exports.getAttachable = async (req, res, next) => {
   try {
-    const companyId = clean(req.query.companyId);
+    // Клиенту — только своя компания: чужая в query, кривой или повторённый
+    // параметр отвечают пустым списком (services/deviceScope)
+    const companyId = attachableCompanyId(
+      deviceViewer(req.auth),
+      req.query.companyId,
+    );
     const excludeId = clean(req.query.excludeId);
     const hostTypeId = clean(req.query.hostTypeId);
 

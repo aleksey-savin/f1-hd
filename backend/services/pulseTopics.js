@@ -53,6 +53,7 @@ const MONITOR_SET = new Set([
   "boardName",
   "currentFirmware",
   "totalMemory",
+  "license",
   "addresses",
   "serialNumber",
   "status",

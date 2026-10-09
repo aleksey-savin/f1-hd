@@ -15,6 +15,10 @@ const {
   maskSecrets,
   keepStoredSecrets,
   readStoredSecret,
+  SecretUnreadableError,
+  findUnreadableSecret,
+  createLenientSecretReader,
+  unreadableSecretMessage,
 } = require("../helpers/preferencesSecrets");
 const { checkMailbox, sendTestEmail } = require("../services/mail/check");
 const {
@@ -46,8 +50,17 @@ const MAILBOX_FIELDS = [
 
 const isValidPort = (value) => Number.isInteger(value) && value > 0 && value < 65536;
 
+// Ответ 422 «введите заново». Ошибка расшифровки едет как originalError: в
+// журнале по ней различают потерянный ключ и битый шифртекст. Её текст — путь и
+// причина расшифровки, шифртекста и значения в нём нет; клиенту, кроме dev, она
+// не отдаётся.
+const unreadableSecretAnswer = (error) =>
+  new AppError(unreadableSecretMessage(error.path), 422, true, error);
+
 // Инварианты включённых каналов: молча сохранённая полупустая конфигурация —
 // это канал, который «включён» и не работает, а искать причину придётся в логах.
+// Отказ — текст ответа 422, а для нечитаемого секрета — сама SecretUnreadableError:
+// ответ из неё собирает unreadableSecretAnswer.
 const findMailInvariant = (preferences) => {
   const mailbox = preferences.mailbox || {};
   if (mailbox.isActive) {
@@ -63,6 +76,9 @@ const findMailInvariant = (preferences) => {
     if (!mailbox.password) {
       return "Укажите пароль почтового ящика";
     }
+    // Шифртекст под другим ключом для инварианта — всё равно что пароля нет
+    const unreadable = findUnreadableSecret(mailbox.password, "mailbox.password");
+    if (unreadable) return unreadable;
     if (!preferences.defaultApplicant?._id) {
       return "Выберите инициатора по умолчанию — иначе заявкам из писем не от кого прийти";
     }
@@ -86,6 +102,8 @@ const findMailInvariant = (preferences) => {
       if (!smtp.pass) {
         return "Укажите пароль SMTP или выключите авторизацию";
       }
+      const unreadable = findUnreadableSecret(smtp.pass, "notify.byEmail.pass");
+      if (unreadable) return unreadable;
     }
   }
 
@@ -104,6 +122,11 @@ const findAiInvariant = (preferences) => {
   if (!config.apiKey && needsApiKey(provider)) {
     return "Укажите API-ключ поставщика ИИ — без него ответов не будет";
   }
+  // Ключ локальной модели необязателен: нечитаемый там — то же, что пустой
+  const unreadableKey = needsApiKey(provider)
+    ? findUnreadableSecret(config.apiKey, `ai.${provider}.apiKey`)
+    : null;
+  if (unreadableKey) return unreadableKey;
   if (provider === "yandexai" && !(config.folderId || "").trim()) {
     return "Укажите идентификатор каталога — без него Yandex AI Studio не отвечает";
   }
@@ -119,7 +142,9 @@ const findAiInvariant = (preferences) => {
   // У распознавания свои данные либо взятые у основного провайдера — разбирает
   // это резолвер, инвариант проверяет уже результат
   if (ai.speechToText?.isActive) {
-    const speech = resolveSpeechConfig(ai);
+    // Нечитаемый ключ распознавания — незаданный; ответ назовёт именно его
+    const secrets = createLenientSecretReader();
+    const speech = resolveSpeechConfig(ai, secrets.read);
 
     if (speech.provider === "local") {
       if (!speech.baseUrl) {
@@ -129,6 +154,7 @@ const findAiInvariant = (preferences) => {
         return "Выберите модель распознавания — список обновляется кнопкой рядом";
       }
     } else if (!speech.apiKey) {
+      if (secrets.errors.length) return secrets.errors[0];
       return speech.provider === "yandex"
         ? "Укажите API-ключ Yandex SpeechKit — без него аудио не расшифровать"
         : "Укажите API-ключ OpenAI для распознавания речи";
@@ -495,7 +521,11 @@ exports.update = async (req, res, next) => {
     // только на вид, а причина молчания видна лишь в логах контейнера.
     const invariant = findMailInvariant(preferences) || findAiInvariant(preferences);
     if (invariant) {
-      return next(new AppError(invariant, 422, true));
+      return next(
+        invariant instanceof SecretUnreadableError
+          ? unreadableSecretAnswer(invariant)
+          : new AppError(invariant, 422, true),
+      );
     }
 
     await preferences.save();
@@ -522,6 +552,11 @@ exports.update = async (req, res, next) => {
       preferences: maskSecrets(preferences),
     });
   } catch (error) {
+    // Инварианты нечитаемые секреты уже называют; это — страховка на случай,
+    // если шифртекст расшифровывается где-то ещё по дороге к save
+    if (error instanceof SecretUnreadableError) {
+      return next(unreadableSecretAnswer(error));
+    }
     next(new AppError(`Failed to update preferences`, 500, true, error));
   }
 };
@@ -614,7 +649,10 @@ exports.checkAi = async (req, res, next) => {
       await checkProvider({
         provider,
         // Из формы ключ приходит открытым, из базы — шифртекстом
-        apiKey: readStoredSecret(config.apiKey),
+        apiKey: readStoredSecret(
+          config.apiKey,
+          provider ? `ai.${provider}.apiKey` : undefined,
+        ),
         model: config.model,
         folderId: config.folderId,
         baseUrl: config.baseUrl,
@@ -790,16 +828,25 @@ exports.getAiModels = async (req, res, next) => {
         // совместима (у SpeechKit каталог статический, сюда он не доходит).
         const speech = ai.speechToText || {};
         const own = provider === "local" ? speech.local || {} : speech;
-        const source =
+        const shared =
           speech.useProviderCredentials &&
-          canShareCredentials(ai.provider, provider)
-            ? ai[ai.provider] || {}
-            : own;
+          canShareCredentials(ai.provider, provider);
+        const source = shared ? ai[ai.provider] || {} : own;
+        // Путь читаемого ключа — чтобы журнал называл поле, а не «(unknown path)»
+        const sourcePath = shared
+          ? `ai.${ai.provider}`
+          : provider === "local"
+            ? "ai.speechToText.local"
+            : "ai.speechToText";
 
-        if (!apiKey) apiKey = readStoredSecret(source.apiKey);
+        if (!apiKey) {
+          apiKey = readStoredSecret(source.apiKey, `${sourcePath}.apiKey`);
+        }
         if (!baseUrl) baseUrl = source.baseUrl || "";
       } else {
-        if (!apiKey) apiKey = readStoredSecret(ai[provider]?.apiKey);
+        if (!apiKey) {
+          apiKey = readStoredSecret(ai[provider]?.apiKey, `ai.${provider}.apiKey`);
+        }
         if (!folderId) folderId = ai.yandexai?.folderId || "";
         if (!baseUrl) baseUrl = ai.local?.baseUrl || "";
       }

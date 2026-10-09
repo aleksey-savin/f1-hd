@@ -171,3 +171,17 @@ test("refusals are logged as warnings without the key value", async () => {
   assert.ok(calls.logs.every((entry) => entry.level === "warn"));
   assert.ok(!JSON.stringify(calls.logs).includes("ab12ab12"));
 });
+
+test("a key pasted into the query string does not reach the refusal log", async () => {
+  const { app, calls } = harness({ key: null });
+
+  // Ключ в строке запроса — не заголовок: отказ «missing», и строка запроса
+  // раньше уходила в журнал целиком вместе с ключом
+  const response = await post(app, { path: `/mcp?key=${KEY}` });
+
+  assert.equal(response.status, 401);
+  assert.equal(calls.logs.length, 1);
+  assert.equal(calls.logs[0].meta.reason, "missing");
+  assert.equal(calls.logs[0].meta.endpoint, "/mcp");
+  assert.ok(!JSON.stringify(calls.logs).includes("ab12ab12"));
+});

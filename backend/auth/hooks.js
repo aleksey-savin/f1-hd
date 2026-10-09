@@ -2,6 +2,10 @@ const Notification = require("@/models/notification");
 const logger = require("@/utils/logger");
 
 const config = require("./config");
+const {
+  mayReceiveMagicLink,
+  refuseMagicLinkSession,
+} = require("./magicLinkPolicy");
 // Ленивая ссылка: bootstrap требует этот файл сам, и статический импорт дал бы
 // цикл с полузагруженным модулем.
 const { getAuth } = require("./bootstrap");
@@ -139,12 +143,17 @@ const sendResetPassword = async ({ user, token }) => {
  * Отключённую учётку не проверяем — это делает плагин `admin` своим таким же
  * хуком, и они складываются.
  *
+ * @param {string} userId
+ * @param {string|null} [path] — путь ручки better-auth, которая выписывает
+ *   сеанс (`ctx.path` хука); null — вызов вне ручки
  * @returns {Promise<string|null>} текст отказа или null, если пускать можно
  */
-const sessionRefusal = async (userId) => {
+const sessionRefusal = async (userId, path = null) => {
   const User = require("@/models/user");
   const user = await User.findById(userId)
-    .select("isServiceAccount isAdmin twoFactorEnabled company.isActive")
+    .select(
+      "isServiceAccount isAdmin isEndUser twoFactorEnabled company.isActive",
+    )
     .lean();
 
   if (!user) return "Учётная запись не найдена";
@@ -154,6 +163,11 @@ const sessionRefusal = async (userId) => {
   if (user.company?.isActive === false) {
     return "Учётная запись отключена. Обратитесь к администратору.";
   }
+
+  // Вход по ссылке из письма — только клиенту без второго фактора. Ссылки,
+  // выписанные до этого правила или мимо отправки, сотруднику сеанса не дают.
+  const linkRefusal = refuseMagicLinkSession({ path, user });
+  if (linkRefusal) return linkRefusal;
 
   /**
    * Обязательный второй фактор у администраторов.
@@ -199,8 +213,32 @@ const sessionRefusal = async (userId) => {
  */
 const sendMagicLink = async ({ email, url }) => {
   const User = require("@/models/user");
-  const user = await User.findOne({ email }).select("firstName lastLogin").lean();
-  const first = user ? await isFirstAccess(user._id) : false;
+  const user = await User.findOne({ email })
+    .select(
+      "firstName lastLogin isEndUser isServiceAccount banned banExpires twoFactorEnabled company.isActive",
+    )
+    .lean();
+
+  /**
+   * КОМУ ССЫЛКА ПОЛОЖЕНА, решает не плагин: он шлёт по любому известному
+   * адресу. Только клиенту без второго фактора (auth/magicLinkPolicy.js);
+   * остальным письма нет. Выписывает ссылку только серверный код
+   * (приглашение, services/invitation.js): HTTP-ручка
+   * `/api/auth/sign-in/magic-link` снаружи закрыта
+   * (middleware/authPathAllowList.js).
+   */
+  if (!mayReceiveMagicLink(user)) {
+    if (user) {
+      logger.log(
+        "warn",
+        "Ссылка для входа не отправлена: учётной записи она не положена",
+        { userId: String(user._id) },
+      );
+    }
+    return;
+  }
+
+  const first = await isFirstAccess(user._id);
 
   if (first) {
     return send(
@@ -244,9 +282,10 @@ const CODE_STYLE = "font-size: 1.6em; letter-spacing: 0.25em; font-weight: bold;
  * ТИП КОДА ПРИВЯЗАН К ТИПУ АККАУНТА: клиенту — код для ВХОДА (`sign-in`),
  * сотруднику — код для СМЕНЫ ПАРОЛЯ (`forget-password`), после которого он
  * входит паролем и вторым фактором. Какой тип просить, решает
- * `controllers/auth.js`; проверка повторяется здесь, потому что ручки плагина
- * смонтированы публично: прямой `POST /api/auth/email-otp/send-verification-otp`
- * минует наш гейт, и без неё сотрудник получил бы код для входа, а с ним —
+ * `controllers/auth.js`; проверка повторяется здесь на случай прямого вызова
+ * ручки плагина: `POST /api/auth/email-otp/send-verification-otp` снаружи
+ * закрыт списком (middleware/authPathAllowList.js), но открой его — он минует
+ * наш гейт, и без этой проверки сотрудник получил бы код для входа, а с ним —
  * вход мимо пароля. Код без письма бесполезен, поэтому не слать его
  * достаточно.
  *

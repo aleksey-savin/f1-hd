@@ -1,19 +1,27 @@
 const User = require("@/models/user");
 const CompanyLog = require("@/models/companyLog");
 const { AppError } = require("@/middleware/errorHandling");
+const {
+  asString,
+  companyLogLinkedUser,
+  resolveCompanyLogUser,
+} = require("@/services/externalApi");
 
+/**
+ * Вход в домен от AD-агента клиента (ключ компании). Человек связывается
+ * только внутри компании ключа (services/externalApi): чужой GUID или адрес
+ * не связывается и в ответе не называется.
+ */
 exports.addUserActivity = async (req, res, next) => {
   try {
     const { company } = req;
-    const {
-      activeDirectoryObjectGUID,
-      activeDirectoryLogin,
-      firstName,
-      lastName,
-      computerName,
-      email,
-      action = "userLogin",
-    } = req.body;
+    const { firstName, lastName, email, action = "userLogin" } = req.body;
+    // Строками: объект из тела ни в фильтр, ни в запись не попадает
+    const activeDirectoryObjectGUID = asString(
+      req.body.activeDirectoryObjectGUID,
+    );
+    const activeDirectoryLogin = asString(req.body.activeDirectoryLogin);
+    const computerName = asString(req.body.computerName);
 
     if (!activeDirectoryObjectGUID || !activeDirectoryLogin) {
       return next(
@@ -24,26 +32,24 @@ exports.addUserActivity = async (req, res, next) => {
       );
     }
 
-    let linkedUser = await User.findOne({
-      activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
-    });
-
-    // If email is provided and no user found by GUID, try to find by email
-    if (!linkedUser && email) {
-      linkedUser = await User.findOne({
-        email: email.trim(),
-      });
-    }
+    // Сначала по GUID, потом по почте — оба раза в компании ключа
+    const linkedUser = await resolveCompanyLogUser(
+      { companyId: company._id, activeDirectoryObjectGUID, email },
+      {
+        findUser: (filter) =>
+          User.findOne(filter).select("firstName lastName"),
+      },
+    );
 
     // Создаем запись лога
     const logEntry = new CompanyLog({
       companyId: company._id,
       userId: linkedUser ? linkedUser._id : null,
-      activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
-      activeDirectoryLogin: activeDirectoryLogin.trim(),
+      activeDirectoryObjectGUID,
+      activeDirectoryLogin,
       firstName: firstName ? String(firstName).trim() : undefined,
       lastName: lastName ? String(lastName).trim() : undefined,
-      computerName: computerName ? computerName.trim() : undefined,
+      computerName: computerName || undefined,
       action,
     });
 
@@ -58,14 +64,7 @@ exports.addUserActivity = async (req, res, next) => {
         user: {
           activeDirectoryLogin: logEntry.activeDirectoryLogin,
         },
-        linkedUser: linkedUser
-          ? {
-              id: linkedUser._id,
-              firstName: linkedUser.firstName,
-              lastName: linkedUser.lastName,
-              email: linkedUser.email,
-            }
-          : null,
+        linkedUser: companyLogLinkedUser(linkedUser),
       },
     });
   } catch (error) {

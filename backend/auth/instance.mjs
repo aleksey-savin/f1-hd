@@ -270,9 +270,17 @@ export function createAuth({ db, client, config, hooks, statement }) {
            * Отключённую учётку тут не проверяем: это делает своим таким же
            * хуком плагин `admin`, а хуки складываются, не заменяя друг друга
            * (`context/helpers.mjs` кладёт их в массив).
+           *
+           * `ctx` — контекст ручки, которая выписывает сеанс: better-auth 1.6
+           * передаёт его вторым аргументом (вне ручки — null), так же его
+           * читает плагин `admin`. По `ctx.path` `sessionRefusal` узнаёт вход
+           * по ссылке из письма (auth/magicLinkPolicy.js).
            */
-          before: async (session) => {
-            const refusal = await hooks.sessionRefusal(session.userId);
+          before: async (session, ctx) => {
+            const refusal = await hooks.sessionRefusal(
+              session.userId,
+              ctx?.path ?? null,
+            );
             if (refusal) {
               throw new APIError("FORBIDDEN", { message: refusal });
             }
@@ -338,8 +346,9 @@ export function createAuth({ db, client, config, hooks, statement }) {
          *
          * У плагина своя система прав, отдельная от нашей, и роль `admin` в ней
          * открывает разом всё: `set-user-password`, `create-user`,
-         * `remove-user`, `ban-user`. Ручки смонтированы публично под
-         * `/api/auth/admin/*`, то есть проставить кому-то `user.role = "admin"`
+         * `remove-user`, `ban-user`. Ручки смонтированы под `/api/auth/admin/*`
+         * (снаружи их закрывает middleware/authPathAllowList.js, но проверка
+         * роли от этого не лишняя), то есть проставить кому-то `user.role = "admin"`
          * значит отдать ему эти операции МИМО наших гейтов и нашей бизнес-логики
          * — а `create-user` вдобавок пишет пользователя нативным драйвером, без
          * валидации Mongoose и без компании, членства и рабочего места.
@@ -374,9 +383,12 @@ export function createAuth({ db, client, config, hooks, statement }) {
       // ничего из этого организацией не является.
       //
       // Приглашений плагина не будет: саморегистрация удалена, учётки заводит
-      // ИТ-отдел. Ссылка для входа — ТОЛЬКО в приглашении клиенту
-      // (`services/invitation.js`; плагин сам никого не проверяет и шлёт по
-      // любому адресу). Смысл: клиентская учётка рождается из письма в
+      // ИТ-отдел. Ссылка для входа — ТОЛЬКО клиенту без второго фактора: в
+      // приглашении (`services/invitation.js`); HTTP-ручка `/sign-in/magic-link`
+      // снаружи закрыта (middleware/authPathAllowList.js).
+      // Плагин сам никого не проверяет и шлёт по любому адресу — правило держат
+      // `hooks.sendMagicLink` и `hooks.sessionRefusal` (auth/magicLinkPolicy.js).
+      // Смысл: клиентская учётка рождается из письма в
       // поддержку, человек о ней не знает, и пароль ему до сих пор
       // генерировали и присылали открытым текстом. Ссылка даёт тот же уровень
       // доверия, что и восстановление пароля — доступ к почте есть доступ к
@@ -408,7 +420,8 @@ export function createAuth({ db, client, config, hooks, statement }) {
        * Кому и какой слать, решает наша ручка `/api/login-code` (клиент или
        * сотрудник, отключённые, служебные, компания выключена); ответ у неё
        * одинаковый на любой адрес. Та же привязка типа к аккаунту повторена
-       * в `hooks.sendEmailCode` — ручки плагина публичны. Второй фактор после
+       * в `hooks.sendEmailCode` — на случай, если ручки плагина откроют наружу
+       * (сейчас их закрывает middleware/authPathAllowList.js). Второй фактор после
        * кода для входа — хук `twoFactorAfterEmailCode` выше.
        */
       emailOTP({

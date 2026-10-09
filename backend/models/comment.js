@@ -21,6 +21,16 @@ const commentSchema = new Schema(
       enum: ["email"],
       default: undefined,
     },
+    // Message-ID письма, ставшего этим комментарием: повтор того же письма
+    // второй раз не заводится (middleware/emailHandling,
+    // services/mail/inbound). У остальных комментариев поля нет. По умолчанию
+    // поле не читается: комментарии заявки видят и клиенты, а в Message-ID
+    // бывает имя внутреннего сервера. Нужно значение —
+    // `.select("+emailMessageId")`.
+    emailMessageId: {
+      type: String,
+      select: false,
+    },
     attachments: [
       {
         mimetype: String,
@@ -112,6 +122,8 @@ commentSchema.plugin(require("../services/pulsePlugin"), { model: "Comment" });
 // Комментарии заявки для MCP (services/mcp/ticketSource.js) ищутся по ticketId:
 // письма до 2026-07-08 не попали в массив заявки.
 commentSchema.index({ ticketId: 1, createdAt: 1 });
+// Повтор письма по Message-ID (services/mail/inbound#findImportedMessage)
+commentSchema.index({ emailMessageId: 1 }, { sparse: true });
 commentSchema.index(
   { "channel.messageId": 1 },
   { unique: true, partialFilterExpression: { "channel.messageId": { $exists: true } }, name: "channel_messageId_unique" },

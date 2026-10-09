@@ -5,6 +5,7 @@ import {
   RiCheckLine,
   RiErrorWarningLine,
   RiInformationLine,
+  RiKey2Line,
   RiLoader4Line,
   RiShieldFlashLine,
 } from "react-icons/ri";
@@ -12,12 +13,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Panel, Eyebrow } from "@/components/app/Panel";
+import PropRow from "@/components/app/PropRow";
 import Segmented from "@/components/app/Segmented";
 import { cn } from "@/lib/utils";
 
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
-import { formatDate } from "../../util/format-date";
+import { formatDate, formatShortDate } from "../../util/format-date";
 import FixCommand from "./FixCommand";
+import { CHR_SPEED } from "./health-flags.js";
 import UpgradeDialog from "./UpgradeDialog";
 import UpgradeSheet from "./UpgradeSheet";
 import {
@@ -72,6 +75,103 @@ const StepBar = ({ current }) => (
     ))}
   </div>
 );
+
+// Строка «Лицензия» секции (макет «Mikrotik: лицензия и копии», 09.10): уровень
+// и срок, справа — идентификатор, по которому лицензию ищут в аккаунте
+// MikroTik. Она здесь, а не в «Подключении», потому что истёкшая лицензия CHR
+// блокирует именно обновление RouterOS. Норма — одна тихая строка; проблема —
+// янтарное слово в значении и плашка с объяснением. `row.license === null` —
+// лицензия ещё не считана, строки нет.
+const LICENSE_NOTE = {
+  expired:
+    "CHR не продлил лицензию в аккаунте MikroTik. Устройство работает, но RouterOS не обновится, пока лицензию не продлят.",
+  soon: "Срок близко: устройство не может продлить лицензию в аккаунте MikroTik. Когда срок выйдет, RouterOS перестанет обновляться.",
+  chrFree:
+    "Бесплатная лицензия CHR: скорость каждого интерфейса ограничена 1 Мбит/с.",
+  demo: "Демо-лицензия: RouterOS без ключа работает 24 часа.",
+};
+
+const LicenseRow = ({ license }) => {
+  if (!license) return null;
+  const chr = license.kind === "chr";
+  const until = license.until ? formatShortDate(license.until) : null;
+  const base = chr
+    ? [license.label, CHR_SPEED[license.level]].filter(Boolean).join(" · ")
+    : `Level ${license.level}`;
+
+  let tail = null;
+  let note = null;
+  if (license.state === "expired") {
+    tail = until ? `истекла ${until}` : "истекла";
+    note = LICENSE_NOTE.expired;
+  } else if (license.state === "inactive") {
+    tail = "не активна";
+    note = chr ? LICENSE_NOTE.chrFree : LICENSE_NOTE.demo;
+  } else if (license.soon && until) {
+    tail = `до ${until}`;
+    note = LICENSE_NOTE.soon;
+  }
+  const quietTail = tail
+    ? null
+    : chr
+      ? until
+        ? `до ${until}`
+        : null
+      : "бессрочная";
+
+  const id = chr
+    ? license.systemId && { label: "System ID", value: license.systemId }
+    : license.softwareId && { label: "Software ID", value: license.softwareId };
+
+  return (
+    <div id="license" className="mt-2 scroll-mt-28">
+      <PropRow
+        icon={<RiKey2Line size={17} />}
+        label="Лицензия"
+        action={
+          id ? (
+            <span className="flex-none text-end max-md:hidden">
+              <span className="block text-xs text-faint">{id.label}</span>
+              <span className="block font-mono text-sm font-medium">
+                {id.value}
+              </span>
+            </span>
+          ) : null
+        }
+        copy={id ? { value: id.value, label: id.label } : undefined}
+      >
+        {base}
+        {quietTail && <span className="text-faint"> · {quietTail}</span>}
+        {tail && (
+          <span className="font-semibold text-warning max-md:block max-md:text-xs">
+            <span className="max-md:hidden"> · </span>
+            {tail}
+          </span>
+        )}
+      </PropRow>
+      {note && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm max-md:flex-wrap max-md:text-xs">
+          <RiErrorWarningLine
+            size={16}
+            className="mt-0.5 flex-none text-warning max-md:hidden"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1 max-md:basis-full">{note}</div>
+          {chr && (
+            <a
+              href="https://mikrotik.com/client"
+              target="_blank"
+              rel="noreferrer"
+              className="flex-none font-semibold whitespace-nowrap text-accent-text no-underline hover:underline"
+            >
+              Аккаунт MikroTik ↗
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Секция «Прошивка и безопасность» страницы записи (макет, экраны 5–6):
 // версии и CVE как раньше, плюс обновление из HD — ветка (текущая отмечена,
@@ -423,9 +523,12 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
             />
           </>
         ) : !firmware ? (
-          <div className="mt-1.5 text-sm text-faint">
-            Версия прошивки ещё не считана.
-          </div>
+          <>
+            <div className="mt-1.5 text-sm text-faint">
+              Версия прошивки ещё не считана.
+            </div>
+            <LicenseRow license={row.license} />
+          </>
         ) : (
           <>
             {firmware.vulnerable ? (
@@ -482,6 +585,8 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
                 настроек нет.
               </div>
             )}
+
+            <LicenseRow license={row.license} />
 
             {last?.state === "done" && !firmware.updateAvailable && (
               <div className="mt-2 text-xs text-faint">

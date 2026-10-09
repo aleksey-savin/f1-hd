@@ -24,7 +24,11 @@
  * сделали» отличаются намерением, а не формой, и списки слов ошибаются в обе
  * стороны — причём дорогая сторона одна: принять живую претензию за вежливость.
  * Поэтому ошибаться этот модуль может только в безопасную сторону — пропустить
- * робота, но никогда не записать человека в роботы.
+ * робота, но никогда не записать человека в роботы. Одно исключение
+ * сознательное: письмо со списочными заголовками (`List-Id`,
+ * `List-Unsubscribe`) — робот, даже если его написал человек через групповой
+ * адрес: иначе уведомление, которое список разослал и вернул нам же, ложилось
+ * бы комментарием в заявку.
  *
  * `X-Auto-Response-Suppress` намеренно не в списке: его ставит ОТПРАВИТЕЛЬ,
  * прося не отвечать ему автоматически, и живые письма из Outlook несут его
@@ -45,6 +49,20 @@ const headerText = (headers, name) => {
 const has = (headers, name) => headerText(headers, name) !== "";
 
 /**
+ * Письмо из списка рассылки. mailparser складывает все `List-*` в один ключ
+ * `list`: `List-Id` → `list.id`, `List-Unsubscribe` → `list.unsubscribe`
+ * (значения — объекты). Ключей `list-id` / `list-unsubscribe` в разобранном
+ * письме не бывает — прежняя проверка по ним не срабатывала ни разу. Прочие
+ * `List-*` (Help, Post, Archive) признаком не считаем: список — в шапке модуля.
+ */
+const isMailingList = (headers) => {
+  const list = headers.get("list");
+  return Boolean(
+    list && typeof list === "object" && (list.id || list.unsubscribe),
+  );
+};
+
+/**
  * @param {object} mail — разобранное письмо (`mailparser.simpleParser`).
  * @returns {boolean} писал робот.
  */
@@ -61,7 +79,7 @@ const isMachineMail = (mail) => {
     return true;
   }
 
-  if (has(headers, "list-id") || has(headers, "list-unsubscribe")) return true;
+  if (isMailingList(headers)) return true;
 
   // Пустой конверт: «<>» или совсем пусто при наличии самого заголовка
   const returnPath = headerText(headers, "return-path");

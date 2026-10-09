@@ -21,3 +21,6 @@ README.md
 .vscode
 .idea
 .DS_Store
+# Live-device probe with direct connection parameters: a developer tool run from
+# a checkout or the dev container, never part of the product image
+scripts/mikrotikUpgradeProbe.js

@@ -46,20 +46,35 @@ const TicketCategory = require("../models/ticketCategory");
 const Prefs = require("../models/preferences");
 const Location = require("../models/inventory/location");
 const CompanyLog = require("../models/companyLog");
+const Notification = require("../models/notification");
 const {
   permissionFilter,
   effectivePermissions,
   rolesOfUser,
   usersWithRoles,
+  organizationId,
 } = require("@/services/permissions");
 const { invite } = require("@/services/invitation");
 const { isBanned } = require("@/services/authBan");
+const { pickSelfEditableFields } = require("@/services/selfAccountFields");
 const {
   ensureMember,
   removeMembership,
   assign: assignRoles,
   namedRoles,
+  refreshMirrorForUsers,
+  assertNoOrphanedStaffActions,
+  assertNotLastFullAccessHolder,
 } = require("@/services/roles");
+const {
+  withoutUser,
+  withRoles,
+  withAccountPatch,
+} = require("@/services/permissionHolders");
+const {
+  planAccountUpdate,
+  emailChangedNotice,
+} = require("@/services/accountUpdatePolicy");
 
 // Финансовые поля пользователя (оклад, ставка переработок)
 const toNonNegativeOrNull = (value) => {
@@ -109,6 +124,46 @@ const assertMayChangeRoles = (req, currentKeys, wanted) => {
 };
 
 /**
+ * Признаки носителя права (services/permissionHolders.js), которые правка
+ * карточки меняет В СТОРОНУ ПОТЕРИ, — запланированными значениями, теми, что
+ * запишет `user.save()`: отключение, перевод сотрудника в клиенты, в служебные
+ * учётные записи и переход в другую компанию — с её `isActive`. Обратные смены
+ * прав ни у кого не отнимают и проверки не требуют.
+ *
+ * Считается до любых записей: из решения `planAccountUpdate`, тела запроса и
+ * компании, которую правка уже прочитала.
+ *
+ * @returns {object|null} патч для `withAccountPatch`; null — терять нечего
+ */
+const holderLossPatch = (user, { accountPlan, isServiceAccount, company }) => {
+  const patch = {};
+  if (accountPlan.banned === true) patch.banned = true;
+  if (accountPlan.audienceChanged && accountPlan.isEndUser === true) {
+    patch.isEndUser = true;
+  }
+  // Признак пишется как прислан, с приведением Mongoose: "true" и 1 — тоже «да»
+  if (
+    user.isServiceAccount !== true &&
+    mongoose.Schema.Types.Boolean.convertToTrue.has(isServiceAccount)
+  ) {
+    patch.isServiceAccount = true;
+  }
+  // Снимок компании пишется заново из присланной: потеря — и переход в
+  // другую, и та же компания, отключённая мимо снимка
+  const companyId = company?._id ? String(company._id) : null;
+  const companyActive = company?.isActive !== false;
+  const storedId = user.company?._id ? String(user.company._id) : null;
+  if (
+    companyId !== storedId ||
+    (user.company?.isActive !== false && !companyActive)
+  ) {
+    patch.companyId = companyId;
+    patch.companyActive = companyActive;
+  }
+  return Object.keys(patch).length ? patch : null;
+};
+
+/**
  * ДОСТУПОМ АДМИНИСТРАТОРА РАСПОРЯЖАЕТСЯ ТОЛЬКО АДМИНИСТРАТОР.
  *
  * Иначе право «управлять доступом и ролями» означает «стать администратором»:
@@ -130,6 +185,35 @@ const mayTouchAccount = (req, target) =>
 
 const ADMIN_ACCOUNT_ONLY =
   "Доступом администратора управляет только администратор";
+
+/**
+ * Смена email — событие доступа: запись в журнал и письмо на прежний адрес
+ * (services/accountUpdatePolicy.js#emailChangedNotice).
+ *
+ * Сбой очереди ответ не ломает: учётная запись уже сохранена и сеансы
+ * погашены, и «не удалось» на экране было бы неправдой. Потеря письма видна в
+ * журнале.
+ *
+ * У старой записи прежнего адреса может не быть вовсе (email не заполнен):
+ * писать некуда, письмо не ставится, след остаётся в журнале.
+ */
+const noticeEmailChanged = async (req, user, change) => {
+  logger.warn("Email учётной записи изменён", {
+    module: "user",
+    targetId: String(user._id),
+    byId: String(req.auth.user._id),
+  });
+  if (!change.from) return;
+  try {
+    await Notification.create(emailChangedNotice(change));
+  } catch (error) {
+    logger.log("error", "Письмо о смене email не поставлено в очередь", {
+      module: "user",
+      targetId: String(user._id),
+      error: error.message,
+    });
+  }
+};
 
 /**
  * Применить блок графика работы к документу пользователя (без сохранения).
@@ -684,12 +768,6 @@ exports.getCanPerformTicketsUsers = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    console.log("🚀 Создание нового пользователя. Данные запроса:", {
-      body: req.body,
-      userId: req.userId,
-      headers: req.headers?.authorization ? "Present" : "Missing",
-    });
-
     const {
       company: companyId,
       subdivision: subdivisionId,
@@ -975,6 +1053,46 @@ exports.add = async (req, res, next) => {
 exports.update = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
+    if (!user) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
+    // Карточка администратора — тоже его доступ: здесь правятся email,
+    // отключение и тип учётной записи. Правило то же, что у отключения,
+    // смены пароля и сеансов.
+    if (!mayTouchAccount(req, user)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
+    }
+
+    // Email, отключение и тип учётной записи — доступ, и решение о них
+    // принимается до любых записей (services/accountUpdatePolicy.js)
+    const accountPlan = planAccountUpdate({
+      target: user,
+      body: req.body,
+      mayManageAccess: req.auth.can({ user: ["manageAccess"] }),
+      // Право ручки отключения (`POST /users/toggle-active/:id` —
+      // canManageUsers); mayTouchAccount проверен выше, как и там
+      mayBan: req.auth.can({ user: ["manage"] }),
+    });
+    if (accountPlan.refusal) {
+      return next(
+        new AppError(accountPlan.refusal.message, accountPlan.refusal.status),
+      );
+    }
+    if (
+      accountPlan.emailChange &&
+      (await User.exists({
+        email: accountPlan.emailChange.to,
+        _id: { $ne: user._id },
+      }))
+    ) {
+      return next(
+        new AppError(
+          `Пользователь с адресом ${accountPlan.emailChange.to} уже существует`,
+          409,
+        ),
+      );
+    }
+
     const prevCompany = await Company.findById(user.company._id);
     const newCompany = await Company.findById(req.body.company);
     const prevSubdivision = user.subdivision
@@ -985,14 +1103,12 @@ exports.update = async (req, res, next) => {
       : null;
     const prefs = await Prefs.findOne({});
 
+    // email, banned и isEndUser разобраны выше, в accountPlan
     const {
-      email,
       phone,
       firstName,
       lastName,
       position,
-      banned,
-      isEndUser,
       isServiceAccount,
       isCloudTelephony,
       hideWorkStatus,
@@ -1026,7 +1142,42 @@ exports.update = async (req, res, next) => {
     }
 
     // До любых записей: смена ролей — раздача прав, и право на неё своё
-    assertMayChangeRoles(req, await rolesOfUser(user._id), roles);
+    const currentRoles = await rolesOfUser(user._id);
+    assertMayChangeRoles(req, currentRoles, roles);
+
+    // Последнего носителя права не теряем (services/permissionHolders.js).
+    // Правка карточки выводит человека из носителей (`holderLossPatch`), а
+    // снятые роли уносят свои права. Всё это — одно состояние «после» и одна
+    // проверка, до любых записей: отказ не оставит полусохранённой карточки.
+    // Назначение ролей ниже проверит снятие ещё раз — оно стережёт и другие
+    // свои вызовы.
+    const lossPatch = holderLossPatch(user, {
+      accountPlan,
+      isServiceAccount,
+      company: newCompany,
+    });
+    const rolesShrink =
+      Array.isArray(roles) && currentRoles.some((key) => !roles.includes(key));
+    if (lossPatch || rolesShrink) {
+      const orgId = await organizationId();
+      // Порог полного доступа — раньше проверки носителей, как и в `assign`:
+      // на снятии роли администратора срабатывают оба, и его отказ точнее
+      // списка из всех прав роли. Учётная запись здесь ещё как в базе.
+      if (rolesShrink) {
+        await assertNotLastFullAccessHolder(
+          orgId,
+          user._id,
+          currentRoles,
+          roles,
+          user,
+        );
+      }
+      const id = String(user._id);
+      await assertNoOrphanedStaffActions(orgId, (state) => {
+        const patched = withAccountPatch(state, id, lossPatch || {});
+        return rolesShrink ? withRoles(patched, id, roles) : patched;
+      });
+    }
 
     if (prevSubdivision) {
       prevSubdivision.users = prevSubdivision.users.filter(
@@ -1061,7 +1212,10 @@ exports.update = async (req, res, next) => {
       }
     }
 
-    user.email = email?.toLowerCase();
+    // Email — только сменой, которую пропустил accountPlan
+    if (accountPlan.emailChange) {
+      user.email = accountPlan.emailChange.to;
+    }
     user.phone = phone;
     user.firstName = firstName || "";
     user.lastName = lastName || "";
@@ -1069,13 +1223,37 @@ exports.update = async (req, res, next) => {
     user.categories = categoriesList.filter(Boolean);
     user.company = newCompany;
     // `role` не трогаем: это роль плагина better-auth, её ведёт assignRoles
-    user.banned = Boolean(banned);
+    // Отключение — только присланным ДРУГИМ значением: пропущенное поле больше
+    // не включает учётку молча. Включение снимает причину и срок, как ручка
+    // отключения (toggleActive); сеансы при отключении гасятся после save().
+    if (accountPlan.banned !== undefined) {
+      user.banned = accountPlan.banned;
+      if (!accountPlan.banned) {
+        user.banReason = undefined;
+        user.banExpires = undefined;
+      }
+    }
     // `isAdmin` здесь НЕ трогаем вовсе: это зеркало роли с полным доступом, и
     // проставляет его назначение ролей (services/roles.js#assign). Присланное
     // в теле значение раньше принималось на веру — то есть учётку
     // администратора можно было выписать запросом, минуя роли и проверку
-    // «нельзя выдать больше, чем есть у самого».
-    user.isEndUser = isEndUser;
+    // «нельзя выдать больше, чем есть у самого». Исключение одно — смена типа
+    // учётной записи, ниже.
+    // Тип учётной записи — только присланным булевым: пропуск больше не стирает
+    // поле, и учётка не остаётся ни сотрудником, ни клиентом.
+    if (accountPlan.isEndUser !== undefined) {
+      user.isEndUser = accountPlan.isEndUser;
+    }
+    // Смена типа — смена адресата, а зеркало действует только у сотрудника. У
+    // клиента мог остаться прежний `isAdmin: true` (пока он клиент, флаг
+    // молчит), и записанный тип без сброса сделал бы его администратором.
+    // Сбрасываем в ТОМ ЖЕ save(): пересчёт ниже (назначение ролей или
+    // refreshMirrorForUsers) вернёт `true` настоящему сотруднику с полным
+    // доступом, а если назначение откажет (400, 403, 409), флаг так и остаётся
+    // сброшенным — отказ не оставит живого зеркала.
+    if (accountPlan.audienceChanged) {
+      user.isAdmin = false;
+    }
     user.isServiceAccount = isServiceAccount;
     user.isCloudTelephony = isCloudTelephony;
     user.hideWorkStatus = !!hideWorkStatus;
@@ -1159,12 +1337,43 @@ exports.update = async (req, res, next) => {
 
     await user.save();
 
+    // Отключение и смена email гасят сеансы сразу после записи, как ручка
+    // отключения: иначе человек работал бы до истечения токена, а после смены
+    // адреса — под прежним входом. До назначения ролей: отказ там (409, 403)
+    // не должен оставить сохранённую смену без последствий.
+    //
+    // Отключённой учётной записи сеансы гасятся при КАЖДОМ сохранении, а не
+    // только когда флаг сменился в этом запросе: гашение идемпотентно, и повтор
+    // после сбоя (запись прошла, сеансы остались) закрывает прежний отзыв.
+    // Свой email человек меняет сам, и выкидывать его из приложения за правку
+    // собственной карточки незачем: гасятся остальные сеансы, как при смене
+    // пароля (changePassword). Отключение сильнее: у отключённой учётной записи
+    // не остаётся ни одного сеанса.
+    const isSelf = String(user._id) === String(req.auth.userId);
+    if (user.banned === true) {
+      await revokeAllForUser(user._id);
+    } else if (accountPlan.emailChange) {
+      if (isSelf) {
+        await revokeOthersForUser(user._id, req.auth?.session?.token);
+      } else {
+        await revokeAllForUser(user._id);
+      }
+    }
+    if (accountPlan.emailChange) {
+      await noticeEmailChanged(req, user, accountPlan.emailChange);
+    }
+
     // ПОСЛЕ save(): назначение зеркалит `isAdmin` прямо в базу, и сохранение
     // документа поверх вернуло бы прежнее значение.
     await ensureMember(user._id);
     if (Array.isArray(roles)) {
       // `canGrant`, а не `can` — см. комментарий в `add`.
       await assignRoles(user._id, roles, req.auth.canGrant);
+    } else if (accountPlan.audienceChanged) {
+      // Роли не прислали, а тип учётной записи сменился: зеркало (`isAdmin` и
+      // роль плагина) считается по адресату, и без пересчёта клиентская
+      // учётная запись осталась бы `impersonator`
+      await refreshMirrorForUsers(await organizationId(), [user._id]);
     }
 
     if (scheduleChanged || modeForced) {
@@ -1272,6 +1481,15 @@ exports.toggleActive = async (req, res, next) => {
       return next(new AppError("Срок отключения уже прошёл", 400));
     }
 
+    // Отключённый носителем прав не считается — последнего носителя права так
+    // не теряем (services/permissionHolders.js). До записи и только на
+    // отключение: включение прав ни у кого не отнимает.
+    if (banned) {
+      await assertNoOrphanedStaffActions(await organizationId(), (state) =>
+        withoutUser(state, String(user._id)),
+      );
+    }
+
     user.banned = banned;
     user.banReason = banned
       ? String(req.body?.banReason || "").trim() || undefined
@@ -1290,7 +1508,13 @@ exports.toggleActive = async (req, res, next) => {
       banExpires: user.banExpires || null,
     });
   } catch (error) {
-    next(new AppError("Не удалось изменить доступ", 500, true, error));
+    // Отказ проверки носителей (409) доходит до экрана со своим кодом и
+    // фразой, а не превращается в 500
+    next(
+      error instanceof AppError
+        ? error
+        : new AppError("Не удалось изменить доступ", 500, true, error),
+    );
   }
 };
 
@@ -1300,9 +1524,16 @@ exports.toggleActive = async (req, res, next) => {
  */
 exports.sessions = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select("_id");
+    // Признак администратора — ради того же правила, что у отзыва сеансов:
+    // устройства и адреса администратора — тоже его доступ
+    const user = await User.findById(req.params.id).select(
+      "_id isAdmin isEndUser",
+    );
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
+    }
+    if (!mayTouchAccount(req, user)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
     }
     res.status(200).json({ sessions: await listForUser(user._id) });
   } catch (error) {
@@ -1426,6 +1657,12 @@ exports.delete = async (req, res, next) => {
       return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
     }
 
+    // Удалённый носителем прав не останется — последнего носителя права так
+    // не теряем (services/permissionHolders.js). До любых удалений.
+    await assertNoOrphanedStaffActions(await organizationId(), (state) =>
+      withoutUser(state, String(user._id)),
+    );
+
     /**
      * Следы в коллекциях авторизации удаляются ВМЕСТЕ с человеком.
      *
@@ -1511,8 +1748,11 @@ exports.delete = async (req, res, next) => {
       });
     }
   } catch (error) {
+    // Отказ проверки носителей (409) — со своим кодом и фразой, не 500
     next(
-      new AppError(`Failed to delete user ${req.params.id}`, 500, true, error),
+      error instanceof AppError
+        ? error
+        : new AppError(`Failed to delete user ${req.params.id}`, 500, true, error),
     );
   }
 };
@@ -1779,19 +2019,19 @@ exports.addProfileImage = async (req, res, next) => {
 
 exports.updateMyAccount = async (req, res, next) => {
   try {
+    // Только поля своего профиля: email и categories отсюда не принимаются —
+    // это вход и доступ, их меняет администратор (services/selfAccountFields.js)
     const {
       firstName,
       lastName,
-      email,
       phone,
       position,
-      categories,
       notify,
       telegramBot,
       timezone,
       fontScale,
       plainCanvas,
-    } = req.body;
+    } = pickSelfEditableFields(req.body);
 
     // Ручка правит ТОЛЬКО свою учётку, поэтому и адресат берётся из сеанса.
     // Раньше id приходил телом запроса на роуте под одним лишь isAuth — то есть
@@ -1820,13 +2060,11 @@ exports.updateMyAccount = async (req, res, next) => {
       user.plainCanvas = Boolean(plainCanvas);
     }
 
-    user.email = email ? email : user.email;
     // Пустая строка — «телефона нет»; не прислали — не трогаем
     user.phone = phone !== undefined ? phone : user.phone;
     user.firstName = firstName ? firstName : user.firstName;
     user.lastName = lastName ? lastName : user.lastName;
     user.position = position ? position : user.position;
-    user.categories = categories ? categories : user.categories;
     // notify мержим по путям, а не заменяем объектом: замена пересоздаёт
     // поддерево, и категории, отсутствующие в присланной форме, молча
     // получали бы дефолты вместо сохранённых значений. user.set со strict

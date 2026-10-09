@@ -124,11 +124,19 @@ exports.canShareCredentials = (chatProvider, speechProvider) =>
  * Модель всегда своя — каталог расшифровки и каталог чата не пересекаются.
  *
  * @param {object} ai группа настроек ИИ (уже слитая с черновиком формы)
+ * @param {(stored: string, path: string) => string} [readSecret] чтение
+ *   шифртекста; инварианты настроек передают «мягкое», которое не бросает
  * @returns {{ provider: string, apiKey: string, folderId: string, baseUrl: string, model: string, shared: boolean }}
  */
-const resolveSpeechConfig = (ai) => {
+const resolveSpeechConfig = (ai, readSecret = readStoredSecret) => {
   const speechToText = ai?.speechToText || {};
   const provider = speechToText.provider || "openai";
+  const ownPath =
+    provider === "yandex"
+      ? "ai.speechToText.yandex"
+      : provider === "local"
+        ? "ai.speechToText.local"
+        : "ai.speechToText";
   const own =
     provider === "yandex"
       ? speechToText.yandex || {}
@@ -140,11 +148,12 @@ const resolveSpeechConfig = (ai) => {
     !!speechToText.useProviderCredentials &&
     exports.canShareCredentials(ai?.provider, provider);
   const source = shared ? ai[ai.provider] || {} : own;
+  const sourcePath = shared ? `ai.${ai.provider}` : ownPath;
 
   return {
     provider,
     // В базе ключ лежит шифртекстом secretBox — наружу уходит расшифрованный
-    apiKey: readStoredSecret(source.apiKey),
+    apiKey: readSecret(source.apiKey, `${sourcePath}.apiKey`),
     folderId: source.folderId || "",
     baseUrl: source.baseUrl || "",
     model: own.model || (provider === "yandex" ? "general" : ""),
@@ -164,7 +173,18 @@ const getSpeechToTextConfig = async () => {
     throw new AppError("Speech recognition is disabled", 400, true);
   }
 
-  const config = resolveSpeechConfig(preferences.ai?.toObject?.() ?? preferences.ai);
+  // Ключ локального сервера необязателен: нечитаемый — незаданный, как в
+  // инвариантах настроек, иначе сохранение, вернувшее 200, превращается в тихий
+  // отказ распознавания. У OpenAI и SpeechKit ключ обязателен — там нечитаемый
+  // бросает SecretUnreadableError с путём.
+  const readKey =
+    speechToText.provider === "local"
+      ? aiService.readOptionalKey
+      : readStoredSecret;
+  const config = resolveSpeechConfig(
+    preferences.ai?.toObject?.() ?? preferences.ai,
+    readKey,
+  );
 
   if (config.provider === "yandex") {
     if (!config.apiKey) {

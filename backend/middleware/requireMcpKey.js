@@ -1,5 +1,6 @@
 const { hashApiKey, isMcpKeyFormat } = require("../utils/apiKeyGenerator");
 const { normalizeScopes } = require("../services/mcp/keys");
+const { redactUrl } = require("../helpers/redactUrl");
 
 /**
  * Ключ ИИ-агента к MCP (routes/mcp.js): `Authorization: Bearer hd_mcp_…`.
@@ -38,7 +39,9 @@ const createRequireMcpKey = ({
   const deny = (req, res, reason) => {
     log("warn", "MCP: ключ доступа не принят", {
       reason,
-      endpoint: req.originalUrl,
+      // Без строки запроса: ключ, вставленный в `?key=…`, — это отказ «missing»,
+      // и целиком он в журнал попадать не должен
+      endpoint: redactUrl(req.originalUrl),
       ip: req.ip,
     });
     res.set("WWW-Authenticate", 'Bearer realm="hd-mcp"');

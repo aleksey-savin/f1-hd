@@ -20,7 +20,6 @@ import UserAvatar from "../UserAvatar";
 const Profile = ({ user }) => {
   const [firstName, setFirstName] = useState(user.firstName || "");
   const [lastName, setLastName] = useState(user.lastName || "");
-  const [email, setEmail] = useState(user.email || "");
   const [phoneNumber, setPhoneNumber] = useState(phoneWireValue(user.phone));
   const [position, setPosition] = useState(user.position || "");
   const [profileImage, setProfileImage] = useState(
@@ -34,17 +33,18 @@ const Profile = ({ user }) => {
   // Что не так с телефоном, написано под полем; здесь — только что он мешает.
   const blank = (value) => !value.trim();
   const blockedReason =
-    blank(firstName) || blank(lastName) || blank(email)
-      ? "Имя, фамилия и email не могут быть пустыми"
+    blank(firstName) || blank(lastName)
+      ? "Имя и фамилия не могут быть пустыми"
       : phoneInputError(phoneNumber)
         ? "Проверьте номер телефона"
         : null;
 
+  // Email в черновик не входит: его меняет администратор, и сервер из «Моего
+  // аккаунта» его не примет
   useDraftSection(
     () => ({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email.trim(),
       phone: phoneNumber || "",
       position: position.trim(),
     }),
@@ -102,13 +102,17 @@ const Profile = ({ user }) => {
             onChange={(event) => setLastName(event.target.value)}
           />
         </Field>
-        <Field label="Email" htmlFor="email" required>
+        {/* Email — это вход, его меняет администратор в карточке человека
+            (там смена гасит сеансы и уведомляет прежний адрес). Здесь поле
+            только читается: заливка вместо рамки в обеих темах, текст
+            контрастный и выделяется (макет, вариант A). */}
+        <Field label="Email" htmlFor="email" hint="Email меняет администратор">
           <Input
             id="email"
             type="email"
-            value={email}
-            aria-invalid={blank(email)}
-            onChange={(event) => setEmail(event.target.value)}
+            value={user.email || ""}
+            readOnly
+            className="cursor-default border-transparent bg-muted dark:bg-muted"
           />
         </Field>
         <Field label="Телефон" htmlFor="phone">

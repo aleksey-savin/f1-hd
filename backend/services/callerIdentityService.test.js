@@ -2,6 +2,7 @@
 require("module-alias/register");
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const vm = require("node:vm");
 
 const {
   extractCallerPhones,
@@ -10,6 +11,7 @@ const {
   findUsersByPhone,
   findApplicantByPhone,
   findCompanyByPhone,
+  extractEmail,
 } = require("./callerIdentityService");
 
 test("the «Кто звонил» number is the only candidate when present", () => {
@@ -264,4 +266,64 @@ test("lookups ignore values that are not a full number", async () => {
   assert.equal(await findCompanyByPhone(""), null);
   assert.equal(await findCompanyByPhone("+7"), null);
   assert.equal(await findCompanyByPhone("abc"), null);
+});
+
+test("extractEmail reads the whole address, not a prefix of a longer one", () => {
+  // Законный вид строки отправителя: с именем, голый, с «+» в локальной части
+  assert.equal(extractEmail("Иван <calls@mango.ru>"), "calls@mango.ru");
+  assert.equal(extractEmail("calls@mango.ru"), "calls@mango.ru");
+  assert.equal(extractEmail("ivan+tag@corp.ru"), "ivan+tag@corp.ru");
+  // Домен, которому запись DMARC не нужна вовсе, не должен сойти за настоящий:
+  // иначе письмо с «calls@mango.ru.1» прошло бы за аккаунт телефонии
+  assert.equal(extractEmail("calls@mango.ru.1"), "");
+  assert.equal(extractEmail("boss@client.ru_evil.com"), "");
+  assert.equal(extractEmail("boss@client.ru."), "");
+});
+
+test("extractCallerPhones: тег в HTML-теле заменяется пробелом, а не пустотой", () => {
+  // «Кто<b>звонил</b>» читается как «Кто звонил»: метка найдена, номера при ней
+  // нет — звонящий скрыт, и номер линии из темы кандидатом не становится. Замени
+  // тег пустотой, метка слиплась бы («Ктозвонил»), и ответом стал бы номер из темы
+  assert.deepEqual(
+    extractCallerPhones({
+      name: "Входящий звонок 8 (423) 222-29-99",
+      htmlDescription: "<p>Кто<b>звонил</b>: Аноним</p>",
+    }),
+    [],
+  );
+});
+
+const HANG_MS = 3000;
+
+// { timeout } у node:test синхронный код не прерывает, а прежняя регулярка `<[^>]+>`
+// на мегабайте «<» думала минуты (квадратично). vm-таймаут V8 прерывает и её:
+// регресс роняет тест за HANG_MS, а не вешает прогон.
+// Время меряем процессорное (process.cpuUsage), а не стенными часами: под нагрузкой
+// процесс вытесняют, и стенные часы давали ложные падения. vm-таймаут остаётся по
+// стенным часам — это страховка от зависания, а не измерение.
+const timed = (label, run) => {
+  let ms = 0;
+  const measure = () => {
+    const cpuBefore = process.cpuUsage();
+    run();
+    const cpu = process.cpuUsage(cpuBefore);
+    ms = (cpu.user + cpu.system) / 1000;
+  };
+  try {
+    vm.runInNewContext("measure()", { measure }, { timeout: HANG_MS });
+  } catch (error) {
+    if (error?.code !== "ERR_SCRIPT_EXECUTION_TIMEOUT") throw error;
+    assert.fail(`${label}: не уложился в ${HANG_MS} мс — разбор перестал быть линейным`);
+  }
+  return ms;
+};
+
+test("extractCallerPhones: мегабайт «<» в HTML-теле разбирается за линейное время", { timeout: 5000 }, () => {
+  const htmlDescription = "<".repeat(1024 * 1024);
+  let phones;
+  const ms = timed("мегабайт «<»", () => {
+    phones = extractCallerPhones({ htmlDescription });
+  });
+  assert.deepEqual(phones, []);
+  assert.ok(ms < 200, `мегабайт «<»: ${ms.toFixed(1)} мс`);
 });

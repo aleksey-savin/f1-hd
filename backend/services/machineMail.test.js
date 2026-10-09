@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { simpleParser } = require("mailparser");
 
 const { isMachineMail } = require("./machineMail");
 
@@ -46,12 +47,30 @@ test("рассылки и автоматика по Precedence", () => {
   assert.equal(isMachineMail(mail({ precedence: "normal" })), false);
 });
 
-test("письмо из списка рассылки", () => {
-  assert.equal(isMachineMail(mail({ "list-id": "<news.example.com>" })), true);
+test("письмо из списка рассылки — в том виде, в каком его отдаёт mailparser", async () => {
+  // mailparser складывает List-* в один ключ `list`: отдельных «list-id» и
+  // «list-unsubscribe» в разобранном письме не бывает
+  const listId = await simpleParser(
+    "From: news@example.com\r\nList-Id: Новости <news.example.com>\r\nSubject: x\r\n\r\nтекст\r\n",
+  );
+  assert.equal(isMachineMail(listId), true);
+  const unsubscribe = await simpleParser(
+    "From: news@example.com\r\nList-Unsubscribe: <mailto:off@example.com>, <https://example.com/off>\r\nSubject: x\r\n\r\nтекст\r\n",
+  );
+  assert.equal(isMachineMail(unsubscribe), true);
+  assert.equal(isMachineMail(mail({ list: { id: { id: "news.example.com" } } })), true);
   assert.equal(
-    isMachineMail(mail({ "list-unsubscribe": "<mailto:off@example.com>" })),
+    isMachineMail(mail({ list: { unsubscribe: { mail: "off@example.com" } } })),
     true,
   );
+});
+
+test("прочие List-* и живой ответ роботом не делают", async () => {
+  assert.equal(isMachineMail(mail({ list: { help: { mail: "help@example.com" } } })), false);
+  const human = await simpleParser(
+    "From: olga@clinic.ru\r\nSubject: Re: [F1-HD-57056] x\r\n\r\nСпасибо\r\n",
+  );
+  assert.equal(isMachineMail(human), false);
 });
 
 test("отбойник о недоставке: пустой конверт", () => {
@@ -63,4 +82,14 @@ test("письма без заголовков переживают провер
   assert.equal(isMachineMail(null), false);
   assert.equal(isMachineMail({}), false);
   assert.equal(isMachineMail({ headers: {} }), false);
+});
+
+test("List-Post, Help, Archive, Subscribe, Owner без Id и Unsubscribe — не рассылка", async () => {
+  const mail = await simpleParser(
+    "From: a@example.com\r\nList-Post: <mailto:list@example.com>\r\nList-Help: <mailto:h@example.com>\r\nList-Archive: <https://example.com/a>\r\nList-Subscribe: <mailto:s@example.com>\r\nList-Owner: <mailto:o@example.com>\r\nSubject: x\r\n\r\nt\r\n",
+  );
+  assert.equal(isMachineMail(mail), false);
+  // пустой List-Id mailparser выбрасывает целиком — ключа list нет
+  const empty = await simpleParser("From: a@example.com\r\nList-Id:\r\nSubject: x\r\n\r\nt\r\n");
+  assert.equal(isMachineMail(empty), false);
 });

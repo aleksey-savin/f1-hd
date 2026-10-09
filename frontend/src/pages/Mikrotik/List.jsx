@@ -21,7 +21,9 @@ import SelectionBar from "@/components/app/SelectionBar";
 import BulkActionBar from "@/components/app/BulkActionBar";
 
 import DeviceFilter, {
+  BACKUP_OPTIONS,
   FIRMWARE_OPTIONS,
+  LICENSE_OPTIONS,
   STATUS_OPTIONS,
 } from "../../components/Mikrotik/DeviceFilter";
 import DeviceRow from "../../components/Mikrotik/DeviceRow";
@@ -249,6 +251,30 @@ const MikrotikDevices = () => {
               facets.firmware,
             ).toLowerCase()}`,
             onRemove: () => setFacet("firmware", null),
+          },
+        ]
+      : []),
+    ...(facets.license
+      ? [
+          {
+            key: "license",
+            label: `Лицензия: ${optionLabel(
+              LICENSE_OPTIONS,
+              facets.license,
+            ).toLowerCase()}`,
+            onRemove: () => setFacet("license", null),
+          },
+        ]
+      : []),
+    ...(facets.backup
+      ? [
+          {
+            key: "backup",
+            label: `Копии: ${optionLabel(
+              BACKUP_OPTIONS,
+              facets.backup,
+            ).toLowerCase()}`,
+            onRemove: () => setFacet("backup", null),
           },
         ]
       : []),

@@ -1,5 +1,10 @@
 import { create } from "zustand";
 
+import {
+  backupFacetValue,
+  licenseFacetValue,
+} from "../../components/Mikrotik/health-flags.js";
+
 const API = `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices`;
 
 // Статус строки с учётом рубильника мониторинга: выключенный мониторинг — своя
@@ -41,7 +46,9 @@ const searchItems = (query, items) => {
 // firmware: vulnerable (CVE ≥ порога) | outdated (есть обновление) | current;
 // branch — чип полосы RouterOS: ключ ветки (7.stable, 6.long-term…), сужает
 // список до устройств ветки, отстающих от её последней версии; access —
-// сегмент «Права HD» у чипа компаний: read | write | noWrite (row.access).
+// сегмент «Права HD» у чипа компаний: read | write | noWrite (row.access);
+// license: problem | ok, backup: missing | failed | ok — значения считает
+// components/Mikrotik/health-flags.js, те же, что рисуют флаги строки.
 const EMPTY_FACETS = {
   status: null,
   companies: [],
@@ -49,6 +56,8 @@ const EMPTY_FACETS = {
   firmware: null,
   branch: null,
   access: null,
+  license: null,
+  backup: null,
 };
 
 const matchesFacets = (item, facets) => {
@@ -67,6 +76,12 @@ const matchesFacets = (item, facets) => {
   }
   if (facets.type && item.type !== facets.type) return false;
   if (facets.access && item.access !== facets.access) return false;
+  if (facets.license && licenseFacetValue(item.license) !== facets.license) {
+    return false;
+  }
+  if (facets.backup && backupFacetValue(item.backup) !== facets.backup) {
+    return false;
+  }
   if (facets.firmware) {
     const firmware = item.firmwareStatus;
     if (facets.firmware === "vulnerable" && !firmware?.vulnerable) return false;
@@ -132,8 +147,7 @@ export const accessCounts = (state) => {
   return counts;
 };
 
-const authHeaders = () => ({
-});
+const authHeaders = () => ({});
 
 const jsonHeaders = () => ({
   "Content-Type": "application/json",

@@ -6,8 +6,9 @@ const mongoose = require("mongoose");
 const path = require("path");
 
 const logger = require("./utils/logger");
+const { redactUrl } = require("./helpers/redactUrl");
 const storage = require("./services/storage");
-const { AppError, errorResponse } = require("./middleware/errorHandling");
+const { errorResponse } = require("./middleware/errorHandling");
 const {
   performanceMonitor,
   requestIdMiddleware,
@@ -20,6 +21,7 @@ const { checkRoutineTasks } = require("./middleware/routineTasks");
 const { internal, external, public } = require("./routes/index");
 
 const { initAuth, authRequestHandler } = require("./auth/bootstrap");
+const { authPathAllowList } = require("./middleware/authPathAllowList");
 
 // Сколько обратных прокси стоит перед бэкендом. ЧИСЛО, не `true`:
 // express-rate-limit@7 при `true` бросает ERR_ERL_PERMISSIVE_TRUST_PROXY и
@@ -108,14 +110,19 @@ app.use(compressionMiddleware);
 
 // better-auth ЧИТАЕТ СЫРОЕ ТЕЛО — регистрируется строго ДО express.json(),
 // иначе тот его съест и запросы к /api/auth/* будут висеть до таймаута без
-// внятной ошибки. Проверка после правок: POST на /api/auth/sign-in/email с
-// заведомо неверным паролем должен отвечать 401 быстрее секунды.
+// внятной ошибки. Проверка после правок: POST на /api/auth/reset-password с
+// телом `{}` должен отвечать 400 быстрее секунды.
 // Express 5 требует именованный splat: "*" больше не валидный шаблон.
-app.all("/api/auth/*splat", authRequestHandler);
+//
+// Снаружи открыты только ручки из списка (middleware/authPathAllowList.js):
+// остальное — `/admin/*`, `/organization/*`, вход паролем мимо `/api/login` —
+// отвечает 404. Серверные вызовы `auth.api.*` через роутер не идут.
+app.all("/api/auth/*splat", authPathAllowList, authRequestHandler);
 
-// Body parsing with size limits
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+// Разбор тела — с лимитом по классу маршрута: анонимные ручки 100 КБ,
+// редакторы с картинками 50 МБ, остальное 10 МБ (middleware/bodyParsers.js).
+// Строго ПОСЛЕ better-auth выше: тот читает сырое тело сам.
+require("./middleware/bodyParsers").mountBodyParsers(app);
 
 mongoose.set("strictQuery", false);
 
@@ -153,7 +160,7 @@ app.get("/uploads/:name", async (req, res) => {
       { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
       (error) => {
         if (error && !res.headersSent) {
-          logger.warn(`File not found: ${req.originalUrl}`);
+          logger.warn(`File not found: ${redactUrl(req.originalUrl)}`);
           res.status(404).json({
             error: "File not found",
             message: "The requested file does not exist",
@@ -167,7 +174,7 @@ app.get("/uploads/:name", async (req, res) => {
     return res.redirect(302, await storage.presignGetUrl(name));
   } catch (error) {
     logger.warn(
-      `Failed to resolve upload ${req.originalUrl}: ${error.message}`,
+      `Failed to resolve upload ${redactUrl(req.originalUrl)}: ${error.message}`,
     );
     return res.status(404).json({
       error: "File not found",
@@ -177,6 +184,15 @@ app.get("/uploads/:name", async (req, res) => {
 });
 
 app.use(require("./middleware/cors"));
+
+// Ключи-операторы Mongo (`$…`, с точкой) в теле внешнего API и ручек без
+// сеанса — сразу 400 (middleware/rejectOperatorKeys.js). Стоит после разбора
+// тела; глобально — после ревизии остальных маршрутов (W5).
+const {
+  OPERATOR_GUARD_PATHS,
+  rejectOperatorKeys,
+} = require("./middleware/rejectOperatorKeys");
+app.use(OPERATOR_GUARD_PATHS, rejectOperatorKeys);
 
 // API routes with caching for read-only endpoints
 app.use("/api", internal);
@@ -214,79 +230,64 @@ mongoose
     });
   })
   .catch((error) => {
-    throw new AppError("Failed to start server", 500, true, error);
-  });
-
-// check email for new tickets
-let isHandlingEmails = false;
-// Запас: нормальный прогон занимает секунды. Watchdog — последний рубеж на
-// случай, если handleNewEmails повиснет (БД/парсер/будущая ошибка) и не снимет
-// замок. Реальные зависания IMAP закрывает socketTimeout (30с) задолго до этого.
-const EMAIL_RUN_TIMEOUT_MS = 180000;
-cron.schedule("*/20 * * * * *", () => {
-  if (isHandlingEmails) {
-    logger.log(
-      "warn",
-      "Skipping email processing because previous run is still active",
-    );
-    return;
-  }
-
-  isHandlingEmails = true;
-
-  let watchdogTimer;
-  const watchdog = new Promise((_, reject) => {
-    watchdogTimer = setTimeout(
-      () => reject(new Error("handleNewEmails watchdog timeout")),
-      EMAIL_RUN_TIMEOUT_MS,
-    );
-  });
-
-  Promise.race([handleNewEmails(), watchdog])
-    .catch((error) =>
-      logger.log("error", "Email processing run failed or timed out", {
-        error: error.message,
-      }),
-    )
-    .finally(() => {
-      clearTimeout(watchdogTimer);
-      isHandlingEmails = false;
+    // Без базы и better-auth серверу делать нечего: пишем в журнал и выходим с
+    // 1 — Docker перезапустит. Раньше здесь был throw, и процесс ронял
+    // необработанный отказ; теперь unhandledRejection только записывается
+    // (конец файла), и процесс остался бы жить без базы. winston пишет в
+    // stdout не синхронно — даём строке уйти в журнал до выхода.
+    // Выход взводится первым, а отказ необязательно Error: reject(undefined)
+    // или throw null не должны оставить процесс жить без базы и без HTTP.
+    process.exitCode = 1;
+    setTimeout(() => process.exit(1), 500).unref();
+    logger.log("error", "Failed to start server", {
+      error: error?.message ?? String(error),
+      stack: error?.stack,
     });
+  });
+
+// Все крон-задания — через один реестр (services/jobs/guardedCron.js): замок
+// «не больше одного прогона» держится, пока прогон действительно не
+// закончится (сторож только пишет ошибку), без базы тик пропускается, а при
+// остановке реестр гасит расписания и ждёт идущие прогоны (см. shutdown ниже).
+const { createCronRegistry } = require("./services/jobs/guardedCron");
+
+const { isAuthReady } = require("./auth/bootstrap");
+
+const jobs = createCronRegistry({
+  schedule: cron.schedule,
+  log: (...args) => logger.log(...args),
+  // Готовность — база И better-auth: задания трогают права (почта считает
+  // доступ сотрудника к заявке через canAccessTicket), а initAuth кончается
+  // уже после подключения к базе. Тик в этом окне пропускается, как без базы
+  isDbReady: () => mongoose.connection.readyState === 1 && isAuthReady(),
 });
 
+// check email for new tickets
+// Запас: нормальный прогон занимает секунды. Сторож только кричит в журнал —
+// замок держится, пока handleNewEmails не закончится: второй разбор ящика
+// поверх зависшего завёл бы заявки из одних и тех же писем дважды. Реальные
+// зависания IMAP закрывает socketTimeout (30с) задолго до этого.
+const EMAIL_RUN_TIMEOUT_MS = 180000;
+jobs.register(
+  "email intake",
+  "*/20 * * * * *",
+  () => handleNewEmails(),
+  EMAIL_RUN_TIMEOUT_MS,
+);
+
 // create notifications
-let isCreatingNotifications = false;
-cron.schedule("*/10 * * * * *", async () => {
-  if (isCreatingNotifications) {
-    logger.log(
-      "debug",
-      "Skipping notification processing because previous run is still active",
-    );
-    return;
-  }
-
-  if (mongoose.connection.readyState !== 1) {
-    logger.log(
-      "warn",
-      "Skipping notification processing because MongoDB is not connected",
-      {
-        readyState: mongoose.connection.readyState,
-      },
-    );
-    return;
-  }
-
-  isCreatingNotifications = true;
-
-  try {
-    // Гейта по почте/Telegram больше нет: канал «в приложении» есть всегда, а
-    // свои рубильники почта и Telegram проверяют внутри заданий
-    const notificationJobs = [
-      ["ticket notifications", createTicketNotifications],
-      ["comment notifications", createCommentNotifications],
-      ["scheduled work notifications", createScheduledWorkNotifications],
-    ];
-
+// Гейта по почте/Telegram больше нет: канал «в приложении» есть всегда, а свои
+// рубильники почта и Telegram проверяют внутри заданий. Каждое задание — в
+// своём try: сбой одного не отменяет остальные.
+const notificationJobs = [
+  ["ticket notifications", createTicketNotifications],
+  ["comment notifications", createCommentNotifications],
+  ["scheduled work notifications", createScheduledWorkNotifications],
+];
+jobs.register(
+  "notification creation",
+  "*/10 * * * * *",
+  async () => {
     for (const [jobName, createNotifications] of notificationJobs) {
       try {
         await createNotifications();
@@ -297,10 +298,10 @@ cron.schedule("*/10 * * * * *", async () => {
         });
       }
     }
-  } finally {
-    isCreatingNotifications = false;
-  }
-});
+  },
+  0,
+  { quietSkip: true },
+);
 
 // The three Mikrotik crons used to share `*/5 * * * *` and therefore fired in the
 // same second. That was a correctness bug, not just contention: the alert cron read
@@ -314,62 +315,10 @@ const EVERY_5_MIN = "*/5 * * * *";
 const EVERY_5_MIN_AT_2 = "2,7,12,17,22,27,32,37,42,47,52,57 * * * *";
 const EVERY_5_MIN_AT_4 = "4,9,14,19,24,29,34,39,44,49,54,59 * * * *";
 
-// Guard a cron body with an in-flight lock AND a watchdog. Without the watchdog a
-// single hung run (a stalled DB op, a wedged poll) would hold the lock forever: the
-// health-check would stop updating statuses while the alert cron kept ticketing them
-// from the frozen `status: "offline"`.
-//
-// `quietSkip`: a cron that legitimately outlives its own interval (the upgrade
-// worker holds a tick through a 10-minute download) logs the skip at "debug" —
-// otherwise it would warn every other tick for the whole batch.
-const guardedCron = (
-  name,
-  expression,
-  run,
-  timeoutMs,
-  { quietSkip = false } = {},
-) => {
-  let inFlight = false;
-
-  cron.schedule(expression, () => {
-    if (inFlight) {
-      logger.log(
-        quietSkip ? "debug" : "warn",
-        `Skipping ${name}: previous run is still active`,
-      );
-      return;
-    }
-    if (mongoose.connection.readyState !== 1) {
-      return;
-    }
-
-    inFlight = true;
-
-    let watchdogTimer;
-    const watchdog = new Promise((_, reject) => {
-      watchdogTimer = setTimeout(
-        () => reject(new Error(`${name} watchdog timeout`)),
-        timeoutMs,
-      );
-    });
-
-    Promise.race([run(), watchdog])
-      .catch((error) =>
-        logger.log("error", `${name} run failed or timed out`, {
-          error: error.message,
-        }),
-      )
-      .finally(() => {
-        clearTimeout(watchdogTimer);
-        inFlight = false;
-      });
-  });
-};
-
 // Автостатусы присутствия по графику — каждые 5 минут. Таймзона крона здесь
 // НЕ нужна: у каждого сотрудника свой пояс, и «сейчас в смене?» считается
 // внутри прогона по графику, заданному в поясе организации.
-guardedCron(
+jobs.register(
   "work status auto-switch",
   EVERY_5_MIN,
   () => runWorkStatusAuto(),
@@ -382,14 +331,16 @@ guardedCron(
  * там крутился крон. Ценой была удалённая машина с почтовым паролем и ключом
  * его расшифровки.
  *
- * Каждые 20 секунд, как и было. `guardedCron` не даёт прогонам наслаиваться:
- * SMTP отвечает не мгновенно, и на большой пачке следующий тик приходит раньше
- * конца предыдущего — прежний крон бота от этого ничем не был защищён.
+ * Каждые 20 секунд, как и было. Реестр не даёт прогонам наслаиваться, а каждое
+ * письмо ещё и берётся в аренду (services/mail/outbox.js): два прогона не возьмут
+ * одно письмо. Гарантия — at-least-once, не «ровно раз»: письмо, оборванное между
+ * принятием SMTP-сервером и отметкой об исходе (остановка, сбой базы), уйдёт
+ * повторно, когда истечёт аренда.
  */
-guardedCron("mail outbox", "*/20 * * * * *", sendPendingEmails, 110000);
+jobs.register("mail outbox", "*/20 * * * * *", sendPendingEmails, 110000);
 
 // Refresh connectivity status of monitored Mikrotik devices every 5 minutes.
-guardedCron(
+jobs.register(
   "Mikrotik health-check",
   EVERY_5_MIN,
   runMikrotikHealthCheck,
@@ -397,7 +348,7 @@ guardedCron(
 );
 
 // Run due Mikrotik config-export schedules (an export may hold SSH for up to 60s).
-guardedCron(
+jobs.register(
   "Mikrotik scheduler",
   EVERY_5_MIN_AT_2,
   runMikrotikScheduler,
@@ -410,7 +361,7 @@ guardedCron(
 // ticketed. 240s: one re-poll batch can take ~72s worst case (deadline + retry),
 // and tunneled («через устройство») re-polls add an SSH handshake per attempt —
 // the old 120s bound was already brushable at two batches.
-guardedCron(
+jobs.register(
   "Mikrotik offline-alert",
   EVERY_5_MIN_AT_4,
   runMikrotikOfflineAlerts,
@@ -421,7 +372,7 @@ guardedCron(
 // (docs/mikrotik-management.md, «Firmware upgrades»). A step may hold a package
 // download for up to 10 minutes; the in-flight lock keeps ticks from stacking,
 // and those skips are expected — hence quietSkip.
-guardedCron(
+jobs.register(
   "Mikrotik upgrade worker",
   "*/20 * * * * *",
   () => runUpgradeTick(),
@@ -431,8 +382,8 @@ guardedCron(
 
 // Кэш релизов RouterOS + CVE из NVD + авто-заявка «уязвимая прошивка». Суточного
 // прогона достаточно (релизы выходят реже раза в неделю, лимит NVD — 5 req/30s);
-// UTC, как и остальные guardedCron; минута 23 — вне решётки */5 микротик-кронов.
-guardedCron(
+// UTC, как и остальные задания без пояса; минута 23 — вне решётки */5 микротик-кронов.
+jobs.register(
   "Mikrotik firmware refresh",
   "23 3 * * *",
   runMikrotikFirmwareRefresh,
@@ -440,35 +391,20 @@ guardedCron(
 );
 
 // Knowledge base: scan notes for exposed secrets every hour
-let isScanningSecrets = false;
-cron.schedule("0 * * * *", async () => {
-  if (isScanningSecrets) {
-    return;
-  }
-
-  if (mongoose.connection.readyState !== 1) {
-    return;
-  }
-
-  isScanningSecrets = true;
-
-  try {
-    await runSecretsScan();
-  } catch (error) {
-    logger.log("error", "Knowledge base secrets scan run failed", {
-      error: error.message,
-    });
-  } finally {
-    isScanningSecrets = false;
-  }
-});
+jobs.register(
+  "Knowledge base secrets scan",
+  "0 * * * *",
+  () => runSecretsScan(),
+  0,
+  { quietSkip: true },
+);
 
 // Отключения с вышедшим сроком — снимаем раз в минуту. Гейты доступа считают
 // срок сами (`isBanned`), а этот прогон приводит в порядок ДОКУМЕНТ: списки,
 // рассылка и табло фильтруют по `banned` и про срок не знают. Плагин `admin`
 // снял бы флаг при входе, но до его хука наши гейты не доходят, а клиенты
 // входят редко — письма при этом идут им постоянно (см. services/authBan).
-guardedCron(
+jobs.register(
   "expired bans lift",
   "* * * * *",
   async () => {
@@ -482,7 +418,7 @@ guardedCron(
 
 // «Диалоги»: ответы, застрявшие между комментарием, сообщением и заданием
 // шлюзу (services/messaging/outbound.js#repairOutbound)
-guardedCron(
+jobs.register(
   "messagingRepair",
   "* * * * *",
   () => require("@/services/messaging/outbound").repairOutbound(),
@@ -494,173 +430,108 @@ guardedCron(
 // восточных поясов. Таймзона читается из настроек один раз при старте
 // (Preferences.findOne буферизуется mongoose до подключения к БД); смена зоны
 // в настройках подхватится после рестарта — как у задач checkRoutineTasks.
-const registerMaintenanceCrons = async () => {
-  let timezone = DEFAULT_TIMEZONE;
-  try {
-    const prefs = await Preferences.findOne({});
-    if (prefs?.timezone) {
-      timezone = prefs.timezone;
+// fixedTimezone — пояс «как есть», настройки тогда не читаются: так регистрацию
+// повторяют после отказа node-cron (см. вызов ниже).
+const registerMaintenanceCrons = async (fixedTimezone) => {
+  let timezone = fixedTimezone ?? DEFAULT_TIMEZONE;
+  if (fixedTimezone === undefined) {
+    try {
+      const prefs = await Preferences.findOne({});
+      if (prefs?.timezone) {
+        timezone = prefs.timezone;
+      }
+    } catch (error) {
+      logger.log("error", "Failed to read timezone for maintenance crons", {
+        error: error.message,
+      });
     }
-  } catch (error) {
-    logger.log("error", "Failed to read timezone for maintenance crons", {
-      error: error.message,
-    });
   }
 
+  const nightly = { timezone, quietSkip: true };
+
   // Cleanup old company logs every day at 2:00 AM
-  cron.schedule(
+  jobs.register(
+    "company logs cleanup",
     "0 2 * * *",
-    () => {
-      scheduleLogsCleanup();
-    },
-    { timezone },
+    () => scheduleLogsCleanup(),
+    0,
+    nightly,
   );
 
   // Статусы присутствия: ночной сброс, кроме долгих (отпуск/болею) — daily 2:30
-  let isResettingWorkStatuses = false;
-  cron.schedule(
+  jobs.register(
+    "work status nightly reset",
     "30 2 * * *",
-    async () => {
-      if (isResettingWorkStatuses) {
-        return;
-      }
-
-      if (mongoose.connection.readyState !== 1) {
-        return;
-      }
-
-      isResettingWorkStatuses = true;
-
-      try {
-        await runWorkStatusReset();
-      } catch (error) {
-        logger.log("error", "Work status nightly reset failed", {
-          error: error.message,
-        });
-      } finally {
-        isResettingWorkStatuses = false;
-      }
-    },
-    { timezone },
+    () => runWorkStatusReset(),
+    0,
+    nightly,
   );
 
   // Knowledge base: revert approvals whose approval period has expired (daily 3:00)
-  let isExpiringApprovals = false;
-  cron.schedule(
+  jobs.register(
+    "knowledge approval expiry",
     "0 3 * * *",
-    async () => {
-      if (isExpiringApprovals) {
-        return;
-      }
-
-      if (mongoose.connection.readyState !== 1) {
-        return;
-      }
-
-      isExpiringApprovals = true;
-
-      try {
-        await runKnowledgeApprovalExpiry();
-      } catch (error) {
-        logger.log("error", "Knowledge approval expiry run failed", {
-          error: error.message,
-        });
-      } finally {
-        isExpiringApprovals = false;
-      }
-    },
-    { timezone },
+    () => runKnowledgeApprovalExpiry(),
+    0,
+    nightly,
   );
 
   // Согласование отчётов: напоминание за сутки до срока и автоподпись после
   // него (daily 4:15 — после ночных пересчётов, до начала рабочего дня)
-  let isAutoApprovingReports = false;
-  cron.schedule(
+  jobs.register(
+    "report auto-approval",
     "15 4 * * *",
-    async () => {
-      if (isAutoApprovingReports) {
-        return;
-      }
-
-      if (mongoose.connection.readyState !== 1) {
-        return;
-      }
-
-      isAutoApprovingReports = true;
-
-      try {
-        await runReportAutoApproval();
-      } catch (error) {
-        logger.log("error", "Report auto-approval run failed", {
-          error: error.message,
-        });
-      } finally {
-        isAutoApprovingReports = false;
-      }
-    },
-    { timezone },
+    () => runReportAutoApproval(),
+    0,
+    nightly,
   );
 
   // Knowledge base: parse service-renewal tables daily (3:30)
-  let isScanningServices = false;
-  cron.schedule(
+  jobs.register(
+    "knowledge base service-expiry scan",
     "30 3 * * *",
-    async () => {
-      if (isScanningServices) {
-        return;
-      }
-
-      if (mongoose.connection.readyState !== 1) {
-        return;
-      }
-
-      isScanningServices = true;
-
-      try {
-        await runServiceExpiryScan();
-      } catch (error) {
-        logger.log("error", "Knowledge base service-expiry scan run failed", {
-          error: error.message,
-        });
-      } finally {
-        isScanningServices = false;
-      }
-    },
-    { timezone },
+    () => runServiceExpiryScan(),
+    0,
+    nightly,
   );
 
   // Производственный календарь: догрузить текущий и следующий год (3:45).
   // Следующий год публикуется осенью — до этого его 404 штатный и в lastError
   // не пишется (см. syncCalendar).
-  let isSyncingCalendar = false;
-  cron.schedule(
+  jobs.register(
+    "production calendar sync",
     "45 3 * * *",
-    async () => {
-      if (isSyncingCalendar) {
-        return;
-      }
-
-      if (mongoose.connection.readyState !== 1) {
-        return;
-      }
-
-      isSyncingCalendar = true;
-
-      try {
-        await syncProductionCalendar();
-      } catch (error) {
-        logger.log("error", "Production calendar sync failed", {
-          error: error.message,
-        });
-      } finally {
-        isSyncingCalendar = false;
-      }
-    },
-    { timezone },
+    () => syncProductionCalendar(),
+    0,
+    nightly,
   );
 };
 
-registerMaintenanceCrons();
+// Пояс из настроек node-cron мог не принять: в API это свободный текст
+// (validations/preferences.js проверяет только длину), а node-cron сверяет зону
+// прямо в schedule() и бросает RangeError. Без повтора шесть ночных заданий молча
+// пропали бы до рестарта — unhandledRejection только пишет в журнал. Зона
+// проверяется на первой же регистрации, поэтому после отказа ни одно ночное
+// задание ещё не стоит и повтор их не задвоит. Повтор — в поясе по умолчанию.
+registerMaintenanceCrons()
+  .catch((error) => {
+    logger.log(
+      "error",
+      "Failed to register maintenance crons, retrying with the default timezone",
+      {
+        timezone: DEFAULT_TIMEZONE,
+        error: error?.message ?? String(error),
+      },
+    );
+    return registerMaintenanceCrons(DEFAULT_TIMEZONE);
+  })
+  .catch((error) => {
+    logger.log(
+      "error",
+      "Failed to register maintenance crons with the default timezone",
+      { error: error?.message ?? String(error) },
+    );
+  });
 
 // Initialize monitoring first
 setTimeout(() => {
@@ -673,22 +544,82 @@ setTimeout(() => {
   runMikrotikFirmwareRefreshIfStale();
 }, 30000);
 
-// Мягкая остановка: `docker stop` шлёт SIGTERM и через 10 с добивает SIGKILL.
-// Перестаём принимать соединения, даём текущим ответам завершиться, закрываем
-// Mongo — и выходим ЯВНО: таймеры node-cron иначе держат процесс живым до
-// SIGKILL. Будильник на выход ставится первым, чтобы зависший запрос не
-// превратил остановку в ожидание.
-const shutdown = (signal) => {
+// Мягкая остановка. `docker stop` шлёт SIGTERM и ждёт stop_grace_period (60 с,
+// compose.yml), потом SIGKILL. Порядок: расписания гасятся — новых прогонов нет;
+// идущие дорабатывают до 50 с (письмо, взятое в аренду, должно уйти, а заявка
+// из письма — дописаться); затем закрываем HTTP-сервер и Mongo — и выходим
+// ЯВНО: таймеры иначе держат процесс живым до SIGKILL. Будильник на выход
+// ставится первым и срабатывает до SIGKILL, чтобы зависший прогон или запрос
+// не превратил остановку в убийство.
+const SHUTDOWN_DRAIN_MS = 50 * 1000;
+const SHUTDOWN_HARD_EXIT_MS = 58 * 1000;
+
+let shuttingDown = false;
+let repeatedSignalLogged = false;
+const shutdown = async (signal) => {
+  if (shuttingDown) {
+    // Повторный сигнал (нетерпеливое второе `docker stop`) остановку не рвёт:
+    // пишем один раз и игнорируем. Жёсткий предел остановки — будильник ниже и
+    // SIGKILL от Docker после stop_grace_period.
+    if (!repeatedSignalLogged) {
+      repeatedSignalLogged = true;
+      logger.log("warn", `${signal} received again, shutdown is already in progress`);
+    }
+    return;
+  }
+  shuttingDown = true;
+  setTimeout(() => process.exit(1), SHUTDOWN_HARD_EXIT_MS).unref();
   logger.log("info", `${signal} received, shutting down`);
-  setTimeout(() => process.exit(1), 10000).unref();
-  const closeServer = server
-    ? new Promise((resolve) => server.close(resolve))
-    : Promise.resolve();
-  closeServer
-    .then(() => mongoose.disconnect())
-    .catch(() => {})
-    .finally(() => process.exit(0));
+
+  jobs.stopAll();
+  // Регламенты (middleware/taskManager.js) живут в node-cron напрямую, мимо
+  // реестра: гасим и их. Их прогон — одна заявка, его не ждём.
+  for (const task of cron.getTasks().values()) {
+    task.stop();
+  }
+
+  const pending = await jobs.drain(SHUTDOWN_DRAIN_MS);
+  if (pending.length) {
+    logger.log("warn", "Shutdown: jobs still running after the drain window", {
+      pending,
+    });
+  }
+
+  try {
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
+    await mongoose.disconnect();
+  } catch (error) {
+    logger.log("warn", "Shutdown: failed to close cleanly", {
+      error: error.message,
+    });
+  }
+  process.exit(0);
 };
 
-process.once("SIGTERM", () => shutdown("SIGTERM"));
-process.once("SIGINT", () => shutdown("SIGINT"));
+// process.on, а не once: после once повторный сигнал возвращает Node действие по
+// умолчанию — процесс умирает на месте, без drain и без строки в журнале
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+// Промис без обработчика — ошибка в коде, но не повод ронять процесс: на нём
+// кроны и запросы остальных пользователей. Пишем в журнал и живём дальше.
+process.on("unhandledRejection", (reason) => {
+  logger.log("error", "Unhandled promise rejection", {
+    error: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+
+// Синхронное исключение мимо всех try — состояние процесса неизвестно. Пишем в
+// журнал и выходим с 1: Docker (restart: unless-stopped) поднимет чистый процесс.
+process.on("uncaughtException", (error) => {
+  logger.log("error", "Uncaught exception, exiting", {
+    error: error?.message,
+    stack: error?.stack,
+  });
+  // winston пишет в stdout не синхронно — даём строке уйти в журнал до выхода
+  process.exitCode = 1;
+  setTimeout(() => process.exit(1), 500).unref();
+});

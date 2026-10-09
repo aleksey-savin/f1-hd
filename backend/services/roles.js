@@ -4,17 +4,26 @@ const { AppError } = require("@/middleware/errorHandling");
 const {
   STATEMENT,
   ACTION_LABELS,
+  ALL_ACTIONS,
   actionsToStatements,
   statementsToActions,
   isFullAccess,
   audienceOfAction,
   accountAudienceOf,
+  stripStatementsForAudience,
 } = require("@/auth/access");
 const {
   organizationId,
   invalidateRoles,
   listRoles,
 } = require("@/services/permissions");
+const {
+  fullAccessHolderCount,
+  orphanedStaffActions,
+  withRoles,
+  withRoleStatements,
+  withoutRole,
+} = require("@/services/permissionHolders");
 
 /**
  * Каталог ролей: чтение и правка.
@@ -164,6 +173,34 @@ const hasLockedActions = (statements, can) =>
 const actionTitles = (ids) =>
   ids.map((id) => `«${ACTION_LABELS[id]?.label || id}»`).join(", ");
 
+/** Место действия в словаре (auth/access.js) — порядок, в котором права видит человек. */
+const DICTIONARY_ORDER = new Map(ALL_ACTIONS.map((id, index) => [id, index]));
+
+/** Сколько прав отказ называет по имени; остальные — числом. */
+const TITLES_SHOWN = 5;
+
+/**
+ * Отказ проверки носителей (`assertNoOrphanedStaffActions`): какие права не
+ * останутся ни у кого. Подписи — те же `actionTitles`, что у отказов каталога,
+ * в порядке словаря, как в форме роли. Отказ на снятие целой роли перечислил
+ * бы её права целиком — десятки подписей, поэтому по имени только первые
+ * пять, остальные числом.
+ */
+const orphanMessage = (ids) => {
+  const ordered = [...ids].sort(
+    (a, b) =>
+      (DICTIONARY_ORDER.get(a) ?? Infinity) -
+      (DICTIONARY_ORDER.get(b) ?? Infinity),
+  );
+  const rest = ordered.length - TITLES_SHOWN;
+  const titles = `${actionTitles(ordered.slice(0, TITLES_SHOWN))}${
+    rest > 0 ? ` и ещё ${rest}` : ""
+  }`;
+  return ids.length === 1
+    ? `После этого ни у кого не останется права ${titles}. Сначала выдайте его другому сотруднику.`
+    : `После этого ни у кого не останутся права ${titles}. Сначала выдайте их другим сотрудникам.`;
+};
+
 /**
  * Права, без которых установка становится неуправляемой: раздавать доступ
  * станет некому, и починить это можно будет только руками в базе.
@@ -299,6 +336,174 @@ const otherFullAccessHolders = async (orgId, userId, fullKeys) => {
     banned: { $ne: true },
     isServiceAccount: { $ne: true },
   });
+};
+
+/**
+ * Отказ «последний носитель полного доступа» — один на оба порога:
+ * `assertNotLastFullAccessHolder` (смена ролей человека) и проверку носителей
+ * (`holderLossRefusal`: отключение, удаление, смена типа, компании и ролей).
+ */
+const LAST_FULL_ACCESS_HOLDER =
+  "Это последний человек с полным доступом — снять его нельзя: вернуть полный доступ будет некому. Сначала выдайте роль администратора кому-то ещё";
+
+/**
+ * Снять полный доступ с последнего, у кого он есть, — запереть установку:
+ * см. `losesLastFullAccessHolder`. Считаем только у сотрудника: клиентской
+ * учётной записи роль полного доступа его и не даёт.
+ *
+ * Отдельно от `assign`, потому что форма человека
+ * (controllers/user.js#update) задаёт этот порог РАНЬШЕ проверки носителей:
+ * на снятии роли администратора срабатывают оба, и этот называет беду точнее,
+ * чем список из всех прав роли.
+ *
+ * @param {string} orgId
+ * @param {string|object} userId
+ * @param {string[]} currentKeys — роли человека до правки
+ * @param {string[]} nextKeys — роли после
+ * @param {object} account — документ пользователя, нужен `isEndUser`
+ * @param {object[]} [catalogue] — `listRoles()`, если уже прочитан
+ * @throws {AppError} 409
+ */
+const assertNotLastFullAccessHolder = async (
+  orgId,
+  userId,
+  currentKeys,
+  nextKeys,
+  account,
+  catalogue,
+) => {
+  if (accountAudienceOf(account) !== "staff") return;
+  const fullKeys = new Set(
+    (catalogue ?? (await listRoles()))
+      .filter((role) => role.audience === "staff" && isFullAccess(role.statements))
+      .map((role) => role.key),
+  );
+  // За остальными носителями ходим, только когда полный доступ у человека
+  // есть: назначение зовёт и форма пользователя — на каждое сохранение
+  if (!currentKeys.some((key) => fullKeys.has(key))) return;
+  const others = await otherFullAccessHolders(orgId, userId, fullKeys);
+  if (losesLastFullAccessHolder(currentKeys, nextKeys, fullKeys, others)) {
+    throw new AppError(LAST_FULL_ACCESS_HOLDER, 409);
+  }
+};
+
+/** Поля учётной записи, по которым решается, носитель ли она (services/permissionHolders.js). */
+const HOLDER_PROJECTION = {
+  isEndUser: 1,
+  banned: 1,
+  banExpires: 1,
+  isServiceAccount: 1,
+  "company._id": 1,
+  "company.isActive": 1,
+};
+
+/**
+ * Кто сейчас носит права — состояние для services/permissionHolders.js.
+ *
+ * Каталог с адресатами, все строки членства организации (`role` — ключи через
+ * запятую, `userId` — строкой) и документы их владельцев. Строка членства без
+ * документа пользователя (такие в базе есть, см. `usage`) носителя не даёт.
+ */
+const loadHolderState = async (orgId) => {
+  const roles = await collection()
+    .find(
+      { organizationId: orgId },
+      { projection: { role: 1, permission: 1, audience: 1 } },
+    )
+    .toArray();
+  const catalogue = new Map(
+    roles.map((row) => [
+      row.role,
+      {
+        statements: parseStatements(row.permission),
+        audience: audienceOf(row.audience),
+      },
+    ]),
+  );
+
+  const rows = await members()
+    .find({ organizationId: orgId }, { projection: { userId: 1, role: 1 } })
+    .toArray();
+  const keysOf = new Map();
+  for (const row of rows) {
+    if (!row.userId) continue;
+    const id = String(row.userId);
+    const keys = String(row.role || "")
+      .split(",")
+      .map((key) => key.trim())
+      .filter(Boolean);
+    keysOf.set(id, [...new Set([...(keysOf.get(id) || []), ...keys])]);
+  }
+
+  // Битый `userId` в членстве не должен ронять отключение и удаление людей
+  const ids = [...keysOf.keys()].filter((id) =>
+    mongoose.Types.ObjectId.isValid(id),
+  );
+  const users = ids.length
+    ? await mongoose.connection.db
+        .collection("users")
+        .find(
+          { _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } },
+          { projection: HOLDER_PROJECTION },
+        )
+        .toArray()
+    : [];
+
+  return {
+    catalogue,
+    accounts: users.map((user) => ({
+      id: String(user._id),
+      isEndUser: user.isEndUser,
+      banned: user.banned,
+      banExpires: user.banExpires,
+      isServiceAccount: user.isServiceAccount,
+      companyId: user.company?._id ? String(user.company._id) : null,
+      // Поля нет у сотрудников без компании и у старых снимков — «активна»
+      companyActive: user.company?.isActive !== false,
+      roles: keysOf.get(String(user._id)) || [],
+    })),
+  };
+};
+
+/**
+ * Отказ проверки носителей — или null, если правка ничего не уносит. Чистая
+ * часть `assertNoOrphanedStaffActions`: оба состояния приходят параметрами.
+ *
+ * Сначала ПОЛНЫЙ ДОСТУП: последний действующий его носитель не теряет его,
+ * даже если каждое отдельное право останется у кого-то через другие роли, —
+ * роль администратора выдаст снова только тот, у кого есть она вся
+ * (`assertNotEscalating`), то есть никто. Ровно так установка заперлась
+ * 2026-09-21. Фраза — та же, что у `assertNotLastFullAccessHolder`. Потом —
+ * права поштучно.
+ *
+ * @returns {AppError|null}
+ */
+const holderLossRefusal = (before, after) => {
+  if (fullAccessHolderCount(before) > 0 && fullAccessHolderCount(after) === 0) {
+    return new AppError(LAST_FULL_ACCESS_HOLDER, 409);
+  }
+  const lost = orphanedStaffActions(before, after);
+  return lost.length ? new AppError(orphanMessage(lost), 409) : null;
+};
+
+/**
+ * НИ ОДНО ПРАВО СОТРУДНИКА НЕ ТЕРЯЕТ ПОСЛЕДНЕГО НОСИТЕЛЯ, и полный доступ —
+ * тоже (services/permissionHolders.js, `holderLossRefusal`).
+ *
+ * `transform` — правка состояния, совпадающая с изменением: `withRoles` у
+ * назначения, `withRoleStatements` у правки роли, `withoutRole` у удаления,
+ * `withoutUser`, `asClient`, `withoutCompany` у людей и компаний. Зовётся
+ * ПОСЛЕ прежних порогов — их отказ точнее и выигрывает — и до любой записи.
+ *
+ * @param {string|null} orgId
+ * @param {(state: object) => object} transform
+ * @throws {AppError} 409 — правка оставляет права или полный доступ без
+ *   единого носителя
+ */
+const assertNoOrphanedStaffActions = async (orgId, transform) => {
+  const before = await loadHolderState(orgId);
+  const refusal = holderLossRefusal(before, transform(before));
+  if (refusal) throw refusal;
 };
 
 /**
@@ -486,26 +691,16 @@ const refreshMirrorForUsers = async (orgId, userIds) => {
       .map((item) => item.trim())
       .filter(Boolean);
 
-    const statements = {};
-    for (const key of keys) {
-      for (const [resource, actions] of Object.entries(catalogue.get(key) || {})) {
-        statements[resource] = [
-          ...new Set([...(statements[resource] || []), ...actions]),
-        ];
-      }
-    }
-
-    // Зеркало — только у СОТРУДНИКА: `isAdmin` читают около сотни мест как
-    // «этому можно всё», а клиентская учётная запись правами сотрудника не
-    // действует вовсе (действия чужого адресата вырезаются). Клиент с ролью
-    // полного доступа получал через зеркало заявки всех компаний.
-    const shouldBeAdmin =
-      accountAudienceOf(accounts.get(String(row.userId))) === "staff" &&
-      keys.some((key) => isFullAccess(catalogue.get(key) || {}));
+    // Формула зеркала — одна на пересчёт и миграцию: `mirrorOf`
+    const { isAdmin, role } = mirrorOf(
+      keys,
+      catalogue,
+      accounts.get(String(row.userId)),
+    );
 
     await mongoose.connection.db.collection("users").updateOne(
       { _id: new mongoose.Types.ObjectId(String(row.userId)) },
-      { $set: { isAdmin: shouldBeAdmin, role: pluginRole(statements) } },
+      { $set: { isAdmin, role } },
     );
   }
 
@@ -601,6 +796,16 @@ const update = async (key, { title, description, actions, audience }, can) => {
       staffSideOf(before, role.audience),
       staffSideOf(after, set.audience ?? role.audience),
     );
+    // Порог хранителей сторожит каталог, а этот — людей: урезанная или
+    // отданная клиентам роль не должна унести право у последнего носителя
+    await assertNoOrphanedStaffActions(orgId, (state) =>
+      withRoleStatements(
+        state,
+        key,
+        after,
+        audienceOf(set.audience ?? role.audience),
+      ),
+    );
   }
 
   await collection().updateOne({ _id: role._id }, { $set: set });
@@ -645,6 +850,10 @@ const remove = async (key, can) => {
     staffSideOf(statements, role.audience),
     {},
   );
+
+  // Удаление снимает роль со всех носителей — право, которое было только у
+  // них, уходит вместе с ней. До любой записи.
+  await assertNoOrphanedStaffActions(orgId, (state) => withoutRole(state, key));
 
   const affected = await usage(orgId, key);
 
@@ -789,25 +998,24 @@ const assign = async (userId, keys, can) => {
   }
 
   // Снять полный доступ с последнего, у кого он есть, — запереть установку:
-  // см. `losesLastFullAccessHolder`. Считаем только у сотрудника: клиентской
-  // учётной записи роль полного доступа его и не даёт.
-  if (accountAudienceOf(account) === "staff") {
-    const fullKeys = new Set(
-      catalogue
-        .filter((role) => role.audience === "staff" && isFullAccess(role.statements))
-        .map((role) => role.key),
+  // см. `assertNotLastFullAccessHolder`. Каталог уже прочитан — передаём.
+  await assertNotLastFullAccessHolder(
+    orgId,
+    userId,
+    [...current],
+    keys,
+    account,
+    catalogue,
+  );
+
+  // Снятая роль могла быть у последнего носителя какого-то права — см.
+  // `assertNoOrphanedStaffActions`. Только когда набор СУЖАЕТСЯ: назначение
+  // зовёт форма пользователя на каждое сохранение, а добавленная роль ничьих
+  // прав не отнимает.
+  if ([...current].some((key) => !keys.includes(key))) {
+    await assertNoOrphanedStaffActions(orgId, (state) =>
+      withRoles(state, String(userId), keys),
     );
-    // За остальными носителями ходим, только когда полный доступ у человека
-    // есть: назначение зовёт и форма пользователя — на каждое сохранение
-    if ([...current].some((key) => fullKeys.has(key))) {
-      const others = await otherFullAccessHolders(orgId, userId, fullKeys);
-      if (losesLastFullAccessHolder([...current], keys, fullKeys, others)) {
-        throw new AppError(
-          "Это последний человек с полным доступом — снять его нельзя: вернуть полный доступ будет некому. Сначала выдайте роль администратора кому-то ещё",
-          409,
-        );
-      }
-    }
   }
 
   await ensureMember(userId);
@@ -844,7 +1052,12 @@ const assign = async (userId, keys, can) => {
     .collection("users")
     .updateOne(
       { _id: new mongoose.Types.ObjectId(String(userId)) },
-      { $set: { isAdmin: shouldBeAdmin, role: pluginRole(statements) } },
+      {
+        $set: {
+          isAdmin: shouldBeAdmin,
+          role: pluginRole(statements, accountAudienceOf(account)),
+        },
+      },
     );
 
   return {
@@ -864,9 +1077,109 @@ const assign = async (userId, keys, can) => {
  *
  * Отсюда `impersonator` вместо `admin`: штатная роль плагина открыла бы заодно
  * смену чужих паролей и заведение пользователей мимо наших правил.
+ *
+ * Считается по набору, УСЕЧЁННОМУ по адресату учётной записи, — тем же
+ * `stripStatementsForAudience`, что и её права (services/permissions.js). Без
+ * усечения клиентская учётная запись с ролью, где оказалось «Входить под
+ * пользователем», получала `impersonator`: наше право у неё не действует, а
+ * роль плагина действовала бы. Адресат не передан — остаются только действия
+ * `both`, и роль выходит «user».
+ *
+ * @param {object} statements — объединённый набор ролей человека
+ * @param {"staff"|"client"} audience — `accountAudienceOf(user)`
+ * @returns {"user"|"impersonator"}
  */
-const pluginRole = (statements) =>
-  statements?.user?.includes("impersonate") ? "impersonator" : "user";
+const pluginRole = (statements, audience) =>
+  stripStatementsForAudience(statements, audience).user?.includes("impersonate")
+    ? "impersonator"
+    : "user";
+
+/**
+ * Зеркало ролей в документе пользователя: `isAdmin` и роль плагина.
+ *
+ * Одна формула для `refreshMirrorForUsers` и миграции
+ * `scripts/recomputePluginRoles.js`, которая сверяет по ней до записи и берёт
+ * из неё только `role`: `isAdmin` она не пишет (`assign` считает то же по
+ * объектам каталога).
+ *
+ * `isAdmin` — только у СОТРУДНИКА: его читают около сотни мест как «этому
+ * можно всё», а клиентская учётная запись правами сотрудника не действует
+ * вовсе (действия чужого адресата вырезаются). Клиент с ролью полного доступа
+ * получал через зеркало заявки всех компаний.
+ *
+ * @param {string[]} keys — роли человека (`member.role`)
+ * @param {Map<string, object>} catalogue — ключ роли → её statements
+ * @param {object|undefined} account — документ пользователя, нужен `isEndUser`
+ * @returns {{ isAdmin: boolean, role: "user"|"impersonator" }}
+ */
+const mirrorOf = (keys, catalogue, account) => {
+  const statements = {};
+  for (const key of keys) {
+    for (const [resource, actions] of Object.entries(catalogue.get(key) || {})) {
+      statements[resource] = [
+        ...new Set([...(statements[resource] || []), ...actions]),
+      ];
+    }
+  }
+  const audience = accountAudienceOf(account);
+  return {
+    isAdmin:
+      audience === "staff" &&
+      keys.some((key) => isFullAccess(catalogue.get(key) || {})),
+    role: pluginRole(statements, audience),
+  };
+};
+
+/**
+ * Нужна ли роли разовая раздача «Обновлять прошивку Mikrotik»
+ * (`mikrotik.upgradeFirmware`, `scripts/grantUpgradeFirmware.js`).
+ *
+ * Действие сотрудника попало в словарь (c762cfe) без раздачи ролям, и роль
+ * администратора перестала быть ролью полного доступа: `isFullAccess` требует
+ * ВСЕ действия сотрудника, а по нему зеркалится `isAdmin`. Первый же пересчёт
+ * зеркала (любая правка роли, `grantConversations.js`) гасил его у носителей.
+ *
+ * Раздаём только тому, кому не хватает ровно этого права до полного доступа.
+ * Роль, которой не хватает ещё чего-то, не трогаем: одно право полной её не
+ * сделает, а раздача не должна превращать в администратора то, чем роль не
+ * была. Роль с уже выданным правом тоже не трогаем — повторный прогон ничего не
+ * меняет. Адресат роли сюда не входит: клиентские роли отсекает скрипт.
+ *
+ * @param {object} statements — набор роли
+ * @returns {boolean}
+ */
+const needsUpgradeFirmwareGrant = (statements) =>
+  !isFullAccess(statements) &&
+  isFullAccess({
+    ...statements,
+    mikrotik: [...(statements?.mikrotik || []), "upgradeFirmware"],
+  });
+
+/**
+ * У носителей каких ролей пересчитывается зеркало после раздачи «Обновлять
+ * прошивку Mikrotik» (`scripts/grantUpgradeFirmware.js`).
+ *
+ * У ВСЕХ ролей сотрудников, которые после раздачи дают полный доступ, а не
+ * только у дополненных этим прогоном. Раздача пишет роль и пересчитывает зеркало
+ * двумя шагами: прогон, оборвавшийся между ними, оставил бы роль уже дополненной,
+ * а `isAdmin` у носителей погасшим, и повторный ничего бы не раздал. Так повтор
+ * возвращает `isAdmin`. Пересчёт идемпотентен: он пишет то, что посчитала бы
+ * правка роли из интерфейса. Кому раздаём, тому и пересчитываем: роль, которой
+ * нужно право, после раздачи полная, то есть входит в набор по определению.
+ *
+ * @param {{ key: string, audience?: string, statements: object }[]} roles —
+ *   роли как в базе, ДО раздачи; адресат не записан — «сотрудникам»
+ * @returns {string[]} ключи ролей
+ */
+const rolesToRefresh = (roles) =>
+  roles
+    .filter(
+      (role) =>
+        audienceOf(role.audience) === "staff" &&
+        (isFullAccess(role.statements) ||
+          needsUpgradeFirmwareGrant(role.statements)),
+    )
+    .map((role) => role.key);
 
 /**
  * Права без своей роли — по адресату: право клиента — дыра, если его не даёт
@@ -909,6 +1222,9 @@ module.exports = {
   removeMembership,
   gaps,
   pluginRole,
+  mirrorOf,
+  needsUpgradeFirmwareGrant,
+  rolesToRefresh,
   rolesOfMember,
   namedRoles,
   slugify,
@@ -917,6 +1233,15 @@ module.exports = {
   // обязана оставить зеркало в том же виде, что и правка из интерфейса.
   refreshMirrorForUsers,
   refreshMirrorFor,
+  // Последний носитель права: отключение, удаление и смена типа людей
+  // (controllers/user.js), отключение и удаление компаний (controllers/company.js)
+  loadHolderState,
+  assertNoOrphanedStaffActions,
+  holderLossRefusal,
+  orphanMessage,
+  // Порог полного доступа: его зовут `assign` и, раньше проверки носителей,
+  // форма человека (controllers/user.js#update)
+  assertNotLastFullAccessHolder,
   // Чистые части порогов — для тестов без базы.
   lastKeeperLoss,
   losesLastFullAccess,

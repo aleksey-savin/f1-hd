@@ -1,4 +1,8 @@
-const { decryptSecret, isEncrypted } = require("../crypto/secretBox");
+const {
+  readStoredSecret,
+  SecretUnreadableError,
+  unreadableSecretMessage,
+} = require("../../helpers/preferencesSecrets");
 
 // Единственное место, знающее, как настройки почтового канала превращаются в
 // конфиг imap-simple / nodemailer: порты по режиму шифрования, TLS, доверие
@@ -19,11 +23,11 @@ const defaultSmtpPort = (security) => SMTP_PORTS[security] || SMTP_PORTS.ssl;
 
 // Секреты лежат шифртекстом secretBox. Значения, сохранённые до ввода
 // шифрования, читаются как есть — миграция и следующее сохранение настроек
-// приводят их к общему виду.
-const readSecret = (stored) => {
-  if (!stored) return "";
-  return isEncrypted(stored) ? decryptSecret(stored) : stored;
-};
+// приводят их к общему виду. Читает общий читатель настроек: нечитаемый
+// шифртекст (чужой ключ, битая запись) — SecretUnreadableError, названный по
+// path, а не сырая ошибка расшифровки. Канал по ней просит ввести пароль
+// заново (describeMailError), а сокет с таким паролем не открывается вовсе.
+const readSecret = (stored, path) => readStoredSecret(stored, path);
 
 // Логином ящика служит его адрес — отдельного поля нет.
 const mailboxLogin = (mailbox = {}) => (mailbox.address || "").trim();
@@ -43,7 +47,7 @@ const buildImapConfig = (mailbox = {}) => {
   return {
     imap: {
       user: mailboxLogin(mailbox),
-      password: readSecret(mailbox.password),
+      password: readSecret(mailbox.password, "mailbox.password"),
       host,
       port,
       tls: security === "ssl",
@@ -78,6 +82,16 @@ const buildSmtpOptions = (channel = {}) => {
     connectionTimeout: 15000,
     greetingTimeout: 10000,
     socketTimeout: 30000,
+    // Поиск адреса сервера не входит ни в один из таймеров выше. dnsTimeout —
+    // таймаут ПЕРВОЙ попытки одного запроса к резолверу, а не всего поиска: Node
+    // повторяет запрос до четырёх раз, удваивая ожидание, и молчащий резолвер
+    // отпускает его лишь примерно через 14 таймаутов (замер: при 2000 мс — 27 с
+    // на запрос). nodemailer спрашивает A, а где есть IPv6, следом и AAAA — то
+    // есть около минуты. По умолчанию (30 с) вышло бы 7 минут на запрос и 14
+    // минут вместе с AAAA — дольше аренды письма в очереди (services/mail/outbox,
+    // LEASE_MS — пять минут). Поэтому значение взято малым: с множителем 14
+    // поиск адреса укладывается в аренду с большим запасом.
+    dnsTimeout: 2000,
   };
 
   if (channel.allowSelfSigned) {
@@ -89,7 +103,7 @@ const buildSmtpOptions = (channel = {}) => {
   if ((channel.authMethod || "password") !== "none") {
     options.auth = {
       user: (channel.user || "").trim(),
-      pass: readSecret(channel.pass),
+      pass: readSecret(channel.pass, "notify.byEmail.pass"),
     };
   }
 
@@ -112,6 +126,16 @@ const describeMailError = (error, { host, port } = {}) => {
   const where = [host, port].filter(Boolean).join(":");
   const code = error?.code || "";
   const text = `${error?.message || ""} ${error?.source || ""}`;
+
+  // Пароль не расшифровать: к серверу никто не обращался, поэтому «не удалось
+  // подключиться» и советы про адрес, порт и шифрование тут ни при чём. Что
+  // делать, сказано в самой фразе; подсказка — почему так бывает.
+  if (error instanceof SecretUnreadableError) {
+    return {
+      state: unreadableSecretMessage(error.path),
+      hint: "Так бывает после смены или потери ключа шифрования на сервере.",
+    };
+  }
 
   if (code === "EAUTH" || error?.source === "authentication") {
     return {

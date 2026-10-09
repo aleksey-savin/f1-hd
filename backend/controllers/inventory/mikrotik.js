@@ -58,6 +58,8 @@ const {
   assessUpgradeRights,
   accessView,
 } = require("../../services/mikrotik/upgradeRights");
+const { licenseView } = require("../../services/mikrotik/license");
+const { backupView } = require("../../services/mikrotik/backupState");
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
@@ -174,6 +176,7 @@ const buildRow = (device, record, protection, jump) => {
     boardName: record?.boardName || null,
     currentFirmware: record?.currentFirmware || null,
     totalMemory: record?.totalMemory || null,
+    license: licenseView(record),
     addresses: record?.addresses || [],
     lastSuccessfulConnectionAt: record?.lastSuccessfulConnectionAt || null,
     lastCheckedAt: record?.lastCheckedAt || null,
@@ -187,6 +190,8 @@ const buildRow = (device, record, protection, jump) => {
       : null,
     monitoredSince: record?.createdAt || null,
     schedules: scheduleSummary(record),
+    // Состояние копий конфигурации для флага строки и фасета фильтра.
+    backup: backupView(record?.schedules?.export, protection?.lastExportAt),
     lastBackupAt: protection?.lastBackupAt || null,
     lastExportAt: protection?.lastExportAt || null,
   };
@@ -220,6 +225,7 @@ const buildStandaloneRow = (record, protection, jump) => ({
   boardName: record.boardName || null,
   currentFirmware: record.currentFirmware || null,
   totalMemory: record.totalMemory || null,
+  license: licenseView(record),
   addresses: record.addresses || [],
   lastSuccessfulConnectionAt: record.lastSuccessfulConnectionAt || null,
   lastCheckedAt: record.lastCheckedAt || null,
@@ -231,6 +237,7 @@ const buildStandaloneRow = (record, protection, jump) => ({
     : null,
   monitoredSince: record.createdAt || null,
   schedules: scheduleSummary(record),
+  backup: backupView(record.schedules?.export, protection?.lastExportAt),
   lastBackupAt: protection?.lastBackupAt || null,
   lastExportAt: protection?.lastExportAt || null,
 });

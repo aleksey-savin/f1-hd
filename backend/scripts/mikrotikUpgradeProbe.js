@@ -3,7 +3,7 @@
 // access to the device, whatever MIKROTIK_ENC_KEY the environment has.
 //
 //   MT_PASSWORD='…' node scripts/mikrotikUpgradeProbe.js \
-//     --host 62.249.154.214 --port 8729 --user hd --knock 22046,29551,23786 [--ssh-port 22]
+//     --host <router-host> --port 8729 --user <api-user> --knock <port1,port2,port3> [--ssh-port 22]
 //
 // Runs nothing that changes the device: package/update print, check-for-updates
 // (asks upgrade.mikrotik.com for the latest version; no install), routerboard

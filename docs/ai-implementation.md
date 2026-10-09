@@ -291,14 +291,126 @@ aiGuide: {
   - `parseJsonResponse` strips `<think>…</think>` (reasoning models put braces in
     there and would derail the fallback), then ```` ```json ```` fences, then
     extracts the outer braces before `JSON.parse`.
-- **`attachmentExtractor.js`**:
+- **`attachmentExtractor.js`** and **`documentTextChild.js`**:
   - `collectAttachments(ticket)` — ticket + all comment attachments, de-duped.
   - `extractAttachments(...)` →
     - **images** (`png`/`jpeg`/`jpg`, `jpg`→`jpeg`) base64-encoded — **cap 5**,
       skip files **> 5 MB**;
     - **documents** → text: **PDF** (`pdf-parse` v2 `PDFParse` class), **DOCX**
-      (`mammoth`), **XLSX** (`xlsx` → CSV/sheet), **TXT**; each capped ~8k chars.
-    - per-file try/catch — unreadable/unsupported files are logged & skipped.
+      (`mammoth`), **XLSX** (`exceljs`: `# <sheet>` + one CSV line per non-empty
+      row; `.xlsx` only, legacy `.xls` is not read), **TXT**; each capped ~8k chars.
+      **At most 10 documents per call** (`MAX_DOCUMENTS_PER_GUIDE`): the first 10
+      document attachments in list order (ticket first, then comments) are read,
+      the rest are skipped **without being downloaded**, with one `warn` line,
+      "AI guide: too many documents, skipping the rest" (`{ limit, skipped }`).
+      The count covers every PDF, DOCX, XLSX and TXT attachment taken in hand,
+      including ones later refused by size; images (own cap of 5) and other types
+      are not counted. A hostile document can cost the whole 15 s child timeout and
+      the attachments of one call are read one after another, so the worst case of
+      one guide is bounded by 10 × 15 s, not by the number of attachments.
+    - **Parsing runs in a child process; this is the defence.** The file is
+      untrusted, and `exceljs`, `mammoth` and `pdf-parse` can exhaust memory or
+      freeze the whole process on files of a few KB (a defined-name range over the
+      whole sheet, `<col max="2000000000">`, hundreds of sheets with a cell in
+      column XFD, deeply nested XML, a style copied into every row, a docx made of
+      millions of tiny elements): `try/catch` and timeouts cannot stop that, and one
+      staff click on the ticket would take the backend down. `documentTextChild.js`
+      holds the whole parser (one place, lazy-loading only the library a format
+      needs) and is also the child's entry point. `extractDocumentText` starts it
+      with a **256 MB heap** (`PARSE_CHILD_HEAP_MB`; the flag caps the old
+      generation, and the total heap limit V8 reports adds the young generation,
+      so in practice it is about 300 to 450 MB depending on the Node version:
+      304 MB measured on Node 22, 448 MB on Node 24), waits at most **15 s**
+      (`DOCUMENT_PARSE_TIMEOUT_MS`) and then kills it with SIGKILL, and runs **at
+      most 2 children at once** (`MAX_PARSE_CHILDREN`; other calls wait in a small
+      queue). The child gets a minimal environment (no backend secrets), one IPC
+      message `{ data, mimetype }`, and answers `{ ok, text }` or `{ ok: false,
+      error }` (error ≤ 300 chars, text ≤ 1M chars) and exits. It is started
+      through `/bin/sh` (a launcher that sets limits and then `exec`s node, so the
+      PID, `kill` and IPC are those of the node process; plain `fork` on Windows,
+      without these limits) with `ulimit -c 0`, because an out-of-memory abort
+      would otherwise write a core dump per hostile document: about 19 MB with
+      systemd-coredump, ~300 MB into the working directory with a file-based
+      `core_pattern`; and with `ulimit -t 60`, a **60 s CPU-time cap** enforced by
+      the kernel (`PARSE_CHILD_CPU_SECONDS`; real children used up to 16 CPU
+      seconds inside the 15 s window). Any failure of the child (it did not start,
+      timeout, crash or out-of-memory, bad reply) skips the document: one `warn`
+      line, "AI guide: document parse failed in isolation", with the attachment
+      name, type, size, reason and durations (never file content), and the backend
+      keeps running. "Did not start" includes EMFILE/ENFILE at spawn: Node returns
+      from `spawn` before the IPC channel exists (no `send`, no `pid`), so the call
+      is finished by the `error` event and reads `child error: spawn /bin/sh
+      EMFILE`; `kill()` is never called on a child without a `pid` (it would signal
+      an uninitialised pid). `text/plain` is only decoded and needs no child.
+    - **Children die with the parent, on `process.exit` paths only.** The module
+      keeps every live child and a `process.on("exit")` hook SIGKILLs them: the
+      shutdown in `app.js` ends with `process.exit`, and so does the crash path
+      (a SIGKILL sent from an `exit` handler goes out synchronously). Without it
+      a child learns that the parent is gone only when its own event loop
+      reaches the IPC `disconnect` event, and a parser in a heavy parse or a
+      busy loop never does. The hook covers nothing else: a parent that dies
+      without an `exit` event never runs it. That is SIGKILL, and in dev also
+      SIGUSR2 (how nodemon restarts the backend) and SIGHUP, which the backend
+      does not handle. The child is then left to the 60 s CPU cap, which stops a
+      child in a busy loop; in production `init: true` in `compose.yml` also
+      kills the rest when the container is torn down. Dev and runs outside a
+      container have no init, so for such a death the cap is the only layer.
+    - **The child prefers to be the OOM victim.** At start (in the child only, not
+      when the backend loads the module) `documentTextChild.js` writes `1000` to
+      `/proc/self/oom_score_adj`: any process may raise its own score without
+      privileges. Under memory pressure the kernel then kills the parser child, not
+      the backend. A `try/catch` keeps machines without that file (macOS, Windows)
+      unaffected.
+    - **This is a resource bound, not a sandbox.** The isolation limits memory and
+      time; the child runs as the same user as the backend. It gets a minimal
+      environment (no backend secrets are passed), but it can read, for example,
+      `/proc/<backend pid>/environ`, the uploads and the network. It matters only
+      if a parser could be driven to execute code, which none is known to
+      (`pdfjs-dist` 5.4.296 is past the 2024 eval CVE).
+    - Cost: one process start per PDF, DOCX or XLSX, about 0.25 to 0.4 s per
+      document on an idle host (more under load). Honest files too heavy for
+      256 MB or 15 s (a million numeric cells, 1.5 million styled cells) are
+      skipped as well. **The heap flag does not cap off-heap memory**, and this is
+      not only a forged-archive matter: `pdf.js` inflates FlateDecode streams into
+      typed arrays outside the V8 heap, and PDFs have no pre-check. Measured: a
+      1.04 MB PDF (a 1 GiB content stream) read at 1,689 MB of child RSS in 8.4 s
+      (the text came back); a 4.17 MB PDF (4 GiB) reached 3,031 MB when the 15 s
+      timer killed it, about 0.2 GB per second. Zip inflation buffers behave the
+      same (about 0.3 GB per second for a forged archive). With two slots that is
+      about 6 GB from two ordinary attachments under the 10 MB cap, so the backend
+      container needs a memory limit (`compose.yml` sets none today); that is the
+      layer for this, the heap flag is not.
+    - Fast paths before the spawn (they only save a process for obvious bombs; the
+      isolation does not depend on them): documents **> 10 MB** are not parsed
+      (`MAX_DOC_BYTES`; the object has already been downloaded, only the parsing is
+      skipped). That cap counts compressed bytes only, so the zip formats (**DOCX**,
+      **XLSX**) also get a check from the zip central directory, before anything is
+      unpacked: the declared sizes must add up to **≤ 16 MiB**
+      (`MAX_INFLATED_BYTES`) and the archive must declare **≤ 2000 entries**
+      (`MAX_ZIP_ENTRIES`). Otherwise the file is skipped and logged like an
+      oversized one (the log's `reason` names the limit). The AI keeps at most ~8k
+      chars of a document, so a workbook declaring more than 16 MiB gains nothing
+      from a full load. The entry cap exists because `exceljs` also pays per zip
+      part: 36 000 empty sheets fit in a 9 MiB zip declaring 12 MiB, and loading
+      them took about a minute. Real files have tens of entries (DOCX 7 to 19, XLSX
+      15 plus one per sheet). Forged directory values (sizes, entry count) are not
+      caught here; the child process is what stops those.
+    - Inside the parser, so that ordinary hostile files fail fast instead of
+      burning the 15 s: XLSX reading is bounded by work, not only by output (sheets
+      are walked with `findRow`/`findCell`, so no cell is created for a gap; at most
+      2M positions are scanned, `MAX_SCANNED_CELLS`; reading stops once the text
+      passes the 8k cap; rows whose cells are all empty are skipped). `exceljs` is
+      told to skip the `mergeCells`, `dataValidations` and `cols` nodes
+      (`ignoreNodes`) and its defined names are dropped, because it expands each
+      range or column span into one object per cell or column while loading; the AI
+      only needs cell text, so merged ranges are no longer expanded: the value stays
+      in the top-left cell and the other cells of the merge are empty, as in the
+      file. A workbook whose `sheetId` makes the sheet array longer than 100 000 is
+      refused. A date-formatted cell that cannot be a date (a phone number in a date
+      column) reads as empty instead of dropping the whole workbook.
+    - per-file try/catch — unreadable/unsupported files are logged & skipped; error
+      text in the logs is cut to 300 chars (`exceljs` embeds pieces of the file in
+      its messages).
   - Files are read from `uploads/<name>` (relative to backend cwd, matching the
     rest of the codebase).
 - **`ticketAiGuide.js`** — `generateTicketAiGuide(ticketId)`:
@@ -344,7 +456,7 @@ aiGuide: {
     reason used to resurface as the cause of the *next* run.
 
 `backend/package.json` / `tsconfig.json` — added `@/services` and `@/prompts`
-module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
+module aliases and deps `pdf-parse`, `mammoth`, `exceljs` (which replaced `xlsx`).
 
 ### Controller / routes — `backend/controllers/ticket.js`, `routes/internal/ticket.js`
 - `add` — does **not** touch `aiGuide` (stays `idle`) and does **not** fire
@@ -559,7 +671,9 @@ older ticket code used `mimetype`, while later attachment upload code used
   **creation-time** ticket title to `"Входящий звонок"` only when the subject already
   contains it **and** there is audio, so phone-number identification alone (a number
   found in a forwarded thread, signature, or an empty-body email) never rewrites the
-  subject; `extractCallerPhones` is still used to identify the applicant/company. When the
+  subject; `extractCallerPhones` is still used to identify the applicant/company — since
+  2026-10-03 only in mail from a cloud-telephony account whose sender check did not fail
+  (see `docs/phone-numbers.md`). When the
   overwrite does apply: the original email body is preserved in `htmlDescription` (still
   reachable via "Просмотр оригинала"); if it was empty, the original `description` is
   moved there first. Newlines → `<br>` since both fields render as HTML.
@@ -604,8 +718,11 @@ in that search candidates never span a line break. Our own line
 on `user.phone` / `company.phones` and only when the number leads to exactly one
 record (a shared office line matches nobody); `emailHandling` tries the numbers in
 turn. A user match yields the user *and their linked company*. Gated by the existing
-`identifyApplicant`/`identifyCompany`/`checkPhoneNumber` prefs; this replaces the old
-fragile `email.name.split(" ")[4]` extraction. See `docs/phone-numbers.md`.
+`identifyApplicant`/`identifyCompany`/`checkPhoneNumber` prefs and, since 2026-10-03,
+by the sender: only mail from a cloud-telephony account (`isCloudTelephonySender`) whose
+sender check did not fail — a number in an ordinary e-mail identifies nobody, or an
+outsider could open a ticket in a client's name. This replaces the old fragile
+`email.name.split(" ")[4]` extraction. See `docs/phone-numbers.md`.
 
 **No name-based guessing.** If the number is not in the database, the ticket keeps
 the **default applicant/company from preferences** (the prior behavior). An earlier
@@ -835,7 +952,7 @@ speech results are returned inside the existing `GET /api/tickets/:num`.)
 ## Known limitations / optimization opportunities
 
 Operational / correctness:
-- **Container deps**: `pdf-parse`/`mammoth`/`xlsx` were added to `package.json` but
+- **Container deps**: `pdf-parse`/`mammoth`/`exceljs` were added to `package.json` but
   the Docker image must be rebuilt (or `pnpm install` run in-container) — the
   container ships its own `node_modules`.
 - ~~Fire-and-forget generation leaves `status:"pending"` forever~~ — closed
@@ -888,8 +1005,13 @@ Coverage:
   vision if they're image attachments, but not PDF pages).
 - **Vision requires a vision-capable model**; with a text-only model images are
   silently dropped via the fallback (document text still flows in). No UI hint yet.
-- Attachment caps (5 images, 5 MB, ~8k chars/doc, last 20 comments) are constants
-  in the services — not configurable.
+- Attachment caps (5 images, 5 MB per image, 10 documents per guide, 10 MB per
+  document, and for DOCX/XLSX 16 MiB unpacked and 2000 zip entries, ~8k
+  chars/doc, last 20 comments) and the parser's isolation limits (256 MB heap,
+  15 s, 60 s of CPU, 2 concurrent children) are constants in the services — not
+  configurable. Document parsing is skipped, not retried, when it hits them; a
+  file that needs more (a spreadsheet with millions of cells) yields no text for
+  the AI.
 - Speech audio cap is 25 MB, matching OpenAI transcription API limits.
 - Speech diarization assumes exactly two participants; calls with conferences or
   transfers may be oversimplified.
@@ -921,8 +1043,9 @@ Controllers/routes: `controllers/preferences.js`, `controllers/ticket.js`,
 `routes/internal/ticket.js`.
 Services: `aiService.js`, **`ai/health.js`**, **`aiRules.js`**, `aiErrors.js`,
 `ticketAiGuide.js`, **`ticketAiTerms.js`**, `knowledgeBaseContext.js`,
-`attachmentExtractor.js`, `speechToTextService.js`, `callerIdentityService.js`,
-`ticketCategoryService.js`, `aiTicketLog.js`, `crypto/secretBox.js`.
+`attachmentExtractor.js`, **`documentTextChild.js`**, `speechToTextService.js`,
+`callerIdentityService.js`, `ticketCategoryService.js`, `aiTicketLog.js`,
+`crypto/secretBox.js`.
 Helpers: `preferencesSecrets.js`, **`knowledgeNoteDerived.js`**.
 Prompts: `ticketGuide.js`, `callSummary.js`, `transcription.js`,
 `ticketCategory.js`, **`ticketTerms.js`**, **`termReference.js`**.

@@ -1,6 +1,9 @@
 const Preferences = require("@/models/preferences");
 const { AppError } = require("@/middleware/errorHandling");
-const { readStoredSecret } = require("@/helpers/preferencesSecrets");
+const {
+  readStoredSecret,
+  SecretUnreadableError,
+} = require("@/helpers/preferencesSecrets");
 const { describeAiError } = require("@/services/aiErrors");
 const aiHealth = require("@/services/ai/health");
 const logger = require("@/utils/logger");
@@ -320,15 +323,50 @@ const needsApiKey = (provider) => provider !== "local";
 exports.buildLocalBaseUrl = buildLocalBaseUrl;
 exports.needsApiKey = needsApiKey;
 
+// Нечитаемый ключ там, где он необязателен (локальная модель), — то же, что
+// незаданный, как и в инвариантах настроек: сохранение вернуло 200, и рабочий
+// путь не должен падать на том же ключе. Запрос уходит без Authorization.
+// Строка журнала — одна на значение: вызовы идут непрерывно, причина одна, а
+// ключ, введённый заново и снова мёртвый, — уже другое значение.
+const warnedOptionalKeys = new Set();
+
+const readOptionalKey = (stored, path) => {
+  try {
+    return readStoredSecret(stored, path);
+  } catch (error) {
+    if (!(error instanceof SecretUnreadableError)) throw error;
+
+    const seen = `${path}\u0000${stored}`;
+    if (!warnedOptionalKeys.has(seen)) {
+      warnedOptionalKeys.add(seen);
+      logger.log(
+        "warn",
+        `${error.message}; the key is optional here, so it is treated as unset — re-enter it in the AI settings`,
+        { module: "aiService", path },
+      );
+    }
+    return "";
+  }
+};
+
+exports.readOptionalKey = readOptionalKey;
+
 // Конфигурация провайдера из группы настроек: ключ в базе лежит шифртекстом
 // secretBox, наружу уходит расшифрованный.
 const resolveProviderConfig = (ai) => {
   const provider = ai?.provider;
   const providerConfig = provider ? ai[provider] : null;
+  // Обязательный ключ, который не читается, бросает SecretUnreadableError с
+  // путём: по нему журнал и разбор ошибок называют поле. Необязательный (у
+  // локальной модели) читается мягко.
+  const readKey = needsApiKey(provider) ? readStoredSecret : readOptionalKey;
 
   return {
     provider,
-    apiKey: readStoredSecret(providerConfig?.apiKey),
+    apiKey: readKey(
+      providerConfig?.apiKey,
+      provider ? `ai.${provider}.apiKey` : undefined,
+    ),
     model: providerConfig?.model,
     folderId: providerConfig?.folderId,
     baseUrl: providerConfig?.baseUrl,

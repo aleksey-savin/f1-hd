@@ -11,6 +11,7 @@ const { connectMailbox } = require("./imapConnect");
 const { MAILBOX, SMTP, recordOk, recordError } = require("./health");
 const logger = require("../../utils/logger");
 const { guardRecipient } = require("../../utils/mailGuard");
+const { SecretUnreadableError } = require("../../helpers/preferencesSecrets");
 
 // Проверка почтовых каналов по кнопке в настройках. Возвращает ту же пару фраз,
 // что и строка состояния: `state` — факт, `hint` — что делать.
@@ -19,6 +20,21 @@ const { guardRecipient } = require("../../utils/mailGuard");
 // и красная строка про неотправленный черновик врала бы о сохранённом канале.
 // Успех же означает, что связка параметров рабочая, а реальные сбои сохранённого
 // канала и так фиксируют крон сбора (раз в 20 с) и отправка уведомлений.
+
+// Пароль канала не читается (чужой ключ, битая запись): сокет с таким паролем не
+// открывается, а кнопка отвечает причиной — той же парой фраз, что строка состояния
+// (describeMailError: «… не читается — введите заново» и почему так бывает), в
+// обычной форме отказа проверки. Раньше SecretUnreadableError уходил в контроллер и
+// становился ответом 500: экран показывал безликое «Не удалось выполнить проверку».
+// Прочие ошибки сборки (нет APP_ENC_KEY) идут наверх, как и раньше: это поломка
+// сервера, а не канала, и «введите заново» её не лечит.
+const explainUnreadableSecret = (error, what) => {
+  logger.log("warn", `${what} failed: stored secret is unreadable`, {
+    module: "mailCheck",
+    error: error.message,
+  });
+  return { ok: false, ...describeMailError(error), detail: error.message };
+};
 
 const closeQuietly = (connection) => {
   if (!connection) return;
@@ -30,7 +46,15 @@ const closeQuietly = (connection) => {
 };
 
 const checkMailbox = async (mailbox = {}) => {
-  const config = buildImapConfig(mailbox);
+  let config;
+  try {
+    config = buildImapConfig(mailbox);
+  } catch (error) {
+    if (error instanceof SecretUnreadableError) {
+      return explainUnreadableSecret(error, "Mailbox check");
+    }
+    throw error;
+  }
   const { host, port } = config.imap;
   const folder = (mailbox.folder || "").trim() || "INBOX";
 
@@ -103,7 +127,15 @@ const sendTestEmail = async (channel = {}, requestedTo) => {
   // Вне прода тестовое письмо тоже уходит только на разработческий ящик:
   // «без исключений» значит без исключений (см. utils/mailGuard)
   const to = guardRecipient(requestedTo, { module: "mailCheck" });
-  const options = buildSmtpOptions(channel);
+  let options;
+  try {
+    options = buildSmtpOptions(channel);
+  } catch (error) {
+    if (error instanceof SecretUnreadableError) {
+      return explainUnreadableSecret(error, "SMTP test");
+    }
+    throw error;
+  }
   const from = buildMailFrom(channel);
 
   if (!options.host) {

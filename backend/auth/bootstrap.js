@@ -66,6 +66,9 @@ module.exports.authorizeFor = (statements) => {
   return authorizeFor(statements);
 };
 
+/** Готов ли better-auth: initAuth() закончился (кроны ждут его, как и базу). */
+module.exports.isAuthReady = () => authorizeFor !== null;
+
 /** Заголовки Node → Headers, как их ждёт auth.api.*. */
 module.exports.getFromNodeHeaders = () => {
   if (!fromNodeHeaders) {

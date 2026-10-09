@@ -1,4 +1,5 @@
 const { htmlToPlainLines } = require("../../helpers/htmlToPlainText");
+const { clampInput } = require("../../helpers/textScan");
 const { stripQuotedReply } = require("../emailReplyStripper");
 
 // Общие текстовые помощники MCP-инструментов (база знаний и заявки).
@@ -37,7 +38,33 @@ const iso = (value) => (value ? new Date(value).toISOString() : "—");
 
 // После имени тега обязан идти ">", "/>" или пробел (атрибуты) — иначе
 // «Имя <e@x.ru>:» из цитаты почтового клиента считается тегом ("e" — имя тега).
-const HTML_TAG = /<\/?[a-z][a-z0-9]*(?:\/?>|\s[^>]*>)/i;
+//
+// Прежняя регулярка `<\/?[a-z][a-z0-9]*(?:\/?>|\s[^>]*>)` от каждого «<a » заново
+// сканировала хвост до «>»: «<a » ×40 000 (120 КБ) — 2,8 с, мегабайт — минуты, а
+// описание заявки приходит от кого угодно. Теперь от «<» читается только «голова»
+// тега — необязательный «/», имя и то, что за ним (TAG_HEAD, липкая регулярка:
+// имена тегов не пересекаются, поэтому суммарно линейно), а «есть ли дальше
+// «>»» после пробела (подойдёт любой текст до ближайшей «>») решает условие цикла:
+// «<» левее последней «>» текста, найденной один раз.
+const TAG_HEAD = /\/?[a-z][a-z0-9]*(?:\/?>|\s)/iy;
+
+/** Есть ли в тексте HTML-тег (то же, что прежняя регулярка), за линейное время. */
+const hasHtmlTag = (text) => {
+  const lastClose = text.lastIndexOf(">");
+  let open = text.indexOf("<");
+
+  // Правее последней «>» тега уже не будет
+  while (open !== -1 && open < lastClose) {
+    TAG_HEAD.lastIndex = open + 1;
+    // Голова совпала — это тег: «>» или «/>» сразу за именем входят в голову, а
+    // пробел за именем значит «>» правее, и она есть: open < lastClose, а в самой
+    // голове «>» нет
+    if (TAG_HEAD.exec(text)) return true;
+    open = text.indexOf("<", open + 1);
+  }
+
+  return false;
+};
 
 // Сколько слов запроса ищем подстрокой, когда основ нет (IP, номера, srv-dc01).
 const MAX_FALLBACK_TERMS = 8;
@@ -56,14 +83,29 @@ const hasAllTerms = (text, terms) => {
  * Текст заявки для агента и для поиска: HTML редактора — в строки, у писем
  * срезана цитата прошлой переписки (подпись остаётся — её контакты закроет
  * maskText), base64-вставки убраны. htmlDescription (сырое письмо) не читается.
+ *
+ * Текст идёт дальше целиком (маска, поиск, сниппеты), а описание заявки не
+ * ограничено: тело запроса — до 10 МБ. У HTML-ветки предел есть (htmlToPlainLines
+ * режет вход до MAX_INPUT_LENGTH), простой текст режется тем же clampInput: у
+ * длинного текста он сначала вырезает base64 (метки [данные] тогда нет, как и в
+ * HTML-ветке), у короткого не трогает ничего.
  */
 const ticketPlainText = (ticket) => {
   const raw = String(ticket?.description || "");
-  let text = HTML_TAG.test(raw) ? htmlToPlainLines(raw) : raw.replace(/\r\n/g, "\n");
+  let text = hasHtmlTag(raw) ? htmlToPlainLines(raw) : clampInput(raw).replace(/\r\n/g, "\n");
   if (ticket?.source === "Почта") {
     text = stripQuotedReply(text).content;
   }
   return text.replace(DATA_URI, "[данные]").trim();
 };
 
-module.exports = { normalize, buildSnippet, iso, DATA_URI, ticketPlainText, fallbackTerms, hasAllTerms };
+module.exports = {
+  normalize,
+  buildSnippet,
+  iso,
+  DATA_URI,
+  ticketPlainText,
+  fallbackTerms,
+  hasAllTerms,
+  hasHtmlTag,
+};

@@ -150,8 +150,8 @@ and does **not** enforce `required` — legacy tickets carry no `required` flags
 and must stay saveable. It touches `customFields` only when the key is present
 in the body (a request that omits it used to wipe every answer).
 
-The external API (`controllers/external/ticket.js`) has no template support and
-is untouched: it keeps its name-only filter.
+The external API (`controllers/external/ticket.js`) has no template support: it
+keeps its name-only filter (`validCustomFields` in `services/externalApi.js`).
 
 ## Compatibility
 

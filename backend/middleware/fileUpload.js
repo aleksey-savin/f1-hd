@@ -148,7 +148,9 @@ const fileUpload = multer({
   limits: {
     fileSize: 100 * 1024 * 1024, // 100MB
     files: 10, // максимум 10 файлов
-    fieldSize: 2 * 1024 * 1024, // 2MB для текстовых полей
+    // Текстовые поля: описание заявки и комментарий приходят multipart вместе
+    // с вложениями, поэтому предел поля — это предел их текста (как у JSON)
+    fieldSize: 10 * 1024 * 1024,
   },
   // S3 or the local uploads/ volume — decided by services/storage.
   storage: storage.uploadStorage({

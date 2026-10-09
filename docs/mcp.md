@@ -454,12 +454,22 @@ get a number. Sections, in order:
   routine task title (masked, if any), created / processed / started /
   closed / deadline (full ISO), link.
 - **Description** — `text.js#ticketPlainText`: HTML from the portal editor
-  → lines (`htmlToPlainLines`, `backend/helpers/htmlToPlainText.js`, only
-  when the text actually looks like HTML — see `text.js#HTML_TAG`), the
-  quoted reply chain cut for e-mail tickets (`stripQuotedReply`,
+  → lines (`htmlToPlainLines`, `backend/helpers/htmlToPlainText.js`), but only
+  when the text actually looks like HTML. That test is `text.js#hasHtmlTag`, a
+  linear scan: an optional `/`, a tag name and then `>`, `/>` or a blank with
+  a `>` somewhere to the right (the regex it replaced re-scanned the whole
+  tail from every `<a `). Plain text takes the other branch and is cut by the
+  same `clampInput` (`backend/helpers/textScan.js`), so the description
+  reaches the masks at **no more than 256 K characters** (`MAX_INPUT_LENGTH`)
+  on **both** branches — the request body allows 10 MB, and `maskText` runs
+  over the whole text before the output is clipped. Above the cap `clampInput`
+  cuts base64 data URIs out first, without a marker, so the `[данные]` marker
+  shows up only on texts up to the cap. Then the quoted reply chain is cut
+  for e-mail tickets (`stripQuotedReply`,
   `backend/services/emailReplyStripper.js` — the signature stays,
-  `maskText` closes its contacts), base64 data URIs dropped, masked, capped
-  at 20,000 chars, and quoted with `> ` line by line.
+  `maskText` closes its contacts), the remaining base64 data URIs become
+  `[данные]`, the text is masked, capped at 20,000 chars, and quoted with
+  `> ` line by line.
 - **Questionnaire** — `name: answer` per custom field
   (`formatAnswer`, `backend/services/ticketQuestionnaire.js`), both masked
   and collapsed to one line.

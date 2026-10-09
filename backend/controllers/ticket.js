@@ -86,6 +86,7 @@ const {
 const { permissionFilter, canFor } = require("@/services/permissions");
 const { ticketListFilter } = require("@/services/ticketScope");
 const { canEditChecklist } = require("@/services/ticketAccess");
+const { ticketCardCompany } = require("@/services/ticketCardCompany");
 const { isBanned } = require("@/services/authBan");
 
 const buildAttachment = (file) => ({
@@ -667,7 +668,11 @@ exports.getOne = async (req, res, next) => {
     res.status(200).json({
       message: "Ticket fetched",
       ticket: ticket,
-      company: companyObj || {},
+      // Только поля, которые читает карточка; люди компании — лишь тем, кто
+      // видит журнал входов AD (services/ticketCardCompany)
+      company: ticketCardCompany(companyObj, {
+        canReadLogs: req.auth.can({ company: ["readLogs"] }),
+      }),
       works: worksWithLinks,
       seenAt: read?.seenAt ?? null,
       // Заявителю лента приходит ОТОБРАННОЙ, а не пустой: ход заявки и работы

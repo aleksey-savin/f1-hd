@@ -4,11 +4,13 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { Types } = require("mongoose");
 const sift = require("sift").default;
+const vm = require("node:vm");
 
 const {
   scopeFilter,
   isServable,
   createKnowledgeTools,
+  prepareContent,
 } = require("./knowledgeTools");
 
 /**
@@ -318,4 +320,138 @@ test("log: each call writes one info line naming the key and the tool", async ()
   assert.equal(logs[0].meta.hits, 4);
   assert.equal(logs[1].meta.tool, "get_knowledge_note");
   assert.equal(logs[1].meta.found, false);
+});
+
+// ── Картинки с data:-адресом ───────────────────────────────────────────────
+
+// Что считается картинкой, записано как есть, вместе с причудами прежней регулярки
+// `!\[([^\]]*)\]\(\s*data:[^)]*\)`: адрес идёт до первой «)», подпись — до первой «]»
+const IMAGES = [
+  ["Шаг 1 ![схема сети](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB) шаг 2", "Шаг 1 [изображение: схема сети] шаг 2"],
+  ["![](data:image/png;base64,AAAA)", "[изображение]"],
+  ["![  схема  ](data:x)", "[изображение: схема]"],
+  // Пробелы, перевод строки и табуляция между «(» и «data:», любой регистр «data:»
+  ["![a](  data:text/plain,hi)", "[изображение: a]"],
+  ["![a](\n\tdata:text/plain,hi)", "[изображение: a]"],
+  ["![a](DATA:text/plain,hi) ![b](Data:text/plain,hi)", "[изображение: a] [изображение: b]"],
+  // Обычная картинка и ссылка не трогаются
+  ["![x](https://example.ru/a.png) и [ссылка](https://example.ru)", "![x](https://example.ru/a.png) и [ссылка](https://example.ru)"],
+  ["![a] (data:x) ![b](dat:x) ![c](http://data:x)", "![a] (data:x) ![b](dat:x) ![c](http://data:x)"],
+  // Картинка внутри ссылки: заменяется только она
+  [
+    "[![превью](data:image/png;base64,QUJD)](https://example.ru/полный-размер)",
+    "[[изображение: превью]](https://example.ru/полный-размер)",
+  ],
+  // Подпись может быть многострочной и содержать «![»; две картинки подряд
+  ["![\nмногострочный\nальт](data:text/plain,hi)", "[изображение: многострочный\nальт]"],
+  ["![x![y](data:z)", "[изображение: x![y]"],
+  ["![a](data:x)![b](data:y)", "[изображение: a][изображение: b]"],
+  // Адрес кончается на первой «)», даже если внутри «![» или «(»
+  ["![a](data:x ![b](data:y) tail)", "[изображение: a] tail)"],
+  ["![a](data:svg+xml;utf8,<svg width=(1)>) хвост", "[изображение: a]>) хвост"],
+  // Без закрывающей «)» картинки нет: base64-хвост снимает уже DATA_URI
+  ["Незакрытая ![x](data:image/png;base64,AAAA", "Незакрытая ![x]([данные]"],
+  ["текст без картинок", "текст без картинок"],
+  ["", ""],
+];
+
+test("prepareContent: картинки с data:-адресом заменяются как раньше", () => {
+  for (const [input, expected] of IMAGES) {
+    assert.equal(prepareContent(input), expected, input);
+  }
+});
+
+// Прежняя реализация — эталон: на коротких текстах регулярка быстрая, и новый
+// разбор обязан отвечать так же на любом тексте, а не только на привычных заметках
+const LEGACY_DATA_IMAGE = /!\[([^\]]*)\]\(\s*data:[^)]*\)/gi;
+const LEGACY_DATA_URI = /data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi;
+const legacyPrepareContent = (content) =>
+  String(content || "")
+    .replace(LEGACY_DATA_IMAGE, (match, alt) =>
+      alt.trim() ? `[изображение: ${alt.trim()}]` : "[изображение]",
+    )
+    .replace(LEGACY_DATA_URI, "[данные]");
+
+test("prepareContent: на любом тексте отвечает как прежняя регулярка", () => {
+  // Куски, из которых собираются тексты: скобки картинок, «data:» в разных
+  // регистрах, пробелы всех видов. Символы заданы кодами, без экранирований в исходнике
+  const code = (value) => String.fromCharCode(value);
+  const pieces = [
+    "![", "![", "!", "[", "]", "]", "(", "(", ")", ")", "](", "](", "](", ")(", "][",
+    "data:", "data:", "DATA:", "Data:", "dat", "data", ":", "data:image/png;base64,", "data:text/plain,",
+    "AAAA", "/", "+", "=", ",", ";", " ", " ", "  ", "\n", "\t", "\r\n", code(0xa0), code(0x3000), code(0xfeff), code(0xb),
+    "alt", "схема сети", "x", "a b", "Шаг 1",
+    "![схема](data:image/png;base64,AAAA)", "![](data:image/png;base64,AAAA)", "![ ](data:x)", "![x](https://example.ru/a.png)",
+    "[ссылка](https://example.ru)", "![](  data:text/plain,hi)", "[![alt](data:image/png;base64,QUJD)](https://example.ru)",
+    "Привет", "заметка",
+  ];
+  // Детерминированный генератор (mulberry32): тест повторяем, а не случаен
+  let state = 20261001;
+  const next = () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  let replaced = 0;
+  for (let i = 0; i < 20000; i += 1) {
+    let sample = "";
+    const parts = 1 + Math.floor(next() * 24);
+    for (let k = 0; k < parts; k += 1) sample += pieces[Math.floor(next() * pieces.length)];
+    const expected = legacyPrepareContent(sample);
+    if (expected !== sample) replaced += 1;
+    assert.equal(prepareContent(sample), expected, JSON.stringify(sample));
+  }
+  // Выборка не вырождена: в ней есть и тексты с картинкой, и без
+  assert.ok(replaced > 2000 && replaced < 19000, `текстов с картинкой: ${replaced}`);
+});
+
+// ── Картинки с data:-адресом: линейное время ───────────────────────────────
+
+const HANG_MS = 3000;
+
+// { timeout } у node:test синхронный код не прерывает (проверено на Node 22 и
+// 24), а прежняя регулярка картинки на таких заметках думала секунды и минуты.
+// vm-таймаут V8 прерывает и её: регресс роняет тест за HANG_MS, а не вешает прогон.
+// Время меряем процессорное (process.cpuUsage), а не стенными часами: под нагрузкой
+// процесс вытесняют, и стенные часы давали ложные падения. vm-таймаут остаётся по
+// стенным часам — это страховка от зависания, а не измерение.
+const timed = (label, run) => {
+  let ms = 0;
+  const measure = () => {
+    const cpuBefore = process.cpuUsage();
+    run();
+    const cpu = process.cpuUsage(cpuBefore);
+    ms = (cpu.user + cpu.system) / 1000;
+  };
+  try {
+    vm.runInNewContext("measure()", { measure }, { timeout: HANG_MS });
+  } catch (error) {
+    if (error?.code !== "ERR_SCRIPT_EXECUTION_TIMEOUT") throw error;
+    assert.fail(`${label}: не уложился в ${HANG_MS} мс — разбор картинок перестал быть линейным`);
+  }
+  return ms;
+};
+
+// Прежняя `!\[([^\]]*)\]\(\s*data:[^)]*\)` от каждого «![» заново искала «]» и «)»
+// до конца текста: «![](data:» ×N без «)» — 160 КБ за 1,7 с, мегабайт — минуты. А
+// заметку отдают целиком (до 50 МБ), и картинки снимаются до обрезки на 40 000 знаков
+test("prepareContent: мегабайт «![](data:», «![» и незакрытых картинок разбирается за линейное время", { timeout: 5000 }, () => {
+  const MB = 1024 * 1024;
+  const shapes = {
+    "«![](data:» ×N, «)» нет": "![](data:".repeat(Math.floor(MB / 9)),
+    "«![» ×N, «]» нет": "![".repeat(MB / 2),
+    // Одна «]» на все «![»: каждый старт читает один и тот же хвост
+    "«![» ×N, одна «](» и пробелы": `${"![".repeat(MB / 4)}](${" ".repeat(MB / 2)}x`,
+    "«![](  » ×N: пробелы после «(», «data:» нет": "![](  ".repeat(Math.floor(MB / 6)),
+  };
+  for (const [label, content] of Object.entries(shapes)) {
+    let text = "";
+    const ms = timed(label, () => {
+      text = prepareContent(content);
+    });
+    assert.ok(text.length > 0, label);
+    assert.ok(ms < 500, `${label}: ${ms.toFixed(1)} мс`);
+  }
 });

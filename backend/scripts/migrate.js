@@ -43,6 +43,16 @@ const MIGRATIONS = [
   { id: "2026-09-25-initMessaging", script: "initMessaging.js", apply: true },
   // Телефоны — только цифрами с кодом страны; см. normalizePhones.js
   { id: "2026-09-30-normalizePhones", script: "normalizePhones.js", apply: true },
+  // Право «Обновлять прошивку Mikrotik» ролям, которым до полного доступа не
+  // хватает только его: без него `isAdmin` гаснет при пересчёте зеркала. Стоит
+  // после grantConversations (та может погасить `isAdmin`, эта — вернуть) и ДО
+  // recomputePluginRoles: флаг возвращается как можно раньше, и сбой проверки
+  // записи у той не оставит установку без него. Порядок задаёт список, а не
+  // дата в id. См. grantUpgradeFirmware.js
+  { id: "2026-10-01-grantUpgradeFirmware", script: "grantUpgradeFirmware.js", apply: true },
+  // Роль плагина по адресату учётной записи (W1 §1); пишет только `role`, после
+  // grantUpgradeFirmware; см. recomputePluginRoles.js
+  { id: "2026-09-30-recomputePluginRoles", script: "recomputePluginRoles.js", apply: true },
   // Заморозка расчёта у ранее сформированных отчётов; см. snapshotReports.js
   { id: "2026-10-01-snapshotReports", script: "snapshotReports.js", apply: true },
 ];
