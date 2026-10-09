@@ -11,6 +11,7 @@ const {
   guardLoginWithPin,
   describeConnectionError,
   isTransientPollError,
+  sshConnectError,
 } = require("./connector");
 
 const poll = (resource) => ({
@@ -222,4 +223,39 @@ test("isTransientPollError: a pin mismatch is a verdict, not weather", () => {
   // routeros-node rewraps socket errors as RouterosException(message) — the code
   // is lost, the message survives; the rule must hold on the message alone.
   assert.equal(isTransientPollError(new Error(error.message)), false);
+});
+
+// Prod, 09.10: three devices were "online" (API-SSL answers) while every config
+// export failed on the SSH port, under a message about host and port knocking.
+test("a silent SSH port is named as such, with the port", () => {
+  const error = sshConnectError(new Error("Timed out while waiting for handshake"), 22);
+  assert.equal(error.code, "MIKROTIK_SSH_UNREACHABLE");
+  assert.match(error.message, /^SSH-порт 22 устройства не отвечает/);
+  assert.match(error.message, /port knocking/);
+  assert.equal(error.cause.message, "Timed out while waiting for handshake");
+});
+
+test("a refused SSH port says the service is off or on another port", () => {
+  const refused = Object.assign(new Error("connect ECONNREFUSED 89.108.73.94:22"), {
+    code: "ECONNREFUSED",
+  });
+  const error = sshConnectError(refused, 2222);
+  assert.equal(error.code, "MIKROTIK_SSH_UNREACHABLE");
+  assert.match(error.message, /^SSH-порт 2222 устройства отклоняет соединение/);
+});
+
+test("login, host-key and already-coded errors pass through untouched", () => {
+  const login = new Error("All configured authentication methods failed");
+  assert.equal(sshConnectError(login, 22), login);
+  const pinned = Object.assign(new Error("mismatch"), {
+    code: "MIKROTIK_SSH_HOSTKEY_MISMATCH",
+  });
+  assert.equal(sshConnectError(pinned, 22), pinned);
+});
+
+test("describeConnectionError keeps the SSH message instead of the knock one", () => {
+  const error = sshConnectError(new Error("Timed out while waiting for handshake"), 22);
+  const described = describeConnectionError(error);
+  assert.equal(described.status, 502);
+  assert.equal(described.message, error.message);
 });

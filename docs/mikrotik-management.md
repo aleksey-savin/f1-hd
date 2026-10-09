@@ -254,6 +254,18 @@ Uses `routeros-node` (`new Routeros(...)` → `connect()` → `conn.write([...])
   erases a previously captured value when the result is `$set` onto the record.
   `license` (`services/mikrotik/license.js#parseLicense`) follows the same rule:
   an unanswered read keeps the stored subdocument.
+- `sshConnectError(error, port)` — renames a connection-class failure of the
+  device's own SSH leg (refused, silent, handshake timeout) to
+  `MIKROTIK_SSH_UNREACHABLE` with a message that names the SSH port;
+  `describeConnectionError` passes that message through. Exports travel over
+  SSH while "online" comes from API-SSL, so a closed SSH port leaves a device
+  online with no copies — the generic "host, port, port knocking" text pointed
+  at the API, which works. Login failures, host-key mismatches and coded
+  (`MIKROTIK_*`) errors are left alone.
+- **SSH check on save** (`checkSshAccess` in the controller) — after a verified
+  save (both create and update) one SSH session is opened and closed with the
+  saved parameters. A failure does not block the save: the response carries
+  `sshWarning` (text) next to `message`; `null` means SSH works.
 - `assertUserNotFullGroup(users, user)` — rejects RouterOS accounts in the `full`
   group. **Best-effort**: when `/user/print` was unreadable (least-privilege
   user) `users` is null and the check is skipped.
@@ -1165,6 +1177,15 @@ re-encrypts records via the `v1` version prefix.
 - **`NVD_API_KEY`** — optional; sent as the `apiKey` header to NVD. The keyless
   limit (5 req/30 s) is ample for the single daily fetch — set the key only if
   the environment shares its egress IP with other NVD consumers.
+- **`MIKROTIK_ALLOWED_PRIVATE_NETS`** — the SSRF guard (`services/mikrotik/hostGuard.js#assertPublicHost`)
+  rejects a direct device on a private address. A router in the installation's
+  own LAN is allowed by listing it here: IPv4 addresses or CIDR blocks,
+  comma-separated (`10.0.50.1,10.0.60.0/24`; prefixes shorter than /8 and
+  malformed entries are ignored with a warning). Deploy-time only, never
+  editable from the UI. Loopback, `0.0.0.0/8` and link-local/metadata
+  (`169.254.0.0/16`) stay blocked whatever it says; IPv6 private ranges cannot
+  be allowed. Read on every check, but a container picks up `.env` changes only
+  when recreated.
 - **Monitoring tunables** — all optional, sane defaults compiled in
   (`services/mikrotik/connector.js`, `services/mikrotik/monitorState.js`):
   `MIKROTIK_OFFLINE_CONFIRM_POLLS` (2), `MIKROTIK_CONNECT_TIMEOUT_SECONDS` (15),

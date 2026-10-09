@@ -1,5 +1,3 @@
-const net = require("net");
-const dns = require("dns").promises;
 const crypto = require("crypto");
 
 const MikrotikArtifact = require("../../models/mikrotikArtifact");
@@ -30,71 +28,9 @@ const normalizeConfig = (buffer) =>
 const configHash = (buffer) =>
   crypto.createHash("sha256").update(normalizeConfig(buffer)).digest("hex");
 
-// --- SSRF guard: the device host is operator-supplied, so refuse to open
-// connections to loopback / private / link-local (incl. cloud-metadata) targets.
-const isBlockedIp = (ip) => {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    if (a === 127 || a === 10 || a === 0) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 169 && b === 254) return true; // link-local + cloud metadata
-    return false;
-  }
-  if (net.isIPv6(ip)) {
-    const low = ip.toLowerCase();
-    return (
-      low === "::1" ||
-      low.startsWith("fe80") ||
-      low.startsWith("fc") ||
-      low.startsWith("fd")
-    );
-  }
-  return false;
-};
-
-const assertPublicHost = async (host) => {
-  let ips;
-  if (net.isIP(host)) {
-    ips = [host];
-  } else {
-    const resolved = await dns.lookup(host, { all: true });
-    ips = resolved.map((entry) => entry.address);
-  }
-  if (ips.some(isBlockedIp)) {
-    const error = new Error(
-      `Хост ${host} указывает на внутренний адрес и запрещён`,
-    );
-    error.code = "MIKROTIK_BLOCKED_HOST";
-    throw error;
-  }
-};
-
-// Мягкий SSRF-guard для целей за транзитом («подключение через устройство»):
-// адрес за роутером — LAN, поэтому RFC1918/ULA легитимны; блокируются только
-// loopback/link-local/0.0.0.0 и литерал localhost (незачем указывать роутеру
-// на самого себя или в облачную метадату). Имена НЕ резолвятся: их резолвит
-// роутер в своей сети, взгляд бэкенда на DNS нерелевантен.
-const assertJumpTargetHost = (host) => {
-  const blocked = (() => {
-    if (net.isIPv4(host)) {
-      const [a, b] = host.split(".").map(Number);
-      return a === 127 || a === 0 || (a === 169 && b === 254);
-    }
-    if (net.isIPv6(host)) {
-      const low = host.toLowerCase();
-      return low === "::1" || low === "::" || low.startsWith("fe80");
-    }
-    return String(host).trim().toLowerCase() === "localhost";
-  })();
-  if (blocked) {
-    const error = new Error(
-      `Хост ${host} недопустим для подключения через транзитное устройство`,
-    );
-    error.code = "MIKROTIK_BLOCKED_HOST";
-    throw error;
-  }
-};
+// SSRF guards for operator-supplied device hosts live in ./hostGuard (pure, so
+// they can be tested without this module's storage and model dependencies).
+const { assertPublicHost, assertJumpTargetHost } = require("./hostGuard");
 
 // Filesystem-safe base for a human download name.
 const sanitizeBaseName = (value) =>

@@ -25,6 +25,7 @@ const {
   pollDevice,
   mapPollToFields,
   describeConnectionError,
+  withSshSession,
 } = require("../../services/mikrotik/connector");
 const storage = require("../../services/storage");
 const { decryptArtifact } = require("../../services/crypto/artifactBox");
@@ -484,6 +485,34 @@ const mapVerifyError = (error, host) => {
     true,
     error,
   );
+};
+
+// The save verification above proves API-SSL only, while config exports and the
+// pre-upgrade copy travel over SSH — a device with a closed SSH port used to be
+// saved clean and then failed every scheduled export unnoticed (prod, 09.10).
+// After a verified save, open and close one SSH session with the same
+// parameters. A failure never blocks the save (monitoring works without SSH):
+// it comes back as a warning text for the response; null — SSH is fine.
+const checkSshAccess = async (update) => {
+  try {
+    const jumpCtx = await resolveJumpContext(update);
+    await withSshSession(
+      { ...buildSshParams(update), jump: jumpCtx?.params },
+      async () => true,
+    );
+    return null;
+  } catch (error) {
+    logger.log("warn", "Mikrotik SSH check on save failed", {
+      host: update.credentials.host,
+      error: error.message,
+    });
+    const reason =
+      error.code === "MIKROTIK_SSH_HOSTKEY_MISMATCH"
+        ? error.message
+        : describeConnectionError(error)?.message ||
+          "Не удалось подключиться к устройству по SSH.";
+    return `Устройство сохранено, но копии конфигурации сниматься не будут. ${reason}`;
+  }
 };
 
 // --- Backups & config exports -------------------------------------------------
@@ -1429,6 +1458,7 @@ exports.createStandalone = async (req, res, next) => {
 
     res.status(201).json({
       message: "Устройство добавлено и проверено",
+      sshWarning: await checkSshAccess(update),
       record: safe,
       inventory: await inventoryLinkContext(record, req.auth),
     });
@@ -1496,6 +1526,7 @@ exports.updateRecordParameters = async (req, res, next) => {
 
     res.status(200).json({
       message: "Параметры сохранены и проверены",
+      sshWarning: await checkSshAccess(update),
       record,
       // Несвязанной записи после проверки снова предлагается связь (серийник
       // мог появиться только сейчас); у связанной блока нет.

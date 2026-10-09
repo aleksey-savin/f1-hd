@@ -646,6 +646,38 @@ const connectSshClient = ({
       });
   });
 
+// A failed SSH connect to the device itself, renamed for what it is. Config
+// exports travel over SSH while the "online" status comes from API-SSL, so a
+// closed SSH port leaves a device online with no copies — and the generic
+// "check host, port and port knocking" text pointed at the API, which works
+// (prod, 09.10). Only connection-class failures are renamed; login failures,
+// host-key mismatches and already-coded errors pass through. Pure — tested.
+const SSH_UNREACHABLE = "MIKROTIK_SSH_UNREACHABLE";
+const SSH_HINT =
+  "Копии конфигурации снимаются по SSH, а не по API: проверьте, что служба " +
+  "ssh на устройстве включена и слушает этот порт (/ip service print)";
+const sshConnectError = (error, port = 22) => {
+  if (String(error?.code || "").startsWith("MIKROTIK_")) return error;
+  const raw = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+  let message = null;
+  if (raw.includes("econnrefused")) {
+    message = `SSH-порт ${port} устройства отклоняет соединение. ${SSH_HINT}.`;
+  } else if (
+    raw.includes("timed out") ||
+    raw.includes("timeout") ||
+    raw.includes("etimedout") ||
+    raw.includes("ehostunreach") ||
+    raw.includes("enetunreach") ||
+    raw.includes("econnreset")
+  ) {
+    message =
+      `SSH-порт ${port} устройства не отвечает. ${SSH_HINT} и что файрвол ` +
+      "после port knocking открывает и его.";
+  }
+  if (!message) return error;
+  return Object.assign(new Error(message), { code: SSH_UNREACHABLE, cause: error });
+};
+
 // --- Jump host (транзит) -------------------------------------------------------
 // «Подключение через устройство»: соединения с целью (API-SSL и SSH) идут
 // сквозь SSH уже управляемого роутера (RouterOS: /ip ssh set
@@ -805,6 +837,8 @@ const openSshSession = async (params) => {
       const { conn, hostKey } = await connectSshClient({
         ...params,
         sock: channel,
+      }).catch((error) => {
+        throw sshConnectError(error, params.sshPort || 22);
       });
       return {
         conn,
@@ -821,7 +855,9 @@ const openSshSession = async (params) => {
   }
 
   await knockDevice(params.host, params.knockSequence);
-  const { conn, hostKey } = await connectSshClient(params);
+  const { conn, hostKey } = await connectSshClient(params).catch((error) => {
+    throw sshConnectError(error, params.sshPort || 22);
+  });
   return { conn, hostKey, close: () => conn.end() };
 };
 
@@ -904,6 +940,10 @@ const JUMP_ERROR_STATUS = {
 const describeConnectionError = (error) => {
   const jumpStatus = JUMP_ERROR_STATUS[String(error?.code || "")];
   if (jumpStatus) return { status: jumpStatus, message: error.message };
+  // The SSH port of the device itself (sshConnectError) — its own message.
+  if (error?.code === SSH_UNREACHABLE) {
+    return { status: 502, message: error.message };
+  }
 
   const raw = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
 
@@ -1033,6 +1073,7 @@ module.exports = {
   isTransientPollError,
   mapPollToFields,
   describeConnectionError,
+  sshConnectError,
   withSshSession,
   sshExec,
   exportConfig,
