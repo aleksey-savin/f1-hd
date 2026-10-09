@@ -191,3 +191,8 @@ test("channel: heartbeat and message stamps are noise, login state moves «chann
     { topics: ["channels"], meaningful: true },
   );
 });
+
+test("Mikrotik traffic sample (services/mikrotik/traffic.js) is noise", () => {
+  const sample = { $set: { traffic: { counter: 1, at: new Date() } } };
+  assert.equal(classifyUpdate("updateOne", sample, SPECS.Mikrotik).meaningful, false);
+});

@@ -64,6 +64,12 @@ const { backupView } = require("../../services/mikrotik/backupState");
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
+const { bus } = require("../../services/pulse");
+const { deleteTraffic } = require("../../services/mikrotik/traffic");
+const { plannedUntil } = require("../../services/mikrotik/plannedOffline");
+const { loadActivity } = require("../../services/mikrotik/activity");
+const { parsePlannedOffline } = require("../../validations/inventory/mikrotik");
+const { resolveTimezone } = require("../../utils/datetime");
 
 // Config exports contain device secrets, so downloading one requires a step-up
 // email OTP: a 6-digit code, valid 10 minutes, single-use, max 5 tries.
@@ -637,6 +643,21 @@ const DEVICE_ROW_POPULATE = [
 
 // Окно, внутри которого отметки offlineSince считаются ОДНИМ проходом опроса.
 const ONE_POLL_WINDOW_MS = 5 * 60 * 1000;
+// Пояс организации — в нём заданы окна планового отключения.
+const loadOrgZone = async () =>
+  resolveTimezone(await Preferences.findOne({}).select("timezone").lean());
+
+// Поля планового отключения строки: окна и конец текущего (устройство не в
+// сети и сейчас внутри окна) — «Отключено по расписанию · до 07:00».
+const plannedView = (record, zone, nowMs) => ({
+  plannedOffline: (record.plannedOffline || []).map(({ days, start, end }) => ({
+    days,
+    start,
+    end,
+  })),
+  plannedOfflineUntil: plannedUntil(record, nowMs, zone),
+});
+
 // Сколько строк максимум уносит главная; остальное — по ссылке в раздел.
 const OFFLINE_ROWS_LIMIT = 10;
 
@@ -661,7 +682,7 @@ exports.getOfflineDevices = async (req, res, next) => {
     const [records, monitored] = await Promise.all([
       Mikrotik.find({ monitoringEnabled: true, status: "offline" })
         .select(
-          "name label boardName clientDevice companyId offlineSince lastError alertTicketId",
+          "name label boardName clientDevice companyId offlineSince lastError alertTicketId offlineAlertedAt plannedOffline monitoringEnabled status",
         )
         .populate("companyId", "alias")
         .populate("alertTicketId", "num")
@@ -683,7 +704,12 @@ exports.getOfflineDevices = async (req, res, next) => {
       devices.map((device) => [String(device._id), device]),
     );
 
+    const zone = await loadOrgZone();
+    const nowMs = Date.now();
+
     const items = records
+      // Отключённые по расписанию — не авария: в блок «не в сети» не попадают.
+      .filter((record) => !plannedUntil(record, nowMs, zone))
       .map((record) => {
         const device = record.clientDevice
           ? deviceById.get(String(record.clientDevice))
@@ -825,6 +851,9 @@ exports.getManagedDevices = async (req, res, next) => {
           }
         : null;
 
+    const zone = await loadOrgZone();
+    const nowMs = Date.now();
+
     const rows = records.map((record) => {
       const device = deviceFor(record);
       const protection = protectionFor(artifactSummary, record._id);
@@ -834,6 +863,7 @@ exports.getManagedDevices = async (req, res, next) => {
         : buildStandaloneRow(record, protection, jumpFor(record));
       return {
         ...base,
+        ...plannedView(record, zone, nowMs),
         uptime30d: stats?.pct ?? null,
         uptimeDays: stats?.days ?? null,
         firmwareStatus: evaluateFirmware(record, firmware),
@@ -891,6 +921,7 @@ exports.getRecordOne = async (req, res, next) => {
 
     res.status(200).json({
       ...base,
+      ...plannedView(record, await loadOrgZone(), Date.now()),
       uptime30d: stats?.pct ?? null,
       uptimeDays: stats?.days ?? null,
       firmwareStatus: evaluateFirmware(record, firmware),
@@ -1557,6 +1588,7 @@ exports.deleteRecord = async (req, res, next) => {
 
     await Mikrotik.deleteOne({ _id: record._id });
     await deleteOutages(record._id);
+    await deleteTraffic(record._id);
 
     logger.log("info", "Mikrotik record deleted", {
       actor: req.userId,
@@ -1598,6 +1630,22 @@ exports.getAvailability = async (req, res, next) => {
         error,
       ),
     );
+  }
+};
+
+// Недельный профиль активности записи, ближайшее тихое окно и предложение
+// планового отключения по истории простоев.
+exports.getActivity = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId)
+      .select("plannedOffline plannedOfflineSuggestionHiddenAt")
+      .lean();
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+    res.status(200).json(await loadActivity(record));
+  } catch (error) {
+    next(new AppError("Failed to compute mikrotik activity", 500, true, error));
   }
 };
 
@@ -2001,5 +2049,55 @@ exports.updateSchedules = async (req, res, next) => {
       .json({ message: "Расписание сохранено", schedules: publicSchedules(record) });
   } catch (error) {
     next(new AppError("Failed to update mikrotik schedules", 500, true, error));
+  }
+};
+
+// Окна планового отключения. Отдельно от параметров намеренно: их сохранение
+// проверяет подключение (verify-on-save), а устройство, ради которого окно
+// задают, в этот момент может быть как раз выключено.
+exports.updatePlannedOffline = async (req, res, next) => {
+  try {
+    const parsed = parsePlannedOffline(req.body);
+    if (parsed.error) return next(new AppError(parsed.error, 422));
+
+    const record = await Mikrotik.findByIdAndUpdate(
+      req.params.recordId,
+      { $set: { plannedOffline: parsed.windows } },
+      { new: true },
+    ).select("plannedOffline");
+    if (!record) return next(new AppError("Устройство не найдено", 404));
+
+    logger.log("info", "Mikrotik planned offline windows updated", {
+      actor: req.userId,
+      recordId: record._id,
+      windows: parsed.windows.length,
+      ip: req.ip,
+    });
+    bus.bump({ topics: ["mikrotik"] });
+
+    res.status(200).json({
+      message: parsed.windows.length
+        ? "Плановые отключения сохранены"
+        : "Плановые отключения убраны",
+      plannedOffline: parsed.windows,
+    });
+  } catch (error) {
+    next(new AppError("Failed to update mikrotik planned offline", 500, true, error));
+  }
+};
+
+// «Скрыть» на предложенном окне — 30 дней его не предлагаем снова.
+exports.hidePlannedOfflineSuggestion = async (req, res, next) => {
+  try {
+    const result = await Mikrotik.updateOne(
+      { _id: req.params.recordId },
+      { $set: { plannedOfflineSuggestionHiddenAt: new Date() } },
+    );
+    if (result.matchedCount === 0) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+    res.status(200).json({ message: "Скрыто" });
+  } catch (error) {
+    next(new AppError("Failed to hide mikrotik planned offline suggestion", 500, true, error));
   }
 };

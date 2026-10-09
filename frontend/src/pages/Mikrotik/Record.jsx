@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import useToastStore from "@/store/toast-store";
 
 import ConfirmDialog from "../../components/Mikrotik/ConfirmDialog";
+import ActivitySection from "../../components/Mikrotik/ActivitySection";
 import AvailabilitySection from "../../components/Mikrotik/AvailabilitySection";
 import ConfigsSection from "../../components/Mikrotik/ConfigsSection";
 import FirmwareSection from "../../components/Mikrotik/FirmwareSection";
@@ -61,6 +62,7 @@ import {
   formatDate,
   formatDayMonth,
   formatShortDate,
+  formatTime,
 } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import { useCan } from "@/store/authed-user";
@@ -341,6 +343,7 @@ const MikrotikRecordPage = () => {
     { id: "connection", label: "Подключение" },
     { id: "firmware", label: "Прошивка и безопасность" },
     { id: "availability", label: "Доступность" },
+    { id: "activity", label: "Активность" },
     { id: "network", label: "Сеть" },
     canManageConfigs ? { id: "configs", label: "Конфигурации" } : null,
   ].filter(Boolean);
@@ -425,6 +428,9 @@ const MikrotikRecordPage = () => {
                     Date.now() - new Date(row.offlineSince).getTime(),
                   )}
                 </>
+              )}
+              {status === "planned" && (
+                <> · до {formatTime(row.plannedOfflineUntil)}</>
               )}
             </span>
             {row.uptime30d != null && (
@@ -630,6 +636,7 @@ const MikrotikRecordPage = () => {
 
           {/* ── Доступность ── */}
           <AvailabilitySection recordId={row.recordId} />
+          <ActivitySection row={row} canManage={canManage} />
 
           {/* ── Сеть ── */}
           <Eyebrow id="network" count={activeAddresses.length}>

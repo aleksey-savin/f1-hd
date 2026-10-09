@@ -119,6 +119,20 @@ router.post(
   canManageMikrotik,
   mikrotikController.disconnectRecord,
 );
+// Плановые отключения — свой эндпоинт: параметры проверяют подключение при
+// сохранении, а окно задают как раз для устройства, которое бывает выключено.
+router.put(
+  "/mikrotik-devices/records/:recordId/planned-offline",
+  isAuth,
+  canManageMikrotik,
+  mikrotikController.updatePlannedOffline,
+);
+router.post(
+  "/mikrotik-devices/records/:recordId/planned-offline/suggestion/hide",
+  isAuth,
+  canManageMikrotik,
+  mikrotikController.hidePlannedOfflineSuggestion,
+);
 router.delete(
   "/mikrotik-devices/records/:recordId",
   isAuth,
@@ -163,6 +177,11 @@ router.get(
   "/mikrotik-devices/records/:recordId/availability",
   isAuth,
   mikrotikController.getAvailability,
+);
+router.get(
+  "/mikrotik-devices/records/:recordId/activity",
+  isAuth,
+  mikrotikController.getActivity,
 );
 router.get(
   "/mikrotik-devices/records/:recordId/artifacts",

@@ -5,6 +5,7 @@ const MikrotikUpgradeJob = require("../../models/mikrotikUpgradeJob");
 const User = require("../../models/user");
 const { loadFirmwareContext } = require("../../services/mikrotik/firmware");
 const { planUpgrade } = require("../../services/mikrotik/upgradePlan");
+const { loadQuietWindows } = require("../../services/mikrotik/activity");
 const { CHANNEL_MODES } = require("../../services/mikrotik/upgradeConstants");
 const {
   publicPlan,
@@ -45,7 +46,7 @@ const buildPlan = async ({ ids, channel, toV7 }) => {
   const [records, firmware, running] = await Promise.all([
     Mikrotik.find({ _id: { $in: ids } })
       .select(
-        "name label credentials.host firmwareUpgradeEnabled monitoringEnabled status currentFirmware totalMemory jumpRecordId",
+        "name label credentials.host firmwareUpgradeEnabled monitoringEnabled status currentFirmware totalMemory jumpRecordId plannedOffline",
       )
       .lean(),
     loadFirmwareContext(),
@@ -67,6 +68,7 @@ const buildPlan = async ({ ids, channel, toV7 }) => {
       toV7,
     }),
     running,
+    records,
   };
 };
 
@@ -78,8 +80,26 @@ const passAppError = (next, error, message) =>
 
 exports.planUpgrades = async (req, res, next) => {
   try {
-    const { plan } = await buildPlan(parseBody(req.body));
-    res.status(200).json(publicPlan(plan));
+    const { plan, records } = await buildPlan(parseBody(req.body));
+    const view = publicPlan(plan);
+
+    // Тихое окно каждого устройства — подсказка, когда лучше запускать. Нет
+    // данных — поля нет; сбой расчёта план не ломает.
+    try {
+      const ids = new Set(view.items.map((item) => String(item.recordId)));
+      const quiet = await loadQuietWindows(
+        records.filter((record) => ids.has(String(record._id))),
+      );
+      for (const item of view.items) {
+        item.quietWindow = quiet.get(String(item.recordId)) || null;
+      }
+    } catch (error) {
+      logger.log("debug", "Mikrotik quiet windows unavailable for the plan", {
+        error: error.message,
+      });
+    }
+
+    res.status(200).json(view);
   } catch (error) {
     passAppError(next, error, "Не удалось составить план обновления");
   }

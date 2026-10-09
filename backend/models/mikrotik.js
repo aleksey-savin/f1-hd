@@ -101,6 +101,25 @@ const mikrotikSchema = new Schema(
         comment: String,
       },
     ],
+    // Last traffic sample (Σ rx-byte over physical interfaces) — the base the
+    // next poll's delta is taken from. See services/mikrotik/trafficSample.js.
+    traffic: {
+      counter: Number,
+      at: Date,
+    },
+    // Planned offline windows (org timezone): the device is switched off on
+    // purpose — no offline ticket, no downtime. `days` — 0 = Sunday … 6, the
+    // day the window STARTS; end < start ⇒ ends the next day.
+    plannedOffline: [
+      {
+        _id: false,
+        days: [Number],
+        start: String,
+        end: String,
+      },
+    ],
+    // «Скрыть» on the suggested window — not offered again for 30 days.
+    plannedOfflineSuggestionHiddenAt: Date,
     // Connectivity from the last poll. Absence of a record => "not configured".
     status: {
       type: String,

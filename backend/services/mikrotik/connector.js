@@ -49,6 +49,10 @@ const LICENSE_READ_TIMEOUT_MS = envInt("MIKROTIK_LICENSE_READ_TIMEOUT_MS", 4000)
 const KNOCK_TOUCH_TIMEOUT_MS = envInt("MIKROTIK_KNOCK_TOUCH_TIMEOUT_MS", 800);
 // Gap between knocks so the sequence is ordered.
 const KNOCK_INTER_DELAY_MS = envInt("MIKROTIK_KNOCK_INTER_DELAY_MS", 150);
+// /interface/print feeds the traffic sample; a reply of ~30 rows, bounded so a
+// silent device cannot stall the poll.
+const INTERFACE_READ_TIMEOUT_MS = 8000;
+
 // Pause before the single retry of a transient poll failure (see pollWithRetry).
 const POLL_RETRY_DELAY_MS = envInt("MIKROTIK_POLL_RETRY_DELAY_MS", 2000);
 
@@ -381,7 +385,10 @@ const runApiSession = async (
 // (it burns USER_READ_TIMEOUT_MS every tick), and the serial number can't change
 // between polls. Verify-on-save keeps both (defaults) — it needs the full-group
 // guard and a fresh serial for the inventory reconciliation.
-const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } = {}) =>
+const pollDevice = (
+  params,
+  { verifyFullGroup = true, readRouterboard = true, readInterfaces = false } = {},
+) =>
   runApiSession(params, async ({ conn, routeros, jumpHostKey }) => {
     const observedCert = peerCertPem(routeros);
 
@@ -463,6 +470,26 @@ const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } =
       );
     }
 
+    // Traffic counters — health-check only, best-effort, and the LAST command
+    // of the session (an unanswered one must not sit in front of other reads).
+    // No `.proplist`: with one the reader returned no rows on live devices
+    // (probe 09.10.2026).
+    let interfaces = null;
+    if (readInterfaces) {
+      try {
+        interfaces = await withReadTimeout(
+          conn.write(["/interface/print"]),
+          INTERFACE_READ_TIMEOUT_MS,
+        );
+      } catch (error) {
+        logger.log(
+          "debug",
+          "Mikrotik /interface/print unavailable — no traffic sample",
+          { host: params.host, error: error.message },
+        );
+      }
+    }
+
     return {
       addresses,
       identity,
@@ -471,6 +498,7 @@ const pollDevice = (params, { verifyFullGroup = true, readRouterboard = true } =
       groups,
       routerboard,
       license,
+      interfaces,
       tlsCert: observedCert,
       // Наблюдённый SSH-ключ транзитного роутера — для опортунистического
       // пиннинга при verify-on-save (см. контроллер).

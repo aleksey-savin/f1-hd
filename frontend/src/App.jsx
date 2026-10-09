@@ -343,6 +343,9 @@ import MikrotikRecordPage, {
   loader as mikrotikRecordLoader,
 } from "./pages/Mikrotik/Record.jsx";
 import MikrotikDeviceForm from "./components/Mikrotik/DeviceForm.jsx";
+import MikrotikPlannedOfflineForm, {
+  action as mikrotikPlannedOfflineAction,
+} from "./components/Mikrotik/PlannedOfflineForm.jsx";
 import MikrotikScheduleForm, {
   action as mikrotikScheduleAction,
 } from "./components/Mikrotik/ScheduleForm.jsx";
@@ -1341,6 +1344,14 @@ function App() {
                   element: <MikrotikScheduleForm />,
                   action: mikrotikScheduleAction,
                   handle: { can: { mikrotik: ["manageConfigs"] }, ...SHEET_MD },
+                },
+                // Плановые отключения — своя шторка: параметры проверяют
+                // подключение при сохранении, а устройство бывает выключено
+                {
+                  path: "planned-offline",
+                  element: <MikrotikPlannedOfflineForm />,
+                  action: mikrotikPlannedOfflineAction,
+                  handle: { can: { mikrotik: ["manage"] }, ...SHEET_MD },
                 },
               ],
             },

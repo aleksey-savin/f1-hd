@@ -7,6 +7,7 @@ const {
 } = require("./connector");
 const { ensureOpenOutage, markRecovered } = require("./outages");
 const { bus } = require("../pulse");
+const { recordTraffic } = require("./traffic");
 const logger = require("../../utils/logger");
 
 // Live updates: per-poll writes are noise for the pulse plugin (see
@@ -160,6 +161,10 @@ const recoverToOnline = async (record, poll, now = new Date()) => {
   );
 
   if (shownChanged(prev, set)) bus.bump({ topics: ["mikrotik"] });
+
+  // Traffic sample — only polls that read interfaces carry one (health-check);
+  // `prev.traffic` is the previous sample.
+  if (prev && poll.interfaces) await recordTraffic(prev, poll.interfaces, now);
 
   if (prev?.offlineSince) {
     await markRecovered(prev);

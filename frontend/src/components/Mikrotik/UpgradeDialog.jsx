@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { isMobile } from "react-device-detect";
-import { RiErrorWarningLine } from "react-icons/ri";
+import { RiErrorWarningLine, RiTimeLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,10 +19,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import Segmented from "@/components/app/Segmented";
+import { cn } from "@/lib/utils";
 import useToastStore from "@/store/toast-store";
 
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
+import { displayTimeZone } from "../../util/format-date";
 import { plural } from "../../util/plural";
+import { quietLabel } from "./activity-format";
 import { installsLabel } from "./upgrade-format.js";
 
 const CHANNEL_OPTIONS = [
@@ -119,6 +122,11 @@ const UpgradeDialog = ({
   const shown = plan === null ? recordIds.length : count;
   const majorCount = items.filter((item) => item.majorUpgrade).length;
   const showV7Toggle = !lockChannel && (hasV6 || toV7);
+  // Тихое окно — подсказка, когда запускать: одно устройство получает плашку,
+  // в пакете — строка под названием. Нет данных — нет и подсказки.
+  const zone = displayTimeZone();
+  const singleQuiet = single ? items[0]?.quietWindow : null;
+  const hasQuiet = !single && items.some((item) => item.quietWindow);
 
   // План пришёл пустым (все пропущены) — без «на 0 устройствах»; кнопка и так погашена
   const title = single
@@ -224,6 +232,19 @@ const UpgradeDialog = ({
                     </span>
                   </span>
                 )}
+                {!single && item.quietWindow && (
+                  <span
+                    className={cn(
+                      "block text-xs tabular-nums",
+                      item.quietWindow.current
+                        ? "font-medium text-accent-text"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {item.quietWindow.current ? "тихо сейчас, " : "тихо "}
+                    {quietLabel(item.quietWindow, zone)}
+                  </span>
+                )}
               </span>
               <span className="font-mono text-sm max-md:text-xs">
                 {item.fromVersion} → {item.toVersion}
@@ -242,6 +263,54 @@ const UpgradeDialog = ({
               Показать ещё {items.length - visibleItems.length}
             </button>
           )}
+        </div>
+      )}
+
+      {hasQuiet && (
+        <p className="-mt-2 text-xs text-faint">
+          Тихие часы — время наименьшей сетевой активности устройства.
+        </p>
+      )}
+
+      {singleQuiet && (
+        <div
+          className={cn(
+            "flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm",
+            singleQuiet.current
+              ? "border-primary/35 bg-primary/5"
+              : "border-border bg-muted",
+          )}
+        >
+          <RiTimeLine
+            size={16}
+            aria-hidden
+            className={cn(
+              "mt-0.5 flex-none",
+              singleQuiet.current ? "text-accent-text" : "text-muted-foreground",
+            )}
+          />
+          <div>
+            {singleQuiet.current ? (
+              <>
+                Сейчас подходящее время:{" "}
+                <b className="font-semibold tabular-nums">
+                  {quietLabel(singleQuiet, zone)}
+                </b>{" "}
+                на устройстве наименьшая сетевая активность.
+              </>
+            ) : (
+              <>
+                Рекомендуем обновить{" "}
+                <b className="font-semibold tabular-nums">
+                  {quietLabel(singleQuiet, zone).replace(
+                    / (\d\d:\d\d)–/,
+                    " с $1 до ",
+                  )}
+                </b>
+                : в это время на устройстве наименьшая сетевая активность.
+              </>
+            )}
+          </div>
         </div>
       )}
 

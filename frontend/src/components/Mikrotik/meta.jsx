@@ -19,6 +19,13 @@ export const STATUS_META = {
     text: "text-destructive",
     dot: "bg-destructive",
   },
+  // Не в сети по расписанию (окно планового отключения) — не авария: серым.
+  planned: {
+    label: "Отключено по расписанию",
+    tone: "off",
+    text: "text-muted-foreground",
+    dot: "bg-faint",
+  },
   disabled: {
     label: "Выключен",
     tone: "off",
@@ -95,7 +102,15 @@ const deviceIcon = (row) => {
 // один факт «в сети / не в сети» — один вид на обеих страницах.
 export const DeviceTile = ({ row, size = "md", className }) => {
   const Icon = deviceIcon(row);
-  const status = row?.monitoringEnabled ? row?.status || "offline" : "disabled";
+  const offlineByPlan =
+    row?.monitoringEnabled &&
+    (row.status || "offline") === "offline" &&
+    row.plannedOfflineUntil;
+  const status = offlineByPlan
+    ? "planned"
+    : row?.monitoringEnabled
+      ? row?.status || "offline"
+      : "disabled";
   const meta = STATUS_META[status] || STATUS_META.offline;
   // Идёт обновление прошивки — точка в тон «Обновляется» (info), а не «в сети»
   const dot = row?.upgrade?.state === "running" ? "bg-info" : meta.dot;
@@ -187,10 +202,13 @@ export const reportSegments = (report, bucketCount) => {
   if (!(to > from)) return null;
   const step = (to - from) / bucketCount;
 
-  const intervals = (report.outages || []).map((outage) => [
-    new Date(outage.startedAt).getTime(),
-    outage.endedAt ? new Date(outage.endedAt).getTime() : to,
-  ]);
+  // downIntervals — простои без плановых кусков (считает бэкенд)
+  const intervals = Array.isArray(report.downIntervals)
+    ? report.downIntervals
+    : (report.outages || []).map((outage) => [
+        new Date(outage.startedAt).getTime(),
+        outage.endedAt ? new Date(outage.endedAt).getTime() : to,
+      ]);
 
   const segments = [];
   for (let index = 0; index < bucketCount; index += 1) {
@@ -209,7 +227,11 @@ export const reportSegments = (report, bucketCount) => {
     segments.push({ tone: toneForDowntime(downtime, winEnd - effStart) });
   }
 
-  if (report.current?.status === "offline") {
+  // Идущее плановое отключение красным не пульсирует
+  const ongoingPlanned = (report.outages || []).some(
+    (outage) => outage.ongoing && outage.planned,
+  );
+  if (report.current?.status === "offline" && !ongoingPlanned) {
     const last = segments.length - 1;
     if (last >= 0 && segments[last].tone !== "none") {
       segments[last] = { tone: "down", pulse: true };

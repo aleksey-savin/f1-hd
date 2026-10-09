@@ -4,6 +4,12 @@ const TicketLog = require("../../models/ticketLog");
 const { Ticket } = require("../../models/ticket");
 const Preferences = require("../../models/preferences");
 const { deviceLabel, fmtTime } = require("./tickets");
+const {
+  plannedIntervals,
+  summarizeDowntime,
+  isPlannedEpisode,
+} = require("./plannedOffline");
+const { resolveTimezone } = require("../../utils/datetime");
 const logger = require("../../utils/logger");
 
 // Outage-episode bookkeeping for monitored Mikrotik devices. Episodes power the
@@ -244,6 +250,10 @@ const clampAndMergeIntervals = (docs, fromMs, toMs) => {
   return merged;
 };
 
+// Org timezone — planned offline windows are defined in it.
+const loadZone = async () =>
+  resolveTimezone(await Preferences.findOne({}).select("timezone").lean());
+
 // Availability over the trailing `days` window, clamped to when the device was
 // enrolled (record.createdAt — there is no monitoring-toggle history). KPIs are
 // computed on window-clamped, overlap-merged intervals so glitched data can never
@@ -271,17 +281,27 @@ const computeAvailability = async (record, { days }) => {
     effectiveFrom.getTime(),
     to.getTime(),
   );
-  let downtimeMs = 0;
-  let longestMs = 0;
-  const outageCount = merged.length;
-  for (const [start, end] of merged) {
-    downtimeMs += end - start;
-    longestMs = Math.max(longestMs, end - start);
-  }
+  // Плановые отключения не простой и не время, когда устройство должно было
+  // работать: вычитаются и из простоя, и из окна наблюдения. Эпизод, переживший
+  // своё окно, считается только с конца окна.
+  const planned = plannedIntervals(
+    record.plannedOffline,
+    effectiveFrom.getTime(),
+    to.getTime(),
+    await loadZone(),
+  );
+  const summary = summarizeDowntime(
+    merged,
+    planned,
+    effectiveFrom.getTime(),
+    to.getTime(),
+  );
+  const { downtimeMs, longestMs, outageCount } = summary;
+  const observedMs = summary.windowMs;
 
   const uptimePct =
-    windowMs > 0
-      ? Math.round((1 - downtimeMs / windowMs) * 10000) / 100
+    observedMs > 0
+      ? Math.round((1 - downtimeMs / observedMs) * 10000) / 100
       : null;
 
   const outages = docs
@@ -293,6 +313,11 @@ const computeAvailability = async (record, { days }) => {
         (doc.endedAt ? new Date(doc.endedAt) : to).getTime() -
         new Date(doc.startedAt).getTime(),
       ongoing: !doc.endedAt,
+      planned: isPlannedEpisode(
+        new Date(doc.startedAt).getTime(),
+        (doc.endedAt ? new Date(doc.endedAt) : to).getTime(),
+        planned,
+      ),
       ticketId: doc.ticketId?._id || null,
       ticketNum: doc.ticketId?.num || null,
       lastError: doc.lastError || null,
@@ -305,6 +330,9 @@ const computeAvailability = async (record, { days }) => {
     effectiveFrom,
     monitoredSince,
     windowMs,
+    plannedMs: windowMs - observedMs,
+    // Простои без плановых кусков — лента доступности красит по ним.
+    downIntervals: summary.chunks,
     uptimePct,
     downtimeMs,
     outageCount,
@@ -342,6 +370,8 @@ const computeUptimeStats = async (records, { days = 30 } = {}) => {
     .select("mikrotik startedAt endedAt")
     .lean();
 
+  const zone = await loadZone();
+
   const byRecord = new Map();
   for (const doc of docs) {
     const key = String(doc.mikrotik);
@@ -353,17 +383,19 @@ const computeUptimeStats = async (records, { days = 30 } = {}) => {
     const key = String(record._id);
     const sinceMs = new Date(record.createdAt || from).getTime();
     const effectiveFromMs = Math.max(sinceMs, from.getTime());
-    const windowMs = toMs - effectiveFromMs;
-
     const merged = clampAndMergeIntervals(
       byRecord.get(key) || [],
       effectiveFromMs,
       toMs,
     );
-    let downtimeMs = 0;
-    for (const [start, end] of merged) {
-      downtimeMs += end - start;
-    }
+    const planned = plannedIntervals(
+      record.plannedOffline,
+      effectiveFromMs,
+      toMs,
+      zone,
+    );
+    const summary = summarizeDowntime(merged, planned, effectiveFromMs, toMs);
+    const downtimeMs = summary.downtimeMs;
 
     const dayBuckets = [];
     for (let i = days - 1; i >= 0; i--) {
@@ -374,7 +406,7 @@ const computeUptimeStats = async (records, { days = 30 } = {}) => {
       }
       const winStart = Math.max(winEnd - MS_PER_DAY, sinceMs);
       let dayDowntime = 0;
-      for (const [start, end] of merged) {
+      for (const [start, end] of summary.chunks) {
         const overlap = Math.min(end, winEnd) - Math.max(start, winStart);
         if (overlap > 0) dayDowntime += overlap;
       }
@@ -383,8 +415,8 @@ const computeUptimeStats = async (records, { days = 30 } = {}) => {
 
     map.set(key, {
       pct:
-        windowMs > 0
-          ? Math.round((1 - downtimeMs / windowMs) * 10000) / 100
+        summary.windowMs > 0
+          ? Math.round((1 - downtimeMs / summary.windowMs) * 10000) / 100
           : null,
       days: dayBuckets,
     });

@@ -139,7 +139,10 @@ const AvailabilitySection = ({ recordId }) => {
             report.outages.map((outage) => (
               <div
                 key={outage.id}
-                className="flex justify-between gap-2.5 border-t border-border-soft py-2 text-sm tabular-nums md:hidden"
+                className={cn(
+                  "flex justify-between gap-2.5 border-t border-border-soft py-2 text-sm tabular-nums md:hidden",
+                  outage.planned && "text-muted-foreground",
+                )}
               >
                 <div className="min-w-0">
                   {formatDate(outage.startedAt)}
@@ -158,7 +161,9 @@ const AvailabilitySection = ({ recordId }) => {
                 <div className="flex-none text-end">
                   {formatDurationShort(outage.durationMs)}
                   <div className="text-xs">
-                    {outage.ticketNum ? (
+                    {outage.planned ? (
+                      <span className="text-faint">по расписанию</span>
+                    ) : outage.ticketNum ? (
                       <Link
                         to={`/tickets/${outage.ticketNum}`}
                         className="font-semibold text-accent-text no-underline hover:underline"
@@ -183,7 +188,10 @@ const AvailabilitySection = ({ recordId }) => {
               {report.outages.map((outage) => (
                 <div
                   key={outage.id}
-                  className="flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm tabular-nums last:border-b-0"
+                  className={cn(
+                    "flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm tabular-nums last:border-b-0",
+                    outage.planned && "text-muted-foreground",
+                  )}
                 >
                   <span className="w-44 flex-none">
                     {formatDate(outage.startedAt)}
@@ -199,6 +207,7 @@ const AvailabilitySection = ({ recordId }) => {
                   </span>
                   <span className="flex-1">
                     {formatDurationShort(outage.durationMs)}
+                    {outage.planned && " · по расписанию"}
                   </span>
                   {outage.ticketNum ? (
                     <Link
@@ -212,6 +221,12 @@ const AvailabilitySection = ({ recordId }) => {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+          {report?.plannedMs > 0 && (
+            <div className="mt-2.5 text-xs text-faint">
+              Простои по расписанию не входят в доступность и счётчик
+              инцидентов.
             </div>
           )}
         </div>

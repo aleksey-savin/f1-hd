@@ -95,6 +95,16 @@ Company                                   Vendor (+ isMikrotikManagementEnabled)
   where `{open: true}` makes «one open episode per device» race-safe),
   `ticketId`, `lastError`. Episodes survive recovery — they power the
   availability report. TS mirror `IMikrotikOutage` in `backend/types/mikrotik.ts`.
+- **`MikrotikTrafficHour`** (`backend/models/mikrotikTrafficHour.js`) — network
+  activity, one document per device per UTC hour: `mikrotik` (ref), `hour`,
+  `bytes` (sum of accepted counter deltas), `seconds` (time those deltas cover).
+  Unique index `{mikrotik, hour}`; a TTL index on `hour` drops documents after
+  56 days. Deleted with the record. See _Network activity sampling_.
+- **`Mikrotik.traffic`** `{counter, at}` — the last traffic sample;
+  **`Mikrotik.plannedOffline`** `[{days, start, end}]` — windows in which the
+  device is switched off on purpose (see _Planned offline windows_);
+  **`Mikrotik.plannedOfflineSuggestionHiddenAt`** — the owner dismissed the
+  suggested window.
 - **`Ticket.relatedClientDeviceId`** (ref ClientDevice) — monitoring tickets
   point at the inventory device they are about; the ticket's «Окружение» tab uses
   it. Unlinked records have no card, so the field stays unset for them.
@@ -394,9 +404,12 @@ device id.
 | `POST /records/:recordId/disconnect` | `disconnectRecord` | `monitoringEnabled: false` + `status: "offline"`; closes the open episode silently and clears the alert state. |
 | `DELETE /records/:recordId` | `deleteRecord` | Delete the record (credentials, pinned cert, polled data) and its episodes; the inventory card is untouched. **409** when other records connect through it. |
 | `GET /records/:recordId/availability?days=1\|7\|30\|90` | `getAvailability` | Availability report over the window (invalid `days` ⇒ 30). `isAuth`. |
+| `GET /records/:recordId/activity` | `getActivity` | Weekly activity profile: `{timezone, slots[168] \| null, quiet{from,to,current,slots} \| null, suggestion \| null}` (see _Activity profile_). `isAuth`. |
+| `PUT /records/:recordId/planned-offline` | `updatePlannedOffline` | `{windows[{days[], start, end}]}` — replaces the planned offline windows (an empty list clears them); **422** on malformed input (`validations/inventory/mikrotik.js`). Separate from `parameters` on purpose: that save re-verifies the connection, and a window is set precisely for a device that may be off. `canManageMikrotik`. |
+| `POST /records/:recordId/planned-offline/suggestion/hide` | `hidePlannedOfflineSuggestion` | Stamps `plannedOfflineSuggestionHiddenAt` — the suggestion is not offered for 30 days. `canManageMikrotik`. |
 | `GET /report/networks` | `networksReport` | IP/network aggregation over all records + duplicate-network flagging. |
 | `GET /firmware/releases` | `getFirmwareReleases` | The release cache + CVE-sync freshness: `{channels[], cveSync}`. `isAuth`. |
-| `POST /upgrades/plan` | `planUpgrades` (`controllers/inventory/mikrotikUpgrade.js`) | Dry run for `{recordIds[], channel}`: `{items[{recordId, name, channel, fromVersion, toVersion}], skipped[{recordId, name, reason}]}`. `canUpgradeMikrotikFirmware` + `parametersLimiter`. |
+| `POST /upgrades/plan` | `planUpgrades` (`controllers/inventory/mikrotikUpgrade.js`) | Dry run for `{recordIds[], channel}`: `{items[{recordId, name, channel, fromVersion, toVersion, quietWindow}], skipped[{recordId, name, reason}]}`; `quietWindow` `{from, to, current} \| null` is the device's nearest low-activity window (advice only, see _Activity profile_). `canUpgradeMikrotikFirmware` + `parametersLimiter`. |
 | `POST /upgrades` | `createUpgrades` | Creates the batch — **201** `{job, skipped}`; **409** «Уже идёт обновление» while another batch runs (the partial unique index catches the race); **422** «Нечего обновлять» on an empty plan. Same guards. |
 | `GET /upgrades/current` | `getCurrentUpgrade` | The running batch (`publicJob`) or `null`. `isAuth`. |
 | `GET /upgrades/:jobId` | `getUpgrade` | One batch by id (404 otherwise). `isAuth`. |
@@ -543,6 +556,34 @@ which the alert cron reuses for its re-poll.
 The previous code loaded a document at the top of a tick and `save()`d it at the
 bottom, so health-check and alerts held two copies and overwrote each other.
 
+### Network activity sampling — `services/mikrotik/trafficSample.js`, `traffic.js`
+
+The health-check (and only it — `readInterfaces: true`) ends every poll with one
+extra `/interface/print`. The read is bounded (`INTERFACE_READ_TIMEOUT_MS`),
+best-effort and the **last** command of the session, so an unanswered one cannot
+sit in front of other reads; a failure leaves the poll successful and simply
+yields no sample. No `.proplist` is sent: with one the reader returned no rows on
+live devices. An API session left idle for ~30 s stops answering, so a sample is
+always one read per poll, never two reads in one session.
+
+- **Activity = Σ `rx-byte` over physical interfaces** (`type` ∈ `ether`, `wlan`,
+  `wifi`, `lte`). Every frame enters through exactly one of them, so bridges,
+  VLANs and tunnels would only count the same bytes again — and no «main»
+  interface has to be chosen. On hardware-offloaded switches these counters come
+  from the switch chip, not the CPU (verified 09.10.2026 on a CRS326, RouterOS
+  6.49: `ether1` `rx-byte` equalled `/interface/ethernet/print stats`
+  `rx-bytes` to the byte), so switched traffic is included.
+- **`nextSample(prev, counter, now)`** — the first sample only stores itself; a
+  counter lower than the previous one (reboot) or a gap over 15 minutes (outage,
+  missed polls) stores the new sample and writes **no** bucket; otherwise the
+  delta and the gap are `$inc`-ed onto the bucket of the hour the new sample
+  falls in.
+- **`recordTraffic(prevRecord, interfaces, now)`** is called from
+  `recoverToOnline` with the pre-update document and never throws. The
+  `traffic` write is listed as noise in `services/pulseTopics.js`
+  (`MONITOR_SET`) — it happens on every poll and must not bump the `mikrotik`
+  live topic.
+
 ### Outage episodes & availability — `backend/services/mikrotik/outages.js`
 
 All bookkeeping is **never-throw** (a report must not break the crons or saves):
@@ -577,6 +618,63 @@ All bookkeeping is **never-throw** (a report must not break the crons or saves):
   newest first, `ticketNum` resolved server-side).
 - `computeUptimeStats(records, {days = 30})` — the list-wide variant: one query
   for all records, returns `{pct, days[]}` per record.
+
+### Planned offline windows — `backend/services/mikrotik/plannedOffline.js`
+
+Some devices are switched off on purpose (a room whose power is cut at night).
+A record carries `plannedOffline: [{days, start, end}]` in the **org timezone**:
+`days` are 0 = Sunday … 6 and name the day the window **starts**, times are
+`"HH:mm"`, an `end` earlier than `start` ends the next day, `end === start` is
+invalid. The module is pure; anything malformed is dropped by `normalizeWindows`,
+so broken data always behaves as «no window» — for alerts that means a ticket.
+
+- **Tolerance** — 30 minutes on both sides (`TOLERANCE_MS`): power is not cut to
+  the minute.
+- **Alerts** (`alertDecision` in the offline-alert cron) — a candidate inside a
+  window (tolerance applied) is skipped before the re-poll and the claim, so
+  `offlineAlertedAt` stays null and every tick re-evaluates. Once the window and
+  its tolerance have passed and the device is still offline, the ticket is
+  raised with the title «Mikrotik не вернулся после планового отключения» and
+  the window's end in the description. Episodes are recorded as always.
+- **Availability** — `computeAvailability` and `computeUptimeStats` take planned
+  intervals out of **both** the observed window and the downtime
+  (`summarizeDowntime`): an episode that outlasts its window counts only from
+  the window's end. What is left of an outage within the tolerance right before
+  a window's start or after its end is dropped — the episode ends at the first
+  successful poll after boot, so without this every night would count as two
+  small incidents. The report adds `plannedMs`, `downIntervals` (outages with
+  the planned parts removed) and a `planned` flag per episode. The flag is
+  derived at read time, so editing windows re-classifies history.
+- **Row DTO** — `plannedOffline` and `plannedOfflineUntil`: set while the device
+  is offline and inside a window, **and** the outage started in that same
+  window and carries no alert. A device that failed at noon, or never returned
+  from last night's window, stays an incident when the clock enters a window. `getOfflineDevices` (dashboard block)
+  leaves such devices out.
+- **Suggestion** (`suggestWindow`) — from the last 21 days of closed episodes of
+  2–24 hours, one (the longest) per day: weekdays on which it happened at least
+  twice, at least 10 matching days, starts and ends clustered within an hour
+  (20th–80th percentile) and a window of at most 16 hours. The last two rules
+  keep a device that is simply down most of the time from «suggesting» a
+  schedule. Never applied by the system — a person confirms it; not offered for
+  30 days after being hidden, nor when an existing window covers the pattern.
+
+### Activity profile — `backend/services/mikrotik/activityProfile.js`
+
+Hourly buckets fold into 168 hour-of-week slots in the org timezone (slot =
+`day * 24 + hour`, 0 = Sunday 00:00). A slot's value is the median rate of its
+weeks; it is `null` when seen in fewer than 2 weeks or under 75 % of the weeks
+observed (a device that is usually off then has no buckets at all), when its
+buckets cover under half an hour, or when a planned offline window touches it.
+The whole profile is `null` until the first bucket is 14 days old.
+
+`findQuietWindow` scores every pair of consecutive valid slots and calls a
+window quiet when its score is within the lowest 15 % of the min..max range. A
+percentile was rejected: on a flat profile ties make every window «quiet». A
+profile without contrast (`max < 2 × min`, or all zero) yields nothing. The
+result is the current window when `now` is inside one with at least 30 minutes
+left (stretched through the following quiet hours), otherwise the next one
+within 7 days. Consumers: `GET …/activity` and `quietWindow` in the upgrade plan
+(`services/mikrotik/activity.js`). It is advice — nothing is scheduled.
 
 ### Auto-tickets (monitoring → helpdesk)
 
@@ -960,7 +1058,10 @@ why, in the 2026-07-24 entry of `docs/ux-ui-changelog.md`. Component internals
 - **Routes** (`frontend/src/App.jsx`): `/devices/mikrotik` (list) with children
   `add` and `update/:recordId`; `/devices/mikrotik/records/:recordId` (record
   page, route id `mikrotik-record`) with children `update` (parameters form)
-  and `schedule` (export-schedule form, gated by `manageConfigs`). The networks report keeps its own route
+  and `schedule` (export-schedule form, gated by `manageConfigs`) and
+  `planned-offline` (planned offline windows, `components/Mikrotik/PlannedOfflineForm.jsx`).
+  The record page's activity section is `components/Mikrotik/ActivitySection.jsx`
+  (+ `WeekGrid.jsx`); its pure helpers live in `components/Mikrotik/activity-format.js`. The networks report keeps its own route
   `/report/networks` (`pages/Report/CompaniesNetworksReport.jsx`, legacy).
 - **Pages** — `pages/Mikrotik/List.jsx` (fleet board: rows grouped by status,
   silent `silentRefresh()` on the `mikrotik` live-update topic plus a 5-min
@@ -1277,6 +1378,18 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
 11. **Окружение.** An offline-alert ticket renders the device's location chain
     with the device highlighted and links through to its page. A ticket for an
     unlinked record has no chain to show; ordinary user tickets are unchanged.
+12. **Planned offline.** On a record that is offline, save a window covering
+    «now» → the row and the record report «off by schedule» with the window's
+    end, the dashboard offline block no longer lists the device, and the alert
+    cron logs «offline alert suppressed: planned offline window». Move the
+    window so that it ended more than 30 minutes ago → the next alert tick
+    raises the «не вернулся после планового отключения» ticket. The
+    availability report marks episodes inside the window as planned and leaves
+    them out of the percentage.
+13. **Activity.** After a health-check tick an online device has
+    `Mikrotik.traffic` set; after the second tick a `MikrotikTrafficHour`
+    bucket exists for the current hour. `GET …/activity` answers `slots: null`
+    until the first bucket is 14 days old.
 12. **Transit.** Router: `/ip ssh set forwarding-enabled=local`; switch: api-ssl,
     least-privilege user, firewall allowing 8729/22 only from the router's LAN
     address. Add the switch with transit = the router → verify succeeds, the row

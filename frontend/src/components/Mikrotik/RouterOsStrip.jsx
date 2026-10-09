@@ -164,7 +164,9 @@ const RouterOsStrip = ({ mobileAside = null }) => {
         );
       })}
       {errorIcon && <span className="max-md:hidden">{errorIcon}</span>}
-      <span className="ms-auto hidden items-center gap-1 text-xs md:inline-flex">
+      {/* Подпись — всегда своей строкой под чипами: в хвосте ряда она не
+          помещалась уже при трёх чипах и переносилась, прижатая вправо */}
+      <span className="hidden basis-full items-center gap-1 text-xs md:flex">
         {newestFetch && (
           <>релизы и CVE-база — от {formatShortDate(newestFetch)} ·</>
         )}

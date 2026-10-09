@@ -9,8 +9,13 @@ const API = `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices`
 
 // Статус строки с учётом рубильника мониторинга: выключенный мониторинг — своя
 // группа/фасет, а не «не в сети». Общий для страницы, шторки и фильтра.
-export const rowStatus = (row) =>
-  row?.monitoringEnabled ? row?.status || "offline" : "disabled";
+// «planned» — устройство не в сети, но сейчас внутри окна планового отключения
+// (plannedOfflineUntil считает бэкенд): это не авария.
+export const rowStatus = (row) => {
+  if (!row?.monitoringEnabled) return "disabled";
+  const status = row.status || "offline";
+  return status === "offline" && row.plannedOfflineUntil ? "planned" : status;
+};
 
 // Searchable text fields of a managed-device row.
 const rowSearchFields = (item) => [
@@ -61,7 +66,9 @@ const EMPTY_FACETS = {
 };
 
 const matchesFacets = (item, facets) => {
-  if (facets.status && rowStatus(item) !== facets.status) return false;
+  // Фасет «Не в сети» включает и отключённые по расписанию — как группа списка
+  const status = rowStatus(item) === "planned" ? "offline" : rowStatus(item);
+  if (facets.status && status !== facets.status) return false;
   if (facets.branch) {
     const firmware = item.firmwareStatus;
     if (firmware?.branchKey !== facets.branch || !firmware.updateAvailable) {
@@ -374,6 +381,25 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
   // --- Отчёты и конфигурации (по id записи) --------------------------------------
   // Availability report (uptime / outage episodes) for one record. Returns the
   // report object for component-local state, or null on failure.
+  // Недельный профиль активности записи: слоты, тихое окно, предложение окна.
+  fetchActivity: async (recordId) => {
+    const response = await fetch(`${API}/records/${recordId}/activity`, {
+      headers: authHeaders(),
+    });
+    if (!response.ok) return null;
+    return response.json().catch(() => null);
+  },
+  savePlannedOffline: (recordId, windows) =>
+    fetch(`${API}/records/${recordId}/planned-offline`, {
+      method: "PUT",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ windows }),
+    }),
+  hidePlannedSuggestion: (recordId) =>
+    fetch(`${API}/records/${recordId}/planned-offline/suggestion/hide`, {
+      method: "POST",
+      headers: authHeaders(),
+    }),
   fetchAvailability: async (recordId, days = 30) => {
     const response = await fetch(
       `${API}/records/${recordId}/availability?days=${days}`,

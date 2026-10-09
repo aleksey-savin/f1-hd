@@ -152,10 +152,13 @@ const MikrotikDevices = () => {
 
   // Группировка по статусу; заголовки исчезают, когда группа осталась одна.
   const groups = useMemo(() => {
-    const byStatus = { offline: [], online: [], disabled: [] };
+    // Отключённые по расписанию тоже «не в сети», но это не авария — в своей
+    // группе они идут после настоящих простоев.
+    const byStatus = { offline: [], planned: [], online: [], disabled: [] };
     for (const row of filterStore.filteredList) {
       (byStatus[rowStatus(row)] || byStatus.offline).push(row);
     }
+    byStatus.offline.push(...byStatus.planned);
     return GROUPS.map((group) => ({
       ...group,
       rows: byStatus[group.key],
@@ -387,7 +390,7 @@ const MikrotikDevices = () => {
           // заголовка полосы — рядом с плитками ей места нет. Ниже — баннер
           // идущего пакета обновления прошивки (макет, экран 3).
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div className="mb-3 flex flex-wrap items-start gap-x-3 gap-y-1.5">
               <div className="min-w-0 flex-1">
                 <RouterOsStrip mobileAside={networksLink || null} />
               </div>

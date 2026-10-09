@@ -49,6 +49,8 @@ const checkDevice = async (device, jumpCtx) => {
         verifyFullGroup: false,
         // The serial number can't change between polls — read it once.
         readRouterboard: !device.serialNumber,
+        // Traffic counters for the activity profile — this cron only.
+        readInterfaces: true,
         // A device already in a confirmed outage doesn't need a second opinion.
         retry: device.status !== "offline",
       },

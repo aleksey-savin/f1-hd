@@ -296,6 +296,8 @@ const DeviceRow = ({
             ) : (
               <DeviceStatusText tone={statusMeta.tone}>
                 {statusMeta.label}
+                {status === "planned" &&
+                  ` · до ${formatTime(row.plannedOfflineUntil)}`}
               </DeviceStatusText>
             )}
             {upgradeView?.kind === "running" && (

@@ -72,6 +72,9 @@ export interface IMikrotik {
     limitedUpgrades?: boolean;
   };
   addresses?: IMikrotikAddress[];
+  traffic?: { counter?: number; at?: Date };
+  plannedOffline?: { days: number[]; start: string; end: string }[];
+  plannedOfflineSuggestionHiddenAt?: Date;
   status?: "online" | "offline";
   monitoringEnabled: boolean;
   lastSuccessfulConnectionAt?: Date;

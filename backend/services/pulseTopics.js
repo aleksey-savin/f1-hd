@@ -65,6 +65,8 @@ const MONITOR_SET = new Set([
   "firstFailureAt",
   "credentials.tlsCert",
   "credentials.sshHostKey",
+  // Traffic sample of every health-check poll (services/mikrotik/traffic.js)
+  "traffic",
 ]);
 const MONITOR_UNSET = new Set([
   "lastError",

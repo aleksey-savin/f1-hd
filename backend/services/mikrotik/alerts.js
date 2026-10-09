@@ -16,6 +16,8 @@ const {
   recoverToOnline,
 } = require("./monitorState");
 const { quietUnderUpgrade } = require("./upgradeGuard");
+const { alertDecision } = require("./plannedOffline");
+const { resolveTimezone } = require("../../utils/datetime");
 const logger = require("../../utils/logger");
 
 // How many candidates to re-poll concurrently.
@@ -61,7 +63,7 @@ const stillOffline = async (record, jumpCtx) => {
 // Correctness here relies on the deployment running ONE backend process: the crons
 // hold in-process locks and are scheduled on different minutes (see app.js). Scaling
 // to replicas would need a distributed lock instead.
-const raiseTicket = async (record, cfg, prefs) => {
+const raiseTicket = async (record, cfg, prefs, missed = null) => {
   const claimed = await Mikrotik.findOneAndUpdate(
     { _id: record._id, status: "offline", offlineAlertedAt: null },
     { $set: { offlineAlertedAt: new Date() } },
@@ -79,11 +81,16 @@ const raiseTicket = async (record, cfg, prefs) => {
   const description =
     `Устройство «${name}» (${host}) недоступно с ` +
     `${fmtTime(record.offlineSince, prefs?.timezone)} (более ${minutes} мин).<br/>` +
+    (missed
+      ? `Плановое отключение закончилось в ${fmtTime(new Date(missed.to), prefs?.timezone)}, устройство в сеть не вернулось.<br/>`
+      : "") +
     (record.lastError ? `Последняя ошибка: ${record.lastError}<br/>` : "") +
     deviceLinkHtml(record);
 
   const ticket = await createMikrotikTicket(record, {
-    title: `Mikrotik недоступен: ${name}`,
+    title: missed
+      ? `Mikrotik не вернулся после планового отключения: ${name}`
+      : `Mikrotik недоступен: ${name}`,
     description,
     categoryId: cfg.categoryId || null,
   });
@@ -146,7 +153,25 @@ const runMikrotikOfflineAlerts = async () => {
   const now = new Date();
   const byId = new Map(devices.map((device) => [String(device._id), device]));
   for (const ctx of jumpContexts.values()) byId.set(String(ctx.doc._id), ctx.doc);
-  const candidates = devices.filter((device) => !quietUnderUpgrade(device, byId, now));
+  // Плановое отключение: в окне (и 30 минут вокруг него) заявка не создаётся.
+  // offlineAlertedAt остаётся null, поэтому каждый тик переоценивает — не
+  // вернулось после окна → заявка с пометкой об этом (missed).
+  const zone = resolveTimezone(prefs);
+  const decisions = new Map();
+  const candidates = devices.filter((device) => {
+    if (quietUnderUpgrade(device, byId, now)) return false;
+    const decision = alertDecision(device, now.getTime(), zone);
+    if (decision.suppress) {
+      logger.log(
+        "debug",
+        "Mikrotik offline alert suppressed: planned offline window",
+        { recordId: device._id },
+      );
+      return false;
+    }
+    decisions.set(String(device._id), decision);
+    return true;
+  });
 
   const alertIfDown = async (record) => {
     const jumpCtx = record.jumpRecordId
@@ -172,7 +197,12 @@ const runMikrotikOfflineAlerts = async () => {
       return;
     }
     if (!(await stillOffline(record, jumpCtx))) return;
-    await raiseTicket(record, cfg, prefs);
+    await raiseTicket(
+      record,
+      cfg,
+      prefs,
+      decisions.get(String(record._id))?.missed || null,
+    );
   };
 
   for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
