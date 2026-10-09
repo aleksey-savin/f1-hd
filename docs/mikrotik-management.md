@@ -248,6 +248,15 @@ Uses `routeros-node` (`new Routeros(...)` → `connect()` → `conn.write([...])
   retry — they answer the same). Unknown errors count as verdicts. `retry: false`
   skips the retry for a device already in a confirmed outage, so a mass outage
   doesn't double the tick.
+- **Reply reader** (`services/mikrotik/apiReader.js`) — after login
+  `runApiSession` drops routeros-node's `data` listener and replaces
+  `conn.write` with `sendCommand`. The library parses each socket chunk on its
+  own and assumes one-byte word lengths, so a reply lost its `!done` (the
+  promise never settled → "read timeout") whenever a word was ≥ 128 bytes or the
+  reply was split across chunks; it also cut values at their first `=`. The
+  reader reassembles across chunks, decodes 1–5-byte lengths, keeps the
+  library's result shapes (rows, `[{ret}]`, trap message joined with ". ") and
+  ignores `!empty`. Connect and login still go through the library.
 - `mapPollToFields(poll)` — `name` (identity), `boardName`, `currentFirmware`,
   `addresses`, and `serialNumber` (from routerboard) — the serial key is emitted
   **only when the read succeeded**, so a CHR / skipped / timed-out read never

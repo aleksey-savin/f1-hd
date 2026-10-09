@@ -6,6 +6,7 @@ const { Client } = require("ssh2");
 const { encryptSecret, decryptSecret } = require("../crypto/secretBox");
 const logger = require("../../utils/logger");
 const { parseLicense } = require("./license");
+const { sendCommand } = require("./apiReader");
 
 // Reads a positive-integer tunable from the environment, falling back to a default.
 const envInt = (name, fallback) => {
@@ -343,6 +344,12 @@ const runApiSession = async (
     if (tlsCert) guardLoginWithPin(routeros, tlsCert);
 
     const conn = await routeros.connect();
+    // Logged in — from here the replies are read by our own reader: the
+    // library's parser loses `!done` on a long word or a reply split across
+    // chunks (see ./apiReader), which left healthy reads hanging until their
+    // timeout. Its leftover login listener goes too, so nothing parses twice.
+    conn.socket.removeAllListeners("data");
+    conn.write = (words) => sendCommand(conn, words);
     return fn({ conn, routeros, jumpHostKey });
   })();
 
