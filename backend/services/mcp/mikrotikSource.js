@@ -22,7 +22,7 @@ const {
 const { createLiveConfig } = require("@/services/mikrotik/liveConfig");
 const { liveLimiter, liveError } = require("@/services/mikrotik/liveLimiter");
 const { redactConfig } = require("@/services/mikrotik/configRedact");
-const { runCommands } = require("@/services/mikrotik/liveState");
+const { runCommands, dropOwnSessions } = require("@/services/mikrotik/liveState");
 
 /**
  * Чтение Mikrotik для MCP-инструментов (mikrotikTools.js). Наружу уходят
@@ -210,7 +210,8 @@ const SESSION_DEADLINE_MS = 60 * 1000;
  * Диагностика: команды из закрытого списка (services/mikrotik/liveState.js)
  * одной API-сессией, по очереди. Команда, которую роутер не знает или на
  * которую не ответил, даёт `{ title, error }` — остальные выполняются. Бросает,
- * только если не открылась сама сессия. null — устройства нет.
+ * только если не открылась сама сессия. null — устройства нет. У команды с
+ * `hideOwnSessions` (журнал) из ответа убираются входы учётной записи HD.
  */
 const runOnDevice = async (id, commands) => {
   if (!mongoose.isValidObjectId(id)) return null;
@@ -224,10 +225,16 @@ const runOnDevice = async (id, commands) => {
     // Те же стражи адреса, что у чтения конфигурации (readExport)
     if (record.jumpRecordId) assertJumpTargetHost(record.credentials.host);
     else await assertPublicHost(record.credentials.host);
-    return withApiSession(
+    const results = await withApiSession(
       { ...pollParams(record), jump: jumpCtx?.params },
       (run) => runCommands(run, commands),
       { deadlineMs: SESSION_DEADLINE_MS },
+    );
+    // Логин наружу не выходит: им только отсеиваются собственные входы в журнале
+    return results.map((result, index) =>
+      commands[index].hideOwnSessions && result.rows
+        ? { ...result, rows: dropOwnSessions(result.rows, record.credentials.user) }
+        : result,
     );
   });
 };

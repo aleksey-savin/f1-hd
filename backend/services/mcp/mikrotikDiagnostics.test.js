@@ -245,3 +245,38 @@ test("ping sends the canonical address", async () => {
   await tools.ping({ device: ID, address: "192.168.027.050" }, caller);
   assert.deepEqual(calls.at(-1), [["/ping", "=address=192.168.27.50", "=count=3"]]);
 });
+
+test("ping: the remote end of an IPsec peer or a GRE tunnel is an allowed target", async () => {
+  const { tools, calls } = build({
+    runOnDevice: async (id, commands) => {
+      calls.push(commands.map((command) => command.words));
+      const replies = {
+        ...REPLIES,
+        "/ip/ipsec/active-peers/print": [{ "remote-address": "89.108.103.224" }],
+        "/interface/gre/print": [{ name: "gre1", "remote-address": "84.252.131.195" }],
+        "/interface/ipip/print": new Error("no such command prefix"),
+      };
+      return commands.map(({ title, words }) => {
+        const reply = replies[words[0]];
+        return reply instanceof Error ? { title, error: reply.message } : { title, rows: reply || [] };
+      });
+    },
+  });
+  for (const address of ["89.108.103.224", "84.252.131.195"]) {
+    assert.equal((await tools.ping({ device: ID, address }, caller)).isError, undefined, address);
+  }
+  assert.equal((await tools.ping({ device: ID, address: "89.108.103.225" }, caller)).isError, true);
+});
+
+test("log: the read asks the source to leave out the helpdesk's own sessions and says so", async () => {
+  let asked;
+  const { tools } = build({
+    runOnDevice: async (id, commands) => {
+      asked = commands;
+      return commands.map(({ title }) => ({ title, rows: REPLIES["/log/print"] }));
+    },
+  });
+  const out = text(await tools.readLog({ device: ID }, caller));
+  assert.equal(asked[0].hideOwnSessions, true);
+  assert.match(out, /own sessions/);
+});

@@ -56,6 +56,11 @@ const NETWORK_COMMANDS = [
   { title: "routes", words: ["/ip/route/print"] },
   { title: "dns", words: ["/ip/dns/print"] },
   { title: "peers", words: ["/interface/wireguard/peers/print"] },
+  // Дальние концы туннелей: у площадки «нет связи» первым проверяют их
+  { title: "ipsec", words: ["/ip/ipsec/active-peers/print"] },
+  { title: "gre", words: ["/interface/gre/print"] },
+  { title: "ipip", words: ["/interface/ipip/print"] },
+  { title: "eoip", words: ["/interface/eoip/print"] },
 ];
 
 const LOG_WORDS = ["/log/print"];
@@ -142,7 +147,7 @@ const pingTarget = (address, { addresses = [], routes = [], extra = [] } = {}) =
 };
 
 // Адреса, названные в настройках роутера прямо: шлюзы, DNS, пиры туннелей.
-const namedEndpoints = ({ routes = [], dns = [], peers = [] }) => {
+const namedEndpoints = ({ routes = [], dns = [], peers = [], remotes = [] }) => {
   const found = [];
   const add = (value) => {
     for (const piece of String(value || "").split(",")) {
@@ -159,6 +164,7 @@ const namedEndpoints = ({ routes = [], dns = [], peers = [] }) => {
     add(peer["endpoint-address"]);
     add(peer["current-endpoint-address"]);
   }
+  for (const row of remotes) add(row["remote-address"]);
   return [...new Set(found)];
 };
 
@@ -184,6 +190,19 @@ const filterLog = (rows, { topics, search, limit } = {}) => {
     .filter((row) => !topic || hasTopic(row.topics.toLowerCase(), topic))
     .filter((row) => !needle || row.message.toLowerCase().includes(needle))
     .slice(-max);
+};
+
+// Опрос и сама диагностика заходят на роутер каждые секунды: без этого журнал
+// для агента состоит из входов и выходов учётной записи HD. Чужие входы, вход
+// той же записи другим способом и неудачные попытки остаются.
+const dropOwnSessions = (rows, user) => {
+  const list = Array.isArray(rows) ? rows : [];
+  const prefix = user ? `user ${user} logged ` : "";
+  if (!prefix) return list;
+  return list.filter((row) => {
+    const message = String(row?.message || "");
+    return !(message.startsWith(prefix) && / via (api|ssh)$/.test(message));
+  });
 };
 
 const COMMAND_TIMEOUT_MS = 8000;
@@ -224,6 +243,7 @@ module.exports = {
   pingTarget,
   namedEndpoints,
   filterLog,
+  dropOwnSessions,
   toInt,
   canonicalIp,
 };

@@ -108,7 +108,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
         const commands = stale.flatMap((check) => commandsOf[check]);
         const results = await source.runOnDevice(
           deviceId,
-          commands.map(({ title, words, timeoutMs }) => ({ title, words, timeoutMs })),
+          commands.map(({ title, words, timeoutMs, hideOwnSessions }) => ({ title, words, timeoutMs, hideOwnSessions })),
         );
         if (!results) return null;
         let offset = 0;
@@ -149,7 +149,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
     });
 
   const NETWORK_CHECK = { network: NETWORK_COMMANDS };
-  const LOG_CHECK = { log: [{ title: "Log", words: LOG_WORDS, timeoutMs: LOG_TIMEOUT_MS }] };
+  const LOG_CHECK = { log: [{ title: "Log", words: LOG_WORDS, timeoutMs: LOG_TIMEOUT_MS, hideOwnSessions: true }] };
   const tooManyPings = (deviceId) => {
     const moment = now();
     const recent = (pings.get(deviceId) || []).filter((at) => moment - at < PING_WINDOW_MS);
@@ -178,14 +178,19 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
 
       const read = await readChecks(device._id, ["network"], NETWORK_CHECK);
       if (!read) return errorResult(GONE);
-      const [addresses, routes, dns, peers] = read.entries[0].results;
+      const [addresses, routes, dns, peers, ...tunnels] = read.entries[0].results;
       if (addresses.error || routes.error) {
         return refuse(`Could not read the networks of ${safeLine(device.name)}, so the ping target cannot be checked: ${safeLine(addresses.error || routes.error)}.`);
       }
       const verdict = pingTarget(address, {
         addresses: addresses.rows,
         routes: routes.rows,
-        extra: namedEndpoints({ routes: routes.rows, dns: dns.rows || [], peers: peers.rows || [] }),
+        extra: namedEndpoints({
+          routes: routes.rows,
+          dns: dns.rows || [],
+          peers: peers.rows || [],
+          remotes: tunnels.flatMap((result) => result.rows || []),
+        }),
       });
       if (!verdict.ok) {
         const own = addresses.rows.map((row) => row.address).filter(Boolean).slice(0, 30).join(", ");
@@ -227,7 +232,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
       logCall(caller, "get_mikrotik_log", { deviceId: device._id, lines: rows.length, cached: !read.fresh }, started);
       const head = [
         `# Log of ${safeLine(device.name)}`,
-        `read from the device at ${iso(read.entries[0].fetchedAt)}${read.fresh ? "" : " (cached for up to 30 seconds)"}; times are the device's own clock; debug lines and script output are not shown`,
+        `read from the device at ${iso(read.entries[0].fetchedAt)}${read.fresh ? "" : " (cached for up to 30 seconds)"}; times are the device's own clock; debug lines, script output and the helpdesk's own sessions are not shown`,
         `link: ${deviceLink(baseUrl, device._id)}`,
         "",
       ];

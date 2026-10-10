@@ -726,8 +726,10 @@ from the validated number (`canonicalIp`), not taken from the agent's string;
 a traceroute is limited to 10 hops.
 
 **Ping guard** — `pingTarget(address, { addresses, routes, extra })`. The
-tool first reads the device's `/ip/address`, `/ip/route`, `/ip/dns` and
-WireGuard peers (cached with the state), then allows the target when it
+tool first reads the device's `/ip/address`, `/ip/route`, `/ip/dns`,
+WireGuard peers, IPsec active peers and GRE / IPIP / EoIP interfaces (cached
+with the state; a command the device does not know is skipped), then allows
+the target when it
 
 - lies in a connected network or in a route (disabled ones excluded, inactive
   routes included — a route through a tunnel that is down is exactly what
@@ -735,7 +737,9 @@ WireGuard peers (cached with the state), then allows the target when it
   (so a default route, or the `0.0.0.0/1` + `128.0.0.0/1` pair, allows
   nothing), or
 - is named in the device's own settings: a route gateway, a DNS server, a
-  tunnel peer endpoint.
+  WireGuard peer endpoint, the remote address of an IPsec peer or of a GRE /
+  IPIP / EoIP tunnel — the far end of a tunnel is usually a public address
+  that no route narrower than the default one covers.
 
 Anything else — a hostname, IPv6, loopback, multicast, an address outside
 those networks — is refused before a ping is sent, with the reason and the
@@ -746,7 +750,11 @@ most ten pings per device per minute (in memory, per process).
 IPsec debug prints authentication exchanges); the message of a `script` line
 is replaced with `[вывод скрипта скрыт]`; other messages pass through
 `redactSecrets`. Login names and client addresses in ordinary lines
-(`user admin logged in from …`) stay.
+(`user admin logged in from …`) stay — except the API and SSH logins of the
+helpdesk's own account (`dropOwnSessions`, applied in `mikrotikSource.js`, so
+the login name never leaves that module): polling opens a session every few
+seconds and would otherwise fill the whole answer. Failed logins and logins
+of that account by any other means stay.
 
 **Finding the device for a site** — `list_mikrotik_devices` and
 `get_mikrotik_device` print `location:` — the chain of the inventory
@@ -767,11 +775,13 @@ never orders.
 
 ### Known limits
 
-- Redaction was verified on synthetic exports only (see «Tests»): the dev
-  copy has no export files and no decryptable device credentials, so neither
-  a real stored export nor a live read has been run through it yet.
-- `/export hide-sensitive` on RouterOS 6 and plain `/export` on 7 are from
-  RouterOS documentation, not from a live device.
+- Run against production on 2026-10-10 (RouterOS 7.23.7 directly, 6.49.22
+  through a transit router): configuration read, all six state checks, ping,
+  traceroute refusal, log and export comparison work; on RouterOS 6 only the
+  WireGuard read fails, as a reported check. The helpdesk account there has
+  no `sensitive` policy, so the router itself left secrets out of `/export`:
+  redaction of real secret values in an export is still verified on
+  synthetic exports only (see «Tests»).
 - A secret embedded in an ordinary field (a password typed into an interface
   `name`, a token in a URL path or query) is not recognised.
 - Free text is scanned heuristically: a comment such as `winbox admin/Qwerty12`

@@ -11,6 +11,8 @@ const {
   traceWords,
   LOG_WORDS,
   filterLog,
+  dropOwnSessions,
+  namedEndpoints,
   runCommands,
 } = require("./liveState");
 
@@ -144,4 +146,25 @@ test("disabled addresses and routes do not widen the ping guard", () => {
   assert.equal(pingTarget("8.8.8.8", nets).ok, false);
   // Неактивный маршрут (туннель лежит) — как раз то, что проверяют
   assert.equal(pingTarget("10.3.0.5", nets).ok, true);
+});
+
+test("namedEndpoints takes the remote ends of IPsec peers and GRE/IPIP/EoIP tunnels", () => {
+  const found = namedEndpoints({
+    remotes: [{ "remote-address": "89.108.103.224" }, { "remote-address": "84.252.131.195", port: "4500" }, { "remote-address": "" }, {}],
+  });
+  assert.deepEqual(found, ["89.108.103.224", "84.252.131.195"]);
+});
+
+test("dropOwnSessions removes only the helpdesk account's own API and SSH logins", () => {
+  const rows = [
+    { time: "1", topics: "system,info,account", message: "user f1-hd logged in from 89.108.109.83 via api" },
+    { time: "2", topics: "system,info,account", message: "user f1-hd logged out from 89.108.109.83 via ssh" },
+    { time: "3", topics: "system,info,account", message: "user admin logged in from 10.0.0.9 via ssh" },
+    { time: "4", topics: "system,info,account", message: "user f1-hd logged in from 10.0.0.9 via winbox" },
+    { time: "5", topics: "system,error,critical", message: "login failure for user f1-hd from 1.2.3.4 via api" },
+  ];
+  assert.deepEqual(dropOwnSessions(rows, "f1-hd").map((row) => row.time), ["3", "4", "5"]);
+  assert.deepEqual(dropOwnSessions(rows, "").map((row) => row.time), ["1", "2", "3", "4", "5"]);
+  assert.deepEqual(dropOwnSessions(rows, "f1.hd").length, 5);
+  assert.deepEqual(dropOwnSessions(undefined, "f1-hd"), []);
 });
