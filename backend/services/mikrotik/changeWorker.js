@@ -6,6 +6,7 @@
 // Допущение: один процесс backend. Очерёдность по устройству и транзиту держит замок в памяти
 // плюс атомарный захват запроса в базе; для нескольких процессов нужен замок в базе.
 const { STATUS, isOpen } = require("./changeSteps");
+const { statusEvent } = require("./changeEvents");
 const { apiWords } = require("./changeRender");
 const { PLACEHOLDERS } = require("./changeRules");
 const { norm, matches, redactedBefore, diffField } = require("./changeMatch");
@@ -137,7 +138,7 @@ function summary(states) {
 
 // --- воркер
 
-function createChangeWorker({ store, readMenus, readRights, executor, backup, notifier, keys, now = () => new Date(), log, sleep }) {
+function createChangeWorker({ store, readMenus, readRights, executor, backup, notifier, events, keys, now = () => new Date(), log, sleep }) {
   const pause = sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const warn = (message, meta) => {
     try { log?.log?.("warn", `Mikrotik change worker: ${message}`, meta); } catch { /* журнал не критичен */ }
@@ -153,6 +154,12 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
   const nextAttempt = new Map();
   const notify = async (event, change) => {
     try { await notifier?.[event]?.(publicChange(change)); } catch (error) { warn(`notify ${event} #${change?.number}`, { error: error?.message }); }
+  };
+
+  // Журнал устройства: итог запроса. Пишется при любом итоге, в том числе без уведомления
+  const journal = async (change) => {
+    const event = statusEvent(change);
+    if (event && change?.mikrotik) await events?.record?.(change.mikrotik, event.kind, { ...event, at: now() });
   };
 
   // Дорожка: транзит, если он есть, иначе само устройство — как у liveLimiter. Две правки одного
@@ -189,6 +196,7 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
       warn(`#${change.number}: final status ${outcome.status} not written, the change is no longer applying`);
       return { changeId: change._id, status: null };
     }
+    await journal(updated);
     if (notifyResult) await notify("result", updated);
     return { changeId: change._id, status: outcome.status };
   }
@@ -212,6 +220,7 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
           timeline: [{ at, kind: "result", text: failure }],
         });
         if (!updated) return null;
+        await journal(updated);
         await notify("result", updated);
         return { changeId: change._id, status: STATUS.notApplied };
       } catch (error) {
@@ -534,6 +543,7 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
       });
       if (!updated) return null;
       warn(`#${change.number} approval went stale, not applied`);
+      await journal(updated);
       await notify("result", updated);
       return { changeId: change._id, status: STATUS.notApplied };
     } catch (error) {
@@ -622,7 +632,10 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
           set: { status: STATUS.expired },
           timeline: [{ at, kind: "expired", text: TEXT.expired }],
         });
-        if (updated) await notify("expired", updated);
+        if (updated) {
+          await journal(updated);
+          await notify("expired", updated);
+        }
       }
     });
 
@@ -743,6 +756,7 @@ function mongoWorker({ log } = {}) {
     executor: lazyExecutor(() => liveExecutor({ mode, log })),
     backup: createArtifact,
     notifier: mongoNotifier({ baseUrl: process.env.APP_PUBLIC_URL || process.env.VITE_API_ADDRESS || "", log }),
+    events: require("./events").eventLog(),
     keys: { generateKeyPair, generatePresharedKey, encrypt: encryptSecret },
     now: () => new Date(),
     log,

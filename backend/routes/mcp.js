@@ -17,6 +17,8 @@ const { createMikrotikChangeTools, mongoChangeStore } = require("@/services/mcp/
 const { createProposals, mongoStore, liveReadMenus } = require("@/services/mikrotik/changeProposals");
 const { mongoNotifier } = require("@/services/mikrotik/changeNotifications");
 const { createMikrotikDiagnostics } = require("@/services/mcp/mikrotikDiagnostics");
+const { eventLog } = require("@/services/mikrotik/events");
+const { createMikrotikEventTools, mongoEventStore } = require("@/services/mcp/mikrotikEventTools");
 
 /**
  * Сборка `/api/mcp` из настоящих частей: модель ключей, заметки, заявки,
@@ -61,14 +63,16 @@ module.exports = buildMcpRouter({
       tickets: createTicketTools({ source: ticketSource, baseUrl: process.env.ADDRESS, log }),
       directory: createDirectoryTools({ source: directorySource, log }),
       mikrotik: {
-        ...createMikrotikTools({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log }),
-        ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log }),
+        ...createMikrotikTools({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log, events: eventLog() }),
+        ...createMikrotikEventTools({ source: mikrotikSource, store: mongoEventStore, baseUrl: process.env.ADDRESS, log }),
+        ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log, events: eventLog() }),
       },
       mikrotikChanges: createMikrotikChangeTools({
         proposals: createProposals({ store: mongoStore, readMenus: liveReadMenus, now: () => new Date() }),
         store: mongoChangeStore,
         // О новом запросе сообщают человеку первого шага (как после решения — changeDecisions)
         notifier: mongoNotifier({ baseUrl: process.env.APP_PUBLIC_URL || process.env.VITE_API_ADDRESS || "", log: logger }),
+        events: eventLog(),
         baseUrl: process.env.ADDRESS,
         log,
       }),

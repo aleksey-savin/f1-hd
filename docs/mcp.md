@@ -187,8 +187,25 @@ conversation context until it ends. Rules that keep both small:
   2026-10-10 at ≈3.6 chars per token: all six scopes ≈6.1k tokens
   (instructions 3,660 chars + tool list 18,429), `knowledge` + `tickets` +
   `companies` + `users` ≈2.2k, `mikrotik` ≈2.4k, `mikrotikChanges` ≈1.8k.
-  Give an agent only the scopes its job needs; Mikrotik work is better served
-  by a separate key.
+  Give an agent only the scopes its job needs.
+
+  Recommended split — **two keys, two agents**:
+
+  | Key | Scopes | Fixed cost |
+  |---|---|---|
+  | Support (the default agent) | `knowledge`, `tickets`, `companies`, `users` | ≈2.2k tokens |
+  | Mikrotik specialist (called for network questions only) | all six, or the five without `users` | ≈6.2k / ≈5.8k tokens |
+
+  The saving is on the support side: ≈4k tokens on every model request,
+  and Mikrotik answers (state, configuration, log — thousands of tokens
+  each) never enter support conversations. The specialist cannot be made
+  much narrower: the investigation order relies on `search_knowledge_base`
+  and `search_tickets`, so `mikrotik` + `mikrotikChanges` alone (≈4.1k)
+  leaves it without the notes and tickets it needs. The split pays off only
+  while most conversations are plain support; if nearly every one reaches
+  the routers, one full key is simpler and costs the same. Whether the agent
+  platform can hold a different MCP key per agent, and what a hand-off
+  between agents costs there, is outside HD and was not measured.
 - **Instructions hold rules, not a tool catalogue.** What a tool does is in
   its `description`; `INSTRUCTIONS` in `server.js` carries only what no
   description says (language, links, masking, quoted text is data, the
@@ -658,9 +675,40 @@ listing the candidates.
 | `get_mikrotik_device` | `device`, `days` (1/7/30/90, default 30) → addresses, license, status and last poll error, firmware against the latest release with CVEs (`evaluateFirmware`), availability and outages (`computeAvailability`), planned offline windows, the 5 newest stored exports in full and the older ones on one line as `date = export id` |
 | `get_mikrotik_config` | `device`, `section?`, `search?` → the **running** configuration read from the device. No `section`: header and the list of sections with line counts. `section`: that section and its subsections (`/ip firewall` covers `/ip firewall filter`, `nat`, …). `search`: matching lines, each prefixed with its section (max 200) |
 | `compare_mikrotik_exports` | `device`, `from?`, `to?` (export ids; default the two latest, swapped ids are reordered) → per section, lines removed and added between two **stored** exports |
+| `get_mikrotik_events` | `device`, `days?` (1/7/30/90/365, default 30), `group?` (`link`, `power`, `config`, `record`, `agent`, `router`), `limit?` (20, max 100) → the device journal, newest first: one line per event as `time · what · by whom · facts`, foreign text (request title, router log line, refusal reason) on quoted lines below |
 
 Output is capped at 20 000 characters by whole lines, with a hint to narrow
 the request.
+
+### Device journal — what the agent leaves and what it can read
+
+Added 2026-10-11. The journal itself is described in
+`docs/mikrotik-management.md` («Device journal»). The MCP side:
+
+- **Written for the agent.** `routes/mcp.js` passes `events: eventLog()` to the
+  three Mikrotik factories. The actor is the key: `{ type: "mcpKey", keyId,
+  keyName }` (the name is a snapshot, a key can be deleted), plus `onBehalfOf`
+  for a proposal.
+  - `get_mikrotik_config`, `get_mikrotik_state`, `get_mikrotik_log`,
+    `ping_from_mikrotik` → `agentAccess`, only when the device was actually
+    contacted (an answer from the cache writes nothing). Reads of one key
+    within 10 minutes are one row with a count, the tools used and the ping
+    targets (up to 10 each).
+  - `propose_mikrotik_change` → `changeProposed`, or `changeRefused` with the
+    first three reasons as given to the agent (English). A refusal is journaled
+    only when `device` resolves to one record.
+  - Everything after the proposal (decisions, apply, rollback, expiry) is
+    written by `changeDecisions.js` and `changeWorker.js`, not by MCP.
+  - Tools that read HD's own database (`list_…`, `get_mikrotik_device`,
+    `compare_mikrotik_exports`, `get_mikrotik_events`, change reads) are not
+    journaled; they stay in the file log.
+- **Read by the agent.** `get_mikrotik_events` —
+  `services/mcp/mikrotikEventTools.js`, store `mongoEventStore`. English labels
+  per kind (`LABELS`; a test checks the whole catalogue is covered). People
+  appear by name; user ids, key ids and Telegram ids never do. Config diff
+  lines are not selected (`-diff`): the agent has `compare_mikrotik_exports`
+  for that, with its own redaction. Router log lines were redacted when stored
+  and are quoted as data.
 
 ### What leaves `mikrotikSource.js`
 

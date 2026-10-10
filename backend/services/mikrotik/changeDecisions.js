@@ -4,6 +4,7 @@
 // «Только один раз»: запись условна по ПРЕЖНЕМУ статусу и по тому, что именно этот шаг ещё без решения
 // (см. mongoStore.applyPatch). Второй из двух одновременных вызовов не находит документ → closed, без уведомления.
 const { STATUS, decide: planDecision, isOpen } = require("./changeSteps");
+const { decisionEvent, statusEvent } = require("./changeEvents");
 
 const MESSAGES = {
   not_yours: "Это решение не за вами",
@@ -23,13 +24,18 @@ function timelineText({ decision, final, name, channel }) {
   return `${word}: ${name}, ${CHANNEL_LABELS[channel] || channel}`;
 }
 
-function createDecisions({ store, notifier, now = () => new Date(), log }) {
+function createDecisions({ store, notifier, events, now = () => new Date(), log }) {
   const warn = (message, error) => {
     try { log?.log?.("warn", `Mikrotik change: ${message}`, { error: error?.message }); } catch { /* журнал не критичен */ }
   };
   // Решение уже записано: сбой уведомления его не отменяет
   const notify = async (event, change) => {
     try { await notifier?.[event]?.(change); } catch (error) { warn(`notify ${event} #${change?.number}`, error); }
+  };
+
+  // Журнал устройства: решение уже записано, сбой следа его не отменяет (events.record не бросает)
+  const journal = async (change, event) => {
+    if (event && change?.mikrotik) await events?.record?.(change.mikrotik, event.kind, { ...event, at: now() });
   };
 
   async function decide({ changeId, userId, decision, comment, channel, canApprove }) {
@@ -49,6 +55,7 @@ function createDecisions({ store, notifier, now = () => new Date(), log }) {
       timeline: { at, kind: "decision", user: userId, text: timelineText({ decision, final, name, channel }) },
     });
     if (!updated) return refuse("closed");
+    await journal(updated, decisionEvent(updated, { userId, decision, channel, final, comment: patch.step.comment }));
 
     if (decision === "reject") await notify("decided", updated);
     else if (!final) await notify("step", updated);
@@ -67,6 +74,7 @@ function createDecisions({ store, notifier, now = () => new Date(), log }) {
       timeline: { at, kind: "cancelled", user: userId, text: "Отозвано заявителем" },
     });
     if (!updated) return refuse("closed");
+    await journal(updated, statusEvent(updated, { userId }));
     await notify("cancelled", updated);
     return { ok: true, change: updated };
   }
@@ -122,6 +130,7 @@ function liveDecisions() {
     live = createDecisions({
       store: mongoStore,
       notifier: mongoNotifier({ baseUrl: process.env.APP_PUBLIC_URL || process.env.VITE_API_ADDRESS || "", log: logger }),
+      events: require("./events").eventLog(),
       log: logger,
     });
   }

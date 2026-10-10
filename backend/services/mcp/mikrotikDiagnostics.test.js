@@ -317,3 +317,30 @@ test("log: the read asks the source to leave out the helpdesk's own sessions and
   assert.equal(asked[0].hideOwnSessions, true);
   assert.match(out, /own sessions/);
 });
+
+test("journal: a live read is recorded once, a cached answer is not; a ping carries its target", async () => {
+  const accesses = [];
+  const events = { recordAccess: async (deviceId, entry) => accesses.push({ deviceId, key: entry.caller.keyName, tool: entry.tool, target: entry.target }) };
+  const logs = [];
+  let clock = 1_000_000;
+  const tools = createMikrotikDiagnostics({
+    source: {
+      listDevices: async () => DEVICES,
+      loadAddressBook: async () => new Map(),
+      describeLiveError: () => null,
+      runOnDevice: async (id, commands) => commands.map(({ title, words }) => ({ title, rows: REPLIES[words[0]] instanceof Error ? [] : REPLIES[words[0]] || [] })),
+    },
+    baseUrl: "https://hd.example.ru",
+    log: (level, message, meta) => logs.push({ level, message, ...meta }),
+    events,
+    now: () => clock,
+  });
+  await tools.state({ device: "KHV" }, caller);
+  await tools.state({ device: "KHV" }, caller);
+  await tools.readLog({ device: "KHV" }, caller);
+  clock += 1000;
+  await tools.readLog({ device: "KHV" }, caller);
+  assert.deepEqual(accesses.map((a) => a.tool), ["state", "log"]);
+  assert.equal(accesses[0].key, "OpenClaw");
+  assert.ok(accesses.every((a) => a.deviceId === DEVICES.find((d) => /KHV/.test(d.name))._id));
+});

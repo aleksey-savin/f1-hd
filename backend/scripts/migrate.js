@@ -59,6 +59,9 @@ const MIGRATIONS = [
   { id: "2026-09-30-recomputePluginRoles", script: "recomputePluginRoles.js", apply: true },
   // Заморозка расчёта у ранее сформированных отчётов; см. snapshotReports.js
   { id: "2026-10-01-snapshotReports", script: "snapshotReports.js", apply: true },
+  // Журнал устройств Mikrotik: перенос прошлых простоев, обновлений, запросов
+  // агентов и копий; только дописывает события. См. backfillMikrotikEvents.js
+  { id: "2026-10-11-backfillMikrotikEvents", script: "backfillMikrotikEvents.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

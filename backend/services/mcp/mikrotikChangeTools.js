@@ -2,6 +2,7 @@ const { STATUS, currentStep, isOpen } = require("../mikrotik/changeSteps");
 const { iso } = require("./text");
 const { safeLine } = require("./mikrotikFormat");
 const { errorResult, textResult, resolveDevice } = require("./mikrotikTools");
+const { proposedEvent, refusedEvent } = require("../mikrotik/changeEvents");
 
 /**
  * Инструменты запросов на изменение Mikrotik для ИИ-агента: предложить, узнать
@@ -46,7 +47,21 @@ const changeLink = (baseUrl, id) => `${String(baseUrl || "").replace(/\/+$/, "")
 // Telegram-id в лог — только последние три цифры
 const tail = (value) => `***${String(value ?? "").replace(/\D/g, "").slice(-3)}`;
 
-const createMikrotikChangeTools = ({ proposals, store, notifier, baseUrl, log }) => {
+const createMikrotikChangeTools = ({ proposals, store, notifier, events, baseUrl, log }) => {
+  // Журнал устройства: отказ на входе запроса не создаёт, но след на устройстве оставляет.
+  // Устройство ищется заново: отказ мог случиться раньше, чем запрос дошёл до его поиска.
+  const journalRefusal = async (args, caller, reasons) => {
+    if (!events) return;
+    try {
+      const { device } = resolveDevice(await store.listDevices(), args?.device);
+      if (!device) return;
+      const event = refusedEvent({ caller, title: safeLine(args?.title), reason: reasons.map((r) => oneLine(r.text)).slice(0, 3).join("; ") });
+      await events.record(device._id, event.kind, event);
+    } catch (error) {
+      log("warn", "MCP: Mikrotik change refusal not journaled", { error: String(error?.message || error).slice(0, 200) });
+    }
+  };
+
   const logCall = (caller, tool, meta, started) =>
     log("info", "MCP tool call", { mcpKeyId: caller?.keyId, mcpKeyName: caller?.keyName, tool, ...meta, durationMs: Date.now() - started });
 
@@ -89,11 +104,16 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, baseUrl, log })
     if (!result.ok) {
       logCall(caller, "propose_mikrotik_change", { ...meta, outcome: "refused" }, started);
       const reasons = Array.isArray(result.reasons) && result.reasons.length ? result.reasons : [{ text: result.error || "unknown reason" }];
+      await journalRefusal(args, caller, reasons);
       const lines = reasons.flatMap((r) => [`- ${oneLine(r.text)}`, ...(r.quoted ? [quotedReason(r.quoted)] : [])]);
       return errorResult(["The request was not created:", ...lines].join("\n"));
     }
     const { change } = result;
     logCall(caller, "propose_mikrotik_change", { ...meta, outcome: `created #${change.number}` }, started);
+    {
+      const event = proposedEvent(change, caller);
+      await events?.record?.(change.mikrotik, event.kind, event);
+    }
     // Человек первого шага узнаёт о запросе сразу. Запрос уже создан: сбой уведомления его не отменяет;
     // в журнал — только номер и текст ошибки, без содержимого запроса
     try {

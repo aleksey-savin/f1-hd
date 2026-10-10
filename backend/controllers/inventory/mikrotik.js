@@ -36,6 +36,8 @@ const {
   createArtifact,
 } = require("../../services/mikrotik/artifacts");
 const { resolveJumpContext } = require("../../services/mikrotik/monitorState");
+const { eventLog, userActor } = require("../../services/mikrotik/events");
+const { parameterChanges } = require("../../services/mikrotik/recordChanges");
 const {
   markRecovered,
   closeOpenOutage,
@@ -332,6 +334,26 @@ const jumpInfoFor = async (record) => {
 // persist. Throws an AppError for validation/host problems and re-throws poll
 // errors unchanged so the caller can classify them. Shared by the inventory and
 // standalone save paths.
+// Журнал устройства (services/mikrotik/events.js): действие человека над записью.
+const journal = (req, recordId, kind, fields = {}) =>
+  eventLog().record(recordId, kind, { actor: userActor(req.userId), ...fields });
+
+// Плоский снимок параметров записи для parameterChanges: секреты открытым
+// текстом — они сравниваются и наружу не выходят.
+const parameterSnapshot = (record) => ({
+  host: record?.credentials?.host,
+  port: record?.credentials?.port,
+  user: record?.credentials?.user,
+  sshPort: record?.credentials?.sshPort,
+  label: record?.label ?? null,
+  firmwareUpgradeEnabled: Boolean(record?.firmwareUpgradeEnabled),
+  transit: record?.jumpRecordId ? String(record.jumpRecordId) : null,
+  company: record?.companyId ? String(record.companyId) : null,
+  responsible: record?.responsibleId ? String(record.responsibleId) : null,
+  password: record?.credentials?.password ? decryptSecret(record.credentials.password) : "",
+  knock: JSON.stringify(decodeKnockSequence(record?.credentials?.knockSequence) || []),
+});
+
 const verifyAndBuild = async (body, existing) => {
   const { host, user, password } = body;
   const port = Number(body.port);
@@ -1182,6 +1204,7 @@ const connectByFilter = async (filter, req, res, next) => {
       status: record.status,
       ip: req.ip,
     });
+    await journal(req, record._id, "monitoringOn");
 
     const result = record.toObject();
     if (result.credentials) {
@@ -1228,6 +1251,7 @@ const disconnectByFilter = async (filter, req, res, next) => {
       recordId: record._id,
       ip: req.ip,
     });
+    await journal(req, record._id, "monitoringOff");
 
     res.status(200).json({ message: "Мониторинг отключён", record });
   } catch (error) {
@@ -1367,6 +1391,7 @@ exports.linkInventory = async (req, res, next) => {
       clientDeviceId: device._id,
       ip: req.ip,
     });
+    await journal(req, record._id, "inventoryLinked", { data: { how: "linked" } });
 
     res.status(200).json({
       message: "Карточка связана",
@@ -1475,6 +1500,7 @@ exports.createInventoryCard = async (req, res, next) => {
       modelMatched: Boolean(model),
       ip: req.ip,
     });
+    await journal(req, record._id, "inventoryLinked", { data: { how: "created" } });
 
     res.status(201).json({
       message: "Карточка создана и связана",
@@ -1522,6 +1548,7 @@ exports.createStandalone = async (req, res, next) => {
       ip: req.ip,
       ...(responsible.change && responsible.id ? { responsibleTo: responsible.id } : {}),
     });
+    await journal(req, record._id, "recordCreated", { data: { host: update.credentials.host } });
 
     res.status(201).json({
       message: "Устройство добавлено и проверено",
@@ -1604,6 +1631,17 @@ exports.updateRecordParameters = async (req, res, next) => {
           }
         : {}),
     });
+    {
+      const changes = parameterChanges(
+        parameterSnapshot(existing),
+        parameterSnapshot(await Mikrotik.findById(req.params.recordId)),
+      );
+      if (changes.any) {
+        await journal(req, req.params.recordId, "parametersChanged", {
+          data: { fields: changes.fields, ...(changes.responsible ? { responsible: changes.responsible } : {}) },
+        });
+      }
+    }
 
     res.status(200).json({
       message: "Параметры сохранены и проверены",
@@ -1641,6 +1679,7 @@ exports.deleteRecord = async (req, res, next) => {
     await Mikrotik.deleteOne({ _id: record._id });
     await deleteOutages(record._id);
     await deleteTraffic(record._id);
+    await eventLog().removeFor(record._id);
 
     logger.log("info", "Mikrotik record deleted", {
       actor: req.userId,
@@ -2024,6 +2063,7 @@ exports.downloadArtifact = async (req, res, next) => {
       artifactId: artifact._id,
       ip: req.ip,
     });
+    await journal(req, req.params.recordId, "exportDownloaded", { data: { fileName: artifact.fileName } });
 
     res.status(200).send(buffer);
   } catch (error) {
@@ -2051,6 +2091,7 @@ exports.deleteArtifact = async (req, res, next) => {
       artifactId: artifact._id,
       ip: req.ip,
     });
+    await journal(req, req.params.recordId, "exportDeleted", { data: { fileName: artifact.fileName } });
 
     res.status(200).json({ message: "Копия удалена" });
   } catch (error) {
@@ -2095,6 +2136,13 @@ exports.updateSchedules = async (req, res, next) => {
       recordId: record._id,
       ip: req.ip,
     });
+    await journal(req, record._id, "scheduleChanged", {
+      data: {
+        frequency: record.schedules.export?.frequency,
+        time: record.schedules.export?.time,
+        keepLast: record.schedules.export?.keepLast,
+      },
+    });
 
     res
       .status(200)
@@ -2125,6 +2173,7 @@ exports.updatePlannedOffline = async (req, res, next) => {
       windows: parsed.windows.length,
       ip: req.ip,
     });
+    await journal(req, record._id, "plannedOfflineChanged", { data: { windows: parsed.windows } });
     bus.bump({ topics: ["mikrotik"] });
 
     res.status(200).json({

@@ -5,7 +5,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { RIGHTS_FIX } = require("./upgradeErrors");
-const { nextAction, startsNewLeg, rightsVerdict } = require("./upgradeWorker");
+const { nextAction, startsNewLeg, rightsVerdict, itemEvent } = require("./upgradeWorker");
 
 const job = (states, over = {}) => ({
   items: states.map((state, i) => ({ _id: `i${i}`, state })),
@@ -72,4 +72,26 @@ test("any other outcome says nothing about rights", () => {
   assert.equal(rightsVerdict({ state: "failed", finishedAt: NOW, error: "не ответило" }, NOW), null);
   assert.equal(rightsVerdict({ step: "download", hopTo: "7.12.1" }, NOW), null);
   assert.equal(rightsVerdict(undefined, NOW), null);
+});
+
+test("itemEvent: start, success and failure of a device become journal events", () => {
+  const job = { _id: "j1", createdBy: "u1" };
+  const item = { mikrotik: "r1", channel: "stable", from: { os: "7.20.1" }, to: { os: "7.23.7" } };
+  assert.deepEqual(itemEvent(job, item, { state: "running", startedAt: new Date() }), {
+    kind: "upgradeStarted",
+    fields: {
+      actor: { type: "user", userId: "u1" },
+      data: { from: "7.20.1", to: "7.23.7", channel: "stable" },
+      refs: { upgradeJobId: "j1" },
+    },
+  });
+  assert.equal(itemEvent(job, item, { state: "done" }).kind, "upgradeFinished");
+  const failed = itemEvent(job, item, { state: "failed", error: "нет места" });
+  assert.equal(failed.kind, "upgradeFailed");
+  assert.equal(failed.fields.data.error, "нет места");
+});
+
+test("itemEvent: a step inside a running item is not an event", () => {
+  assert.equal(itemEvent({ _id: "j1" }, {}, { step: "reboot" }), null);
+  assert.equal(itemEvent({ _id: "j1" }, {}, { state: "running", step: "download" }), null);
 });

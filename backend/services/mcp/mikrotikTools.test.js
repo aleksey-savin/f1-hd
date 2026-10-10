@@ -275,3 +275,19 @@ test("device card: exports beyond the five newest stay reachable as date = id on
   assert.equal(out.split("\n").filter((line) => line.includes("export id: ")).length, 5);
   assert.match(out, /\nolder \(date = export id\): 2026-10-02 = 77aa00000000000000000002; 2026-10-01 = 77aa00000000000000000001$/);
 });
+
+test("journal: reading the configuration from the device is recorded, a cached answer is not", async () => {
+  const accesses = [];
+  const events = { recordAccess: async (deviceId, entry) => accesses.push({ deviceId, tool: entry.tool, key: entry.caller.keyId }) };
+  let cached = false;
+  const source = {
+    listDevices: async () => DEVICES,
+    readLiveConfig: async () => ({ config: redactConfig(RAW), fetchedAt: Date.parse("2026-10-10T02:00:00.000Z"), cached }),
+    describeLiveError: () => null,
+  };
+  const tools = createMikrotikTools({ source, baseUrl: "https://hd.example.ru/", log: () => {}, events });
+  await tools.getConfig({ device: DEVICES[0]._id }, caller);
+  cached = true;
+  await tools.getConfig({ device: DEVICES[0]._id }, caller);
+  assert.deepEqual(accesses, [{ deviceId: DEVICES[0]._id, tool: "config", key: "k1" }]);
+});

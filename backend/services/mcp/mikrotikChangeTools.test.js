@@ -352,3 +352,48 @@ test("get: a command error is called the router's answer only when the router re
   assert.match(t, /1\. \/a add x=1\n\s+result: failed \(refused by the router\)\n\s+> failure: already have such entry/);
   assert.match(t, /2\. \/b add y=2\n\s+result: failed \(not confirmed; HD's own note follows\)\n\s+> timed out/);
 });
+
+test("journal: a created request and a refusal at intake both leave a trace on the device", async () => {
+  const written = [];
+  const events = { record: async (recordId, kind, fields) => written.push({ recordId, kind, actor: fields.actor, data: fields.data, refs: fields.refs }) };
+  const store = { listDevices: async () => DEVICES, people: async () => new Map() };
+  const created = createMikrotikChangeTools({ proposals: { propose: async () => ({ ok: true, change: change() }) }, store, events, baseUrl: "https://hd.example.ru", log: () => {} });
+  await created.propose(INPUT, caller);
+  const refused = createMikrotikChangeTools({
+    proposals: { propose: async () => ({ ok: false, error: "x", reasons: [{ text: "the /user menu is closed to agents" }] }) },
+    store,
+    events,
+    baseUrl: "https://hd.example.ru",
+    log: () => {},
+  });
+  await refused.propose(INPUT, caller);
+  assert.deepEqual(written, [
+    {
+      recordId: DEVICE_A,
+      kind: "changeProposed",
+      actor: { type: "mcpKey", keyId: KEY_ID, keyName: "OpenClaw", onBehalfOf: USER_REQ },
+      data: { title: "WireGuard для Ивана Петрова", commands: 2 },
+      refs: { changeId: CHANGE_ID },
+    },
+    {
+      recordId: DEVICE_A,
+      kind: "changeRefused",
+      actor: { type: "mcpKey", keyId: KEY_ID, keyName: "OpenClaw" },
+      data: { title: "WireGuard", reason: "the /user menu is closed to agents" },
+      refs: undefined,
+    },
+  ]);
+});
+
+test("journal: a refusal for a device HD cannot name is not journaled", async () => {
+  const written = [];
+  const tools = createMikrotikChangeTools({
+    proposals: { propose: async () => ({ ok: false, error: "x", reasons: [{ text: "no such device" }] }) },
+    store: { listDevices: async () => DEVICES },
+    events: { record: async (...args) => written.push(args) },
+    baseUrl: "https://hd.example.ru",
+    log: () => {},
+  });
+  await tools.propose({ ...INPUT, device: "NOPE" }, caller);
+  assert.equal(written.length, 0);
+});

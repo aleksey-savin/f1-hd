@@ -221,3 +221,21 @@ test("отзыв и решение одновременно: проходит о
   assert.equal([a, b].filter((r) => r.ok).length, 1);
   assert.equal(notifier.sent.length <= 1, true);
 });
+
+test("decisions and a cancel leave a trace in the device journal", async () => {
+  const written = [];
+  const events = { record: async (recordId, kind, fields) => written.push({ recordId, kind, actor: fields.actor, channel: fields.data.channel }) };
+  const store = fakeStore(baseChange({ mikrotik: "r1", title: "WireGuard" }));
+  const decisions = createDecisions({ store, events, now: () => NOW });
+  await decisions.decide({ changeId: "c1", userId: "req", decision: "approve", channel: "telegram" });
+  await decisions.decide({ changeId: "c1", userId: "resp", decision: "approve", channel: "portal", canApprove: true });
+  assert.deepEqual(written, [
+    { recordId: "r1", kind: "changeConfirmed", actor: { type: "user", userId: "req" }, channel: "telegram" },
+    { recordId: "r1", kind: "changeApproved", actor: { type: "user", userId: "resp" }, channel: "portal" },
+  ]);
+
+  const other = fakeStore(baseChange({ mikrotik: "r1" }));
+  const cancelled = [];
+  await createDecisions({ store: other, events: { record: async (recordId, kind) => cancelled.push(kind) }, now: () => NOW }).cancel({ changeId: "c1", userId: "req" });
+  assert.deepEqual(cancelled, ["changeCancelled"]);
+});

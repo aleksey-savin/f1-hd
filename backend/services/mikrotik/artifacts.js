@@ -7,7 +7,10 @@ const {
   exportConfig,
 } = require("./connector");
 const { resolveJumpContext } = require("./monitorState");
-const { encryptArtifact } = require("../crypto/artifactBox");
+const { encryptArtifact, decryptArtifact } = require("../crypto/artifactBox");
+const { redactConfig } = require("./configRedact");
+const { diffConfigs, summarizeDiff } = require("./configDiff");
+const { eventLog, userActor } = require("./events");
 const storage = require("../storage");
 const Preferences = require("../../models/preferences");
 const { createMikrotikTicket, deviceLinkHtml } = require("./tickets");
@@ -67,6 +70,23 @@ const pruneArtifacts = async (record, type) => {
 // / host-key) — callers map that to an operator message or a stored lastError.
 // Shared by the manual endpoint and the scheduler.
 //
+// What changed between the previous stored export and the new one, for the
+// device journal. Both sides go through redactConfig, so no secret reaches the
+// event; a missing or unreadable previous file leaves the event without detail.
+const configChangeEvent = async (previous, buffer, recordId) => {
+  try {
+    const before = redactConfig(decryptArtifact(await storage.getArtifactBuffer(previous.storageKey)));
+    const { lines, ...summary } = summarizeDiff(diffConfigs(before, redactConfig(buffer)));
+    return { data: summary, diff: lines };
+  } catch (error) {
+    logger.log("warn", "Mikrotik config diff for the journal failed", {
+      recordId,
+      error: error.message,
+    });
+    return { data: { unknown: true } };
+  }
+};
+
 // Binary `.backup` artifacts are intentionally NOT supported: RouterOS's SSH is
 // CLI-only (no SFTP subsystem, and exec runs only RouterOS commands, so `scp` is
 // refused), so a binary file cannot be pulled over SSH. The .rsc export is a
@@ -98,7 +118,7 @@ const createArtifact = async (
     type: "export",
   })
     .sort({ createdAt: -1 })
-    .select("contentHash");
+    .select("contentHash storageKey");
 
   // Trust-on-first-use: pin the observed SSH host key on the first successful op.
   // Any successful export — manual or pre-upgrade too — also retires the error
@@ -112,6 +132,7 @@ const createArtifact = async (
     record.markModified("schedules");
   }
   if (pinHostKey || staleError) await record.save();
+  if (pinHostKey) await eventLog().record(record._id, "pinned", { data: { what: "ssh" } });
 
   // Envelope-encrypt the config before it leaves the process, so what lands in S3
   // / on disk is ciphertext an operator can't read without MIKROTIK_ENC_KEY (an
@@ -140,11 +161,26 @@ const createArtifact = async (
     createdBy: userId || undefined,
   });
 
+  // The device journal: the copy itself, and what differs from the previous one.
+  // Read the previous file BEFORE pruning — pruning may be what removes it.
+  const changed = Boolean(previous?.contentHash && previous.contentHash !== contentHash);
+  await eventLog().record(record._id, "exportCreated", {
+    actor: userActor(userId),
+    data: { trigger },
+    refs: { artifactId: artifact._id },
+  });
+  if (changed) {
+    await eventLog().record(record._id, "configChanged", {
+      ...(await configChangeEvent(previous, buffer, record._id)),
+      refs: { artifactId: artifact._id },
+    });
+  }
+
   await pruneArtifacts(record, "export");
 
   // Config-change detection (opt-in). Best-effort — a raised ticket must never fail
   // an already-stored export, so it's wrapped and logged.
-  if (previous?.contentHash && previous.contentHash !== contentHash) {
+  if (changed) {
     try {
       const cfg = prefs?.mikrotik?.configChangeTicket;
       if (cfg?.isActive) {

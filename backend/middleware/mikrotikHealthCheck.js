@@ -51,6 +51,8 @@ const checkDevice = async (device, jumpCtx) => {
         readRouterboard: !device.serialNumber,
         // Traffic counters for the activity profile — this cron only.
         readInterfaces: true,
+        // The router's own log for the device journal — this cron only.
+        readLog: true,
         // A device already in a confirmed outage doesn't need a second opinion.
         retry: device.status !== "offline",
       },

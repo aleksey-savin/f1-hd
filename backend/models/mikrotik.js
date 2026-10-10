@@ -113,6 +113,12 @@ const mikrotikSchema = new Schema(
       counter: Number,
       at: Date,
     },
+    // When the device last started: poll time minus its uptime, by HD's clock.
+    // A later value on the next poll is a reboot (services/mikrotik/pollEvents.js).
+    bootedAt: Date,
+    // The last router-log line the device journal has seen: the numeric `.id`
+    // of /log/print (services/mikrotik/routerLog.js).
+    logCursor: Number,
     // Planned offline windows (org timezone): the device is switched off on
     // purpose — no offline ticket, no downtime. `days` — 0 = Sunday … 6, the
     // day the window STARTS; end < start ⇒ ends the next day.

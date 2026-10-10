@@ -381,6 +381,20 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
   // --- Отчёты и конфигурации (по id записи) --------------------------------------
   // Availability report (uptime / outage episodes) for one record. Returns the
   // report object for component-local state, or null on failure.
+  // Журнал устройства: страница событий { events, total, nextBefore } или null
+  // при сбое. `group` — фильтр по типу, `before` — курсор «Показать ещё».
+  fetchEvents: async (recordId, { group, before } = {}) => {
+    const query = new URLSearchParams();
+    if (group) query.set("group", group);
+    if (before) query.set("before", before);
+    const tail = query.toString();
+    const response = await fetch(
+      `${API}/records/${recordId}/events${tail ? `?${tail}` : ""}`,
+      { headers: authHeaders() },
+    ).catch(() => null);
+    if (!response?.ok) return null;
+    return response.json().catch(() => null);
+  },
   // Недельный профиль активности записи: слоты, тихое окно, предложение окна.
   fetchActivity: async (recordId) => {
     const response = await fetch(`${API}/records/${recordId}/activity`, {

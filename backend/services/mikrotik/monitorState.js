@@ -8,6 +8,13 @@ const {
 const { ensureOpenOutage, markRecovered } = require("./outages");
 const { bus } = require("../pulse");
 const { recordTraffic } = require("./traffic");
+const { eventLog, routerActor } = require("./events");
+const { bootedAtFrom, pollEvents } = require("./pollEvents");
+const { selectNew, toEvents } = require("./routerLog");
+const { isUpgrading } = require("./upgradeGuard");
+const { plannedAt, TOLERANCE_MS } = require("./plannedOffline");
+const Preferences = require("../../models/preferences");
+const { resolveTimezone } = require("../../utils/datetime");
 const logger = require("../../utils/logger");
 
 // Live updates: per-poll writes are noise for the pulse plugin (see
@@ -133,17 +140,21 @@ const loadJumpContexts = async (devices) => {
 // a retroactive outage episode, and `disconnect` (status offline, no offlineSince) is
 // correctly not treated as a recovery.
 const recoverToOnline = async (record, poll, now = new Date()) => {
+  // Router-log lines new since the previous poll — only polls that read the log
+  // (health-check) move the cursor.
+  const routerLog = poll.log ? selectNew(poll.log, record.logCursor) : null;
   const set = definedOnly({
     ...mapPollToFields(poll),
     status: "online",
     lastSuccessfulConnectionAt: now,
     lastCheckedAt: now,
     failedPolls: 0,
+    bootedAt: bootedAtFrom(poll.resource?.[0]?.uptime, now) || undefined,
+    logCursor: routerLog?.cursor ?? undefined,
   });
   // Trust-on-first-use: pin the observed cert, never overwrite an existing pin.
-  if (poll.tlsCert && !record.credentials?.tlsCert) {
-    set["credentials.tlsCert"] = poll.tlsCert;
-  }
+  const pinsCert = Boolean(poll.tlsCert && !record.credentials?.tlsCert);
+  if (pinsCert) set["credentials.tlsCert"] = poll.tlsCert;
 
   const prev = await Mikrotik.findOneAndUpdate(
     { _id: record._id },
@@ -175,7 +186,44 @@ const recoverToOnline = async (record, poll, now = new Date()) => {
       hadTicket: Boolean(prev.alertTicketId),
     });
   }
+  if (prev) await journalPoll(prev, set, { routerLog, pinsCert, now });
   return prev;
+};
+
+// The device journal (services/mikrotik/events.js): what this poll says about
+// the device's history. Never throws — the journal is a trace, not the state.
+const journalPoll = async (prev, set, { routerLog, pinsCert, now }) => {
+  const events = eventLog();
+  if (prev.offlineSince) {
+    await events.record(prev._id, "recovered", {
+      at: now,
+      data: {
+        since: prev.offlineSince,
+        downSeconds: Math.round((now.getTime() - new Date(prev.offlineSince).getTime()) / 1000),
+      },
+      refs: prev.alertTicketId ? { ticketId: prev.alertTicketId } : undefined,
+    });
+  }
+  await events.recordMany(prev._id, pollEvents({ prev, set, upgrading: isUpgrading(prev, now) }));
+  if (pinsCert) await events.record(prev._id, "pinned", { at: now, data: { what: "tls" } });
+  if (routerLog?.fresh.length) {
+    const lines = toEvents(routerLog.fresh, { hdUser: prev.credentials?.user });
+    await events.recordMany(
+      prev._id,
+      lines.map((line) => ({ ...line, at: now, actor: line.actor ? routerActor(line.actor.name) : undefined })),
+    );
+  }
+};
+
+// «Не в сети» в плановое окно — ожидаемое событие, а не тревога.
+const offlineIsPlanned = async (record) => {
+  if (!record.plannedOffline?.length || !record.offlineSince) return false;
+  try {
+    const zone = resolveTimezone(await Preferences.findOne({}).select("timezone").lean());
+    return Boolean(plannedAt(record.plannedOffline, new Date(record.offlineSince).getTime(), zone, TOLERANCE_MS));
+  } catch {
+    return false;
+  }
 };
 
 // A failed poll cycle (the poll and its retry both failed). Counts the failure and
@@ -225,6 +273,12 @@ const recordFailure = async (record, error, now = new Date()) => {
 
   bus.bump({ topics: ["mikrotik"] });
   await ensureOpenOutage(confirmed);
+  const planned = await offlineIsPlanned(confirmed);
+  await eventLog().record(confirmed._id, "offline", {
+    at: confirmed.offlineSince || now,
+    severity: planned ? "info" : undefined,
+    data: { error: error.message, ...(planned ? { planned: true } : {}) },
+  });
   logger.log("warn", "Mikrotik device confirmed offline", {
     recordId: record._id,
     host,

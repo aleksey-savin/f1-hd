@@ -52,6 +52,8 @@ const KNOCK_INTER_DELAY_MS = envInt("MIKROTIK_KNOCK_INTER_DELAY_MS", 150);
 // /interface/print feeds the traffic sample; a reply of ~30 rows, bounded so a
 // silent device cannot stall the poll.
 const INTERFACE_READ_TIMEOUT_MS = 8000;
+// The router's own log for the device journal (services/mikrotik/routerLog.js).
+const LOG_READ_TIMEOUT_MS = 8000;
 
 // Pause before the single retry of a transient poll failure (see pollWithRetry).
 const POLL_RETRY_DELAY_MS = envInt("MIKROTIK_POLL_RETRY_DELAY_MS", 2000);
@@ -387,7 +389,12 @@ const runApiSession = async (
 // guard and a fresh serial for the inventory reconciliation.
 const pollDevice = (
   params,
-  { verifyFullGroup = true, readRouterboard = true, readInterfaces = false } = {},
+  {
+    verifyFullGroup = true,
+    readRouterboard = true,
+    readInterfaces = false,
+    readLog = false,
+  } = {},
 ) =>
   runApiSession(params, async ({ conn, routeros, jumpHostKey }) => {
     const observedCert = peerCertPem(routeros);
@@ -470,6 +477,23 @@ const pollDevice = (
       );
     }
 
+    // The router's log — health-check only, best-effort: the device journal keeps
+    // what is new since the previous poll (services/mikrotik/routerLog.js).
+    let log = null;
+    if (readLog) {
+      try {
+        log = await withReadTimeout(
+          conn.write(["/log/print"]),
+          LOG_READ_TIMEOUT_MS,
+        );
+      } catch (error) {
+        logger.log("debug", "Mikrotik /log/print unavailable — no journal lines", {
+          host: params.host,
+          error: error.message,
+        });
+      }
+    }
+
     // Traffic counters — health-check only, best-effort, and the LAST command
     // of the session (an unanswered one must not sit in front of other reads).
     // No `.proplist`: with one the reader returned no rows on live devices
@@ -499,6 +523,7 @@ const pollDevice = (
       routerboard,
       license,
       interfaces,
+      log,
       tlsCert: observedCert,
       // Наблюдённый SSH-ключ транзитного роутера — для опортунистического
       // пиннинга при verify-on-save (см. контроллер).

@@ -1,6 +1,6 @@
 # Mikrotik Device Management — Implementation Notes
 
-_Last updated: 2026-07-29 (record-centric redesign of 2026-07-24: Mikrotik became
+_Last updated: 2026-10-11 (device journal added; record-centric redesign of 2026-07-24: Mikrotik became
 an independent integration with its own master switch, and the unit of management
 is a monitoring **record**, not an inventory card). This document covers the
 backend, the security model and operations. Interface rules live in
@@ -625,6 +625,114 @@ All bookkeeping is **never-throw** (a report must not break the crons or saves):
   newest first, `ticketNum` resolved server-side).
 - `computeUptimeStats(records, {days = 30})` — the list-wide variant: one query
   for all records, returns `{pct, days[]}` per record.
+
+### Device journal — `backend/services/mikrotik/events.js`
+
+Added 2026-10-11. One feed per device answering "when did it reboot, when was
+it upgraded, who changed what". Before it, that history lived in five stores
+(outages, upgrade jobs, change requests, artifacts, mutable status fields) and
+most operator actions only in the rotated file log. Design:
+`docs/superpowers/specs/2026-10-10-mikrotik-event-log-design.md`.
+
+**Model** — `backend/models/mikrotikEvent.js` (`MikrotikEvent`): `mikrotik`,
+`at`, `kind`, `group`, `severity` (`info | ok | warning | danger`), `actor`
+(`system | user | mcpKey | routerUser`; a person is stored as `userId` and named
+at read time, a key and a router account as a name snapshot), `data` (small
+per-kind object), `diff` (redacted config lines, capped at 60), `refs`
+(`changeId`, `upgradeJobId`, `artifactId`, `ticketId`), `count`, `dedupeKey`
+(partial unique index). TTL on `at`: 365 days (`RETENTION_DAYS`). The source
+stores stay the source of truth for their own sections; the journal is a feed
+over them. Deleting a record deletes its events (`removeFor`).
+
+**Catalogue** — `services/mikrotik/eventKinds.js`: `kind → { group, severity }`.
+The kind is stored explicitly; nothing is classified from text. Groups:
+`link`, `power`, `config`, `record`, `agent`, `router`. The portal mirrors the
+catalogue with labels and icons, the MCP tool with English labels
+(`services/mcp/mikrotikEventTools.js`, a test checks every kind has one).
+
+**Writer** — `createEventLog({ store, now, log })`; `eventLog()` is the shared
+instance. `record()` never throws: an event is a trace of an action and must
+not undo the action. `recordAccess()` folds live reads of one MCP key within
+10 minutes into one row (`count`, `at` moves to the last read, `data.since`
+keeps the first).
+
+| Group | Kinds | Emitted in |
+|---|---|---|
+| `link` | `offline`, `recovered` | `monitorState.js`: `recordFailure` after the compare-and-set, `recoverToOnline` (`journalPoll`). An outage that starts inside a planned window is stored with `data.planned` and severity `info` |
+| `power` | `reboot`, `firmwareChanged`, `identityChanged`, `serialChanged` | `pollEvents.js` (pure), called from `journalPoll` |
+| `power` | `upgradeStarted`, `upgradeFinished`, `upgradeFailed`, `upgradeCancelled` | `upgradeWorker.js` (`itemEvent`, pure), `controllers/inventory/mikrotikUpgrade.js` (cancel) |
+| `config` | `exportCreated`, `configChanged` | `artifacts.js` `createArtifact` |
+| `config` | `exportDeleted`, `exportDownloaded`, `scheduleChanged` | `controllers/inventory/mikrotik.js` |
+| `record` | `recordCreated`, `parametersChanged`, `monitoringOn`, `monitoringOff`, `plannedOfflineChanged`, `inventoryLinked`, `pinned` | the controller (`journal()` helper next to each existing audit log line); `pinned` also in `monitorState.js` (TLS) and `artifacts.js` (SSH host key) |
+| `agent` | `changeProposed`, `changeRefused`, `agentAccess` | MCP tools, see `docs/mcp.md` |
+| `agent` | `changeConfirmed`, `changeApproved`, `changeRejected`, `changeCancelled`, `changeApplied`, `changeRolledBack`, `changeNotApplied`, `changeNeedsAttention`, `changeExpired` | `changeDecisions.js`, `changeWorker.js` through `changeEvents.js` (pure) |
+| `router` | `routerConfig`, `routerLogin`, `routerLoginFailed`, `routerSystem`, `routerCritical`, `routerMore` | `routerLog.js` (pure), called from `journalPoll` |
+
+**Reboot detection** — `pollEvents.js`. The poll already reads
+`/system/resource/print`; `recoverToOnline` now stores
+`bootedAt = poll time − uptime` on the record. HD's clock is used on purpose:
+some switches have no clock. A `bootedAt` later than the stored one by more
+than 2 minutes is a reboot dated by the new `bootedAt`. While the record
+carries a live `upgrade` flag (`upgradeGuard.isUpgrading`) the cause is
+`upgrade`, otherwise `unknown` with severity `warning`. A RouterOS version,
+identity or serial number that differs from the stored one is an event with
+both values; a value seen for the first time is not. `bootedAt` and
+`logCursor` are in `MONITOR_SET` (`pulseTopics.js`): the per-poll write does
+not wake the pages, the `MikrotikEvent` insert does (topic `mikrotik`).
+
+**Router log** — `routerLog.js`. The health-check poll (and only it) reads
+`/log/print` (`readLog`, 8 s bound, before `/interface/print`, which must stay
+last). `selectNew` keeps rows whose numeric `.id` is above `Mikrotik.logCursor`;
+a counter below the cursor means the router rebooted and every row is new; the
+first read only sets the cursor. `toEvents` keeps configuration edits
+(`… added|changed|removed|moved|enabled|disabled by <account>`, consecutive
+edits of one account folded, up to 20 lines stored), logins, login failures
+(all failures of a poll are one event with a count), `critical` / `error`
+lines and system messages about reboot, power, upgrade, reset, watchdog.
+Dropped: `debug`, script output, logouts, HD's own API and SSH sessions
+(`dropOwnSessions`). Edits made by HD's own account are kept and marked
+`data.byHd`. Messages pass `scrubUrls` + `redactSecrets` and are cut to 300
+characters. At most 50 events per poll; the rest is one `routerMore` row.
+Events are dated by the poll that saw them (accuracy 5 minutes): the router's
+clock and time zone are not trusted. The router's own stamp is kept as text in
+`data.time`.
+
+**What changed in the configuration** — `configDiff.js` (`diffConfigs` moved
+here from the MCP tool, plus `summarizeDiff`). When a new export's hash
+differs from the previous one, `createArtifact` decrypts the previous file,
+runs both through `redactConfig` and stores counts, the touched menus
+(`data.added`, `removed`, `sections`) and the lines (`diff`). A missing or
+unreadable previous file gives `data.unknown`. A changed secret alone gives a
+change with zero lines.
+
+**Read** — `GET /mikrotik-devices/records/:recordId/events?before=&group=&limit=`
+(`controllers/inventory/mikrotikEvent.js`, `canReadMikrotik`). Cursor paging
+on `{ at, _id }`, 20 per page (max 100), `total` for the scope. The view
+(`eventView.js`, pure) returns names, never user or key ids. `diff` is
+returned only with `mikrotik.manageConfigs`: stored exports are behind an
+e-mailed code, and the journal must not be a way around it. Everyone else gets
+`hasDiff`.
+
+**Backfill** — `scripts/backfillMikrotikEvents.js` (migration
+`2026-10-11-backfillMikrotikEvents`), builders in `eventBackfill.js`. Outages,
+upgrade items, change requests and exports become events inside the retention
+window and before the first event the journal wrote itself. Past config
+changes carry `data.unknown`. Upsert by `dedupeKey`; nothing is deleted.
+
+**Known limits, not verified live**
+
+- The log line patterns were written from RouterOS 6 and 7 samples in the
+  tests, not from a sweep of production devices; an unmatched edit is dropped
+  silently.
+- `.id` of `/log/print` is assumed to grow until reboot on every platform
+  (switches included). If a device reuses ids, lines are missed, not duplicated.
+- More than one log buffer of lines between two polls loses the overflow.
+- Verify-on-save and "monitoring on" write poll fields directly, without
+  `recoverToOnline`: a reboot is noticed by the next health-check poll.
+- A refused agent proposal is journaled only when its `device` argument
+  resolves to exactly one record.
+- The backfill was not run against a database copy in this session (the dev
+  backend container was down).
 
 ### Planned offline windows — `backend/services/mikrotik/plannedOffline.js`
 

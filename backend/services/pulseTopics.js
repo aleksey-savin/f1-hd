@@ -67,6 +67,10 @@ const MONITOR_SET = new Set([
   "credentials.sshHostKey",
   // Traffic sample of every health-check poll (services/mikrotik/traffic.js)
   "traffic",
+  // Boot time and router-log cursor of every poll; what they mean for the page
+  // arrives as MikrotikEvent documents (services/mikrotik/events.js)
+  "bootedAt",
+  "logCursor",
 ]);
 const MONITOR_UNSET = new Set([
   "lastError",
@@ -133,6 +137,7 @@ module.exports = {
   MikrotikArtifact: { topics: ["mikrotik"], noise: isBookkeeping },
   MikrotikUpgradeJob: { topics: ["mikrotik"], noise: isBookkeeping },
   MikrotikChange: { topics: ["mikrotikChanges"], noise: mikrotikChangeNoise },
+  MikrotikEvent: { topics: ["mikrotik"], noise: isBookkeeping },
   KnowledgeNote: { topics: ["knowledge"], noise: isBookkeeping },
   ServicePlanReport: { topics: ["approval"], noise: isBookkeeping },
   ServicePlan: { topics: ["approval"], noise: isBookkeeping },

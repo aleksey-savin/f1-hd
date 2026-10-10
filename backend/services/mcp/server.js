@@ -226,6 +226,21 @@ const MIKROTIK_SCHEMAS = {
     required: ["device"],
     additionalProperties: false,
   }),
+  events: fromJsonSchema({
+    type: "object",
+    properties: {
+      device: DEVICE,
+      days: { type: "integer", enum: [1, 7, 30, 90, 365], description: "Window in days (default 30)." },
+      group: {
+        type: "string",
+        enum: ["link", "power", "config", "record", "agent", "router"],
+        description: "Only one kind: link (offline/online), power (reboots, firmware), config (exports, what changed), record (edits in HD), agent (AI requests and reads), router (the router's own log).",
+      },
+      limit: { type: "integer", minimum: 1, maximum: 100, description: "Events to return, newest first (default 20)." },
+    },
+    required: ["device"],
+    additionalProperties: false,
+  }),
   compare: fromJsonSchema({
     type: "object",
     properties: {
@@ -460,6 +475,7 @@ const buildHdServer = ({ tools, caller, context, log }) => {
     register("compare_mikrotik_exports", "Compare Mikrotik configuration exports", "Show what changed between two stored configuration exports of a device (the two latest by default), by section, with secrets hidden.", MIKROTIK_SCHEMAS.compare, tools.mikrotik.compare);
     register("get_mikrotik_state", "Read the live state of a Mikrotik device", "Read what the device sees right now. Pick checks and narrow with search; each check is reported separately, a failed one does not hide the others. Left out: packet statistics, zero error counters and flags in their usual state — a missing flag (disabled, dynamic, invalid…) means false, a missing error counter means 0. Secrets are hidden.", MIKROTIK_SCHEMAS.state, tools.mikrotik.state);
     register("ping_from_mikrotik", "Ping from a Mikrotik device", "Ping (or trace the route to) an IPv4 address from the device itself, up to 5 packets. The address must be in the device's own networks or routes, or be its gateway, DNS server or tunnel peer. Tells whether a host is reachable, not whether a service on it works.", MIKROTIK_SCHEMAS.ping, tools.mikrotik.ping, READ_ONLY_OPEN);
+    register("get_mikrotik_events", "Read the journal of a Mikrotik device", "What happened to the device and who did it, newest first: outages, reboots, firmware changes, configuration changes between exports, edits of its record in HD, AI change requests and reads, and significant lines HD kept from the router's log. Use it for history; get_mikrotik_log reads the router's log as it is now.", MIKROTIK_SCHEMAS.events, tools.mikrotik.events);
     register("get_mikrotik_log", "Read the log of a Mikrotik device", "Read the newest lines of the device's own log, optionally by topic or text. Debug lines and script output are not shown; times are the device's clock.", MIKROTIK_SCHEMAS.log, tools.mikrotik.readLog);
   }
 

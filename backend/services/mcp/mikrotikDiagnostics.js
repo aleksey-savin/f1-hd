@@ -63,7 +63,10 @@ const formatSection = ({ title, words, keep }, result, book, ownName, needle) =>
   ];
 };
 
-const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => {
+const createMikrotikDiagnostics = ({ source, baseUrl, log, events, now = Date.now }) => {
+  // Журнал устройства: агент ходил на роутер (ответ из кеша устройство не трогал)
+  const journal = (device, caller, tool, target) => events?.recordAccess?.(device._id, { caller, tool, ...(target ? { target } : {}) });
+
   const stateCache = new Map(); // `${deviceId}|${check}` → { results, fetchedAt }
   const pings = new Map(); // deviceId → моменты последних ping
 
@@ -142,6 +145,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
       const book = await source.loadAddressBook();
       const failed = read.entries.flatMap((entry) => entry.results).filter((result) => result.error).length;
       logCall(caller, "get_mikrotik_state", { deviceId: device._id, checks, cached: !read.fresh, failed }, started);
+      if (read.fresh) await journal(device, caller, "state");
       const oldest = Math.min(...read.entries.map((entry) => entry.fetchedAt));
       return textResult(
         [
@@ -216,6 +220,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
       const results = await source.runOnDevice(device._id, [{ title, words, timeoutMs: PING_TIMEOUT_MS }]);
       if (!results) return errorResult(GONE);
       logCall(caller, "ping_from_mikrotik", { ...meta, failed: Boolean(results[0].error) }, started);
+      await journal(device, caller, args.trace ? "traceroute" : "ping", address);
       if (results[0].error) return errorResult(`${title} from ${safeLine(device.name)} to ${address} failed: ${safeLine(results[0].error)}.`);
       const rows = args.trace ? lastTrace(results[0].rows) : results[0].rows || [];
       return textResult(
@@ -241,6 +246,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
       }
       const rows = filterLog(results[0].rows, args);
       logCall(caller, "get_mikrotik_log", { deviceId: device._id, lines: rows.length, cached: !read.fresh }, started);
+      if (read.fresh) await journal(device, caller, "log");
       const head = [
         `# Log of ${safeLine(device.name)}`,
         `read from the device at ${iso(read.entries[0].fetchedAt)}${read.fresh ? "" : " (cached for up to 30 seconds)"}; times are the device's own clock; debug lines, script output and the helpdesk's own sessions are not shown`,

@@ -705,6 +705,25 @@ key with the `mikrotikChanges` access **and** the Mikrotik module switched on.
 Every call is logged with the key id and name; the requester's Telegram id is
 logged as its last three digits.
 
+## Device journal
+
+Added 2026-10-11. Every step of a request is also written to the journal of
+its device (`MikrotikEvent`, see `docs/mikrotik-management.md`), so the device
+page shows agent activity next to outages and reboots. `changeEvents.js` (pure)
+maps a request to an event; the request number is never part of it — the
+journal row links to the request by `refs.changeId`.
+
+| Moment | Kind | Written by |
+|---|---|---|
+| Proposal accepted | `changeProposed` (actor: the key, on behalf of the requester) | `services/mcp/mikrotikChangeTools.js` |
+| Proposal refused at intake | `changeRefused` | same; only when the device resolves |
+| Requester confirms / last step approves / anyone rejects | `changeConfirmed` / `changeApproved` / `changeRejected` (with channel and comment) | `changeDecisions.js` |
+| Requester withdraws | `changeCancelled` | `changeDecisions.js` |
+| Outcome | `changeApplied`, `changeRolledBack`, `changeNotApplied`, `changeNeedsAttention`, `changeExpired` (with `failure`) | `changeWorker.js`: `finish()`, the two give-up paths and the expiry sweep |
+
+`events` is an optional dependency of `createDecisions`, `createChangeWorker`
+and `createMikrotikChangeTools`; the live instances get `eventLog()`.
+
 ## Data model
 
 `MikrotikChange` (`models/mikrotikChange.js`, collection `mikrotikchanges`):

@@ -1,4 +1,5 @@
 const { resolveByName } = require("./ticketQuery");
+const { diffConfigs } = require("@/services/mikrotik/configDiff");
 const { iso } = require("./text");
 const {
   deviceLink,
@@ -57,38 +58,7 @@ const resolveDevice = (devices, value) => {
 const normalizeSection = (value) => `/${String(value).trim().replace(/^\/+/, "").replace(/\s+/g, " ")}`.toLowerCase();
 const inSection = (path, wanted) => wanted === "/" || path === wanted || path.startsWith(`${wanted} `);
 
-// Разница двух вычищенных конфигураций по разделам: строки как мультимножества.
-const diffConfigs = (older, newer) => {
-  const linesOf = (config) => new Map(config.sections.map((section) => [section.path, section.lines]));
-  const before = linesOf(older);
-  const after = linesOf(newer);
-  const changes = [];
-  for (const path of new Set([...before.keys(), ...after.keys()])) {
-    const left = before.get(path) || [];
-    const right = after.get(path) || [];
-    const count = new Map();
-    for (const line of left) count.set(line, (count.get(line) || 0) + 1);
-    const added = [];
-    for (const line of right) {
-      const seen = count.get(line) || 0;
-      if (seen) count.set(line, seen - 1);
-      else added.push(line);
-    }
-    const removed = left.filter((line) => {
-      const rest = count.get(line) || 0;
-      if (rest) count.set(line, rest - 1);
-      return rest > 0;
-    });
-    // Комментарии экспорта (дата, «# poe-out status …») меняются сами по себе
-    const meaningful = (lines) => lines.filter((line) => !line.startsWith("#"));
-    if (meaningful(added).length || meaningful(removed).length) {
-      changes.push({ path, added: meaningful(added), removed: meaningful(removed) });
-    }
-  }
-  return changes;
-};
-
-const createMikrotikTools = ({ source, baseUrl, log }) => {
+const createMikrotikTools = ({ source, baseUrl, log, events }) => {
   const logCall = (caller, tool, meta, started) =>
     log("info", "MCP tool call", { mcpKeyId: caller?.keyId, mcpKeyName: caller?.keyName, tool, ...meta, durationMs: Date.now() - started });
 
@@ -155,6 +125,8 @@ const createMikrotikTools = ({ source, baseUrl, log }) => {
       if (!live) return errorResult("The device is gone. Use list_mikrotik_devices.");
       const { config } = live;
       logCall(caller, "get_mikrotik_config", { ...meta, cached: live.cached, hidden: config.hidden }, started);
+      // Журнал устройства: агент ходил на роутер (ответ из кеша устройство не трогал)
+      if (!live.cached) await events?.recordAccess?.(device._id, { caller, tool: "config" });
 
       const head = [
         `# Configuration of ${safeLine(device.name)}`,

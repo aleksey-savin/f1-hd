@@ -134,13 +134,13 @@ const AvailabilitySection = ({ recordId }) => {
               Инцидентов за период не было.
             </div>
           )}
-          {/* Журнал свёрнут: нужен редко, а занимал больше места, чем всё
+          {/* Список простоев свёрнут: нужен редко, а занимал больше места, чем всё
               остальное в секции (макет 10.10) */}
           {report && report.outages.length > 0 && (
             <FoldRow
               summary={
                 <>
-                  Журнал простоев · последний{" "}
+                  Простои · последний{" "}
                   <span className="tabular-nums">
                     {formatShortDate(report.outages[0].startedAt)}
                   </span>

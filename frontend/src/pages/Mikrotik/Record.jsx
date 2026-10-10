@@ -49,6 +49,7 @@ import ConfirmDialog from "../../components/Mikrotik/ConfirmDialog";
 import FoldRow from "../../components/Mikrotik/FoldRow";
 import ActivitySection from "../../components/Mikrotik/ActivitySection";
 import AvailabilitySection from "../../components/Mikrotik/AvailabilitySection";
+import JournalSection from "@/components/Mikrotik/JournalSection";
 import ChangesSection from "../../components/Mikrotik/ChangesSection";
 import ConfigsSection from "../../components/Mikrotik/ConfigsSection";
 import FirmwareSection from "../../components/Mikrotik/FirmwareSection";
@@ -395,6 +396,7 @@ const MikrotikRecordPage = () => {
     { id: "network", label: "Сеть" },
     canManageConfigs ? { id: "configs", label: "Конфигурации" } : null,
     canReadChanges ? { id: "changes", label: "Изменения" } : null,
+    { id: "journal", label: "Журнал" },
   ].filter(Boolean);
 
   // Ссылка с якорем секции (`#configs` из страницы запроса) ведёт к ней, как
@@ -773,6 +775,12 @@ const MikrotikRecordPage = () => {
               deviceName={row.displayName}
             />
           )}
+
+          {/* ── Журнал: общая лента событий устройства ── */}
+          <JournalSection
+            recordId={row.recordId}
+            deviceName={row.displayName}
+          />
 
           <div className="mt-6 border-t border-border-soft pt-3 text-xs text-faint">
             Данные снимаются с устройства при каждой проверке. Точность границ

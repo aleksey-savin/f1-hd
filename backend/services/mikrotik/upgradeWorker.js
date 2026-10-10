@@ -7,6 +7,7 @@ const { runStep } = require("./upgradeSteps");
 const { RIGHTS_FIX } = require("./upgradeErrors");
 const deviceOps = require("./upgradeDevice");
 const logger = require("../../utils/logger");
+const { eventLog, userActor } = require("./events");
 
 // The firmware-upgrade worker (a cron-registry job: `jobs.register` every 20 s in
 // app.js, services/jobs/guardedCron.js). One tick = one step of the batch's
@@ -61,6 +62,32 @@ const rightsVerdict = (set, now) => {
     return { ok: false, missing: [], checkedAt: now, source: "upgrade" };
   }
   return null;
+};
+
+// What an item patch means for the device journal (services/mikrotik/events.js):
+// the upgrade started, finished or failed on this device. Pure — tested.
+const itemEvent = (job, item, set) => {
+  const kind = { running: "upgradeStarted", done: "upgradeFinished", failed: "upgradeFailed" }[set?.state];
+  // «running» is also re-stamped by later steps; only the start carries startedAt
+  if (!kind || (kind === "upgradeStarted" && !set.startedAt)) return null;
+  return {
+    kind,
+    fields: {
+      actor: kind === "upgradeStarted" ? userActor(job.createdBy) : undefined,
+      data: {
+        from: item.from?.os,
+        to: item.to?.os,
+        ...(kind === "upgradeStarted" ? { channel: item.channel } : {}),
+        ...(set.error ? { error: set.error } : {}),
+      },
+      refs: { upgradeJobId: job._id },
+    },
+  };
+};
+
+const journalItem = async (job, item, set) => {
+  const event = itemEvent(job, item, set);
+  if (event) await eventLog().record(item.mikrotik, event.kind, event.fields);
 };
 
 const stampUpgradeRights = (mikrotikId, verdict) =>
@@ -139,6 +166,7 @@ const runUpgradeTick = async ({ deps = deviceOps, clock = () => new Date() } = {
       "Начато",
       now,
     );
+    await journalItem(job, item, { state: "running", startedAt: now });
     return;
   }
 
@@ -153,6 +181,7 @@ const runUpgradeTick = async ({ deps = deviceOps, clock = () => new Date() } = {
   await applyItemPatch(job._id, item._id, patch.set, patch.log, now);
   if (startsNewLeg(patch.set)) await refreshDeviceFlag(item.mikrotik, job._id, now);
   if (patch.set.state === "done" || patch.set.state === "failed") {
+    await journalItem(job, item, patch.set);
     await clearDeviceFlag(item.mikrotik, job._id);
     const verdict = rightsVerdict(patch.set, now);
     if (verdict) await stampUpgradeRights(item.mikrotik, verdict);
@@ -168,4 +197,4 @@ const runUpgradeTick = async ({ deps = deviceOps, clock = () => new Date() } = {
   }
 };
 
-module.exports = { runUpgradeTick, nextAction, startsNewLeg, rightsVerdict };
+module.exports = { runUpgradeTick, nextAction, startsNewLeg, rightsVerdict, itemEvent };

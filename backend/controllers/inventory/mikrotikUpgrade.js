@@ -14,6 +14,7 @@ const {
 } = require("../../services/mikrotik/upgradeView");
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
+const { eventLog, userActor } = require("../../services/mikrotik/events");
 
 // Firmware upgrade batches (docs/mikrotik-management.md, «Firmware upgrades»).
 // The worker (services/mikrotik/upgradeWorker.js) does the device work; these
@@ -192,6 +193,14 @@ exports.cancelUpgrade = async (req, res, next) => {
       actor: req.userId,
       jobId: job._id,
     });
+    // Журнал устройства: остановка касается тех, до кого очередь не дошла
+    for (const item of job.items.filter((entry) => ["queued", "running"].includes(entry.state))) {
+      await eventLog().record(item.mikrotik, "upgradeCancelled", {
+        actor: userActor(req.userId),
+        data: { from: item.from?.os, to: item.to?.os, state: item.state },
+        refs: { upgradeJobId: job._id },
+      });
+    }
     res.status(200).json(publicJob(job, await loadCreator(job)));
   } catch (error) {
     next(new AppError("Не удалось остановить пакет обновления", 500, true, error));

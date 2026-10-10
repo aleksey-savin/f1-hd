@@ -2,6 +2,7 @@ const Router = require("express");
 const router = new Router();
 const mikrotikController = require("@/controllers/inventory/mikrotik");
 const changeController = require("@/controllers/inventory/mikrotikChange");
+const eventController = require("@/controllers/inventory/mikrotikEvent");
 const upgradeController = require("@/controllers/inventory/mikrotikUpgrade");
 const isAuth = require("@/middleware/isAuth");
 const {
@@ -235,6 +236,14 @@ router.get(
   isAuth,
   canReadMikrotik,
   changeController.listForRecord,
+);
+// --- Журнал устройства: общая лента событий записи. Строки отличий
+// конфигурации ручка отдаёт только с правом на конфигурации. ---
+router.get(
+  "/mikrotik-devices/records/:recordId/events",
+  isAuth,
+  canReadMikrotik,
+  eventController.listForRecord,
 );
 router.get(
   "/mikrotik-devices/responsible-candidates",
