@@ -128,7 +128,7 @@ const MikrotikChangePage = () => {
       my.action === "confirm"
         ? {
             action: "confirm",
-            title: `Подтвердить запрос № ${change.number}?`,
+            title: "Подтвердить запрос?",
             description: `После вашего подтверждения запрос уйдёт на утверждение${nextApprover ? `: ${nextApprover}` : ""}.`,
             confirmLabel: "Подтвердить",
           }
@@ -164,7 +164,7 @@ const MikrotikChangePage = () => {
     change.backup && canManageConfigs && deviceTo ? (
       <EntityLink
         to={`${deviceTo}#configs`}
-        from={`Запрос № ${change.number}`}
+        from="Запрос на изменение"
         className="font-medium text-accent-text no-underline hover:underline"
       >
         {backupAt}
@@ -204,11 +204,11 @@ const MikrotikChangePage = () => {
     <div className="mx-auto w-full max-w-5xl">
       <Crumbs chain={chain} />
 
-      {/* ── Hero: номер → тема → статус и что к нему прилагается ── */}
+      {/* ── Hero: вид записи → тема → статус и что к нему прилагается ── */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm text-muted-foreground">
-            Запрос № {change.number}
+            Запрос на изменение конфигурации
           </div>
           <h1 className="my-1 text-2xl leading-tight font-semibold tracking-tight wrap-anywhere">
             {change.title}
@@ -358,7 +358,7 @@ const MikrotikChangePage = () => {
       <ConfirmDialog
         open={dialog === "cancel"}
         onOpenChange={(value) => !value && setDialog(null)}
-        title={`Отозвать запрос № ${change.number}?`}
+        title="Отозвать запрос?"
         description="Запрос закроется, команды на устройстве выполнены не будут."
         confirmLabel="Отозвать"
         confirmVariant="destructive"
@@ -378,7 +378,7 @@ const MikrotikChangePage = () => {
       >
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Отклонить запрос № {change.number}?</DialogTitle>
+            <DialogTitle>Отклонить запрос?</DialogTitle>
             <DialogDescription>
               Команды на устройстве выполнены не будут.
             </DialogDescription>
@@ -440,6 +440,6 @@ export async function loader({ params }) {
   if (!response.ok) throw response;
 
   const data = await response.json();
-  document.title = `Просмотр запроса № ${data.number}`;
+  document.title = "Запрос на изменение конфигурации";
   return { ...data, pulse: response.headers.get("X-Pulse-Cursor") };
 }

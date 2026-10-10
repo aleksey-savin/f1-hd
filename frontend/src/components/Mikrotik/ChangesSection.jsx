@@ -109,7 +109,7 @@ const ChangesSection = ({ recordId, deviceName }) => {
                   className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3.5 gap-y-0.5 border-t border-border-soft py-2.5 text-inherit no-underline first:border-t-0 first:pt-0 last:pb-0 hover:text-inherit"
                 >
                   <span className="min-w-0 text-base font-medium wrap-anywhere">
-                    № {change.number}. {change.title}
+                    {change.title}
                   </span>
                   <DeviceStatusText
                     tone={STATUS_TEXT_TONE[statusTone(change.status)]}

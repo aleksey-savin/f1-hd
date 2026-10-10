@@ -84,12 +84,14 @@ const INPUT = {
   commands: [{ path: "/interface wireguard peers", action: "add", params: { "public-key": "{{wireguard.public-key}}", comment: "SECRETPARAMVALUE" } }],
 };
 
-test("propose: success text carries number, status, person, risk, commands, link, expiry and the warning", async () => {
+test("propose: success text carries the id, status, person, risk, commands, link, expiry and the warning", async () => {
   const { tools, proposed } = build();
   const result = await tools.propose(INPUT, caller);
   assert.ok(!result.isError);
   const t = text(result);
-  assert.match(t, /Request № 14/);
+  assert.match(t, /^Request created: /);
+  assert.ok(t.includes(`id: ${CHANGE_ID}`));
+  assert.ok(!t.includes("№"), "номер запроса агенту не показывается");
   assert.match(t, /waiting for the requester to confirm/);
   assert.match(t, /waiting for: Иван Петров/);
   assert.match(t, /risk: normal/);
@@ -141,7 +143,8 @@ test("get: a pending request shows the status, steps and the current person; acc
   const { tools } = build();
   for (const ref of ["14", CHANGE_ID]) {
     const t = text(await tools.get({ change: ref }, caller));
-    assert.match(t, /Request № 14/);
+    assert.ok(t.includes(`id: ${CHANGE_ID}`));
+    assert.ok(!t.includes("№"));
     assert.match(t, /status: waiting for the requester to confirm/);
     assert.match(t, /device: F1-MSK01/);
     assert.match(t, /waiting for: Иван Петров/);
@@ -217,17 +220,17 @@ test("list: newest first, filtered by device and status, limited", async () => {
   const older = change({ _id: "66dd00000000000000000013", number: 13, title: "Older", createdAt: new Date("2026-10-09T08:00:00.000Z"), status: STATUS.applied });
   const other = change({ _id: "66dd00000000000000000012", number: 12, title: "Other device", mikrotik: DEVICE_B, createdAt: new Date("2026-10-08T08:00:00.000Z") });
   const { tools } = build({ changes: [older, change(), other] });
-  const all = text(await tools.list({}, caller)).split("\n").filter((l) => /^№ \d+/.test(l));
-  assert.deepEqual(all.map((l) => l.match(/^№ (\d+)/)[1]), ["14", "13", "12"]);
-  assert.match(all[0], /№ 14 · WireGuard для Ивана Петрова · waiting for the requester to confirm · F1-MSK01 · 2026-10-10T08:00:00\.000Z · waiting for: Иван Петров/);
-  assert.match(all[1], /№ 13 .* · applied · F1-MSK01 · /);
+  const all = text(await tools.list({}, caller)).split("\n").filter((l) => /^id [0-9a-f]{24}/.test(l));
+  assert.deepEqual(all.map((l) => l.match(/^id (\S+)/)[1]), [CHANGE_ID, "66dd00000000000000000013", "66dd00000000000000000012"]);
+  assert.ok(all[0].endsWith(" · WireGuard для Ивана Петрова · waiting for the requester to confirm · F1-MSK01 · 2026-10-10T08:00:00.000Z · waiting for: Иван Петров"));
+  assert.match(all[1], / · applied · F1-MSK01 · /);
   const byDevice = text(await tools.list({ device: "F1-SPB01" }, caller));
-  assert.match(byDevice, /№ 12/);
-  assert.ok(!byDevice.includes("№ 14"));
+  assert.match(byDevice, /id 66dd00000000000000000012/);
+  assert.ok(!byDevice.includes(CHANGE_ID));
   const byStatus = text(await tools.list({ status: STATUS.applied }, caller));
-  assert.match(byStatus, /№ 13/);
-  assert.ok(!byStatus.includes("№ 12"));
-  assert.equal((text(await tools.list({ limit: 1 }, caller)).match(/^№ /gm) || []).length, 1);
+  assert.match(byStatus, /id 66dd00000000000000000013/);
+  assert.ok(!byStatus.includes("66dd00000000000000000012"));
+  assert.equal((text(await tools.list({ limit: 1 }, caller)).match(/^id /gm) || []).length, 1);
   assert.equal((await tools.list({ device: "nope" }, caller)).isError, true);
   assert.match(text(await build({ changes: [] }).tools.list({}, caller)), /No change requests/);
 });
@@ -309,7 +312,7 @@ test("A2 propose: a throwing notifier does not fail the call and is logged witho
   const { tools, logs } = build({ notifier: { step: async () => { throw new Error("queue is down"); } } });
   const result = await tools.propose(INPUT, caller);
   assert.ok(!result.isError);
-  assert.match(text(result), /Request № 14 created/);
+  assert.match(text(result), /Request created/);
   const entry = logs.find((l) => /notification/.test(l.message));
   assert.ok(entry, "the failure is logged");
   assert.equal(entry.level, "warn");

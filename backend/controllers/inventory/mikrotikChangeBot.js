@@ -50,7 +50,7 @@ function ownOutcome(change, userId, users) {
   else if (change.status === STATUS.applied) state = "Запрос применён.";
   else if (change.status === STATUS.rejected) state = "Запрос отклонён.";
   else state = `${STATUS_LABELS[change.status] || change.status}.`;
-  return `Вы уже ${word} запрос № ${change.number}. ${state}`;
+  return `Вы уже ${word} запрос. ${state}`;
 }
 
 // Лимит нажатий на человека, до общего лимитера бота: всплеск одного не должен глушить остальные вызовы бота
@@ -131,15 +131,15 @@ function createBotHandlers({ load, loadContext, decisions, baseUrl = "", now = (
 
     // Решение уже записано: сбой в тексте ответа его не отменяет
     const n = change.number;
-    let text = kind === "reject" ? `Вы отклонили запрос № ${n}.` : `Вы подтвердили запрос № ${n}.`;
+    let text = kind === "reject" ? "Вы отклонили запрос." : "Вы подтвердили запрос.";
     try {
       if (kind === "approve") {
         if (result.change.status === STATUS.queued) {
-          text = `Вы утвердили запрос № ${n}. HD снимет резервную копию и применит команды. Итог придёт отдельным сообщением.`;
+          text = "Вы утвердили запрос. HD снимет резервную копию и применит команды. Итог придёт отдельным сообщением.";
         } else {
           const next = currentStep(result.change);
           const who = next && nameOf(ctx.users?.get(idOf(next.user)));
-          text = `Вы подтвердили запрос № ${n}.${who ? ` Дальше решает ${who}.` : ""}`;
+          text = `Вы подтвердили запрос.${who ? ` Дальше решает ${who}.` : ""}`;
         }
       }
     } catch (error) {

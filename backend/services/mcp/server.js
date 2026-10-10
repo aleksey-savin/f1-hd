@@ -266,7 +266,7 @@ const CHANGE_SCHEMAS = {
   }),
   get: fromJsonSchema({
     type: "object",
-    properties: { change: STR(1, 64, "Request number (e.g. 14) or id.") },
+    properties: { change: STR(1, 64, "Request id from propose_mikrotik_change or list_mikrotik_changes.") },
     required: ["change"],
     additionalProperties: false,
   }),
@@ -411,9 +411,9 @@ const buildHdServer = ({ tools, caller, context, log }) => {
   }
 
   if (families.mikrotikChanges) {
-    register("propose_mikrotik_change", "Propose a Mikrotik configuration change", "Propose a change as structured commands. Nothing is applied: HD validates it, compares it with the device (read-only) and creates a request that people approve. Returns the request number, who it waits for, the risk and a link for the person who asked; a refusal lists the reasons.", CHANGE_SCHEMAS.propose, tools.mikrotikChanges.propose, PROPOSE_ANNOTATIONS);
-    register("get_mikrotik_change", "Read a Mikrotik change request", "Status of a request by number or id: who decided each step and when, the current step, the result of every command, the backup time, a note from HD and, for an applied WireGuard client, the link to the configuration page.", CHANGE_SCHEMAS.get, tools.mikrotikChanges.get);
-    register("list_mikrotik_changes", "List Mikrotik change requests", "List change requests, newest first, optionally for one device or status: number, title, status, device, creation time and who it waits for.", CHANGE_SCHEMAS.list, tools.mikrotikChanges.list);
+    register("propose_mikrotik_change", "Propose a Mikrotik configuration change", "Propose a change as structured commands. Nothing is applied: HD validates it, compares it with the device (read-only) and creates a request that people approve. Returns the request id, who it waits for, the risk and a link for the person who asked; a refusal lists the reasons.", CHANGE_SCHEMAS.propose, tools.mikrotikChanges.propose, PROPOSE_ANNOTATIONS);
+    register("get_mikrotik_change", "Read a Mikrotik change request", "Status of a request by id: who decided each step and when, the current step, the result of every command, the backup time, a note from HD and, for an applied WireGuard client, the link to the configuration page.", CHANGE_SCHEMAS.get, tools.mikrotikChanges.get);
+    register("list_mikrotik_changes", "List Mikrotik change requests", "List change requests, newest first, optionally for one device or status: id, title, status, device, creation time and who it waits for.", CHANGE_SCHEMAS.list, tools.mikrotikChanges.list);
   }
 
   return server;

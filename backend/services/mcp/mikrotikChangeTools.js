@@ -104,7 +104,8 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, baseUrl, log })
     const [names, devices] = await Promise.all([peopleOf([change]), store.listDevices()]);
     return textResult(
       [
-        `Request № ${change.number} created: ${safeLine(change.title)}`,
+        `Request created: ${safeLine(change.title)}`,
+        `id: ${change._id}`,
         `status: ${statusText(change.status)}`,
         `waiting for: ${waitingFor(change, names) || "—"}`,
         `device: ${deviceName(devices, change.mikrotik) || safeLine(meta.device)}`,
@@ -122,7 +123,7 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, baseUrl, log })
   // Запрос виден, только если его устройство видят и читающие инструменты
   const load = async (ref) => {
     const query = String(ref ?? "").trim();
-    if (!NUMBER.test(query) && !OBJECT_ID.test(query)) return { error: `"${oneLine(query).slice(0, 60)}" is not a request number or id. Use list_mikrotik_changes.` };
+    if (!NUMBER.test(query) && !OBJECT_ID.test(query)) return { error: `"${oneLine(query).slice(0, 60)}" is not a request id. Use list_mikrotik_changes.` };
     const found = await store.findChange(NUMBER.test(query) ? query : query.toLowerCase());
     const devices = await store.listDevices();
     if (!found || !deviceName(devices, found.mikrotik)) return { error: `No change request matches "${query}". Use list_mikrotik_changes.` };
@@ -148,7 +149,8 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, baseUrl, log })
       return `- ${who}: ${open && i === firstOpen ? "waiting" : "not reached"}`;
     });
     const lines = [
-      `Request № ${change.number}: ${safeLine(change.title)}`,
+      `Request: ${safeLine(change.title)}`,
+      `id: ${change._id}`,
       `status: ${statusText(change.status)}`,
       `device: ${deviceName(devices, change.mikrotik)}`,
       `requester: ${names.get(String(change.requestedBy)) || "—"}`,
@@ -207,7 +209,7 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, baseUrl, log })
         `Found ${found.length} change requests, newest first:`,
         "",
         ...found.map((c) =>
-          [`№ ${c.number}`, safeLine(c.title), statusText(c.status), deviceName(devices, c.mikrotik), iso(c.createdAt), waitingFor(c, names) ? `waiting for: ${waitingFor(c, names)}` : null]
+          [`id ${c._id}`, safeLine(c.title), statusText(c.status), deviceName(devices, c.mikrotik), iso(c.createdAt), waitingFor(c, names) ? `waiting for: ${waitingFor(c, names)}` : null]
             .filter(Boolean)
             .join(" · "),
         ),

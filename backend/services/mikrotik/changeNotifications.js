@@ -155,7 +155,7 @@ function stepMessage(change, ctx) {
   const asks = `Просит: ${oneLine(ctx.requesterName, 80)}${requesterStep ? ` (подтвердил в ${clock(first.decidedAt, ctx)})` : ""}`;
   const top = [
     ...(ctx.prefix ? [ctx.prefix, ""] : []),
-    `Запрос № ${change.number} на изменение конфигурации`,
+    `Запрос на изменение конфигурации`,
     head(ctx),
     "",
     titleOf(change),
@@ -188,7 +188,7 @@ const allWhole = (change) => change.commands.every((_, i) => commandLines(change
 
 function confirmText(change, ctx) {
   return [
-    `Запрос № ${change.number}, ${head(ctx)}`,
+    `Запрос на изменение конфигурации, ${head(ctx)}`,
     titleOf(change),
     "",
     `Применить ${commandsWord(change.commands.length)} на роутере?`,
@@ -249,7 +249,7 @@ const RESULT_TITLES = {
   [STATUS.cancelled]: "отозван",
   [STATUS.needsAttention]: "требует проверки",
 };
-const resultTitle = (change) => `Запрос № ${change.number} ${RESULT_TITLES[change.status] || ""}`.trim();
+const resultTitle = (change) => `Запрос на изменение конфигурации ${RESULT_TITLES[change.status] || ""}`.trim();
 
 function resultMessage(change, ctx) {
   const facts = resultFacts(change, ctx);
@@ -354,8 +354,8 @@ function createChangeNotifier({ loadUsers, loadContext, loadPrefs, saveNotificat
     return fanOut(change, {
       ids: [step.user],
       kind: "mikrotikChangeStep",
-      title: bellTitle || `Запрос № ${change.number} ждёт вашего решения`,
-      mailTitle: `Запрос № ${change.number} на изменение конфигурации: ${ctx.deviceName}`,
+      title: bellTitle || `Запрос на изменение конфигурации ждёт вашего решения`,
+      mailTitle: `Запрос на изменение конфигурации: ${ctx.deviceName}`,
       telegram: { text, replyMarkup: stepKeyboard(change, fits, { baseUrl }) },
       bell: bellStep(change, ctx),
       mail: withLink(text, change),
@@ -383,7 +383,7 @@ function createChangeNotifier({ loadUsers, loadContext, loadPrefs, saveNotificat
   return {
     step: safe((change) => stepEvent(change)),
     reminder: safe((change) =>
-      stepEvent(change, { prefix: "Запрос истекает через 2 часа", bellTitle: `Запрос № ${change.number} истекает через 2 часа` })),
+      stepEvent(change, { prefix: "Запрос истекает через 2 часа", bellTitle: `Запрос на изменение конфигурации истекает через 2 часа` })),
     decided: safe((change) => finalEvent(change, [change.requestedBy, ...decided(change).map((s) => s.user)])),
     result: safe((change) => finalEvent(change, [change.requestedBy, ...decided(change).map((s) => s.user)])),
     // Отзыв: сообщить тому, чей шаг ждал (сам заявитель отозвал — ему не пишем)

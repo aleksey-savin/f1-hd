@@ -612,7 +612,7 @@ results, which only the safe-mode executor produces.
 
 **Result texts.** Every final status has a title and a summary
 (`RESULT_TITLES`, `resultFacts`). For `needs_attention` the title is
-«Запрос № N требует проверки», the summary says HD cannot vouch for the state
+«Запрос на изменение конфигурации требует проверки», the summary says HD cannot vouch for the state
 of the device, followed by `Что известно: <failure>`, the approvers and the
 backup time. In `rolled_back` and `not_applied` messages `failure` is HD's own
 sentence and is printed as `Причина: <failure>`, so its beginning cannot pass

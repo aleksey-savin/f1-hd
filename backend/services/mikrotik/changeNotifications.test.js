@@ -60,7 +60,7 @@ const change = (extra = {}) => ({
 test("сообщение шага: номер, устройство, компания, название, просит, команды, было, риск, срок", () => {
   const { text, fits } = stepMessage(change(), ctx);
   assert.equal(fits, true);
-  assert.match(text, /^Запрос № 14 на изменение конфигурации\nF1-VLD-GW01, F1Lab\n\nWireGuard для Ивана Петрова\nПросит: Алексей Савин\nАгент: OpenClaw\n\nКоманды \(2\):\n1\. \/interface/);
+  assert.match(text, /^Запрос на изменение конфигурации\nF1-VLD-GW01, F1Lab\n\nWireGuard для Ивана Петрова\nПросит: Алексей Савин\nАгент: OpenClaw\n\nКоманды \(2\):\n1\. \/interface/);
   assert.match(text, /2\. \/ip firewall address-list set .*\n {3}было: disabled=no/);
   assert.match(text, /Риск обычный\. Истекает завтра в 12:38\.$/);
 });
@@ -126,7 +126,7 @@ test("localhost или http: кнопки-ссылки нет вовсе", () =>
 
 test("«Вы уверены?»: число команд, устройство, ROLLBACK_NOTE", () => {
   const text = confirmText(change(), ctx);
-  assert.match(text, /^Запрос № 14, F1-VLD-GW01, F1Lab\nWireGuard для Ивана Петрова\n\nПрименить 2 команды на роутере\?\nHD снимет резервную копию\. /);
+  assert.match(text, /^Запрос на изменение конфигурации, F1-VLD-GW01, F1Lab\nWireGuard для Ивана Петрова\n\nПрименить 2 команды на роутере\?\nHD снимет резервную копию\. /);
   assert.ok(text.endsWith(ROLLBACK_NOTE));
   assert.deepEqual(confirmKeyboard(change()).inline_keyboard[0].map((b) => b.text), ["Да, применить", "Назад"]);
 });
@@ -142,7 +142,7 @@ test("итог: применён, с копией и сроком конфигу
   });
   const users = new Map([["resp", ok("resp", { firstName: "Олег", lastName: "Миронов" })]]);
   const text = resultMessage(c, { ...ctx, users, backupAt: new Date("2026-10-10T09:51:00Z") });
-  assert.match(text, /^Запрос № 14 применён\nF1-VLD-GW01, F1Lab\nWireGuard для Ивана Петрова\n\n2 команды выполнены, устройство отвечает\./);
+  assert.match(text, /^Запрос на изменение конфигурации применён\nF1-VLD-GW01, F1Lab\nWireGuard для Ивана Петрова\n\n2 команды выполнены, устройство отвечает\./);
   assert.match(text, /Утвердил: Олег Миронов, 12:51/);
   assert.match(text, /Резервная копия снята в 12:51\./);
   assert.match(text, /Конфигурация для сотрудника готова, скачать можно до 11\.10, 12:52\./);
@@ -150,10 +150,10 @@ test("итог: применён, с копией и сроком конфигу
 
 test("итог: откачен, не применён, отклонён, истёк", () => {
   const titles = {
-    rolled_back: "Запрос № 14 откачен",
-    not_applied: "Запрос № 14 не применён",
-    rejected: "Запрос № 14 отклонён",
-    expired: "Запрос № 14 истёк",
+    rolled_back: "Запрос на изменение конфигурации откачен",
+    not_applied: "Запрос на изменение конфигурации не применён",
+    rejected: "Запрос на изменение конфигурации отклонён",
+    expired: "Запрос на изменение конфигурации истёк",
   };
   for (const [status, head] of Object.entries(titles)) {
     assert.ok(resultMessage(change({ status, failure: "boom" }), ctx).startsWith(head), status);
@@ -200,12 +200,12 @@ test("step: только человек текущего шага; три кан
   assert.equal(pushed[0].category, "mikrotikChange");
   assert.equal(pushed[0].kind, "mikrotikChangeStep");
   assert.equal(pushed[0].link, "/devices/mikrotik/changes/c14");
-  assert.equal(pushed[0].title, "Запрос № 14 ждёт вашего решения");
+  assert.equal(pushed[0].title, "Запрос на изменение конфигурации ждёт вашего решения");
   const tg = saved.find((d) => d.instrument === "telegram");
   assert.equal(tg.to.chatId, "chat-req");
   assert.equal(tg.replyMarkup.inline_keyboard[0][0].callback_data, "mc:a:c14");
   const mail = saved.find((d) => d.instrument === "email");
-  assert.equal(mail.title, "Запрос № 14 на изменение конфигурации: F1-VLD-GW01");
+  assert.equal(mail.title, "Запрос на изменение конфигурации: F1-VLD-GW01");
   assert.equal(mail.to.email, "req@x.ru");
   assert.equal(mail.replyMarkup, undefined);
   // Финальная волна (A3): письмо — HTML, ссылка настоящая
@@ -233,7 +233,7 @@ test("decided с отказом — заявителю и решавшим, бе
   }));
   assert.deepEqual(bellIds(pushed), ["req", "resp"]);
   assert.deepEqual(tgIds(saved), ["chat-req", "chat-resp"]);
-  assert.equal(pushed[0].title, "Запрос № 14 отклонён");
+  assert.equal(pushed[0].title, "Запрос на изменение конфигурации отклонён");
   assert.match(pushed[0].text, /Нет/);
   assert.ok(!JSON.stringify(saved.map((d) => d.replyMarkup)).includes("mc:"));
 });
@@ -410,7 +410,7 @@ test("cancelled — только тому, чей шаг ждал; сам зая
     steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "responsible", user: "resp" }],
   }));
   assert.deepEqual(bellIds(pushed), ["resp"]);
-  assert.equal(pushed[0].title, "Запрос № 14 отозван");
+  assert.equal(pushed[0].title, "Запрос на изменение конфигурации отозван");
   assert.match(pushed[0].text, /отозвал/);
   // ждал сам заявитель — писать некому
   const h = harness();
@@ -550,7 +550,7 @@ test("A3: название от агента приходит в письме э
   assert.ok(!mail.text.includes("<a href=\"https://evil.example\">"), "чужая разметка не должна быть живой");
   assert.ok(mail.text.includes("WG &lt;a href=\"https://evil.example\"&gt;Открыть в HD&lt;/a&gt;"));
   assert.ok(!mail.text.includes("\n"));
-  assert.match(mail.text, /Запрос № 14 на изменение конфигурации<br>F1-VLD-GW01, F1Lab<br><br>WG &lt;a/);
+  assert.match(mail.text, /Запрос на изменение конфигурации<br>F1-VLD-GW01, F1Lab<br><br>WG &lt;a/);
   // единственная живая ссылка — на страницу запроса, из baseUrl и фиксированного пути
   const links = mail.text.match(/<a [^>]*>/g);
   assert.deepEqual(links, ['<a href="https://hd.example.com/devices/mikrotik/changes/c14">']);
@@ -585,7 +585,7 @@ test("A4: needs_attention — заголовок, суть, «Что извес�
   });
   const users = new Map([["req", ok("req", { firstName: "Иван", lastName: "Петров" })], ["resp", ok("resp", { firstName: "Олег", lastName: "Миронов" })]]);
   const lines = resultMessage(c, { ...ctx, users, backupAt: new Date("2026-10-10T09:52:00Z") }).split("\n");
-  assert.equal(lines[0], "Запрос № 14 требует проверки");
+  assert.equal(lines[0], "Запрос на изменение конфигурации требует проверки");
   assert.ok(lines.includes("HD не может поручиться за состояние устройства — проверьте его вручную."));
   assert.ok(lines.includes("Что известно: Состояние устройства неясно; проверка показала: на месте команды 1"));
   assert.ok(lines.includes("Утвердил: Олег Миронов, 12:51"));
@@ -594,7 +594,7 @@ test("A4: needs_attention — заголовок, суть, «Что извес�
 
   const { notifier, pushed, saved } = harness();
   await notifier.result(c);
-  assert.equal(pushed[0].title, "Запрос № 14 требует проверки");
+  assert.equal(pushed[0].title, "Запрос на изменение конфигурации требует проверки");
   assert.match(pushed[0].text, /HD не может поручиться за состояние устройства/);
   assert.match(saved.find((d) => d.instrument === "telegram").text, /Что известно: Состояние устройства неясно/);
 });
@@ -612,8 +612,8 @@ test("A4: у каждого итогового статуса есть заго�
       ],
     });
     const lines = resultMessage(c, ctx).split("\n");
-    assert.notEqual(lines[0], "Запрос № 14", `${status}: пустой заголовок`);
-    assert.match(lines[0], /^Запрос № 14 \S+/, status);
+    assert.notEqual(lines[0], "Запрос на изменение конфигурации", `${status}: пустой заголовок`);
+    assert.match(lines[0], /^Запрос на изменение конфигурации \S+/, status);
     // тело: после заголовка, устройства, названия и пустой строки идёт суть
     assert.ok((lines[4] || "").trim().length > 5, `${status}: пустая суть`);
     const { notifier, pushed } = harness();

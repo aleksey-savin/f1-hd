@@ -69,7 +69,7 @@ test("message: актор — пользователь текущего шага
   const out = await call(handlers.message, { userId: "req" });
   assert.equal(out.status, 200);
   assert.equal(out.body.ok, true);
-  assert.match(out.body.text, /Запрос № 7/);
+  assert.match(out.body.text, /Запрос на изменение конфигурации/);
   assert.equal(out.body.keyboard.inline_keyboard[0][0].callback_data, `mc:a:${ID}`);
   assert.match(out.body.confirmText, /Применить 2 команды/);
   assert.ok(out.body.confirmFull.startsWith(out.body.confirmText));
@@ -106,7 +106,7 @@ test("message: команды не помещаются — нет кнопок 
 test("decision: подтверждение на первом шаге — следующий решает ответственный", async () => {
   const { handlers, state } = harness();
   const out = await call(handlers.decision, { userId: "req", body: { decision: "approve" } });
-  assert.deepEqual(out.body, { ok: true, text: "Вы подтвердили запрос № 7. Дальше решает Анна Смирнова." });
+  assert.deepEqual(out.body, { ok: true, text: "Вы подтвердили запрос. Дальше решает Анна Смирнова." });
   assert.equal(state.decideCalls.length, 1);
   assert.equal(state.decideCalls[0].channel, "telegram");
   assert.equal(state.doc.status, "awaiting_responsible");
@@ -115,9 +115,9 @@ test("decision: подтверждение на первом шаге — сле
 test("decision: утверждение на последнем шаге и отклонение", async () => {
   const doc = baseDoc({ status: "awaiting_responsible", steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "responsible", user: "resp", decision: null }] });
   const last = await call(harness(doc).handlers.decision, { userId: "resp", can: ["mikrotik.approveChanges"], body: { decision: "approve" } });
-  assert.equal(last.body.text, "Вы утвердили запрос № 7. HD снимет резервную копию и применит команды. Итог придёт отдельным сообщением.");
+  assert.equal(last.body.text, "Вы утвердили запрос. HD снимет резервную копию и применит команды. Итог придёт отдельным сообщением.");
   const rej = await call(harness().handlers.decision, { userId: "req", body: { decision: "reject" } });
-  assert.deepEqual(rej.body, { ok: true, text: "Вы отклонили запрос № 7." });
+  assert.deepEqual(rej.body, { ok: true, text: "Вы отклонили запрос." });
 });
 
 test("decision: чужой актор — отказ, сервис решений не вызван", async () => {
@@ -133,11 +133,11 @@ test("decision: второе нажатие — «Запрос уже решён
   await call(handlers.decision, { userId: "req", body: { decision: "approve" } });
   const again = await call(handlers.decision, { userId: "req", body: { decision: "approve" } });
   assert.deepEqual([again.body.ok, again.body.code], [false, "already_yours"]);
-  assert.equal(again.body.message, "Вы уже подтвердили запрос № 7. Дальше решает Анна Смирнова.");
+  assert.equal(again.body.message, "Вы уже подтвердили запрос. Дальше решает Анна Смирнова.");
   const one = harness(baseDoc({ steps: [{ role: "requester", user: "req", decision: null }] }));
   await call(one.handlers.decision, { userId: "req", can: ["mikrotik.approveChanges"], body: { decision: "approve" } });
   const second = await call(one.handlers.decision, { userId: "req", can: ["mikrotik.approveChanges"], body: { decision: "approve" } });
-  assert.deepEqual([second.body.code, second.body.message], ["already_yours", "Вы уже утвердили запрос № 7. Запрос применяется."]);
+  assert.deepEqual([second.body.code, second.body.message], ["already_yours", "Вы уже утвердили запрос. Запрос применяется."]);
   assert.equal(state.decideCalls.length, 1);
 });
 
@@ -217,13 +217,13 @@ test("message и решение: тексты для бота без HTML-экр
 test("already_yours: свой исход и текущее состояние", async () => {
   const two = (extra) => baseDoc({ steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "responsible", user: "resp", decision: null }], status: "awaiting_responsible", ...extra });
   const wait = await call(harness(two()).handlers.message, { userId: "req" });
-  assert.deepEqual([wait.body.code, wait.body.message], ["already_yours", "Вы уже подтвердили запрос № 7. Дальше решает Анна Смирнова."]);
+  assert.deepEqual([wait.body.code, wait.body.message], ["already_yours", "Вы уже подтвердили запрос. Дальше решает Анна Смирнова."]);
   const done = (status) => harness(two({ status, steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "responsible", user: "resp", decision: "approve" }] }));
-  assert.equal((await call(done("applied").handlers.message, { userId: "resp" })).body.message, "Вы уже утвердили запрос № 7. Запрос применён.");
-  assert.equal((await call(done("applying").handlers.message, { userId: "req" })).body.message, "Вы уже подтвердили запрос № 7. Запрос применяется.");
-  assert.equal((await call(done("needs_attention").handlers.message, { userId: "req" })).body.message, "Вы уже подтвердили запрос № 7. Требует проверки.");
+  assert.equal((await call(done("applied").handlers.message, { userId: "resp" })).body.message, "Вы уже утвердили запрос. Запрос применён.");
+  assert.equal((await call(done("applying").handlers.message, { userId: "req" })).body.message, "Вы уже подтвердили запрос. Запрос применяется.");
+  assert.equal((await call(done("needs_attention").handlers.message, { userId: "req" })).body.message, "Вы уже подтвердили запрос. Требует проверки.");
   const rej = harness(two({ status: "rejected", steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "responsible", user: "resp", decision: "reject" }] }));
-  assert.equal((await call(rej.handlers.decision, { userId: "resp", body: { decision: "approve" } })).body.message, "Вы уже отклонили запрос № 7. Запрос отклонён.");
+  assert.equal((await call(rej.handlers.decision, { userId: "resp", body: { decision: "approve" } })).body.message, "Вы уже отклонили запрос. Запрос отклонён.");
 });
 
 test("already_yours: повтор после записи решения (ответ потерян) не вызывает decide", async () => {
