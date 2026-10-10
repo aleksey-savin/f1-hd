@@ -38,6 +38,8 @@ const STATE_COMMANDS = {
       title: "Tunnel interfaces",
       words: ["/interface/print"],
       keep: (row) => TUNNEL_TYPES.has(String(row.type || "")),
+      // Те же строки уже есть в проверке interfaces: вместе с ней не повторяются
+      within: "interfaces",
     },
     { title: "WireGuard peers", words: ["/interface/wireguard/peers/print"] },
     { title: "PPP active sessions", words: ["/ppp/active/print"] },
@@ -94,6 +96,48 @@ const redactRow = (path, row) => {
       const text = scrubUrls(String(value ?? "")).text;
       out[name] = oneLine(FREE_TEXT_FIELDS.has(field) ? redactSecrets(text).text || text : text);
     }
+  }
+  return out;
+};
+
+// Строка состояния для агента без шума: каждое поле каждой строки остаётся в
+// его контексте до конца разговора. Это список ИСКЛЮЧЕНИЙ, а не разрешённых
+// полей — незнакомое поле новой RouterOS агент увидит.
+const NOISE_PREFIXES = ["fp-"];
+const NOISE_FIELDS = new Set(["rx-packet", "tx-packet", "l2mtu", "max-l2mtu", "scope", "target-scope"]);
+// Счётчики сбоев: ноль — норма, о нём молчим
+const ZERO_IS_DEFAULT = /(?:-drop|-errors?|^link-downs)$/;
+// Флаги, у которых «false» — обычное состояние (running, active, complete сюда не входят)
+const FALSE_IS_DEFAULT = new Set([
+  "disabled", "dynamic", "slave", "invalid", "inactive", "blackhole", "published", "dhcp",
+  "blocked", "radius", "passive", "ecmp", "copy", "hw-offloaded", "suppress-hw-offload",
+]);
+const EMPTY_IS_DEFAULT = /^(?:comment|vrf-interface|address-lists|dhcp-option|client-.+)$/;
+// Поле повторяет другое поле той же строки
+const SAME_AS = {
+  // У переименованного порта (ether5 → WAN) заводское имя остаётся видно
+  "default-name": "name",
+  "actual-mtu": "mtu",
+  "immediate-gw": "gateway",
+  "active-address": "address",
+  "active-mac-address": "mac-address",
+  "active-client-id": "client-id",
+  "active-server": "server",
+  "current-endpoint-address": "endpoint-address",
+  "current-endpoint-port": "endpoint-port",
+};
+
+/** Строка после redactRow → она же без полей, которые ничего не сообщают. */
+const compactRow = (row) => {
+  const out = {};
+  for (const [name, value] of Object.entries(row || {})) {
+    const field = name.toLowerCase();
+    if (NOISE_FIELDS.has(field) || NOISE_PREFIXES.some((prefix) => field.startsWith(prefix))) continue;
+    if (value === "0" && ZERO_IS_DEFAULT.test(field)) continue;
+    if (value === "false" && FALSE_IS_DEFAULT.has(field)) continue;
+    if (value === "" && EMPTY_IS_DEFAULT.test(field)) continue;
+    if (SAME_AS[field] && row[SAME_AS[field]] === value) continue;
+    out[name] = value;
   }
   return out;
 };
@@ -168,7 +212,7 @@ const namedEndpoints = ({ routes = [], dns = [], peers = [], remotes = [] }) => 
   return [...new Set(found)];
 };
 
-const DEFAULT_LOG_LIMIT = 100;
+const DEFAULT_LOG_LIMIT = 50;
 const MAX_LOG_LIMIT = 200;
 const SCRIPT_OUTPUT = "[вывод скрипта скрыт]";
 const hasTopic = (topics, name) => String(topics || "").split(",").includes(name);
@@ -253,6 +297,7 @@ module.exports = {
   pingWords,
   traceWords,
   redactRow,
+  compactRow,
   pingTarget,
   namedEndpoints,
   filterLog,

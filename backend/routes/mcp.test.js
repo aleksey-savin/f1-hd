@@ -509,8 +509,9 @@ test("search over MCP lists only approved notes without a leak flag", async () =
 
     const text = toolText(message);
     assert.ok(!message.result.isError);
-    assert.match(text, new RegExp(`https://hd\\.example\\.ru/knowledge-base/${hex(1)}`));
-    assert.match(text, new RegExp(`knowledge-base/${hex(2)}`));
+    assert.match(text, /note link: https:\/\/hd\.example\.ru\/knowledge-base\/<id>/);
+    assert.match(text, new RegExp(`id: ${hex(1)}`));
+    assert.match(text, new RegExp(`id: ${hex(2)}`));
     assert.doesNotMatch(text, new RegExp(hex(3)));
     assert.doesNotMatch(text, new RegExp(hex(4)));
   });
@@ -534,7 +535,10 @@ test("tool calls are attributed to the key that made them", async () => {
     await callTool(base, "search_knowledge_base", { query: "vpn" });
   });
 
-  assert.equal(logs.length, 1);
+  // строка инструмента и строка сервера с размером ответа
+  assert.equal(logs.length, 2);
+  assert.equal(logs[1].tool, "search_knowledge_base");
+  assert.ok(logs[1].chars > 0 && logs[1].isError === false);
   assert.equal(logs[0].mcpKeyName, "OpenClaw");
   assert.equal(logs[0].mcpKeyId, "66aa000000000000000000aa");
 });

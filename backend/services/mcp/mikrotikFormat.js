@@ -7,10 +7,11 @@ const { iso } = require("./text");
  * текст идёт одной строкой, конфигурация — строками с «> ».
  */
 
-const MAX_CONFIG_CHARS = 40_000;
+const MAX_CONFIG_CHARS = 20_000;
 const MAX_CVES = 10;
-const MAX_OUTAGES = 20;
-const MAX_CVE_TEXT = 300;
+const MAX_OUTAGES = 10;
+const MAX_CVE_TEXT = 160;
+const MAX_EXPORTS = 5;
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const oneLine = (text) => String(text ?? "").replace(/\s+/g, " ").trim();
@@ -42,13 +43,17 @@ const locationLabel = (location) => {
   return location.subdivisions.length ? `${place}; subdivisions: ${location.subdivisions.map(safeLine).join(", ")}` : place;
 };
 
-const formatDeviceRow = (device, index, { baseUrl, now = Date.now() }) =>
+// Список даёт адрес один раз в заголовке (deviceLinkPattern); обычное — мониторинг
+// включён, расположения нет — в строке не повторяется.
+const deviceLinkPattern = (baseUrl) => `device link: ${deviceLink(baseUrl, "<id>")}`;
+
+const formatDeviceRow = (device, index, { now = Date.now() }) =>
   [
     `${index}. ${safeLine(device.name)}`,
     `company: ${device.company || "—"}; model: ${device.boardName || "—"}; RouterOS: ${device.currentFirmware || "—"}; serial: ${device.serialNumber || "—"}`,
-    `status: ${statusLabel(device, now)}; monitoring: ${device.monitoringEnabled ? "on" : "off"}; host: ${hostLabel(device)}`,
-    `location: ${locationLabel(device.location)}`,
-    `id: ${device._id}; link: ${deviceLink(baseUrl, device._id)}`,
+    `status: ${statusLabel(device, now)}${device.monitoringEnabled ? "" : "; monitoring: off"}; host: ${hostLabel(device)}`,
+    ...(device.location ? [`location: ${locationLabel(device.location)}`] : []),
+    `id: ${device._id}`,
   ].join("\n   ");
 
 const formatAddress = (address) => {
@@ -135,7 +140,11 @@ const formatDeviceDetail = ({ device, availability, firmware, exports }, { baseU
     ...formatPlannedOffline(device.plannedOffline, timezone),
     "",
     `## Stored configuration exports (${exports.length})`,
-    ...(exports.length ? exports.map(formatExportRow) : ["none"]),
+    ...(exports.length ? exports.slice(0, MAX_EXPORTS).map(formatExportRow) : ["none"]),
+    // Старые — одной строкой: id нужен для compare_mikrotik_exports, остальное есть в карточке
+    ...(exports.length > MAX_EXPORTS
+      ? [`older (date = export id): ${exports.slice(MAX_EXPORTS).map((item) => `${iso(item.createdAt).slice(0, 10)} = ${item._id}`).join("; ")}`]
+      : []),
   ].join("\n");
 };
 
@@ -187,6 +196,7 @@ const formatConfigDiff = (changes) =>
 
 module.exports = {
   deviceLink,
+  deviceLinkPattern,
   safeLine,
   formatDeviceRow,
   formatDeviceDetail,

@@ -8,6 +8,7 @@ const {
   formatTicketDetail,
   formatStats,
   ticketLink,
+  ticketLinkPattern,
   oneLine,
 } = require("./ticketFormat");
 const { maskText } = require("./maskText");
@@ -134,7 +135,7 @@ const createTicketTools = ({ source, baseUrl, log }) => {
       const last = first + entries.length - 1;
       // Упёрлись в потолок кандидатов — «Found N» считает не весь архив
       const window = capped ? `; ranked the newest ${MAX_CANDIDATES.toLocaleString("en-US")} tickets only` : "";
-      const header = `Found ${total} tickets (${summary}); showing ${first}–${last}, ${query ? "best match first" : "newest first"}${window}.`;
+      const header = `Found ${total} tickets (${summary}); showing ${first}–${last}, ${query ? "best match first" : "newest first"}${window}; ${ticketLinkPattern(baseUrl)}.`;
       return textResult([header, ...entries.map((entry, i) => formatTicketRow(entry, first + i, ctx))].join("\n\n"));
     },
 
@@ -181,7 +182,7 @@ const createTicketTools = ({ source, baseUrl, log }) => {
       const scopeLabel = sameCompany ? `same company: ${ctx.directory.companies.get(String(origin.company._id))?.alias || origin.company.alias}` : "all companies";
       logCall(caller, "find_similar_tickets", { num, scope: scopeLabel, results: hits.length }, started);
 
-      const header = `Similar to #${origin.num} «${oneLine(maskText(origin.title))}» (${ticketLink(baseUrl, origin.num)}; ${scopeLabel}; ${status === "closed" ? "closed tickets" : "any status"}): found ${hits.length}${top.length ? `; showing ${top.length}, best match first` : ""}.`;
+      const header = `Similar to #${origin.num} «${oneLine(maskText(origin.title))}» (${ticketLink(baseUrl, origin.num)}; ${scopeLabel}; ${status === "closed" ? "closed tickets" : "any status"}): found ${hits.length}${top.length ? `; showing ${top.length}, best match first; ${ticketLinkPattern(baseUrl)}` : ""}.`;
       if (!top.length) return textResult(`${header}\nNo similar tickets. Try scope "all" or search_tickets with other words.`);
       const rows = top.map((hit, i) => {
         const closing = String(hit.ticket.closingComment || "").trim();

@@ -69,8 +69,11 @@ test("list: filters by status, company and query; never shows a login or a pin",
   const { tools } = buildTools();
   const all = text(await tools.list({}, caller));
   assert.match(all, /Found 2 Mikrotik devices \(1 offline\)/);
-  assert.match(all, /link: https:\/\/hd\.example\.ru\/devices\/mikrotik\/records\/66aa00000000000000000001/);
-  assert.match(all, /offline since 2026-10-09T22:00:00\.000Z/);
+  // Адрес — один раз в заголовке, в строках только id
+  assert.match(all, /device link: https:\/\/hd\.example\.ru\/devices\/mikrotik\/records\/<id>\.\n/);
+  assert.match(all, /\n   id: 66aa00000000000000000001$/);
+  assert.ok(!all.includes("records/66aa") && !all.includes("monitoring:"));
+  assert.match(all, /offline since 2026-10-09T22:00Z/);
 
   assert.match(text(await tools.list({ status: "offline" }, caller)), /Found 1 .*\n\n1\. F1-SPB01/s);
   assert.match(text(await tools.list({ company: "ромаш" }, caller)), /1\. F1-MSK01/);
@@ -94,7 +97,7 @@ test("config: outline first, then a section with subsections, quoted and without
   const { tools, logs } = buildTools();
   const outline = text(await tools.getConfig({ device: ID_A }, caller));
   assert.match(outline, /Sections \(3\):\n- \/interface wireguard — 1 line\n- \/ip firewall filter — 2 lines\n- \/ip firewall nat — 1 line/);
-  assert.match(outline, /read from the device at 2026-10-10T02:00:00\.000Z; hidden values: 1/);
+  assert.match(outline, /read from the device at 2026-10-10T02:00Z; hidden values: 1/);
 
   const section = text(await tools.getConfig({ device: ID_A, section: "ip firewall" }, caller));
   assert.match(section, /> \/ip firewall filter\n> add action=accept .*\n> add action=drop chain=input in-interface=wan\n> \/ip firewall nat\n> add action=masquerade/);
@@ -145,7 +148,7 @@ test("config: a huge section is cut by whole lines with a hint", async () => {
 test("compare: two latest by default, swapped ids are forgiven, a changed secret does not show", async () => {
   const { tools } = buildTools();
   const out = text(await tools.compare({ device: ID_A }, caller));
-  assert.match(out, /from: 2026-10-02T00:00:00\.000Z \(export 77aa00000000000000000001\); to: 2026-10-09T00:00:00\.000Z/);
+  assert.match(out, /from: 2026-10-02T00:00Z \(export 77aa00000000000000000001\); to: 2026-10-09T00:00Z/);
   assert.match(out, /1 sections changed/);
   assert.match(out, /> \/ip firewall filter\n> \+ add action=drop chain=input in-interface=wan/);
   assert.ok(!out.includes("wireguard") && !out.includes("PrivateKeyValue"));
@@ -241,11 +244,34 @@ test("location: the card and the row show the place and its subdivisions; no loc
   const all = text(await tools.list({}, caller, context));
   assert.deepEqual(seen[0], { locations: true });
   assert.match(all, /location: Хабаровск, офис › Серверная \(ул\. Муравьёва-Амурского, 1\); subdivisions: Хабаровский филиал/);
-  assert.match(all, /F1-SPB01\n[^\n]*\n[^\n]*\n   location: —/);
+  // Без расположения строки «location» в списке нет (в карточке — прочерк)
+  assert.match(all, /F1-SPB01\n[^\n]*\n[^\n]*\n   id: /);
   // Поиск находит устройство по слову из расположения и по подразделению
   assert.match(text(await tools.list({ query: "серверная" }, caller, context)), /Found 1 /);
   assert.match(text(await tools.list({ query: "хабаровский филиал" }, caller, context)), /Found 1 /);
 
   await tools.list({}, caller, { modules: { inventory: false } });
   assert.deepEqual(seen.at(-1), { locations: false });
+});
+
+test("device card: exports beyond the five newest stay reachable as date = id on one line", () => {
+  const { formatDeviceDetail } = require("./mikrotikFormat");
+  const exports = Array.from({ length: 7 }, (_, i) => ({
+    _id: `77aa0000000000000000000${7 - i}`,
+    createdAt: `2026-10-0${7 - i}T00:00:00.000Z`,
+    trigger: "scheduled",
+    routerOsVersion: "7.15.3",
+  }));
+  const out = formatDeviceDetail(
+    {
+      device: { ...DEVICES[0], addresses: [], plannedOffline: [] },
+      availability: { uptimePct: 100, downtimeMs: 0, outageCount: 0, longestMs: 0, plannedMs: 0, monitoredSince: "2026-01-01T00:00:00.000Z", outages: [] },
+      firmware: null,
+      exports,
+    },
+    { baseUrl: "https://hd.example.ru", days: 30, timezone: "UTC" },
+  );
+  assert.match(out, /## Stored configuration exports \(7\)\n/);
+  assert.equal(out.split("\n").filter((line) => line.includes("export id: ")).length, 5);
+  assert.match(out, /\nolder \(date = export id\): 2026-10-02 = 77aa00000000000000000002; 2026-10-01 = 77aa00000000000000000001$/);
 });

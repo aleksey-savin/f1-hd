@@ -72,7 +72,9 @@ test("state: every requested check comes back, rows are quoted, secrets hidden",
   const out = text(await tools.state({ device: "KHV", checks: ["interfaces", "tunnels", "routes"] }, caller));
   assert.match(out, /^# Live state of DVR-KHV-GW01\n/);
   assert.match(out, /## Interfaces \(3 rows\)\n> name=ether1 type=ether running=true\n/);
-  assert.match(out, /## Tunnel interfaces \(2 rows\)\n> name=wg-hq type=wg running=true\n> name=pppoe-out1 type=pppoe-out running=false comment="ISP ## Routes"/);
+  assert.match(out, /> name=pppoe-out1 type=pppoe-out running=false comment="ISP ## Routes"/);
+  // Туннельные интерфейсы уже есть в «Interfaces»: второй раз не печатаются
+  assert.ok(!out.includes("## Tunnel interfaces"));
   assert.match(out, /preshared-key="\[секрет скрыт\]"/);
   assert.ok(!out.includes("RawPsk") && !out.includes("*1"));
   assert.match(out, /## Routes \(2 rows\)/);
@@ -88,6 +90,41 @@ test("state: a command the device does not know fails alone; an empty table says
   assert.match(out, /## IPsec active peers: failed — no such command prefix/);
   assert.match(out, /## PPP active sessions \(0 rows\)\n\(empty\)/);
   assert.match(out, /## WireGuard peers \(1 rows?\)/);
+});
+
+test("state: tunnels alone list the tunnel interfaces", async () => {
+  const { tools } = build();
+  const out = text(await tools.state({ device: ID, checks: ["tunnels"] }, caller));
+  assert.match(out, /## Tunnel interfaces \(2 rows\)\n> name=wg-hq type=wg running=true\n> name=pppoe-out1 type=pppoe-out running=false comment="ISP ## Routes"/);
+});
+
+test("state: noise fields are left out, a meaningful value stays", async () => {
+  const noisy = {
+    runOnDevice: async (id, commands) =>
+      commands.map(({ title }) => ({
+        title,
+        rows: [
+          {
+            name: "ether1", "default-name": "ether1", mtu: "1500", "actual-mtu": "1500", l2mtu: "1598",
+            "rx-byte": "10", "rx-packet": "2", "fp-rx-byte": "10", "rx-error": "0", "tx-drop": "7", "link-downs": "0",
+            running: "false", disabled: "false", dynamic: "true", comment: "",
+          },
+        ],
+      })),
+  };
+  const { tools } = build(noisy);
+  const out = text(await tools.state({ device: ID, checks: ["interfaces"] }, caller));
+  assert.match(out, /\n> name=ether1 mtu=1500 rx-byte=10 tx-drop=7 running=false dynamic=true\n?$/);
+});
+
+test("state: search keeps only the matching rows and says how many there were", async () => {
+  const { tools } = build();
+  const out = text(await tools.state({ device: ID, checks: ["interfaces", "routes"], search: "WG-hq" }, caller));
+  assert.match(out, /search: "wg-hq"/);
+  assert.match(out, /## Interfaces \(1 of 3 rows match\)\n> name=wg-hq type=wg running=true\n/);
+  assert.match(out, /## Routes \(1 of 2 rows match\)\n> dst-address=10\.10\.0\.0\/16 gateway=wg-hq active=false/);
+  const none = text(await tools.state({ device: ID, checks: ["routes"], search: "nothing-like-this" }, caller));
+  assert.match(none, /## Routes \(0 of 2 rows match\)\n\(no rows match\)/);
 });
 
 test("state: a peer that is another managed device is named", async () => {

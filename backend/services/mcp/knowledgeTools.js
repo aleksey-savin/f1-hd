@@ -186,10 +186,10 @@ const noteLink = (baseUrl, id) =>
 
 // «Обновлено» агенту не показываем: у старых заметок updatedAt — время
 // прохода сканера секретов, не правки текста (см. byRank).
-const describe = (note, baseUrl) => [
+// Ссылка — только в заметке целиком: поиск даёт адрес один раз в заголовке
+const describe = (note) => [
   `id: ${note._id}; type: ${TYPE_LABEL[note.type] || TYPE_LABEL.info}; approved: ${iso(note.approvedAt)}`,
   `companies: ${listOf(note.companies, (company) => company?.alias)}; categories: ${listOf(note.categories, (category) => category?.title)}`,
-  `link: ${noteLink(baseUrl, note._id)}`,
 ];
 
 const errorResult = (text) => ({
@@ -259,13 +259,13 @@ const createKnowledgeTools = ({
     const blocks = shown.map((hit, index) =>
       [
         `${index + 1}. ${hit.note.title}`,
-        ...describe(hit.note, baseUrl),
+        ...describe(hit.note),
         `snippet: ${buildSnippet(hit.note.plainText, needles) || "—"}`,
       ].join("\n   "),
     );
     return textResult(
       [
-        `Found ${hits.length} approved notes for "${q}"; showing ${shown.length}, best match first.`,
+        `Found ${hits.length} approved notes for "${q}"; showing ${shown.length}, best match first; note link: ${noteLink(baseUrl, "<id>")}.`,
         ...blocks,
       ].join("\n\n"),
     );
@@ -295,7 +295,8 @@ const createKnowledgeTools = ({
     return textResult(
       [
         `# ${note.title}`,
-        ...describe(note, baseUrl),
+        ...describe(note),
+        `link: ${noteLink(baseUrl, note._id)}`,
         `users: ${users}`,
         "",
         prepareContent(note.content) || "(empty note)",

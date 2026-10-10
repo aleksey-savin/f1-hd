@@ -2,6 +2,7 @@ const { resolveByName } = require("./ticketQuery");
 const { iso } = require("./text");
 const {
   deviceLink,
+  deviceLinkPattern,
   safeLine,
   formatDeviceRow,
   formatDeviceDetail,
@@ -18,7 +19,7 @@ const {
  * здесь её только режут на разделы, ищут и сравнивают.
  */
 
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 200;
 const MAX_MATCHES = 200;
 const DAYS = [1, 7, 30, 90];
@@ -113,9 +114,9 @@ const createMikrotikTools = ({ source, baseUrl, log }) => {
     const shown = found.slice(0, limit);
     return textResult(
       [
-        `Found ${found.length} Mikrotik devices (${offline} offline); showing ${shown.length}.`,
+        `Found ${found.length} Mikrotik devices (${offline} offline); showing ${shown.length}; ${deviceLinkPattern(baseUrl)}.`,
         "",
-        ...shown.map((device, index) => formatDeviceRow(device, index + 1, { baseUrl })),
+        ...shown.map((device, index) => formatDeviceRow(device, index + 1, {})),
       ].join("\n"),
     );
   };

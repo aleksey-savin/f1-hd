@@ -98,7 +98,7 @@ test("propose: success text carries the id, status, person, risk, commands, link
   assert.match(t, /1\. \/interface wireguard peers add interface=wg1 public-key=<создаст HD>/);
   assert.match(t, /2\. \/ip firewall address-list set/);
   assert.match(t, /link: https:\/\/hd\.example\.ru\/devices\/mikrotik\/changes\/66dd00000000000000000014/);
-  assert.match(t, /expires: 2026-10-11T08:00:00\.000Z/);
+  assert.match(t, /expires: 2026-10-11T08:00Z/);
   assert.match(t, /Nothing is applied until people approve it in HD\. Give the link to the person who asked\./);
   assert.deepEqual(proposed[0].caller, caller);
 });
@@ -162,7 +162,7 @@ test("get: who decided, when and through which channel", async () => {
     ],
   });
   const t = text(await build({ changes: [decided] }).tools.get({ change: "14" }, caller));
-  assert.match(t, /requester Иван Петров: approved at 2026-10-10T08:30:00\.000Z via Telegram/);
+  assert.match(t, /requester Иван Петров: approved at 2026-10-10T08:30Z via Telegram/);
   assert.match(t, /responsible Алексей Савин: waiting/);
   assert.match(t, /waiting for: Алексей Савин/);
 });
@@ -188,8 +188,8 @@ test("get: applied request shows per-command results, backup time and the WireGu
   assert.match(t, /2\. \/b add y=2\n\s+result: failed \(refused by the router\)\n\s+> failure: already have such entry/);
   assert.match(t, /result: rolled back/);
   assert.match(t, /result: not run/);
-  assert.match(t, /backup: 2026-10-10T09:00:00\.000Z/);
-  assert.match(t, /WireGuard configuration: https:\/\/hd\.example\.ru\/devices\/mikrotik\/changes\/66dd00000000000000000014 \(sign-in required, available until 2026-10-12T08:00:00\.000Z\)/);
+  assert.match(t, /backup: 2026-10-10T09:00Z/);
+  assert.match(t, /WireGuard configuration: https:\/\/hd\.example\.ru\/devices\/mikrotik\/changes\/66dd00000000000000000014 \(sign-in required, available until 2026-10-12T08:00Z\)/);
   for (const secret of [PRIVATE, PRESHARED]) assert.ok(!t.includes(secret));
 });
 
@@ -222,7 +222,7 @@ test("list: newest first, filtered by device and status, limited", async () => {
   const { tools } = build({ changes: [older, change(), other] });
   const all = text(await tools.list({}, caller)).split("\n").filter((l) => /^id [0-9a-f]{24}/.test(l));
   assert.deepEqual(all.map((l) => l.match(/^id (\S+)/)[1]), [CHANGE_ID, "66dd00000000000000000013", "66dd00000000000000000012"]);
-  assert.ok(all[0].endsWith(" · WireGuard для Ивана Петрова · waiting for the requester to confirm · F1-MSK01 · 2026-10-10T08:00:00.000Z · waiting for: Иван Петров"));
+  assert.ok(all[0].endsWith(" · WireGuard для Ивана Петрова · waiting for the requester to confirm · F1-MSK01 · 2026-10-10T08:00Z · waiting for: Иван Петров"));
   assert.match(all[1], / · applied · F1-MSK01 · /);
   const byDevice = text(await tools.list({ device: "F1-SPB01" }, caller));
   assert.match(byDevice, /id 66dd00000000000000000012/);

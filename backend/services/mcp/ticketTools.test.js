@@ -66,7 +66,8 @@ const setup = () => {
 };
 
 const text = (result) => result.content.map((part) => part.text).join("\n");
-const nums = (result) => [...text(result).matchAll(/tickets\/(\d+)/g)].map((m) => Number(m[1]));
+// Номера строк результата: «1. #51702 · …» (адрес заявки — один раз в заголовке)
+const nums = (result) => [...text(result).matchAll(/^\d+\. #(\d+)/gm)].map((m) => Number(m[1]));
 
 test("search: words rank inside the chosen company and status", async () => {
   const { tools } = setup();
@@ -125,7 +126,8 @@ test("find_similar_tickets: same company, closed by default, with how it was sol
 
   const result = await tools.findSimilar({ num: 2 }, caller, context);
 
-  assert.deepEqual(nums(result).slice(1), [1]); // первая ссылка — на исходную заявку в заголовке
+  assert.deepEqual(nums(result), [1]);
+  assert.match(text(result), /ticket link: https?:\/\/[^ ]*\/tickets\/<number>|ticket link: \/tickets\/<number>/);
   assert.match(text(result), /solved: Почистили ролики подачи бумаги/);
   assert.match(text(result), /works: Почистил ролики/);
 });

@@ -86,7 +86,7 @@ test("ticketPlainText: у длинного текста картинка выр�
 
 test("snippet and instants keep their previous behaviour", () => {
   assert.equal(iso(null), "—");
-  assert.equal(iso(new Date("2026-09-17T10:00:00.000Z")), "2026-09-17T10:00:00.000Z");
+  assert.equal(iso(new Date("2026-09-17T10:00:59.999Z")), "2026-09-17T10:00Z");
   assert.match(buildSnippet(`${"а ".repeat(200)}VPN настроен`, ["vpn"]), /VPN настроен$/);
 });
 

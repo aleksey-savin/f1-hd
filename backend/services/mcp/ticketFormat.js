@@ -64,6 +64,8 @@ const companyLabel = (company, directory) =>
 const categoryLabel = (id, directory) => directory.categories.get(String(id || "")) || "—";
 
 const ticketLink = (baseUrl, num) => `${String(baseUrl || "").replace(/\/+$/, "")}/tickets/${num}`;
+// Списки дают адрес один раз в заголовке, строки — только номер
+const ticketLinkPattern = (baseUrl) => `ticket link: ${ticketLink(baseUrl, "<number>")}`;
 
 const statusLabel = (ticket) => `${ticket.isClosed ? "closed" : "open"} (${ticket.state || "—"})`;
 
@@ -72,8 +74,7 @@ const formatTicketRow = (entry, index, ctx) => {
   const lines = [
     `${index}. #${ticket.num} · ${oneLine(maskText(ticket.title))}`,
     `status: ${statusLabel(ticket)}; company: ${companyLabel(ticket.company, ctx.directory)}; applicant: ${personLabel(ticket.applicantId, ctx)}; category: ${categoryLabel(ticket.categoryId, ctx.directory)}`,
-    `created: ${iso(ticket.createdAt)}; closed: ${ticket.isClosed ? iso(ticket.finishedAt) : "—"}`,
-    `link: ${ticketLink(ctx.baseUrl, ticket.num)}`,
+    `created: ${iso(ticket.createdAt)}${ticket.isClosed ? `; closed: ${iso(ticket.finishedAt)}` : ""}`,
   ];
   if (entry.text != null) {
     // Маска — до нарезки окна: окно снипета может начаться внутри телефона и
@@ -173,6 +174,7 @@ module.exports = {
   companyLabel,
   categoryLabel,
   ticketLink,
+  ticketLinkPattern,
   formatTicketRow,
   formatTicketDetail,
   formatStats,

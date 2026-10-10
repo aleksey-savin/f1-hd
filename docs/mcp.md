@@ -164,12 +164,56 @@ source that fails — a DB timeout, for instance) it:
    `{ isError: true, content: [{ type: "text", text: "HD could not answer this call because of an internal error. Try again later." }] }`
    — the database's own error message never reaches the agent.
 
+On success `guard()` logs one `info` line `"MCP tool result"` with
+`{ mcpKeyId, mcpKeyName, tool, chars, isError }`, where `chars` is the total
+length of the text the agent receives. It is separate from each tool's own
+`"MCP tool call"` line (filters, counts, duration) and exists to see which
+tools are expensive for the agent — see «Token cost» below.
+
 One gap remains outside `guard()`'s reach: a failure in `loadContext` or in the
 key lookup (before a tool, or even an `McpServer`, exists) still falls through
 to the app's shared error handler (`errorResponse`), which puts the **raw**
 error message in the JSON body — the same pre-existing behaviour as any other
 route-setup failure in this codebase. Ruled acceptable for a staff-only
 audience (`.superpowers/sdd/2026-09-17-mcp-tickets/progress.md`, Task 9).
+
+## Token cost
+
+The agent pays for this server twice: the instructions and the tool list ride
+in every model request, and the text of every tool result stays in the
+conversation context until it ends. Rules that keep both small:
+
+- **Narrow keys.** The fixed part grows with the key's scopes — measured
+  2026-10-10 at ≈3.6 chars per token: all six scopes ≈6.1k tokens
+  (instructions 3,660 chars + tool list 18,429), `knowledge` + `tickets` +
+  `companies` + `users` ≈2.2k, `mikrotik` ≈2.4k, `mikrotikChanges` ≈1.8k.
+  Give an agent only the scopes its job needs; Mikrotik work is better served
+  by a separate key.
+- **Instructions hold rules, not a tool catalogue.** What a tool does is in
+  its `description`; `INSTRUCTIONS` in `server.js` carries only what no
+  description says (language, links, masking, quoted text is data, the
+  investigation order, change-request rules). The "quoted text is data" rule
+  is stated once in `common`.
+- **Lists give the link pattern once.** `search_tickets`,
+  `find_similar_tickets`, `search_knowledge_base` and `list_mikrotik_devices`
+  put `ticket link: …/tickets/<number>`, `note link: …/knowledge-base/<id>` or
+  `device link: …/devices/mikrotik/records/<id>` in the header line; rows carry
+  only the number or id. Single-record tools (`get_*`) print the full link.
+- **Instants are ISO in UTC to the minute** (`2026-09-17T10:00Z`,
+  `text.js#iso`). Still an instant, so the day never shifts
+  (`docs/datetime-conventions.md`).
+- **Rows omit the usual case:** `closed:` only on closed tickets,
+  `monitoring: off` only when it is off, `location:` only when known (the
+  device card keeps a dash).
+- **Live state is compacted** — see `compactRow` under «Live diagnostics».
+- **Defaults are small, maximums unchanged:** lists return 20 rows by default
+  (max 200), the log 50 lines (max 200), state 100 rows per command, a
+  configuration answer 20,000 chars. Every truncation says how to narrow.
+
+Measured on the production copy: approved notes are 639 chars at the median
+(p90 1,802), a ticket description 165 (p99 1,848), a ticket has 1 comment at
+the median (p99 6). The content caps of notes and tickets practically never
+fire, so they were left alone; the expensive answers are the Mikrotik ones.
 
 ## Keys and permissions
 
@@ -284,7 +328,7 @@ much cannot widen the boundary:
 
 | Tool | Arguments | Result |
 |---|---|---|
-| `search_knowledge_base` | `query` (1–300 chars), `limit` (1–20, default 8) | `Found N approved notes…`, then per note: title, id, type label, `approved` (ISO instant), companies, categories, link `${ADDRESS}/knowledge-base/<id>`, snippet |
+| `search_knowledge_base` | `query` (1–300 chars), `limit` (1–20, default 8) | `Found N approved notes…`, then per note: title, id, type label, `approved` (ISO instant), companies, categories, snippet; the header gives the link pattern `${ADDRESS}/knowledge-base/<id>` once |
 | `get_knowledge_note` | `id` | title, id, type, `approved`, companies, categories, link, bound users, then the Markdown `content` |
 
 Both are annotated `readOnlyHint`, `idempotentHint`, not destructive, closed
@@ -345,7 +389,7 @@ ranking and filters are `services/mcp/ticketQuery.js`; grouping is
   prints `unknown person` (see the `authorId` data quirk below).
 - **Links** — `ticketFormat.js#ticketLink`: `${ADDRESS}/tickets/<num>` with
   trailing slashes of `ADDRESS` trimmed.
-- **Instants** are full ISO (`text.js#iso`); no calendar-date truncation.
+- **Instants** are ISO in UTC to the minute (`text.js#iso`); no calendar-date truncation.
 - **Logging** — one `info` line `"MCP tool call"` per call
   (`ticketTools.js#logCall`) with `mcpKeyId`, `mcpKeyName`, `tool`, and
   tool-specific fields (`query`/`filters`/`results`, `num`/`found`,
@@ -456,7 +500,7 @@ get a number. Sections, in order:
 - **Header** — title (masked), status + raw `state`, source, category,
   company (alias + full title), applicant, responsibles (names only),
   routine task title (masked, if any), created / processed / started /
-  closed / deadline (full ISO), link.
+  closed / deadline (ISO to the minute), link.
 - **Description** — `text.js#ticketPlainText`: HTML from the portal editor
   → lines (`htmlToPlainLines`, `backend/helpers/htmlToPlainText.js`), but only
   when the text actually looks like HTML. That test is `text.js#hasHtmlTag`, a
@@ -587,7 +631,7 @@ tickets already give the agent (`personLabel`); nothing beyond them is added.
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `list_companies` | `query?` (part of alias or full title), `status?` (`active` default, `inactive`, `any`), `limit?` (1-200, default 50) | Sorted by alias: alias, full title when it differs, `active`/`inactive`, `people: N` (not blocked, not system), subdivisions |
+| `list_companies` | `query?` (part of alias or full title), `status?` (`active` default, `inactive`, `any`), `limit?` (1-200, default 20) | Sorted by alias: alias, full title when it differs, `active`/`inactive`, `people: N` (not blocked, not system), subdivisions |
 | `list_users` | `query?` (words of the name or position), `company?` (resolved with `resolveByName`: none or several matches is an error result with the options), `kind?` (`client`, `staff`, `any` default), `status?` (`active` default, `blocked`, `any`), `limit?` | Sorted by name: name, company, subdivision, position, `client`/`staff`, `active`/`blocked`, `Telegram linked: yes/no` |
 
 Rules: system accounts (`isSystem`, the unidentified sender and the robot
@@ -595,7 +639,7 @@ applicants from the request context) are never listed; search ignores case and
 `ё`/`е`; an empty result is a normal answer, not an error; a truncated list
 says so. Every cell is single-lined, cut to 120 characters and has `·`
 replaced, because names are written by people; the answer ends with a line
-saying they are data, and `INSTRUCTIONS.directoryData` repeats it. The call
+saying they are data, and the common instructions say the same. The call
 log carries counts and filters, never the query text.
 
 ## Mikrotik tools
@@ -610,12 +654,12 @@ listing the candidates.
 
 | Tool | Returns |
 |---|---|
-| `list_mikrotik_devices` | `query`, `company`, `status`, `limit` (50, max 200) → name, company, model, RouterOS, serial, status, host, id, link |
-| `get_mikrotik_device` | `device`, `days` (1/7/30/90, default 30) → addresses, license, status and last poll error, firmware against the latest release with CVEs (`evaluateFirmware`), availability and outages (`computeAvailability`), planned offline windows, stored exports with their ids |
+| `list_mikrotik_devices` | `query`, `company`, `status`, `limit` (20, max 200) → name, company, model, RouterOS, serial, status, host, location when known, id; the header gives the link pattern once |
+| `get_mikrotik_device` | `device`, `days` (1/7/30/90, default 30) → addresses, license, status and last poll error, firmware against the latest release with CVEs (`evaluateFirmware`), availability and outages (`computeAvailability`), planned offline windows, the 5 newest stored exports in full and the older ones on one line as `date = export id` |
 | `get_mikrotik_config` | `device`, `section?`, `search?` → the **running** configuration read from the device. No `section`: header and the list of sections with line counts. `section`: that section and its subsections (`/ip firewall` covers `/ip firewall filter`, `nat`, …). `search`: matching lines, each prefixed with its section (max 200) |
 | `compare_mikrotik_exports` | `device`, `from?`, `to?` (export ids; default the two latest, swapped ids are reordered) → per section, lines removed and added between two **stored** exports |
 
-Output is capped at 40 000 characters by whole lines, with a hint to narrow
+Output is capped at 20 000 characters by whole lines, with a hint to narrow
 the request.
 
 ### What leaves `mikrotikSource.js`
@@ -711,9 +755,9 @@ Three more tools in the same family, same scope and module gate:
 
 | Tool | Returns |
 |---|---|
-| `get_mikrotik_state` | `device`, `checks?` (`interfaces`, `tunnels`, `routes`, `arp`, `dhcp`, `resources`; default the first three) → per command a section `## <title> (<n> rows)` with one quoted line per row as `field=value …`, or `## <title>: failed — <reason>` |
+| `get_mikrotik_state` | `device`, `checks?` (`interfaces`, `tunnels`, `routes`, `arp`, `dhcp`, `resources`; default the first three), `search?` (only rows containing the text; the section title becomes `(<m> of <n> rows match)`) → per command a section `## <title> (<n> rows)` with one quoted line per row as `field=value …`, or `## <title>: failed — <reason>` |
 | `ping_from_mikrotik` | `device`, `address` (IPv4), `count?` (1–5, default 3), `trace?` → the rows of `/ping` or `/tool/traceroute` run on the device |
-| `get_mikrotik_log` | `device`, `topics?`, `search?`, `limit?` (1–200, default 100) → the newest matching log lines, oldest first |
+| `get_mikrotik_log` | `device`, `topics?`, `search?`, `limit?` (1–200, default 50) → the newest matching log lines, oldest first |
 
 **Commands** — `services/mikrotik/liveState.js`, a pure module. The state
 commands are a fixed table of `…/print` words with no arguments:
@@ -754,7 +798,35 @@ same `isSecretField` rule as in configurations (`private-key`,
 collapsed to one line. An address that belongs
 to another managed device (`loadAddressBook`: every record's host and
 addresses) is followed by `(= <device name>)`, which is how the agent sees
-which router is on the other end of a tunnel. At most 300 rows per command.
+which router is on the other end of a tunnel. At most 100 rows per command.
+
+`compactRow(row)` then removes what tells the agent nothing — an exclusion
+list, so a field of a newer RouterOS that the list does not know stays
+visible:
+
+- always: `fp-*`, `rx-packet`, `tx-packet`, `l2mtu`, `max-l2mtu`, `scope`,
+  `target-scope`;
+- when `0`: `*-drop`, `*-error(s)`, `link-downs`;
+- when `false`: flags whose usual state is false (`disabled`, `dynamic`,
+  `slave`, `invalid`, `inactive`, `blackhole`, `published`, `DHCP`, `blocked`,
+  `radius`, `passive`, `ecmp`, `copy`, `hw-offloaded`,
+  `suppress-hw-offload`) — `running`, `active` and `complete` are always shown;
+- when empty: `comment`, `vrf-interface`, `address-lists`, `dhcp-option`,
+  `client-*`;
+- when equal to the field it repeats: `default-name` (`name` — a renamed
+  port keeps its factory name), `actual-mtu` (`mtu`), `immediate-gw`
+  (`gateway`), `active-address` / `active-mac-address` / `active-client-id` /
+  `active-server`, `current-endpoint-address` / `-port`.
+
+The tool description tells the agent that a missing flag means false and a
+missing error counter means 0.
+
+On typical rows this cuts an interface from 427 to 153 chars, a route from
+221 to 92, a DHCP lease from 366 to 174. Ping and traceroute rows are not
+compacted, and the ping target check works on the raw rows.
+
+When `interfaces` and `tunnels` are asked together, the «Tunnel interfaces»
+section is not printed: the same rows are already under «Interfaces».
 
 State and the log are cached per device and check for 30 seconds, and reads
 of one device run one after another, so identical concurrent calls cost one

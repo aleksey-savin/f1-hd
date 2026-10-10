@@ -118,7 +118,7 @@ const toolsOver = (notes, options = {}) => {
 const textOf = (result) => result.content.map((part) => part.text).join("\n");
 
 const listedIds = (result) =>
-  [...textOf(result).matchAll(/knowledge-base\/([a-f0-9]{24})/g)].map(
+  [...textOf(result).matchAll(/id: ([a-f0-9]{24})/g)].map(
     (match) => match[1],
   );
 
@@ -149,7 +149,7 @@ test("get: a moderator-cleared note is returned with its content", async () => {
   assert.ok(!result.isError);
   assert.match(textOf(result), /VPN флаг снят модератором/);
   assert.match(textOf(result), /Подключение к \*\*VPN\*\* офиса/);
-  assert.match(textOf(result), new RegExp(`knowledge-base/${hex(3)}`));
+  assert.match(textOf(result), new RegExp(`id: ${hex(3)}`));
 });
 
 test("get: hidden, unknown and malformed ids get one indistinguishable answer", async () => {
@@ -283,10 +283,15 @@ test("links: the public address is used without a doubled slash, relative withou
 
   assert.match(
     textOf(await withAddress.search({ query: "vpn" })),
-    new RegExp(`https://hd\\.example\\.ru/knowledge-base/${hex(61)}`),
+    /note link: https:\/\/hd\.example\.ru\/knowledge-base\/<id>\./,
   );
-  const relative = textOf(await withoutAddress.search({ query: "vpn" }));
-  assert.match(relative, new RegExp(`(^|\\s)/knowledge-base/${hex(61)}`));
+  assert.match(textOf(await withoutAddress.search({ query: "vpn" })), /note link: \/knowledge-base\/<id>\./);
+  // Заметка целиком несёт готовую ссылку
+  assert.match(
+    textOf(await withAddress.getNote({ id: hex(61) })),
+    new RegExp(`\nlink: https://hd\\.example\\.ru/knowledge-base/${hex(61)}\n`),
+  );
+  assert.match(textOf(await withoutAddress.getNote({ id: hex(61) })), new RegExp(`\nlink: /knowledge-base/${hex(61)}\n`));
 });
 
 test("get: pasted base64 images are replaced and long content is truncated", async () => {

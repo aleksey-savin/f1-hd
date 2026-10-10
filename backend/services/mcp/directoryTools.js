@@ -9,7 +9,7 @@ const { normalize } = require("./text");
  * аргументом, поэтому модуль проверяется на заготовках без базы.
  */
 
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 200;
 
 const errorResult = (text) => ({ isError: true, content: [{ type: "text", text }] });

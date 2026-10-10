@@ -187,3 +187,25 @@ test("lastTrace keeps only the final pass of a traceroute and drops empty tail r
   assert.deepEqual(lastTrace([{ address: "10.0.0.1", loss: "0" }]), [{ address: "10.0.0.1", loss: "0" }]);
   assert.deepEqual(lastTrace(undefined), []);
 });
+
+test("compactRow: drops noise, default flags and repeats; keeps what tells something", () => {
+  const { compactRow } = require("./liveState");
+  // Аренда DHCP: active-* повторяют основные поля, флаги по умолчанию — false
+  assert.deepEqual(
+    compactRow({
+      address: "10.0.0.5", "mac-address": "AA:BB", "active-address": "10.0.0.5", "active-mac-address": "AA:BB",
+      status: "bound", dynamic: "false", blocked: "false", disabled: "true", comment: "",
+    }),
+    { address: "10.0.0.5", "mac-address": "AA:BB", status: "bound", disabled: "true" },
+  );
+  // Отличающееся значение, ненулевой счётчик и «false» у значимого флага остаются
+  assert.deepEqual(
+    compactRow({ mtu: "1500", "actual-mtu": "1420", "rx-error": "3", "tx-error": "0", running: "false", active: "false", complete: "false", "fp-tx-byte": "9", scope: "30" }),
+    { mtu: "1500", "actual-mtu": "1420", "rx-error": "3", running: "false", active: "false", complete: "false" },
+  );
+  // Заводское имя порта видно, только когда порт переименован
+  assert.deepEqual(compactRow({ name: "WAN", "default-name": "ether5" }), { name: "WAN", "default-name": "ether5" });
+  assert.deepEqual(compactRow({ name: "ether5", "default-name": "ether5" }), { name: "ether5" });
+  // Незнакомое поле новой RouterOS агент видит
+  assert.deepEqual(compactRow({ "brand-new-field": "0" }), { "brand-new-field": "0" });
+});

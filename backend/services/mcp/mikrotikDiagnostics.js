@@ -5,6 +5,7 @@ const {
   pingWords,
   traceWords,
   redactRow,
+  compactRow,
   pingTarget,
   namedEndpoints,
   filterLog,
@@ -25,7 +26,7 @@ const { iso } = require("./text");
 
 const DEFAULT_CHECKS = ["interfaces", "tunnels", "routes"];
 const STATE_TTL_MS = 30 * 1000;
-const MAX_ROWS = 300;
+const MAX_ROWS = 100;
 const PING_TIMEOUT_MS = 20 * 1000;
 const LOG_TIMEOUT_MS = 15 * 1000;
 const PING_WINDOW_MS = 60 * 1000;
@@ -41,20 +42,24 @@ const annotate = (value, book, ownName) => {
   return name && name !== ownName ? ` (= ${safeLine(name)})` : "";
 };
 
-const formatRow = (path, row, book, ownName) =>
+const formatRow = (row, book, ownName) =>
   quoteLine(
-    Object.entries(redactRow(path, row))
+    Object.entries(row)
       .map(([name, value]) => `${name}=${formatValue(value)}${annotate(value, book, ownName)}`)
       .join(" "),
   );
 
-const formatSection = ({ title, words, keep }, result, book, ownName) => {
+// Состояние — без шумовых полей (compactRow) и, если агент сузил, только строки с его текстом
+const formatSection = ({ title, words, keep }, result, book, ownName, needle) => {
   if (result.error) return [`## ${title}: failed — ${safeLine(result.error)}`];
-  const rows = (result.rows || []).filter((row) => !keep || keep(row));
+  const kept = (result.rows || []).filter((row) => !keep || keep(row));
+  const lines = kept.map((row) => formatRow(compactRow(redactRow(words[0], row)), book, ownName));
+  const shown = needle ? lines.filter((line) => line.toLowerCase().includes(needle)) : lines;
+  const count = needle ? `${shown.length} of ${kept.length} rows match` : `${kept.length} ${kept.length === 1 ? "row" : "rows"}`;
   return [
-    `## ${title} (${rows.length} ${rows.length === 1 ? "row" : "rows"})`,
-    ...(rows.length ? rows.slice(0, MAX_ROWS).map((row) => formatRow(words[0], row, book, ownName)) : ["(empty)"]),
-    ...(rows.length > MAX_ROWS ? [`[…${rows.length - MAX_ROWS} more rows not shown]`] : []),
+    `## ${title} (${count})`,
+    ...(shown.length ? shown.slice(0, MAX_ROWS) : [needle && kept.length ? "(no rows match)" : "(empty)"]),
+    ...(shown.length > MAX_ROWS ? [`[…${shown.length - MAX_ROWS} more rows not shown — narrow with search]`] : []),
   ];
 };
 
@@ -131,6 +136,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
         ? [...new Set(args.checks)].filter((check) => STATE_COMMANDS[check])
         : DEFAULT_CHECKS;
       if (!checks.length) return errorResult(`Unknown checks. Use: ${Object.keys(STATE_COMMANDS).join(", ")}.`);
+      const needle = typeof args.search === "string" ? args.search.trim().toLowerCase() : "";
       const read = await readChecks(device._id, checks, STATE_COMMANDS);
       if (!read) return errorResult(GONE);
       const book = await source.loadAddressBook();
@@ -140,10 +146,14 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
       return textResult(
         [
           `# Live state of ${safeLine(device.name)}`,
-          `read from the device at ${iso(oldest)}${read.fresh ? "" : " (cached for up to 30 seconds)"}; checks: ${checks.join(", ")}`,
+          `read from the device at ${iso(oldest)}${read.fresh ? "" : " (cached for up to 30 seconds)"}; checks: ${checks.join(", ")}${needle ? `; search: "${safeLine(needle)}"` : ""}`,
           `link: ${deviceLink(baseUrl, device._id)}`,
           ...checks.flatMap((check, index) =>
-            STATE_COMMANDS[check].flatMap((command, at) => ["", ...formatSection(command, read.entries[index].results[at], book, device.name)]),
+            STATE_COMMANDS[check].flatMap((command, at) =>
+              command.within && checks.includes(command.within)
+                ? []
+                : ["", ...formatSection(command, read.entries[index].results[at], book, device.name, needle)],
+            ),
           ),
         ].join("\n"),
       );
@@ -213,7 +223,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
           `# ${title} from ${safeLine(device.name)} to ${address}`,
           `run on the device at ${iso(now())}; link: ${deviceLink(baseUrl, device._id)}`,
           "",
-          ...(rows.length ? rows.slice(0, MAX_ROWS).map((row) => formatRow(words[0], row, new Map(), device.name)) : ["(the device returned no rows)"]),
+          ...(rows.length ? rows.slice(0, MAX_ROWS).map((row) => formatRow(redactRow(words[0], row), new Map(), device.name)) : ["(the device returned no rows)"]),
         ].join("\n"),
       );
     });
