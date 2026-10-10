@@ -8,6 +8,7 @@ const {
   pingTarget,
   namedEndpoints,
   filterLog,
+  lastTrace,
   toInt,
   canonicalIp,
 } = require("../mikrotik/liveState");
@@ -206,7 +207,7 @@ const createMikrotikDiagnostics = ({ source, baseUrl, log, now = Date.now }) => 
       if (!results) return errorResult(GONE);
       logCall(caller, "ping_from_mikrotik", { ...meta, failed: Boolean(results[0].error) }, started);
       if (results[0].error) return errorResult(`${title} from ${safeLine(device.name)} to ${address} failed: ${safeLine(results[0].error)}.`);
-      const rows = results[0].rows || [];
+      const rows = args.trace ? lastTrace(results[0].rows) : results[0].rows || [];
       return textResult(
         [
           `# ${title} from ${safeLine(device.name)} to ${address}`,

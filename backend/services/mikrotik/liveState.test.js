@@ -12,6 +12,7 @@ const {
   LOG_WORDS,
   filterLog,
   dropOwnSessions,
+  lastTrace,
   namedEndpoints,
   runCommands,
 } = require("./liveState");
@@ -167,4 +168,22 @@ test("dropOwnSessions removes only the helpdesk account's own API and SSH logins
   assert.deepEqual(dropOwnSessions(rows, "").map((row) => row.time), ["1", "2", "3", "4", "5"]);
   assert.deepEqual(dropOwnSessions(rows, "f1.hd").length, 5);
   assert.deepEqual(dropOwnSessions(undefined, "f1-hd"), []);
+});
+
+test("lastTrace keeps only the final pass of a traceroute and drops empty tail rows", () => {
+  const rows = [
+    { address: "10.0.0.1", loss: "0", ".section": "0" },
+    { address: "", loss: "0", sent: "1", ".section": "0" },
+    { address: "10.0.0.1", loss: "0", ".section": "1" },
+    { address: "", loss: "100", sent: "1", last: "timeout", ".section": "1" },
+    { address: "84.252.131.195", loss: "0", ".section": "1" },
+    { address: "", loss: "0", sent: "0", ".section": "1" },
+  ];
+  assert.deepEqual(lastTrace(rows), [
+    { address: "10.0.0.1", loss: "0" },
+    { address: "", loss: "100", sent: "1", last: "timeout" },
+    { address: "84.252.131.195", loss: "0" },
+  ]);
+  assert.deepEqual(lastTrace([{ address: "10.0.0.1", loss: "0" }]), [{ address: "10.0.0.1", loss: "0" }]);
+  assert.deepEqual(lastTrace(undefined), []);
 });

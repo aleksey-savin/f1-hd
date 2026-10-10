@@ -205,6 +205,19 @@ const dropOwnSessions = (rows, user) => {
   });
 };
 
+// Traceroute по API приходит нарастающими проходами (`.section`): каждый
+// повторяет уже найденные шаги. Агенту нужен последний; пустой хвост без
+// ответа и без потерь — не шаг.
+const lastTrace = (rows) => {
+  const list = Array.isArray(rows) ? rows : [];
+  const last = list.reduce((max, row) => Math.max(max, Number(row[".section"]) || 0), 0);
+  const hops = list
+    .filter((row) => (Number(row[".section"]) || 0) === last)
+    .map(({ ".section": _section, ...rest }) => rest);
+  while (hops.length && !hops.at(-1).address && hops.at(-1).last !== "timeout") hops.pop();
+  return hops;
+};
+
 const COMMAND_TIMEOUT_MS = 8000;
 
 /**
@@ -244,6 +257,7 @@ module.exports = {
   namedEndpoints,
   filterLog,
   dropOwnSessions,
+  lastTrace,
   toInt,
   canonicalIp,
 };
