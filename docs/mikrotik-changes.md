@@ -282,12 +282,15 @@ risk is `high` when any command is.
 ## How commands are executed
 
 **Status of the safe-mode behaviour.** That safe mode held by an SSH shell also
-undoes changes made through a separate API session is a design assumption taken
-from MikroTik's documentation. It has **not** been confirmed on a router yet
-(see «Known limits»). HD does not rely on it: after any uncertain executor
+undoes changes made through a separate API session was confirmed on a live
+router on 2026-10-11 (`scripts/spikeSafeMode.js` on `F1-VLD-GW01`, RouterOS
+7.23.7: `SAFE MODE: api rollback=ok keep=ok`): an entry added through the API
+while the shell held safe mode disappeared when the shell was dropped, and
+stayed after a normal release. It is not confirmed on RouterOS 6 (see «Known
+limits»). HD does not rely on it blindly either: after any uncertain executor
 outcome the worker decides the status by re-reading the router (see «Apply
-worker»), so a false assumption surfaces as `needs_attention`, never as a false
-`rolled_back`.
+worker»), so a router that does not roll back surfaces as `needs_attention`,
+never as a false `rolled_back`.
 
 `changeExecutor.js` is the only feature code that writes to a router. The
 worker hands it `items[{ words }]` — API sentences built by `apiWords`:
@@ -757,17 +760,22 @@ current executor mode gives an automatic rollback).
 
 ## Known limits and what was not verified live
 
-- **Safe mode has not been verified on a real router.** The probe
-  `scripts/spikeSafeMode.js` is waiting for the owner's run on `F1-VLD-GW01`.
-  Until then it is assumed (from MikroTik's documentation) that safe mode held
-  by an SSH shell undoes changes made through a separate API session. If it
-  does not, set `MIKROTIK_CHANGE_EXECUTOR=api`; the texts that promise a
-  rollback follow the mode by themselves (`rollbackAvailable`,
-  `NO_ROLLBACK_NOTE`). Because the status is decided by re-reading the router,
-  a false assumption would show up as `needs_attention`, not as `rolled_back`.
-- **Console texts** (`PROMPT`, `HIJACK`, `TAKEN`, `RELEASED`, `LOST` in
-  `safeModeConsole.js`) and the `+ct200w` login suffix come from documentation.
-  They are named constants so they can be corrected in one place after the probe.
+- **Safe mode is verified on one router and one version only.** The probe
+  `scripts/spikeSafeMode.js` ran on `F1-VLD-GW01` (RouterOS 7.23.7, direct
+  connection) on 2026-10-11 with `rollback=ok keep=ok`. Not verified: RouterOS
+  6, a device reached through a transit router, and a real link loss (the probe
+  closes the session cleanly; on a silent loss the router rolls back only after
+  its own session timeout). If a device behaves differently, the re-read
+  reports `needs_attention`; `MIKROTIK_CHANGE_EXECUTOR=api` switches the whole
+  installation to the mode without rollback.
+- **Console texts.** Entering («Taking Safe Mode session... Success!», prompt
+  `<SAFE>`), releasing («Releasing Safe Mode... Success!», then «Safe Mode
+  released»), the prompt and the `+ct200w` login suffix are verified on
+  RouterOS 7.23.7 and pinned as fixtures in `safeModeConsole.test.js`. The
+  RouterOS 6 wording («[Safe Mode taken]») and the question asked when another
+  session already holds safe mode (`HIJACK`) still come from documentation. An
+  unrecognised reply is never treated as success: nothing is sent, the request
+  ends `not_applied`.
 - **Keepalive** on the hold connection is unverified and off by default.
 - The Mongo wiring (`mongoStore` objects, `liveReadMenus`, `readRights`,
   `lazyExecutor`, `liveExecutor`, `mongoNotifier`, the bot route wiring in

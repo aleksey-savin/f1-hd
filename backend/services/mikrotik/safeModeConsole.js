@@ -1,13 +1,16 @@
 // Разбор текста консоли RouterOS вокруг safe mode (Ctrl+X). Чистый модуль.
-// Тексты из документации, живой пробой не проверены: все шаблоны — именованные
-// константы, чтобы поправить в одном месте.
+// Вход, выход и приглашение сверены с живым роутером (RouterOS 7.23.7, проба
+// scripts/spikeSafeMode.js 2026-10-11): «Taking Safe Mode session... Success!» и
+// приглашение `<SAFE>`; «Releasing Safe Mode... Success!», затем «Safe Mode released».
+// Не сверены: тексты RouterOS 6 («[Safe Mode taken]» — из документации) и вопрос о
+// перехвате чужого safe mode. Все шаблоны — именованные константы.
 
 // Приглашение обычное `[user@id] > ` и safe mode `[user@id] <SAFE> `
 const PROMPT = /\][^\r\n]*> ?$/;
 // Чужой safe mode: Ctrl+X спрашивает [u/r/d]; отвечать можно только `d`
 const HIJACK = /Hijack|\[u\/r\/d\]/i;
-const TAKEN = /Safe Mode taken|<SAFE>/i;
-const RELEASED = /Safe Mode released/i;
+const TAKEN = /Taking Safe Mode session\.\.\. Success|Safe Mode taken|<SAFE>/i;
+const RELEASED = /Releasing Safe Mode\.\.\. Success|Safe Mode released/i;
 // Между нашими нажатиями: чужое снятие/откат/взятие или вопрос о перехвате.
 // Свои `[Safe Mode taken]` и приглашение `<SAFE>` сюда не попадают
 const LOST = /safe mode[^\r\n]*(released|unrolled)|another user|Hijack|\[u\/r\/d\]/i;
