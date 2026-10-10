@@ -55,6 +55,7 @@ const {
   runMikrotikFirmwareRefreshIfStale,
 } = require("./services/mikrotik/firmware");
 const { runUpgradeTick } = require("./services/mikrotik/upgradeWorker");
+const { runChangeTick, runChangeSweep } = require("./services/mikrotik/changeWorker");
 const {
   runKnowledgeApprovalExpiry,
 } = require("./services/knowledgeApprovalExpiry");
@@ -377,6 +378,26 @@ jobs.register(
   "*/20 * * * * *",
   () => runUpgradeTick(),
   15 * 60 * 1000,
+  { quietSkip: true },
+);
+
+// Применение одобренных запросов ИИ-агента на изменение Mikrotik: один запрос за тик.
+// Применение держит safe mode и проверку по несколько десятков секунд; замок реестра не даёт
+// тикам наложиться, такие пропуски ожидаемы — quietSkip. Предел 15 минут — как у обновления прошивки.
+jobs.register(
+  "Mikrotik change worker",
+  "*/15 * * * * *",
+  () => runChangeTick(),
+  15 * 60 * 1000,
+  { quietSkip: true },
+);
+
+// Истечение и напоминания по запросам, стирание ключей WireGuard, застрявшие применения.
+jobs.register(
+  "Mikrotik change sweep",
+  "1-56/5 * * * *",
+  () => runChangeSweep(),
+  120000,
   { quietSkip: true },
 );
 

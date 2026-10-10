@@ -98,3 +98,11 @@ test("«Диалоги» — широкий лист и под шторкой ф
     1488,
   );
 });
+
+test("страница запроса Mikrotik уже списка мониторинга", () => {
+  assert.equal(
+    resolveSheetWidth("/devices/mikrotik/changes/64f100000000000000000001"),
+    1072,
+  );
+  assert.equal(resolveSheetWidth("/devices/mikrotik"), 1328);
+});

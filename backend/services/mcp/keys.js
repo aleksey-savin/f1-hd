@@ -15,10 +15,11 @@ exports.issueMcpKey = () => {
   return { value, keyHash: hashApiKey(value), keyTail: apiKeyTail(value) };
 };
 
-// Доступы ключа: к базе знаний, к заявкам и к Mikrotik. Ключи, выданные до
+// Доступы ключа: к базе знаний, к заявкам, к Mikrotik и к запросам на изменение
+// Mikrotik (mikrotikChanges). Ключи, выданные до
 // появления доступов, в базе без поля — они читают только базу знаний, как и
 // раньше.
-const MCP_SCOPES = Object.freeze(["knowledge", "tickets", "mikrotik"]);
+const MCP_SCOPES = Object.freeze(["knowledge", "tickets", "mikrotik", "mikrotikChanges"]);
 
 const normalizeScopes = (scopes) => {
   const given = Array.isArray(scopes) ? scopes : [];

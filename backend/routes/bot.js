@@ -9,7 +9,8 @@ const authController = require("@/controllers/auth");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 const attachTelegramActor = require("@/middleware/attachTelegramActor");
 const fileUpload = require("@/middleware/fileUpload");
-const { isNotClient, isAdmin } = require("@/middleware/permissions");
+const { isNotClient, isAdmin, mikrotikIsActive } = require("@/middleware/permissions");
+const mikrotikChangeBot = require("@/controllers/inventory/mikrotikChangeBot");
 
 const router = express.Router();
 
@@ -132,5 +133,19 @@ router.post(
   isAdmin,
   botController.statusBoardSetup,
 );
+
+/**
+ * Решение по запросу ИИ-агента на изменение Mikrotik кнопкой в Telegram.
+ * Рубильник модуля и «не клиент» — как у `/mikrotik-changes` на портале; кто
+ * вправе решить именно этот запрос, определяет ручка (текущий шаг), а право
+ * `approveChanges` берётся из `req.auth`, не из тела.
+ */
+mikrotikChangeBot.mountRoutes(router, {
+  limiter: serviceLimiter,
+  actorLimiter: mikrotikChangeBot.createActorLimiter(),
+  attachActor: attachTelegramActor,
+  gates: [mikrotikIsActive, isNotClient],
+  handlers: mikrotikChangeBot.live,
+});
 
 module.exports = router;

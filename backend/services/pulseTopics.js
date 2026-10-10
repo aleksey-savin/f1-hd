@@ -79,6 +79,12 @@ const monitorNoise = (path, value, op) =>
   isBookkeeping(path) ||
   (op === "$unset" ? MONITOR_UNSET.has(path) : MONITOR_SET.has(path));
 
+// Запрос ИИ-агента на изменение Mikrotik: отметка напоминания — служебная
+// запись, страницы от неё не перечитываются.
+// Решение, статус, хроника, результат команд — изменение.
+const mikrotikChangeNoise = (path) =>
+  isBookkeeping(path) || path === "remindedAt";
+
 // What the presence rail, the team board and the users list show
 const PRESENCE_PATHS = [
   "workStatus",
@@ -126,6 +132,7 @@ module.exports = {
   Mikrotik: { topics: ["mikrotik"], noise: monitorNoise },
   MikrotikArtifact: { topics: ["mikrotik"], noise: isBookkeeping },
   MikrotikUpgradeJob: { topics: ["mikrotik"], noise: isBookkeeping },
+  MikrotikChange: { topics: ["mikrotikChanges"], noise: mikrotikChangeNoise },
   KnowledgeNote: { topics: ["knowledge"], noise: isBookkeeping },
   ServicePlanReport: { topics: ["approval"], noise: isBookkeeping },
   ServicePlan: { topics: ["approval"], noise: isBookkeeping },

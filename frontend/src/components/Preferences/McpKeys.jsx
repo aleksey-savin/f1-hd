@@ -69,7 +69,9 @@ const SCOPE_HINTS = {
   tickets:
     "Заявки с комментариями, работами и техникой; телефоны, почта и пароли скрыты.",
   mikrotik:
-    "Устройства, доступность, прошивки и конфигурация — пароли и ключи скрыты.",
+    "Устройства, доступность, прошивки и конфигурация. Пароли и ключи скрыты.",
+  mikrotikChanges:
+    "Агент предлагает изменения конфигурации. Применяются только после утверждения человеком.",
 };
 
 // Доступ есть, а читать нечего: модуль выключен.
@@ -78,6 +80,8 @@ const MODULE_OFF_HINTS = {
     "Модуль «База знаний» выключен — пока его не включат, заметки агенту не видны.",
   mikrotik:
     "Модуль «Мониторинг Mikrotik» выключен — пока его не включат, устройства агенту не видны.",
+  mikrotikChanges:
+    "Модуль «Мониторинг Mikrotik» выключен — пока его не включат, предложить изменения нельзя.",
 };
 
 // Доступы ключа — одни и те же флажки в «Создать ключ» и «Изменить доступ».
@@ -116,7 +120,11 @@ const ScopeChecks = ({ idPrefix, value, onChange, modulesOn }) => (
 );
 
 const McpKeys = ({ scanForSecrets, knowledgeModuleOn, mikrotikModuleOn }) => {
-  const modulesOn = { knowledge: knowledgeModuleOn, mikrotik: mikrotikModuleOn };
+  const modulesOn = {
+    knowledge: knowledgeModuleOn,
+    mikrotik: mikrotikModuleOn,
+    mikrotikChanges: mikrotikModuleOn,
+  };
   const showToast = useToastStore((state) => state.showToast);
 
   const [data, setData] = useState(null);

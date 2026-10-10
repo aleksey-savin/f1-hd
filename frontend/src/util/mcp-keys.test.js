@@ -109,6 +109,14 @@ test("scopeAccessLabel lists scopes in canonical order, lowercase, joined with �
   assert.equal(scopeAccessLabel(["mikrotik"]), "Mikrotik");
 });
 
+test("scopeAccessLabel names the change-requests scope after Mikrotik", () => {
+  assert.equal(
+    scopeAccessLabel(["knowledge", "mikrotik", "mikrotikChanges"]),
+    "база знаний, Mikrotik и изменения Mikrotik",
+  );
+  assert.equal(scopeAccessLabel(["mikrotikChanges"]), "изменения Mikrotik");
+});
+
 test("scopeAccessLabel defaults missing or empty scopes to knowledge-only", () => {
   assert.equal(scopeAccessLabel(undefined), "база знаний");
   assert.equal(scopeAccessLabel([]), "база знаний");
@@ -119,6 +127,10 @@ test("scopeLossPhrase names what a deleted key's agent loses", () => {
   assert.equal(scopeLossPhrase(["tickets"]), "к заявкам");
   assert.equal(scopeLossPhrase(["knowledge", "tickets", "mikrotik"]), "к базе знаний, заявкам и Mikrotik");
   assert.equal(scopeLossPhrase(["knowledge"]), "к базе знаний");
+  assert.equal(
+    scopeLossPhrase(["mikrotik", "mikrotikChanges"]),
+    "к Mikrotik и изменениям Mikrotik",
+  );
 });
 
 test("the OpenClaw config names the server helpdesk and carries the address, streamable-http and the key", () => {

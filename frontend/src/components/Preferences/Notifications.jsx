@@ -34,6 +34,13 @@ const CATEGORIES = [
   { key: "absenceDecision", label: "Решение по отсутствию" },
   { key: "reportApproval", label: "Отчёт на согласование" },
   { key: "reportDecision", label: "Решение по отчёту" },
+  // Запросы ИИ-агентов на изменение Mikrotik: колокольчик и блок на главной
+  // работают всегда, выключается только Telegram и почта (личные настройки)
+  {
+    key: "mikrotikChange",
+    label: "Запросы ИИ-агентов по Mikrotik",
+    hint: "Telegram и почту можно выключить. Колокольчик и блок на главной работают всегда.",
+  },
   // «Диалоги»: колокольчик о сообщении, которое ждёт ответа, и — тем, кто
   // ведёт настройки, — о сбое канала связи (только в приложении)
   { key: "conversationMessage", label: "Диалоги и каналы связи" },
@@ -157,10 +164,11 @@ const PrefsNotifications = ({ prefs }) => {
           Выключенная категория исчезает из личных настроек сотрудников.
         </p>
       </div>
-      {CATEGORIES.map(({ key, label }) => (
+      {CATEGORIES.map(({ key, label, hint }) => (
         <SettingRow
           key={key}
           title={label}
+          hint={hint}
           htmlFor={`prefs-cat-${key}`}
           className="py-3"
         >

@@ -102,6 +102,7 @@ test("scopes: known values in a fixed order, a key without scopes reads knowledg
   assert.deepEqual(normalizeScopes(["tickets", "knowledge", "tickets"]), ["knowledge", "tickets"]);
   assert.deepEqual(normalizeScopes(["tickets", "admin"]), ["tickets"]);
   assert.deepEqual(normalizeScopes(["mikrotik", "knowledge"]), ["knowledge", "mikrotik"]);
+  assert.deepEqual(normalizeScopes(["mikrotikChanges", "x"]), ["mikrotikChanges"]);
   assert.deepEqual(normalizeScopes(undefined), ["knowledge"]);
   assert.deepEqual(normalizeScopes([]), ["knowledge"]);
 });

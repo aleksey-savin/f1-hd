@@ -23,7 +23,7 @@ and no read state.
 - `models/inAppNotification.js` — `userId`, `category` (one of the ten notify
   keys shared with `prefs.notify.personal` and `user.notify.*`), `kind` (a
   `KINDS` name from `services/ticketEvents.js` or one of
-  `absenceRequest|absenceDecision|reportApproval|reportDecision`), `ticketId`,
+  `absenceRequest|absenceDecision|reportApproval|reportDecision|mikrotikChangeStep|mikrotikChangeResult`), `ticketId`,
   `ticketNum`, `ticketTitle`, `commentId`, `actor {_id, firstName, lastName} |
   null`, `title`, `text` (≤ 200 chars), `link` (route path), `readAt`.
   Indexes: `{userId, readAt, createdAt}`, `{userId, ticketId}`, TTL 90 days on
@@ -114,6 +114,38 @@ no branch of its own), `notifyCommentEvent`, `notifyWorksEvent`.
 `services/absenceNotifications.js` and `services/reportApprovalNotifications.js`
 call `pushInApp` with their explicit recipient lists (`linkFor` gives the
 approver a personal `/approval/<token>` path).
+
+### Mikrotik change requests (`mikrotikChange`)
+
+Category `mikrotikChange` (`services/notificationCategories.js`,
+`Preferences.notify.personal.mikrotikChange`, `User.notify.{byTelegram,byEmail,inApp}.mikrotikChange`,
+all default `true`) covers both kinds of events of AI-agent change requests:
+the step that waits for a person's decision (`kind: mikrotikChangeStep`) and
+the outcome (`kind: mikrotikChangeResult`). Producer:
+`services/mikrotik/changeNotifications.js`, which calls `pushInApp` with explicit
+recipients and `link` = `/devices/mikrotik/changes/<id>`.
+
+| Event | Recipients |
+|---|---|
+| new request (first step) / requester confirmed (second step) | the person whose step is current |
+| reminder, 2 hours before expiry | the person whose step is current |
+| rejected | requester and everyone who decided |
+| applied, rolled back, not applied, needs attention | requester and everyone who decided |
+| expired | requester and the person whose step was waiting |
+| cancelled by the requester | the person whose step was waiting (not the requester) |
+
+**The in-app bell is forced for this category.** `pushInApp({ force: true })`
+(`buildPushItems`) skips both the global and the personal category switches, so
+the bell entry arrives whatever the preferences say. Service accounts, banned
+users and repeated recipients are still dropped. The Telegram and e-mail copies
+follow the normal switches (global channel, global category, personal switch)
+and are queued in the `Notification` collection; the Telegram text is
+HTML-escaped because the outbox sends with `parse_mode` HTML, and the e-mail
+body is HTML as well (escaped text, `<br>`, a link built from the base URL).
+A new request notifies the first step's person from the MCP tool
+`propose_mikrotik_change`; every final status, `needs_attention` included, has
+its own title and summary. Details:
+`docs/mikrotik-changes.md`, «Notifications».
 
 The two channel gates that skipped the cron entirely when neither e-mail nor
 Telegram was configured are gone (`app.js` and the three early returns in the

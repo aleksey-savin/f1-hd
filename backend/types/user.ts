@@ -17,6 +17,7 @@ export interface IUserNotifyCategories {
   reportApproval: boolean;
   reportDecision: boolean;
   conversationMessage?: boolean;
+  mikrotikChange?: boolean;
 }
 
 /** @deprecated одна форма на все каналы — IUserNotifyCategories */

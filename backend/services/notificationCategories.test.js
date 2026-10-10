@@ -21,6 +21,7 @@ test("каталог категорий — тот же, что в настро�
     "reportApproval",
     "reportDecision",
     "conversationMessage",
+    "mikrotikChange",
   ]);
 });
 

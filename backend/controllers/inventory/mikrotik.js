@@ -64,6 +64,7 @@ const { backupView } = require("../../services/mikrotik/backupState");
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
+const { mongoResponsible } = require("../../services/mikrotik/responsible");
 const { bus } = require("../../services/pulse");
 const { deleteTraffic } = require("../../services/mikrotik/traffic");
 const { plannedUntil } = require("../../services/mikrotik/plannedOffline");
@@ -641,6 +642,37 @@ const DEVICE_ROW_POPULATE = [
   { path: "companyId", select: "alias fullTitle" },
 ];
 
+// Ответственный за устройство (второй согласующий запросов ИИ-агента)
+let responsibleService;
+const responsibleOf = () => (responsibleService ||= mongoResponsible());
+
+// Ответ: ответственный как { _id, name } и признак «право ещё есть»
+const responsibleView = (record) => responsibleOf().describe(record?.responsibleId);
+
+// Разбор responsibleId тела запроса: undefined — не менять, null — снять.
+// Значение, равное сохранённому, не перепроверяется: форма присылает его с каждым
+// сохранением, и потерявший право ответственный не должен блокировать чужие правки.
+const parseResponsible = async (body, current) => {
+  if (!Object.hasOwn(body || {}, "responsibleId")) return { change: false };
+  const same =
+    (body.responsibleId || null) === null
+      ? !current
+      : Boolean(current) && String(body.responsibleId) === String(current);
+  if (same) return { change: false };
+  const result = await responsibleOf().validate(body.responsibleId);
+  if (!result.ok) throw new AppError(result.message, 422);
+  return { change: true, id: result.id };
+};
+
+exports.parseResponsible = parseResponsible;
+exports.getResponsibleCandidates = async (req, res, next) => {
+  try {
+    res.status(200).json(await responsibleOf().candidates());
+  } catch (error) {
+    next(new AppError("Failed to list responsible candidates", 500, true, error));
+  }
+};
+
 // Окно, внутри которого отметки offlineSince считаются ОДНИМ проходом опроса.
 const ONE_POLL_WINDOW_MS = 5 * 60 * 1000;
 // Пояс организации — в нём заданы окна планового отключения.
@@ -922,6 +954,7 @@ exports.getRecordOne = async (req, res, next) => {
     res.status(200).json({
       ...base,
       ...plannedView(record, await loadOrgZone(), Date.now()),
+      ...(await responsibleView(record)),
       uptime30d: stats?.pct ?? null,
       uptimeDays: stats?.days ?? null,
       firmwareStatus: evaluateFirmware(record, firmware),
@@ -1461,6 +1494,7 @@ exports.createInventoryCard = async (req, res, next) => {
 // «Инвентарь» (кандидат на связь по серийнику) для шага после проверки.
 exports.createStandalone = async (req, res, next) => {
   try {
+    const responsible = await parseResponsible(req.body);
     let update;
     try {
       update = await verifyAndBuild(req.body, null);
@@ -1471,6 +1505,7 @@ exports.createStandalone = async (req, res, next) => {
     const record = await Mikrotik.create({
       companyId: req.body.companyId || undefined,
       label: req.body.label || undefined,
+      ...(responsible.change && responsible.id ? { responsibleId: responsible.id } : {}),
       ...update,
     });
 
@@ -1485,15 +1520,18 @@ exports.createStandalone = async (req, res, next) => {
       recordId: record._id,
       host: update.credentials.host,
       ip: req.ip,
+      ...(responsible.change && responsible.id ? { responsibleTo: responsible.id } : {}),
     });
 
     res.status(201).json({
       message: "Устройство добавлено и проверено",
       sshWarning: await checkSshAccess(update),
       record: safe,
+      ...(await responsibleView(record)),
       inventory: await inventoryLinkContext(record, req.auth),
     });
   } catch (error) {
+    if (error instanceof AppError) return next(error);
     next(
       new AppError(
         "Failed to create standalone mikrotik device",
@@ -1515,6 +1553,7 @@ exports.updateRecordParameters = async (req, res, next) => {
       return next(new AppError("Устройство не найдено", 404));
     }
 
+    const responsible = await parseResponsible(req.body, existing.responsibleId);
     let update;
     try {
       update = await verifyAndBuild(req.body, existing);
@@ -1526,6 +1565,10 @@ exports.updateRecordParameters = async (req, res, next) => {
     const unset = { firstFailureAt: "" };
     // Очищенный селект транзита должен реально отвязать запись от роутера.
     if (!update.jumpRecordId) unset.jumpRecordId = "";
+    if (responsible.change) {
+      if (responsible.id) update.responsibleId = responsible.id;
+      else unset.responsibleId = "";
+    }
     if (existing.offlineSince) {
       await markRecovered(existing);
       unset.offlineSince = "";
@@ -1553,12 +1596,20 @@ exports.updateRecordParameters = async (req, res, next) => {
       recordId: req.params.recordId,
       host: update.credentials.host,
       ip: req.ip,
+      // Ответственный решает, кто может утверждать изменения роутера: смена пишется в журнал
+      ...(responsible.change
+        ? {
+            responsibleFrom: existing.responsibleId ? String(existing.responsibleId) : null,
+            responsibleTo: responsible.id,
+          }
+        : {}),
     });
 
     res.status(200).json({
       message: "Параметры сохранены и проверены",
       sshWarning: await checkSshAccess(update),
       record,
+      ...(await responsibleView(record)),
       // Несвязанной записи после проверки снова предлагается связь (серийник
       // мог появиться только сейчас); у связанной блока нет.
       inventory: record.clientDevice
@@ -1566,6 +1617,7 @@ exports.updateRecordParameters = async (req, res, next) => {
         : await inventoryLinkContext(record, req.auth),
     });
   } catch (error) {
+    if (error instanceof AppError) return next(error);
     next(
       new AppError("Failed to save mikrotik record parameters", 500, true, error),
     );

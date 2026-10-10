@@ -647,6 +647,7 @@ const connectSshClient = ({
   password,
   sshHostKey,
   sock,
+  keepalive,
 }) =>
   new Promise((resolve, reject) => {
     const conn = new Client();
@@ -670,6 +671,10 @@ const connectSshClient = ({
         username: user,
         password,
         readyTimeout: SSH_READY_TIMEOUT_MS,
+        // Необязательно: держатель safe mode узнаёт о смерти соединения за секунды
+        ...(keepalive
+          ? { keepaliveInterval: keepalive.intervalMs, keepaliveCountMax: keepalive.countMax }
+          : {}),
         hostVerifier: (key) => {
           observedHostKey = hostKeyFingerprint(key);
           if (sshHostKey && observedHostKey !== sshHostKey) {
@@ -1111,6 +1116,7 @@ module.exports = {
   mapPollToFields,
   describeConnectionError,
   sshConnectError,
+  openSshSession,
   withSshSession,
   sshExec,
   exportConfig,

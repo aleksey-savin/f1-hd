@@ -8,7 +8,7 @@ export interface IMcpKey {
   createdBy?: Types.ObjectId;
   lastUsedAt: Date | null;
   /** У ключей, выданных до появления доступов, поля нет — читаются как `["knowledge"]`. */
-  scopes?: ("knowledge" | "tickets" | "mikrotik")[];
+  scopes?: ("knowledge" | "tickets" | "mikrotik" | "mikrotikChanges")[];
   createdAt: Date;
   updatedAt: Date;
 }

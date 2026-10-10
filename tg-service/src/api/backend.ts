@@ -5,6 +5,8 @@ import type {
   BotConfig,
   CreatedTicket,
   DeliveryOutcome,
+  MikrotikChangeDecisionResult,
+  MikrotikChangeView,
   OutboxBatch,
   PairingResult,
   TicketList,
@@ -86,4 +88,20 @@ export const createTicket = (actor: number | string, form: FormData) =>
     actor,
     // Вложение может быть крупным, а идёт оно через нас в бэкенд и дальше в S3.
     timeoutMs: 60_000,
+  });
+
+/** Запрос ИИ-агента на изменение Mikrotik: что показать этому человеку сейчас. */
+export const fetchMikrotikChangeMessage = (actor: number | string, id: string) =>
+  api<MikrotikChangeView>(`/api/bot/mikrotik-changes/${id}/message`, { actor });
+
+/** Решение по запросу. Право и «чей шаг» проверяет бэкенд; бот лишь передаёт, кто нажал. */
+export const decideMikrotikChange = (
+  actor: number | string,
+  id: string,
+  decision: "approve" | "reject",
+) =>
+  api<MikrotikChangeDecisionResult>(`/api/bot/mikrotik-changes/${id}/decision`, {
+    method: "POST",
+    body: { decision },
+    actor,
   });

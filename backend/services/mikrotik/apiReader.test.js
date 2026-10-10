@@ -103,3 +103,11 @@ test("sendCommand resolves across chunks and releases its listener", async () =>
   assert.deepEqual(sent, [["/user/print"]]);
   assert.equal(socket.listenerCount("data"), 0);
 });
+
+test("a trap error carries the trap marker, a fatal does not", () => {
+  const trap = outcomeOf(Buffer.concat([sentence("!trap", "=message=boom"), sentence("!done")]));
+  assert.equal(trap.error.trap, true);
+  const fatal = outcomeOf(sentence("!fatal", "=message=session terminated"));
+  assert.ok(fatal.error instanceof Error);
+  assert.equal(fatal.error.trap, undefined);
+});

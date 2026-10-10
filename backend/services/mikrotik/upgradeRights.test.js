@@ -121,3 +121,31 @@ test("accessView: switch on, confirmed or never checked → write", () => {
   );
   assert.equal(accessView({ firmwareUpgradeEnabled: true }), "write");
 });
+
+// --- rights for applying an agent's change request
+
+const { REQUIRED_CHANGE_POLICIES, assessChangeRights } = require("./upgradeRights");
+
+test("change rights: api, read, write, ssh — nothing else is required", () => {
+  assert.deepEqual(REQUIRED_CHANGE_POLICIES, ["api", "read", "write", "ssh"]);
+  // SW05's group cannot upgrade (no reboot / policy) but can apply changes
+  assert.deepEqual(
+    assessChangeRights({ users: hd(), groups: [{ name: "hd-mgmt", policy: SW05_GROUP }], user: "hd" }),
+    { ok: true, missing: [] },
+  );
+});
+
+test("change rights: a denied or absent policy is named, in the required order", () => {
+  assert.deepEqual(
+    assessChangeRights({ users: hd(), groups: [{ name: "hd-mgmt", policy: "ssh,read,!write,test" }], user: "hd" }),
+    { ok: false, missing: ["api", "write"] },
+  );
+});
+
+test("change rights: nothing to judge by gives null (the lists are unreadable without `policy`, which a change does not need)", () => {
+  assert.equal(assessChangeRights({ users: undefined, groups: undefined, user: "hd" }), null);
+  assert.equal(assessChangeRights({ users: [], groups: [], user: "hd" }), null);
+  assert.equal(assessChangeRights({ users: hd(), groups: undefined, user: "hd" }), null);
+  assert.equal(assessChangeRights({ users: hd("other"), groups: [{ name: "hd-mgmt", policy: "write" }], user: "hd" }), null);
+  assert.equal(assessChangeRights(null), null);
+});

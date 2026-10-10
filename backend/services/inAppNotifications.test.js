@@ -306,3 +306,28 @@ test("ответ, ушедший мессенджером, не дублируе
   const delivered = buildCommentItems({ comment: { ...base, notifications: { skipApplicant: true } }, ticket: t, usersById, prefs });
   assert.deepEqual(delivered.items.map((item) => String(item.userId)), ["r1"]);
 });
+
+test("сборка записей вне заявок: выключенная категория не доставляется, с force — доставляется", () => {
+  const { buildPushItems } = require("./inAppNotifications");
+  const off = { notify: { personal: { mikrotikChange: false } } };
+  const base = {
+    recipients: [user("u1"), user("u2", { banned: true }), user("u1")],
+    category: "mikrotikChange",
+    kind: "mikrotikChangeStep",
+    title: "T",
+    text: "X",
+    link: "/l",
+    prefs: off,
+  };
+  assert.equal(buildPushItems(base).length, 0);
+  const forced = buildPushItems({ ...base, force: true });
+  // force не обходит usable и дедупликацию
+  assert.deepEqual(ids(forced), ["u1"]);
+  assert.equal(forced[0].link, "/l");
+  assert.equal(forced[0].kind, "mikrotikChangeStep");
+  // выключено у человека — тоже обходится
+  const personal = { notify: { personal: { mikrotikChange: true } } };
+  const mine = user("u3", { notify: { inApp: { mikrotikChange: false } } });
+  assert.equal(buildPushItems({ ...base, recipients: [mine], prefs: personal }).length, 0);
+  assert.equal(buildPushItems({ ...base, recipients: [mine], prefs: personal, force: true }).length, 1);
+});

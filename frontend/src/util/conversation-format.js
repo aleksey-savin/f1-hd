@@ -58,7 +58,7 @@ export const waitLabel = (since, now = new Date()) => {
 const dayKeyOf = (date, timeZone) =>
   new Date(date).toLocaleDateString("en-CA", { timeZone });
 
-const daysAgo = (date, now, timeZone) =>
+export const daysAgo = (date, now, timeZone) =>
   Math.round(
     (Date.parse(`${dayKeyOf(now, timeZone)}T00:00:00Z`) -
       Date.parse(`${dayKeyOf(date, timeZone)}T00:00:00Z`)) /

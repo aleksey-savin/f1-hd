@@ -1,12 +1,14 @@
 const Router = require("express");
 const router = new Router();
 const mikrotikController = require("@/controllers/inventory/mikrotik");
+const changeController = require("@/controllers/inventory/mikrotikChange");
 const upgradeController = require("@/controllers/inventory/mikrotikUpgrade");
 const isAuth = require("@/middleware/isAuth");
 const {
   canManageDevices,
   canManageMikrotik,
   canManageMikrotikConfigs,
+  canReadMikrotik,
   canUpgradeMikrotikFirmware,
 } = require("@/middleware/permissions");
 const rateLimit = require("express-rate-limit");
@@ -221,6 +223,50 @@ router.put(
   isAuth,
   canManageMikrotikConfigs,
   mikrotikController.updateSchedules,
+);
+
+// --- Запросы ИИ-агентов на изменение конфигурации. Список по записи — под правом
+// читать Mikrotik. Ручки /mikrotik-changes гейтов прав не имеют: префикс закрыт
+// рубильником модуля и «не клиент» (routes/inventoryMount.js), а заявитель вправе
+// не держать ни одного права на Mikrotik — кто что видит и решает, считают
+// ручки, changeView и changeDecisions. ---
+router.get(
+  "/mikrotik-devices/records/:recordId/changes",
+  isAuth,
+  canReadMikrotik,
+  changeController.listForRecord,
+);
+router.get(
+  "/mikrotik-devices/responsible-candidates",
+  isAuth,
+  canManageMikrotik,
+  mikrotikController.getResponsibleCandidates,
+);
+// До «/:id», иначе «awaiting-me» прочтётся как id
+router.get(
+  "/mikrotik-changes/awaiting-me",
+  isAuth,
+  changeController.awaitingMe,
+);
+router.get(
+  "/mikrotik-changes/:id",
+  isAuth,
+  changeController.getOne,
+);
+router.post(
+  "/mikrotik-changes/:id/decision",
+  isAuth,
+  changeController.decide,
+);
+router.post(
+  "/mikrotik-changes/:id/cancel",
+  isAuth,
+  changeController.cancel,
+);
+router.get(
+  "/mikrotik-changes/:id/wireguard.conf",
+  isAuth,
+  changeController.downloadWireguard,
 );
 
 module.exports = router;

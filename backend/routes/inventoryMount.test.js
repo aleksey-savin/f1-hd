@@ -59,6 +59,7 @@ const buildApp = (calls) => {
     subRouter("/device-type-attributes/:id"),
     subRouter("/locations"),
     subRouter("/mikrotik-devices"),
+    subRouter("/mikrotik-changes/:id"),
     subRouter("/suppliers"),
     subRouter("/vendors"),
   ];
@@ -104,6 +105,8 @@ test("у каждого префикса свой набор гейтов", asyn
     ["/api/inventory/device-types", [inventory, "isNotClient"]],
     // Mikrotik — без модуля «Учёт техники»: у мониторинга свой модуль.
     ["/api/inventory/mikrotik-devices", ["mikrotikIsActive", "canReadMikrotik"]],
+    // Запросы ИИ-агентов: рубильник модуля и «не клиент»; кто что видит, решают ручки
+    ["/api/inventory/mikrotik-changes/abc", ["mikrotikIsActive", "isNotClient"]],
   ];
 
   for (const [path, expected] of cases) {
@@ -129,4 +132,14 @@ test("маршрут без гейта не монтируется вовсе", 
 
   // А законный префикс монтируется молча.
   assert.doesNotThrow(() => mount(subRouter("/locations/:id/node")));
+});
+
+test("роутер-приложение express (new Router()) тоже проверяется на покрытие", () => {
+  // Файл маршрутов Mikrotik делает `new (require("express"))()`: стек лежит в app.router.stack
+  const app = express();
+  app.get("/mikrotik-secret", (req, res) => res.end());
+  assert.throws(
+    () => mountInventory(express.Router(), stubGates([]), [app]),
+    /mikrotik-secret/,
+  );
 });

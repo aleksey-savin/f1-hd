@@ -3,12 +3,7 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const { toCanonicalPhone } = require("../services/phone");
 
-const CounterSchema = new Schema({
-  _id: { type: String, required: true },
-  seq: { type: Number, default: 0 },
-});
-
-const Counter = mongoose.model("Counter", CounterSchema);
+const Counter = require("./counter");
 
 const STARTING_NUMBER = process.env.TICKET_COUNTER_STARTING_NUMBER || 45926;
 

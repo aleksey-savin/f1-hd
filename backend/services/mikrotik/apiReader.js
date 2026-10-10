@@ -92,7 +92,8 @@ const createReplyCollector = () => {
         return null;
       }
       if (type === "!done") {
-        if (trapped) return { error: new Error(trapValues.join(". ")) };
+        // trap=true: роутер отказал сам (в отличие от обрыва и таймаута) — по нему исполнитель отличает отказ
+        if (trapped) return { error: Object.assign(new Error(trapValues.join(". ")), { trap: true }) };
         const ret = pairs.find(([key]) => key === "ret");
         return { rows: ret && rows.length === 0 ? [{ ret: ret[1] }] : rows };
       }

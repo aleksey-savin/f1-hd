@@ -4,7 +4,9 @@ import useToastStore from "@/store/toast-store";
 
 // Команда для устройства с кнопкой «скопировать» — тёмный «терминал», как в
 // инструкции по настройке (SetupHelp). Ошибки обновления и форма устройства.
-const FixCommand = ({ command }) => {
+// `children` — та же команда с подсветкой частей (запрос ИИ-агента): копируется
+// всё равно `command`.
+const FixCommand = ({ command, children }) => {
   const showToast = useToastStore((state) => state.showToast);
 
   const copy = async () => {
@@ -19,7 +21,7 @@ const FixCommand = ({ command }) => {
   return (
     <div className="flex items-start gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-2">
       <code className="min-w-0 flex-1 font-mono text-xs leading-relaxed break-all text-zinc-100">
-        {command}
+        {children ?? command}
       </code>
       <button
         type="button"

@@ -1131,6 +1131,27 @@ const mirrorOf = (keys, catalogue, account) => {
 };
 
 /**
+ * Действия сотрудника, добавленные в словарь позже остальных и раздаваемые
+ * живым ролям отдельными миграциями (по одному действию на скрипт). Предикаты
+ * `needs…Grant` считают «полный доступ» после раздачи ВСЕХ действий списка, а не
+ * одного: роль может не иметь сразу нескольких, и миграции идут в порядке
+ * списка migrate.js, а не по готовности. Роль, которой не хватает чего-то вне
+ * списка, не трогаем.
+ */
+const LATE_STAFF_GRANTS = [
+  { resource: "mikrotik", action: "upgradeFirmware" },
+  { resource: "mikrotik", action: "approveChanges" },
+];
+
+const withLateGrants = (statements) => {
+  const next = { ...statements };
+  for (const { resource, action } of LATE_STAFF_GRANTS) {
+    next[resource] = [...new Set([...(next[resource] || []), action])];
+  }
+  return next;
+};
+
+/**
  * Нужна ли роли разовая раздача «Обновлять прошивку Mikrotik»
  * (`mikrotik.upgradeFirmware`, `scripts/grantUpgradeFirmware.js`).
  *
@@ -1148,12 +1169,25 @@ const mirrorOf = (keys, catalogue, account) => {
  * @param {object} statements — набор роли
  * @returns {boolean}
  */
-const needsUpgradeFirmwareGrant = (statements) =>
+const needsLateGrant = (statements, resource, action) =>
   !isFullAccess(statements) &&
-  isFullAccess({
-    ...statements,
-    mikrotik: [...(statements?.mikrotik || []), "upgradeFirmware"],
-  });
+  !(statements?.[resource] || []).includes(action) &&
+  isFullAccess(withLateGrants(statements));
+
+const needsUpgradeFirmwareGrant = (statements) =>
+  needsLateGrant(statements, "mikrotik", "upgradeFirmware");
+
+/**
+ * Нужна ли роли разовая раздача «Утверждать запросы ИИ-агентов по устройствам
+ * Mikrotik» (`mikrotik.approveChanges`, `scripts/grantApproveChanges.js`).
+ * Правила те же, что у `needsUpgradeFirmwareGrant`: только роли, которой до
+ * полного доступа не хватает ровно этого действия.
+ *
+ * @param {object} statements — набор роли
+ * @returns {boolean}
+ */
+const needsApproveChangesGrant = (statements) =>
+  needsLateGrant(statements, "mikrotik", "approveChanges");
 
 /**
  * У носителей каких ролей пересчитывается зеркало после раздачи «Обновлять
@@ -1177,7 +1211,9 @@ const rolesToRefresh = (roles) =>
       (role) =>
         audienceOf(role.audience) === "staff" &&
         (isFullAccess(role.statements) ||
-          needsUpgradeFirmwareGrant(role.statements)),
+          LATE_STAFF_GRANTS.some(({ resource, action }) =>
+            needsLateGrant(role.statements, resource, action),
+          )),
     )
     .map((role) => role.key);
 
@@ -1224,6 +1260,7 @@ module.exports = {
   pluginRole,
   mirrorOf,
   needsUpgradeFirmwareGrant,
+  needsApproveChangesGrant,
   rolesToRefresh,
   rolesOfMember,
   namedRoles,

@@ -208,6 +208,7 @@ const userSchema = new Schema(
         // Согласование отчётов: запрос согласующему клиента, решение нам
         reportApproval: { type: Boolean, default: true },
         reportDecision: { type: Boolean, default: true },
+        mikrotikChange: { type: Boolean, default: true },
       },
       byEmail: {
         newTicket: { type: Boolean, default: true },
@@ -225,6 +226,7 @@ const userSchema = new Schema(
         // Согласование отчётов: запрос согласующему клиента, решение нам
         reportApproval: { type: Boolean, default: true },
         reportDecision: { type: Boolean, default: true },
+        mikrotikChange: { type: Boolean, default: true },
       },
       // Канал «в приложении» (колокольчик, services/inAppNotifications). Те же
       // ключи; у уже сохранённых людей поля нет — отсутствие значит «включено»
@@ -239,6 +241,7 @@ const userSchema = new Schema(
         absenceDecision: { type: Boolean, default: true },
         reportApproval: { type: Boolean, default: true },
         reportDecision: { type: Boolean, default: true },
+        mikrotikChange: { type: Boolean, default: true },
         conversationMessage: { type: Boolean, default: true },
       },
     },

@@ -20,6 +20,9 @@ const CATEGORIES = [
   // Новое сообщение в «Диалогах», которое ждёт ответа (services/messaging/notify.js).
   // Только канал «в приложении»: письмо и бот о сообщении из мессенджера — шум.
   "conversationMessage",
+  // Запросы ИИ-агента на изменение Mikrotik: «ждёт решения», итог применения
+  // (services/mikrotik/changeSteps). Один ключ на оба вида событий.
+  "mikrotikChange",
 ];
 
 const KNOWN = new Set(CATEGORIES);

@@ -457,6 +457,10 @@ module.exports.canUpgradeMikrotikFirmware = requirePermission(
   { mikrotik: ["upgradeFirmware"] },
   "Недостаточно прав для обновления прошивки Mikrotik",
 );
+module.exports.canApproveMikrotikChanges = requirePermission(
+  { mikrotik: ["approveChanges"] },
+  "Недостаточно прав для утверждения запросов на изменение Mikrotik",
+);
 
 // --- удалённая помощь и настройки ----------------------------------------
 

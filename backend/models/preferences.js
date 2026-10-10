@@ -89,6 +89,8 @@ const preferencesSchema = new Schema({
       // «Диалоги»: сообщение клиента, которое ждёт ответа. Включено сразу —
       // модуль сам выключен по умолчанию (modules.messaging)
       conversationMessage: { type: Boolean, default: true },
+      // Запросы ИИ-агента на изменение Mikrotik: ждёт решения и итог применения
+      mikrotikChange: { type: Boolean, default: true },
     },
     // Канал отправки (SMTP). Транспорт задаётся так же, как у ящика-приёмника;
     // authMethod "none" — внутренний релей, принимающий почту без пароля.

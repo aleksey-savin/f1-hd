@@ -461,10 +461,12 @@ const notifyWorksEvent = async ({
 };
 
 /**
- * Уведомления вне заявок (отсутствия, согласование отчётов): получатели уже
- * известны вызывающему, у каждого может быть своя ссылка и текст.
+ * Чистая сборка записей для `pushInApp`. `force` пропускает выключатели
+ * категории (глобальный и личный): для событий, которые нельзя заглушить
+ * (запросы на изменение Mikrotik). Служебные и заблокированные учётки и
+ * повторы получателя отсекаются всегда.
  */
-const pushInApp = async ({
+const buildPushItems = ({
   recipients = [],
   category,
   kind,
@@ -474,16 +476,15 @@ const pushInApp = async ({
   titleFor,
   textFor,
   linkFor,
-  prefs: givenPrefs,
+  prefs,
+  force = false,
 }) => {
-  const prefs =
-    givenPrefs ?? (await require("@/models/preferences").findOne({}).lean());
   const items = [];
   const notified = new Set();
   for (const user of recipients) {
     const uid = idOf(user);
     if (!uid || notified.has(uid)) continue;
-    if (!usable(user) || !inAppAllowed(user, category, prefs)) continue;
+    if (!usable(user) || (!force && !inAppAllowed(user, category, prefs))) continue;
     notified.add(uid);
     items.push({
       userId: user._id,
@@ -500,6 +501,18 @@ const pushInApp = async ({
       readAt: null,
     });
   }
+  return items;
+};
+
+/**
+ * Уведомления вне заявок (отсутствия, согласование отчётов): получатели уже
+ * известны вызывающему, у каждого может быть своя ссылка и текст.
+ * `force: true` — не гасить выключателями категории (см. buildPushItems).
+ */
+const pushInApp = async ({ prefs: givenPrefs, category, force = false, ...rest }) => {
+  const prefs =
+    givenPrefs ?? (await require("@/models/preferences").findOne({}).lean());
+  const items = buildPushItems({ ...rest, category, prefs, force });
   const count = await insert(items);
   if (count) {
     logger.log("notification", "In-app notifications queued", { category, count });
@@ -514,6 +527,7 @@ module.exports = {
   buildTicketItems,
   buildCommentItems,
   buildWorksItems,
+  buildPushItems,
   notifyTicketEvent,
   notifyCommentEvent,
   notifyWorksEvent,

@@ -4,7 +4,9 @@ import type { Context, NextFunction } from "grammy";
 import {
   claimPairing,
   createTicket,
+  decideMikrotikChange,
   fetchActor,
+  fetchMikrotikChangeMessage,
   fetchOpenTickets,
   setupStatusBoard,
   setWorkStatus,
@@ -21,6 +23,7 @@ import {
   ticketButton,
   ticketListKeyboard,
 } from "./render.ts";
+import { handleMikrotikChange } from "./mikrotikChange.ts";
 
 /**
  * Разговор с людьми.
@@ -363,6 +366,23 @@ export const createBot = (getConfig: ConfigSource): Bot => {
           reply_markup: statusKeyboard(botConfig.workStatuses),
         })
         .catch(() => undefined);
+      return;
+    }
+
+    /**
+     * Решение по запросу ИИ-агента: тоже отвечает само и один раз — отказ
+     * бэкенда («это решение не за вами») показывается алертом.
+     */
+    if (data.startsWith("mc:")) {
+      await handleMikrotikChange(ctx, actor, data, {
+        fetchMessage: fetchMikrotikChangeMessage,
+        decide: decideMikrotikChange,
+        explain,
+        // Сеть, таймаут и 5xx: исход решения неизвестен
+        isUncertain: (error) =>
+          error instanceof BackendError && (error.status === 0 || error.status >= 500),
+        warn: (message, meta) => logger.warn(message, meta),
+      });
       return;
     }
 

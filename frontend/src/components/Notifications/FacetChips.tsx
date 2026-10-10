@@ -1,9 +1,11 @@
+import { useEffect } from "react";
+
 import FilterChip from "@/components/app/FilterChip";
 import { cn } from "@/lib/utils";
-import { useCan } from "@/store/authed-user";
+import { useAuthedUser, useCan } from "@/store/authed-user";
 import useNotificationsStore from "@/store/notifications";
 import useInitialPrefsStore from "@/store/prefs";
-import { unreadInFacet, visibleFacets } from "@/util/notification-facets";
+import { shownFacetKey, unreadInFacet, visibleFacets } from "@/util/notification-facets";
 
 /**
  * Ряд чипов-фасетов панели уведомлений: какой вид показать. У чипа — число
@@ -23,9 +25,20 @@ const FacetChips = ({ scroll = false, className }: Props) => {
   const messagingOn = useInitialPrefsStore(
     (state) => !!state.modules?.messaging?.isActive,
   );
+  const mikrotikOn = useInitialPrefsStore(
+    (state) => !!state.modules?.mikrotik?.isActive,
+  );
+  const isEndUser = useAuthedUser().isEndUser;
   const facets = visibleFacets({
     messaging: messagingOn && can({ conversation: ["read"] }),
+    mikrotik: mikrotikOn && !isEndUser,
   });
+
+  // Выключили модуль, а фасет остался в localStorage: чипа для сброса нет
+  const stale = shownFacetKey(facet, facets) !== facet;
+  useEffect(() => {
+    if (stale) setFacet("all");
+  }, [stale, setFacet]);
 
   return (
     <div

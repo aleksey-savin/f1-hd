@@ -4,6 +4,7 @@ import { MobileView } from "react-device-detect";
 
 import FormOutlet from "@/components/app/FormOutlet";
 import PageShell from "@/components/app/PageShell";
+import AgentChanges from "../components/Dashboard/AgentChanges";
 import KbAttention from "../components/Dashboard/KbAttention";
 import MonitoringOffline from "../components/Dashboard/MonitoringOffline";
 import MySupport from "../components/Dashboard/MySupport";
@@ -132,6 +133,10 @@ const DashboardStaff = () => {
           аккуратно», 24.09) */}
       <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start xl:has-[>div:last-child:empty]:grid-cols-1">
         <div className="flex min-w-0 flex-col gap-5">
+          {/* Запросы ИИ-агентов, где решение за вошедшим: первым в колонке,
+              над заявками (макет 10.10). Нет запросов, модуль Mikrotik
+              выключен — null, колонка и её соседи не сдвигаются */}
+          <AgentChanges />
           {/* Телефон: шаблоны после заявок (`order` в колонке, сетка не
               меняется) — первый экран там за «что на мне», а шаблон с телефона
               открывают редко */}

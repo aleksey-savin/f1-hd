@@ -147,6 +147,7 @@
         "mikrotik.manage",
         "mikrotik.manageConfigs",
         "mikrotik.upgradeFirmware",
+        "mikrotik.approveChanges",
         "remoteSupport.use",
         "ai.use",
         "settings.manage",

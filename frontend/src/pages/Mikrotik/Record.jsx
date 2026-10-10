@@ -1,5 +1,11 @@
-import { Fragment, useEffect, useState } from "react";
-import { Link, useLoaderData, useNavigate, useRevalidator } from "react-router";
+import { Fragment, useEffect, useRef, useState } from "react";
+import {
+  Link,
+  useLoaderData,
+  useLocation,
+  useNavigate,
+  useRevalidator,
+} from "react-router";
 import { BrowserView } from "react-device-detect";
 
 import {
@@ -20,6 +26,7 @@ import {
   RiTerminalBoxLine,
   RiTimeLine,
   RiUserLine,
+  RiUserStarLine,
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +49,7 @@ import ConfirmDialog from "../../components/Mikrotik/ConfirmDialog";
 import FoldRow from "../../components/Mikrotik/FoldRow";
 import ActivitySection from "../../components/Mikrotik/ActivitySection";
 import AvailabilitySection from "../../components/Mikrotik/AvailabilitySection";
+import ChangesSection from "../../components/Mikrotik/ChangesSection";
 import ConfigsSection from "../../components/Mikrotik/ConfigsSection";
 import FirmwareSection from "../../components/Mikrotik/FirmwareSection";
 import {
@@ -333,10 +341,12 @@ const InventoryLine = ({ row, canManage, onChanged }) => {
 const MikrotikRecordPage = () => {
   const row = useLoaderData();
   const navigate = useNavigate();
+  const location = useLocation();
   const revalidator = useRevalidator();
   const showToast = useToastStore((state) => state.showToast);
   const can = useCan();
   const canManage = can({ mikrotik: ["manage"] });
+  const canReadChanges = can({ mikrotik: ["read"] });
   const canManageConfigs = can({ mikrotik: ["manageConfigs"] });
   const canUpgrade = can({ mikrotik: ["upgradeFirmware"] });
 
@@ -384,7 +394,17 @@ const MikrotikRecordPage = () => {
     { id: "activity", label: "Активность" },
     { id: "network", label: "Сеть" },
     canManageConfigs ? { id: "configs", label: "Конфигурации" } : null,
+    canReadChanges ? { id: "changes", label: "Изменения" } : null,
   ].filter(Boolean);
+
+  // Ссылка с якорем секции (`#configs` из страницы запроса) ведёт к ней, как
+  // только секция появилась в рейле (состав рейла зависит от прав); один раз
+  const hashDone = useRef(false);
+  useEffect(() => {
+    const target = location.hash.slice(1);
+    if (hashDone.current || !target) return;
+    if (scrollToSection(null, target, false)) hashDone.current = true;
+  }, [railSections.length]);
 
   const toggleMonitoring = async () => {
     if (isBusy) return;
@@ -599,6 +619,24 @@ const MikrotikRecordPage = () => {
                     ? `через ${row.jump.name || "устройство"} (SSH-туннель)`
                     : "напрямую, API-SSL"}
                 </PropRow>
+                <PropRow
+                  icon={<RiUserStarLine size={17} />}
+                  label="Ответственный"
+                >
+                  {row.responsible ? (
+                    <>
+                      {row.responsible.name || "Сотрудник"}
+                      {row.responsibleCanApprove === false && (
+                        <span className="block text-sm text-warning">
+                          У сотрудника больше нет права утверждать запросы
+                          ИИ-агентов. Выберите другого ответственного.
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">не назначен</span>
+                  )}
+                </PropRow>
               </div>
               <div>
                 <PropRow
@@ -725,6 +763,14 @@ const MikrotikRecordPage = () => {
             <ConfigsSection
               recordId={row.recordId}
               schedule={row.schedules?.export}
+            />
+          )}
+
+          {/* ── Изменения: запросы ИИ-агентов по этому устройству ── */}
+          {canReadChanges && (
+            <ChangesSection
+              recordId={row.recordId}
+              deviceName={row.displayName}
             />
           )}
 

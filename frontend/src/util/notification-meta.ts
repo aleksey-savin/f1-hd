@@ -5,6 +5,7 @@ import {
   RiDiscussLine,
   RiFileTextLine,
   RiLinkUnlinkM,
+  RiRouterLine,
 } from "react-icons/ri";
 
 import type { NotificationItem } from "@/types/notification";
@@ -23,6 +24,11 @@ const EXTRA: Record<string, Meta> = {
   absenceDecision: { icon: RiCalendarEventLine, tone: "muted" },
   reportApproval: { icon: RiFileTextLine, tone: "muted" },
   reportDecision: { icon: RiFileTextLine, tone: "muted" },
+  // Запрос ИИ-агента на изменение Mikrotik (backend/services/mikrotik/
+  // changeNotify): шаг ждёт решения — тон ожидания, итог — нейтральный, исход
+  // назван в тексте
+  mikrotikChangeStep: { icon: RiRouterLine, tone: "warn" },
+  mikrotikChangeResult: { icon: RiRouterLine, tone: "muted" },
   // «Диалоги»: сообщение ждёт ответа (backend/services/messaging/notify.js)
   conversationWaiting: { icon: RiDiscussLine, tone: "warn" },
   // Канал связи отключился — сессия, блокировка, ошибка; администраторам

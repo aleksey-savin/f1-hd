@@ -101,7 +101,7 @@ up without it; `./deploy.sh logs tg-service` shows why.
 AI agents (OpenClaw and other MCP clients) read the knowledge base, tickets and Mikrotik devices
 through `${APP_PUBLIC_URL}/api/mcp`. Nothing goes into `.env`: an administrator
 creates a key in Settings, it is shown once, and deleting it revokes access
-immediately. A key carries permissions — «База знаний», «Заявки» and/or «Mikrotik»; a key
+immediately. A key carries permissions — «База знаний», «Заявки», «Mikrotik» and/or «Изменения Mikrotik»; a key
 stored before permissions existed reads as «База знаний» only. The
 knowledge-base half answers only while that module is on, and only with
 approved notes that have no leak flag; ticket tools have no module gate of
@@ -250,6 +250,40 @@ Rehearse steps 4–5 on the new host before the real switch: it is empty, and
 - Data: `./deploy.sh restore backups/<timestamp>` with the backup taken right
   before the migrations. A data rollback always goes together with a code
   rollback.
+
+### Mikrotik changes proposed by AI agents
+
+A key with the «Изменения Mikrotik» access can propose configuration changes
+that people approve in HD before anything reaches a router. Implementation
+notes: `docs/mikrotik-changes.md`.
+
+- **Migration `2026-10-10-grantApproveChanges`**
+  (`backend/scripts/grantApproveChanges.js`, after `2026-10-01-grantUpgradeFirmware`
+  in `migrate.js`). The new right `mikrotik.approveChanges` would otherwise
+  break «full access» for existing administrator roles. The migration adds that
+  one action to staff roles that lack only that action, then recomputes the
+  mirrored `isAdmin` / plugin role for holders of full-access staff roles. It
+  runs with the application stopped, like the other data migrations: `deploy.sh`
+  stops `backend` and `tg-service` when something is pending. It is idempotent
+  and can be previewed by hand: `docker compose run --rm backend node
+  scripts/grantApproveChanges.js` (add `--apply` to write, then `./deploy.sh
+  migrate mark 2026-10-10-grantApproveChanges`).
+- **Environment** (optional, read from `.env` by the backend; a container picks
+  up changes only when recreated):
+  - `MIKROTIK_CHANGE_EXECUTOR` — `safe-mode` (default) or `api`. Leave the
+    default until the live probe `scripts/spikeSafeMode.js` has been run on a
+    real router; `api` applies without any rollback. Case and surrounding
+    spaces are ignored; an unknown value is logged once as an error and
+    treated as `safe-mode`.
+  - `MIKROTIK_CHANGE_KEEPALIVE` — `1` enables SSH keepalive on the connection
+    that holds safe mode. Off by default (not verified against RouterOS).
+- **Scheduled jobs** (registered in `backend/app.js`, single backend process
+  assumed): `Mikrotik change worker`, every 15 seconds, applies one approved
+  request per run; `Mikrotik change sweep`, every 5 minutes (minutes 1, 6, 11…),
+  expires and reminds open requests, erases WireGuard keys after 24 hours and
+  settles requests stuck in `applying`.
+- **Device accounts** need the RouterOS policies `api`, `read`, `write`, `ssh`
+  (checked before each apply; see `docs/mikrotik-management.md`).
 
 ## Logs
 

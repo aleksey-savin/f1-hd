@@ -28,6 +28,7 @@ import useToastStore from "@/store/toast-store";
 import Combobox from "@/components/app/Combobox";
 import FixCommand from "./FixCommand";
 import SetupHelp, { genPassword, parseKnock } from "./SetupHelp";
+import { responsiblePatch } from "../../util/mikrotik-responsible";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 
 const EMPTY_FORM = {
@@ -43,6 +44,8 @@ const EMPTY_FORM = {
   // Новое устройство — с обновлением из HD (решение владельца); модель по
   // умолчанию хранит false, у существующих записей флаг приезжает с бэкенда.
   firmwareUpgradeEnabled: true,
+  // Ответственный за запросы ИИ-агентов: "" — не назначен
+  responsibleId: "",
 };
 
 // Форма устройства мониторинга (создание и правка — одна). Сабмит — живая
@@ -89,6 +92,16 @@ const DeviceForm = () => {
   // «Компания»/«Название» в форме не показываются.
   const [isLinked, setIsLinked] = useState(false);
   const [companies, setCompanies] = useState([]);
+  // Кандидаты в ответственные ({ _id, name }) и текущий ответственный записи:
+  // потерявшего право в кандидатах нет, но в поле он остаётся — с предупреждением
+  const [candidates, setCandidates] = useState([]);
+  const [currentResponsible, setCurrentResponsible] = useState(null);
+  // Значение поля на момент загрузки записи: undefined — запись ещё не пришла
+  // (правка), тогда поле в сохранение не попадает. Создание знает его сразу.
+  const [initialResponsibleId, setInitialResponsibleId] = useState(
+    recordId ? undefined : "",
+  );
+  const [responsibleCanApprove, setResponsibleCanApprove] = useState(true);
   const [jumpEnabled, setJumpEnabled] = useState(false);
   // Было ли обновление включено до правки: включили у настроенного раньше
   // устройства — показываем команду расширить права группы.
@@ -129,6 +142,25 @@ const DeviceForm = () => {
     return () => controller.abort();
   }, []);
 
+  // Кандидаты в ответственные — сотрудники с правом утверждать запросы агентов.
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/responsible-candidates`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        setCandidates(Array.isArray(data) ? data : []);
+      } catch {
+        // список останется пустым
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
   // Кандидаты в «Мост» берутся из списка управления — при прямом заходе по
   // адресу формы он может быть ещё не загружен.
   useEffect(() => {
@@ -159,7 +191,11 @@ const DeviceForm = () => {
         sshPort: creds?.sshPort != null ? String(creds.sshPort) : prev.sshPort,
         jumpRecordId: data.record?.jumpRecordId || "",
         firmwareUpgradeEnabled: Boolean(data.record?.firmwareUpgradeEnabled),
+        responsibleId: data.responsible?._id || "",
       }));
+      setCurrentResponsible(data.responsible || null);
+      setInitialResponsibleId(data.responsible?._id || "");
+      setResponsibleCanApprove(data.responsibleCanApprove !== false);
       setJumpEnabled(Boolean(data.record?.jumpRecordId));
       setUpgradeWasEnabled(Boolean(data.record?.firmwareUpgradeEnabled));
     })();
@@ -227,6 +263,31 @@ const DeviceForm = () => {
     label: company.alias || company.fullTitle,
   }));
 
+  const responsibleOptions = useMemo(() => {
+    const options = candidates.map((item) => ({
+      value: item._id,
+      label: item.name,
+    }));
+    // Назначенный, но потерявший право, в кандидатах не числится — без него
+    // поле показало бы пустоту при сохранённом значении
+    if (
+      currentResponsible &&
+      !options.some((option) => option.value === currentResponsible._id)
+    ) {
+      options.unshift({
+        value: currentResponsible._id,
+        label: currentResponsible.name || "Сотрудник",
+      });
+    }
+    return options;
+  }, [candidates, currentResponsible]);
+  // Предупреждение только про того, кто сохранён в записи, а не про только что
+  // выбранного из кандидатов
+  const responsibleLostRight =
+    Boolean(form.responsibleId) &&
+    form.responsibleId === currentResponsible?._id &&
+    !responsibleCanApprove;
+
   // Кандидаты в «Мост»: настроенные записи ВЫБРАННОЙ компании (кроме
   // редактируемой и записей, которые сами подключены через мост — один
   // уровень). Компания не выбрана → список пуст.
@@ -275,6 +336,10 @@ const DeviceForm = () => {
         sshPort: Number(form.sshPort),
         jumpRecordId: form.jumpRecordId || null,
         firmwareUpgradeEnabled: form.firmwareUpgradeEnabled,
+        ...responsiblePatch({
+          initial: initialResponsibleId,
+          current: form.responsibleId,
+        }),
         ...(isLinked ? {} : { companyId: form.companyId, label: form.label }),
       };
       const response = isEdit
@@ -776,6 +841,35 @@ const DeviceForm = () => {
           />
         </Field>
       )}
+
+      <Field
+        label="Ответственный"
+        htmlFor="mikrotik-responsible"
+        hint={
+          <>
+            Утверждает запросы ИИ-агентов по этому устройству вторым, после
+            заявителя. В списке только сотрудники с этим правом.
+            {responsibleLostRight && (
+              <span className="mt-1 block text-warning">
+                У сотрудника больше нет права утверждать запросы ИИ-агентов.
+                Выберите другого ответственного.
+              </span>
+            )}
+          </>
+        }
+      >
+        <Combobox
+          id="mikrotik-responsible"
+          options={responsibleOptions}
+          value={form.responsibleId || null}
+          onChange={(value) =>
+            setForm((prev) => ({ ...prev, responsibleId: value || "" }))
+          }
+          placeholder="Не назначен"
+          clearable
+          clearLabel="Не назначен"
+        />
+      </Field>
 
       <SwitchField
         id="mikrotik-upgrade"

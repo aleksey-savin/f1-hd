@@ -13,6 +13,7 @@ const { createKnowledgeTools } = require("@/services/mcp/knowledgeTools");
 const { createTicketTools } = require("@/services/mcp/ticketTools");
 const { createMikrotikTools } = require("@/services/mcp/mikrotikTools");
 const { createMikrotikDiagnostics } = require("@/services/mcp/mikrotikDiagnostics");
+const { createMikrotikChangeTools } = require("@/services/mcp/mikrotikChangeTools");
 const { redactConfig } = require("@/services/mikrotik/configRedact");
 const { createRequireMcpKey } = require("@/middleware/requireMcpKey");
 
@@ -138,6 +139,15 @@ const mikrotikSource = {
     }),
 };
 
+const PROPOSED = [];
+const changeStore = {
+  listDevices: async () => [{ _id: "66aa00000000000000000001", name: "F1-MSK01", label: null, host: "203.0.113.7", serialNumber: "ABC123", company: "Ромашка" }],
+  findChange: async () => null,
+  listChanges: async () => [],
+  people: async () => new Map(),
+  artifactTime: async () => null,
+};
+
 const buildApp = ({
   scopes = ["knowledge"],
   modules = MODULES_ON,
@@ -158,6 +168,13 @@ const buildApp = ({
     ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: "https://hd.example.ru", log }),
   };
 
+  const mikrotikChanges = createMikrotikChangeTools({
+    proposals: { propose: async (input) => (PROPOSED.push(input), { ok: false, error: "stub refusal" }) },
+    store: changeStore,
+    baseUrl: "https://hd.example.ru",
+    log,
+  });
+
   const router = buildMcpRouter({
     requireKey: createRequireMcpKey({
       findKeyByHash: async (hash) =>
@@ -168,7 +185,7 @@ const buildApp = ({
       log: () => {},
     }),
     handle: createMcpRequestHandler({
-      tools: { knowledge, tickets, mikrotik },
+      tools: { knowledge, tickets, mikrotik, mikrotikChanges },
       loadContext: async () => ({ modules, timezone: "Asia/Vladivostok", systemAccounts: { unidentifiedId: null, robotIds: [] } }),
       onError: () => {},
       log,
@@ -287,6 +304,98 @@ test("tools follow the key's permissions and the modules", async () => {
     await names({ scopes: ["tickets", "mikrotik"], modules: { ...MODULES_ON, mikrotik: false } }),
     ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"],
   );
+});
+
+const CHANGE_TOOLS = ["get_mikrotik_change", "list_mikrotik_changes", "propose_mikrotik_change"];
+
+test("change tools: registered only for the mikrotikChanges scope AND the Mikrotik module", async () => {
+  const names = async (options) =>
+    withServer(buildApp(options), async (base) =>
+      (await rpc(base, "tools/list", {})).message.result.tools.map((tool) => tool.name).sort(),
+    );
+  const off = { ...MODULES_ON, mikrotik: false };
+
+  // только доступ к изменениям: три инструмента, чтение устройств недоступно
+  assert.deepEqual(await names({ scopes: ["mikrotikChanges"] }), CHANGE_TOOLS);
+  // только чтение Mikrotik: инструментов изменений нет
+  const readOnly = await names({ scopes: ["mikrotik"] });
+  assert.ok(readOnly.length > 0 && CHANGE_TOOLS.every((tool) => !readOnly.includes(tool)));
+  // оба доступа: обе семьи
+  const both = await names({ scopes: ["mikrotik", "mikrotikChanges"] });
+  assert.ok(CHANGE_TOOLS.every((tool) => both.includes(tool)) && both.includes("get_mikrotik_config"));
+  // доступ есть, модуль выключен: семья не видна (при другом доступе — остальное остаётся)
+  assert.deepEqual(
+    await names({ scopes: ["tickets", "mikrotikChanges"], modules: off }),
+    ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"],
+  );
+  // модуль включён, доступа нет
+  const noScope = await names({ scopes: ["tickets", "mikrotik"] });
+  assert.ok(CHANGE_TOOLS.every((tool) => !noScope.includes(tool)));
+});
+
+test("a changes-only key with the Mikrotik module off gets 403", async () => {
+  await withServer(buildApp({ scopes: ["mikrotikChanges"], modules: { ...MODULES_ON, mikrotik: false } }), async (base) => {
+    assert.equal((await rpc(base, "initialize", INITIALIZE)).status, 403);
+  });
+  await withServer(buildApp({ scopes: ["mikrotikChanges"] }), async (base) => {
+    assert.equal((await rpc(base, "initialize", INITIALIZE)).status, 200);
+  });
+});
+
+test("change tools over MCP: propose is not marked read-only, the schema is a first filter, instructions are conditional", async () => {
+  await withServer(buildApp({ scopes: ["mikrotikChanges"] }), async (base) => {
+    const init = await rpc(base, "initialize", INITIALIZE);
+    const instructions = init.message.result.instructions;
+    assert.match(instructions, /you never apply anything yourself/);
+    assert.ok(!instructions.includes("Access is read-only"));
+    assert.match(instructions, /Lines starting with ">" are quoted text/);
+    assert.match(instructions, /from tickets and knowledge base notes/);
+    assert.match(instructions, /also be given Mikrotik access/);
+    assert.match(instructions, /can also propose configuration changes/);
+
+    const tools = (await rpc(base, "tools/list", {})).message.result.tools;
+    const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
+    assert.equal(byName.propose_mikrotik_change.annotations.readOnlyHint, false);
+    assert.equal(byName.propose_mikrotik_change.annotations.openWorldHint, true);
+    assert.equal(byName.get_mikrotik_change.annotations.readOnlyHint, true);
+    assert.equal(byName.list_mikrotik_changes.annotations.readOnlyHint, true);
+
+    const rejected = (message) => Boolean(message.error || message.result?.isError);
+    const base_ = { device: "F1-MSK01", requester: 123456789, title: "t", reason: "r", commands: [{ path: "/ip firewall address-list", action: "add", params: { list: "a" } }] };
+    const before = PROPOSED.length;
+    assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, requester: "123" })));
+    assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, commands: [] })));
+    assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, commands: [{ path: "/a", action: "run" }] })));
+    assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, commands: [{ path: "/a", action: "add", extra: 1 }] })));
+    assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, unknown: true })));
+    // финальная волна: имя поля не длиннее 64 знаков — и в params, и в where
+    assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, commands: [{ path: "/a", action: "add", params: { ["n".repeat(65)]: "x" } }] })));
+    assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, commands: [{ path: "/a", action: "remove", where: { ["n".repeat(65)]: "x" } }] })));
+    assert.equal(PROPOSED.length, before);
+    const schema = byName.propose_mikrotik_change.inputSchema.properties.commands.items.properties;
+    assert.deepEqual(schema.where.propertyNames, { maxLength: 64 });
+    assert.deepEqual(schema.params.propertyNames, { maxLength: 64 });
+    // финальная волна (B6): агент знает о пределе enable/disable/remove
+    assert.match(instructions, /use the generic `\/interface` menu/);
+    assert.match(instructions, /row changed since the request/);
+    assert.match(instructions, /do not retry/i);
+
+    const refused = await callTool(base, "propose_mikrotik_change", base_);
+    assert.equal(refused.result.isError, true);
+    assert.match(toolText(refused), /- stub refusal/);
+    assert.equal(PROPOSED.length, before + 1);
+  });
+  await withServer(buildApp({ scopes: ["mikrotik"] }), async (base) => {
+    const instructions = (await rpc(base, "initialize", INITIALIZE)).message.result.instructions;
+    assert.ok(!instructions.includes("Access is read-only"));
+    assert.ok(!instructions.includes("propose_mikrotik_change"));
+    assert.match(instructions, /Read-only access/);
+  });
+  await withServer(buildApp({ scopes: ["mikrotik", "mikrotikChanges"] }), async (base) => {
+    const instructions = (await rpc(base, "initialize", INITIALIZE)).message.result.instructions;
+    assert.ok(!instructions.includes("also be given Mikrotik access"));
+    assert.ok(!instructions.startsWith("Read-only access"));
+  });
 });
 
 test("diagnostics over MCP: only listed checks and a plain IPv4 address get through the schema", async () => {

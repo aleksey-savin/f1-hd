@@ -21,7 +21,7 @@ const mikrotikArtifactSchema = new Schema(
     // How the artifact was created.
     trigger: {
       type: String,
-      enum: ["manual", "scheduled", "pre-upgrade"],
+      enum: ["manual", "scheduled", "pre-upgrade", "pre-change"],
       default: "manual",
     },
     // Flat, server-generated storage key ("<uuid>.backup" / "<uuid>.rsc").

@@ -10,6 +10,7 @@ export type NotificationCategory =
   | "absenceDecision"
   | "reportApproval"
   | "reportDecision"
+  | "mikrotikChange"
   | "conversationMessage";
 
 /** Вид события: каталог хроники (util/ticket-events) плюс события вне заявок */
@@ -38,6 +39,8 @@ export type NotificationKind =
   | "absenceDecision"
   | "reportApproval"
   | "reportDecision"
+  | "mikrotikChangeStep"
+  | "mikrotikChangeResult"
   | "conversationWaiting"
   | "channelState";
 

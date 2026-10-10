@@ -196,3 +196,20 @@ test("Mikrotik traffic sample (services/mikrotik/traffic.js) is noise", () => {
   const sample = { $set: { traffic: { counter: 1, at: new Date() } } };
   assert.equal(classifyUpdate("updateOne", sample, SPECS.Mikrotik).meaningful, false);
 });
+
+test("MikrotikChange: решение двигает тему, отметка напоминания — нет", () => {
+  const decision = {
+    $set: { status: "queued", "steps.0.decision": "approve" },
+    $push: { timeline: { text: "Утверждено" } },
+  };
+  assert.deepEqual(classifyUpdate("findOneAndUpdate", decision, SPECS.MikrotikChange), { topics: ["mikrotikChanges"], meaningful: true });
+  for (const update of [
+    { $set: { remindedAt: new Date() } },
+    { $set: { remindedAt: new Date(), updatedAt: new Date() } },
+  ]) {
+    assert.equal(classifyUpdate("updateOne", update, SPECS.MikrotikChange).meaningful, false, JSON.stringify(update));
+  }
+  // Финальная волна: поля telegram[] у модели больше нет — отдельного правила шума для него тоже
+  assert.equal(classifyUpdate("updateOne", { $push: { telegram: { chatId: "1", messageId: 2 } } }, SPECS.MikrotikChange).meaningful, true);
+  assert.ok(require("./pulse").TOPICS.includes("mikrotikChanges"));
+});

@@ -17,11 +17,13 @@ const QrCode = ({
   data,
   size = 168,
   className,
+  ariaLabel = "QR-код для входа",
 }: {
   /** Строка кода — как пришла от сервера (`tg://login?token=…`). */
   data: string;
   size?: number;
   className?: string;
+  ariaLabel?: string;
 }) => {
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -55,7 +57,7 @@ const QrCode = ({
     <div
       ref={ref}
       role="img"
-      aria-label="QR-код для входа"
+      aria-label={ariaLabel}
       className={cn("leading-none", className)}
       style={{ width: size, height: size }}
     />

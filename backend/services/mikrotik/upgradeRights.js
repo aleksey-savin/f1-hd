@@ -44,6 +44,26 @@ const assessUpgradeRights = ({ users, groups, user }) => {
   return { ok: missing.length === 0, missing };
 };
 
+// What applying an agent's change request needs (changeWorker.js): the API for
+// the writes, SSH for the shell that holds safe mode. `policy` is not among
+// them, so an unreadable /user is NOT a verdict here — it gives null and the
+// router itself answers the first write.
+const REQUIRED_CHANGE_POLICIES = ["api", "read", "write", "ssh"];
+
+// { ok, missing } for the managed `user`, or null when there is nothing to
+// judge by.
+const assessChangeRights = (input) => {
+  const { users, groups, user } = input || {};
+  if (!Array.isArray(users) || !Array.isArray(groups)) return null;
+  const account = users.find((item) => item.name === user);
+  if (!account) return null;
+  const group = groups.find((item) => item.name === account.group);
+  if (!group) return null;
+  const granted = parsePolicy(group.policy);
+  const missing = REQUIRED_CHANGE_POLICIES.filter((name) => !granted.has(name));
+  return { ok: missing.length === 0, missing };
+};
+
 // Row field `access`: null — no monitoring record; "read" — the per-device
 // upgrade switch is off; "noWrite" — switch on but the device refused write
 // rights; "write" — switch on otherwise (confirmed, or not checked yet).
@@ -58,5 +78,7 @@ module.exports = {
   REQUIRED_UPGRADE_POLICIES,
   parsePolicy,
   assessUpgradeRights,
+  REQUIRED_CHANGE_POLICIES,
+  assessChangeRights,
   accessView,
 };

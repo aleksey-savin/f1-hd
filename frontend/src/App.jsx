@@ -342,6 +342,9 @@ import MikrotikDevices, {
 import MikrotikRecordPage, {
   loader as mikrotikRecordLoader,
 } from "./pages/Mikrotik/Record.jsx";
+import MikrotikChangePage, {
+  loader as mikrotikChangeLoader,
+} from "./pages/Mikrotik/Change.jsx";
 import MikrotikDeviceForm from "./components/Mikrotik/DeviceForm.jsx";
 import MikrotikPlannedOfflineForm, {
   action as mikrotikPlannedOfflineAction,
@@ -1354,6 +1357,15 @@ function App() {
                   handle: { can: { mikrotik: ["manage"] }, ...SHEET_MD },
                 },
               ],
+            },
+            // Запрос ИИ-агента на изменение Mikrotik. Только модуль, без права
+            // mikrotik.read: заявитель и ответственный открывают свой запрос и
+            // без него, чужой сервер не отдаёт (404).
+            {
+              path: "devices/mikrotik/changes/:id",
+              handle: { module: "mikrotik" },
+              element: <MikrotikChangePage />,
+              loader: mikrotikChangeLoader,
             },
             // Reports
             // Легаси-отчёт по работам влился в «Архив» (сегмент «Работы») —

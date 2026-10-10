@@ -165,6 +165,13 @@ upgradeRights { ok, missing[], checkedAt, source: "save"|"upgrade" }
                              // verdict of the last rights check of the managed
                              // account; ABSENT = never checked (no default).
                              // See _Firmware upgrades_ → Rights check.
+responsibleId                → ObjectId ref User, OPTIONAL — the second approver of
+                               configuration changes proposed by AI agents. Set in the
+                               create/update parameters handlers (`mikrotik.manage`);
+                               only a current employee holding `mikrotik.approveChanges`
+                               is accepted (422 otherwise); `null` clears it. A change
+                               is audit-logged (`responsibleFrom` / `responsibleTo`).
+                               See docs/mikrotik-changes.md.
 timestamps                                      // createdAt = monitoredSince
 ```
 
@@ -1142,6 +1149,22 @@ changed by that path. The same scope lets an agent read live state and the log
 and ping from a device, through a fixed list of `print` commands and a guard
 that limits ping targets to the device's own networks and routes. See
 `docs/mcp.md`, «Mikrotik tools».
+
+AI agents can also **propose configuration changes** (`mikrotikChanges` key
+scope). The agent never writes to a router: a proposal becomes a request that
+people approve in HD, after which HD takes a backup and applies the commands
+(RouterOS safe mode held over SSH, the writes sent through the API). Menus that
+give control of the router, script fields and secrets are refused. The device
+account therefore needs the policies `api`, `read`, `write` and `ssh`
+(`REQUIRED_CHANGE_POLICIES`; a device already enabled for firmware upgrades has
+them). Before the backup the apply worker reads the account's group
+(`/user`, `/user group`, `assessChangeRights`): if a policy is missing the
+request ends `not_applied` naming it, nothing is sent. If the lists cannot be
+read (RouterOS answers them only to an account holding `policy`) there is no
+verdict, the apply goes on and the router refuses a write itself if the right
+is really missing.
+The record's «responsible person» (`responsibleId`) is the second approver. See
+`docs/mikrotik-changes.md`.
 
 Connections go **directly over the internet** to each client's port-forwarded
 device (or through a managed router, see _SSH jump host_), so the module is

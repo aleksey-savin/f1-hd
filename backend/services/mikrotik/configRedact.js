@@ -290,6 +290,8 @@ module.exports = {
   looksLikeExport,
   isSecretField,
   isScriptField,
+  SCRIPT_FIELDS,
+  PUBLIC_FIELDS,
   scrubUrls,
   FREE_TEXT_FIELDS,
   SECRET,

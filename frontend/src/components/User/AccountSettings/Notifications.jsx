@@ -49,6 +49,16 @@ const CATEGORIES = [
     visibilityKey: "scheduledWorks",
   },
   {
+    name: "MikrotikChange",
+    label: "Запросы ИИ-агентов по Mikrotik",
+    visibilityKey: "mikrotikChange",
+    hint: "Telegram и почту можно выключить. Колокольчик и блок на главной работают всегда.",
+    staffOnly: true,
+    // Колокольчик у этой категории не выключается: решение за человеком,
+    // запрос не должен пропасть молча
+    alwaysInApp: true,
+  },
+  {
     name: "ConversationMessage",
     label: "Диалоги и каналы связи",
     visibilityKey: "conversationMessage",
@@ -112,6 +122,7 @@ const Notifications = ({ user, initialPrefs }) => {
       notify[channel] = {};
       for (const category of CATEGORIES) {
         if (category.inAppOnly && channel !== "inApp") continue;
+        if (category.alwaysInApp && channel === "inApp") continue;
         notify[channel][category.visibilityKey] =
           !!values[valueKey(channel, category)];
       }
@@ -197,14 +208,21 @@ const Notifications = ({ user, initialPrefs }) => {
           key={category.name}
           className="flex items-center border-t border-border-soft px-5 py-3.5"
         >
-          <span className="min-w-0 flex-1 pe-2 text-base">
-            {category.label}
+          <span className="min-w-0 flex-1 pe-2">
+            <span className="block text-base">{category.label}</span>
+            {category.hint && (
+              <span className="block text-sm text-muted-foreground">
+                {category.hint}
+              </span>
+            )}
           </span>
           {NOTIFY_CHANNELS.map(({ key: channel, label }) => {
             const key = valueKey(channel, category);
+            const forcedOn = category.alwaysInApp && channel === "inApp";
             const disabled =
               channelDisabled[channel] ||
-              (category.inAppOnly && channel !== "inApp");
+              (category.inAppOnly && channel !== "inApp") ||
+              forcedOn;
             return (
               <span
                 key={channel}
@@ -212,7 +230,7 @@ const Notifications = ({ user, initialPrefs }) => {
               >
                 <Checkbox
                   className={cn("size-5", disabled && "opacity-40")}
-                  checked={values[key]}
+                  checked={forcedOn || values[key]}
                   disabled={disabled}
                   onCheckedChange={() => toggle(key)}
                   aria-label={`${category.label} — ${label}`}

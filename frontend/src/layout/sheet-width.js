@@ -88,6 +88,8 @@ const MIGRATED_ROUTES = [
   // Мониторинг Mikrotik: страница записи (max-w-5xl,
   // «records») матчится раньше списка (max-w-7xl)
   { path: "/devices/mikrotik/records", maxWidth: 1072 },
+  // Страница запроса ИИ-агента (max-w-5xl, как запись) — тоже раньше списка
+  { path: "/devices/mikrotik/changes", maxWidth: 1072 },
   { path: "/devices/mikrotik", maxWidth: 1328 },
   // Настройки системы: рейл + секции, как «Мой аккаунт»
   { path: "/preferences", maxWidth: 944 },

@@ -7,12 +7,13 @@ import {
   facetByKey,
   facetCategories,
   readAllLabel,
+  shownFacetKey,
   unreadInFacet,
   visibleFacets,
 } from "./notification-facets.ts";
 
-test("восемь фасетов, «Все» первый, категории покрыты без дыр и дублей", () => {
-  assert.equal(NOTIFICATION_FACETS.length, 8);
+test("девять фасетов, «Все» первый, категории покрыты без дыр и дублей", () => {
+  assert.equal(NOTIFICATION_FACETS.length, 9);
   assert.equal(NOTIFICATION_FACETS[0].key, "all");
   const covered = NOTIFICATION_FACETS.flatMap((facet) => facet.categories);
   assert.equal(new Set(covered).size, covered.length);
@@ -20,6 +21,7 @@ test("восемь фасетов, «Все» первый, категории �
     "absenceDecision",
     "absenceRequest",
     "conversationMessage",
+    "mikrotikChange",
     "newTicket",
     "reportApproval",
     "reportDecision",
@@ -77,4 +79,22 @@ test("фасет «Диалоги» — только тем, кому разде
     true,
   );
   assert.equal(visibleFacets({ messaging: false }).length, NOTIFICATION_FACETS.length - 1);
+});
+
+test("«Запросы агентов» — категория mikrotikChange, видна при включённом Mikrotik", () => {
+  assert.deepEqual(facetCategories("mikrotik"), ["mikrotikChange"]);
+  assert.equal(
+    visibleFacets({ messaging: true, mikrotik: false }).some((facet) => facet.key === "mikrotik"),
+    false,
+  );
+  assert.equal(
+    visibleFacets({ messaging: true, mikrotik: true }).some((facet) => facet.key === "mikrotik"),
+    true,
+  );
+});
+
+test("фасет, который скрыт, заменяется на «Все»", () => {
+  const facets = visibleFacets({ messaging: true, mikrotik: false });
+  assert.equal(shownFacetKey("mikrotik", facets), "all");
+  assert.equal(shownFacetKey("comment", facets), "comment");
 });

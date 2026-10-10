@@ -11,6 +11,9 @@ const ticketSource = require("@/services/mcp/ticketSource");
 const { createTicketTools } = require("@/services/mcp/ticketTools");
 const mikrotikSource = require("@/services/mcp/mikrotikSource");
 const { createMikrotikTools } = require("@/services/mcp/mikrotikTools");
+const { createMikrotikChangeTools, mongoChangeStore } = require("@/services/mcp/mikrotikChangeTools");
+const { createProposals, mongoStore, liveReadMenus } = require("@/services/mikrotik/changeProposals");
+const { mongoNotifier } = require("@/services/mikrotik/changeNotifications");
 const { createMikrotikDiagnostics } = require("@/services/mcp/mikrotikDiagnostics");
 
 /**
@@ -58,6 +61,14 @@ module.exports = buildMcpRouter({
         ...createMikrotikTools({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log }),
         ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log }),
       },
+      mikrotikChanges: createMikrotikChangeTools({
+        proposals: createProposals({ store: mongoStore, readMenus: liveReadMenus, now: () => new Date() }),
+        store: mongoChangeStore,
+        // О новом запросе сообщают человеку первого шага (как после решения — changeDecisions)
+        notifier: mongoNotifier({ baseUrl: process.env.APP_PUBLIC_URL || process.env.VITE_API_ADDRESS || "", log: logger }),
+        baseUrl: process.env.ADDRESS,
+        log,
+      }),
     },
     loadContext,
     // Отклонённые SDK запросы (не тот Accept, не JSON) и сбои после ответа

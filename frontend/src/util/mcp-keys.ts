@@ -13,6 +13,7 @@ export const MCP_SCOPE_LABELS: Record<McpScope, string> = {
   knowledge: "База знаний",
   tickets: "Заявки",
   mikrotik: "Mikrotik",
+  mikrotikChanges: "Изменения Mikrotik",
 };
 
 // «а, б и в»
@@ -38,10 +39,11 @@ const orderedScopes = (scopes?: McpScope[] | null): McpScope[] => {
 export const scopeAccessLabel = (scopes?: McpScope[] | null): string =>
   joinList(
     orderedScopes(scopes).map((scope) =>
-      // Имя собственное остаётся с заглавной
+      // Имя собственное остаётся с заглавной; «Изменения Mikrotik» теряет
+      // заглавную только у первого слова
       scope === "mikrotik"
         ? MCP_SCOPE_LABELS[scope]
-        : MCP_SCOPE_LABELS[scope].toLowerCase(),
+        : MCP_SCOPE_LABELS[scope].replace(/^./, (first) => first.toLowerCase()),
     ),
   );
 
@@ -50,6 +52,7 @@ const SCOPE_DATIVE: Record<McpScope, string> = {
   knowledge: "базе знаний",
   tickets: "заявкам",
   mikrotik: "Mikrotik",
+  mikrotikChanges: "изменениям Mikrotik",
 };
 
 /** «к базе знаний, заявкам и Mikrotik» — что теряет агент при удалении ключа. */

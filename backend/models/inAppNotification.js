@@ -28,6 +28,9 @@ const EXTRA_KINDS = [
   // Канал «Диалогов» отключился: сессия, блокировка, ошибка — администраторам
   // (services/messaging/channelAlert.js)
   "channelState",
+  // Запрос ИИ-агента на изменение Mikrotik: очередной шаг согласования и итог
+  "mikrotikChangeStep",
+  "mikrotikChangeResult",
 ];
 const KIND_NAMES = [...new Set([...Object.keys(KINDS), ...EXTRA_KINDS])];
 

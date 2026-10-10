@@ -32,8 +32,8 @@ In-memory, no I/O. `createBus()` / singleton `bus`:
 - One global monotonic `rev`; each topic stores the `rev` of its last bump, so
   one cursor number compares against any topic.
 - Topics: `tickets`, `presence`, `team`, `mikrotik`, `approval`, `knowledge`,
-  `conversations`, `channels` (the last two staff-only: not in
-  `CLIENT_TOPICS`, `controllers/pulse.js`).
+  `conversations`, `channels`, `mikrotikChanges` (the last three staff-only:
+  not in `CLIENT_TOPICS`, `controllers/pulse.js`).
 - Per ticket: an LRU `Map<ticketId, rev>` (5000 entries). An evicted ticket
   reports the newest evicted revision (`ticketFloor`) — conservative, never
   "unchanged" by mistake. A write whose ticket is unknown bumps `anyTicketRev`,
@@ -60,6 +60,9 @@ change. Current noise:
   there (`recoverToOnline` when the device was not online or its identity
   changed, `recordFailure` on confirmation); `runMikrotikFirmwareRefresh`
   bumps once at the end. Alert stamps and operator edits are not noise.
+- MikrotikChange (topic `mikrotikChanges`): `remindedAt` is noise; decisions, status, timeline and command results
+  move the topic. One `mikrotikChanges` bump serves the dashboard block, the
+  device's «Изменения» list and the request page.
 
 ### Plugin — `services/pulsePlugin.js`
 
@@ -165,6 +168,7 @@ Exposed via `Access-Control-Expose-Headers` for a cross-origin dev setup.
 | Ticket card | ticket `_id` | deferred loader revalidate | baseline = loader cursor; paused under a sheet or checklist edit |
 | AI guide pending | (ticket watch) | — | `requestCadence(4000)` while pending |
 | Mikrotik list / record | mikrotik | `silentRefresh` / deferred revalidate | 5 min max staleness |
+| Mikrotik change requests: dashboard block, device list, request page | mikrotikChanges | block `load` (`useLiveTopic`) / section reload / `useLiveRouteRevalidate` | no timers of its own |
 | Dashboard monitoring offline | mikrotik | block `load` | — |
 | Dashboard scheduled works, client closed tickets | tickets | block `load` | 30 s min |
 | KB moderation counts (dashboard + KB) | knowledge | `knowledgeModeration.refresh` | moderators only |

@@ -4,7 +4,7 @@ import type {
 } from "@/types/notification";
 
 /**
- * Фасеты панели уведомлений: десять категорий настроек сведены в шесть
+ * Фасеты панели уведомлений: категории настроек сведены в понятные слова
  * понятных слов (макет «Уведомления: фильтр по виду»). Ключ фасета — значение
  * чипа и localStorage, категории — параметр `category` ручки списка и
  * `categories` у «прочитать все».
@@ -15,7 +15,7 @@ export type NotificationFacet = {
   /** Пусто — «Все», фильтра нет */
   categories: NotificationCategory[];
   /** Фасет раздела-модуля: виден, только когда раздел человеку открыт */
-  module?: "messaging";
+  module?: "messaging" | "mikrotik";
 };
 
 export const NOTIFICATION_FACETS: NotificationFacet[] = [
@@ -48,16 +48,28 @@ export const NOTIFICATION_FACETS: NotificationFacet[] = [
       "reportDecision",
     ],
   },
+  // Запросы ИИ-агентов на изменение Mikrotik: шаг, который ждёт решения, и итог
+  {
+    key: "mikrotik",
+    label: "Запросы агентов",
+    categories: ["mikrotikChange"],
+    module: "mikrotik",
+  },
 ];
 
 /** Фасеты, которые стоит показать: без «Диалогов», если раздел закрыт. */
 export const visibleFacets = ({
   messaging,
+  mikrotik = true,
 }: {
   messaging: boolean;
+  /** Модуль Mikrotik включён и человек не клиент */
+  mikrotik?: boolean;
 }): NotificationFacet[] =>
   NOTIFICATION_FACETS.filter(
-    (facet) => facet.module !== "messaging" || messaging,
+    (facet) =>
+      (facet.module !== "messaging" || messaging) &&
+      (facet.module !== "mikrotik" || mikrotik),
   );
 
 export const facetByKey = (key: string | null | undefined): NotificationFacet =>
@@ -89,3 +101,9 @@ export const readAllLabel = (key: string): string => {
     ? "Прочитать все"
     : `Прочитать ${facet.label.toLowerCase()}`;
 };
+
+/** Сохранённый фасет, которого больше нет среди видимых (модуль выключили), — «Все» */
+export const shownFacetKey = (
+  key: string,
+  facets: Pick<NotificationFacet, "key">[],
+): string => (facets.some((facet) => facet.key === key) ? key : "all");

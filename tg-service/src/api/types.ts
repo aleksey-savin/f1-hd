@@ -137,3 +137,30 @@ export type WorkStatusResult = {
 };
 
 export type CreatedTicket = { message: string; ticket?: { num?: number } };
+
+/** Отказ ручек решения по запросу ИИ-агента: HTTP 200, `message` — готовый текст для людей. */
+export type MikrotikChangeRefusal = {
+  ok: false;
+  /** not_yours | closed | expired | no_right | not_found | too_long */
+  code?: string;
+  message: string;
+};
+
+/** Текущее состояние запроса для актора (GET /api/bot/mikrotik-changes/:id/message). */
+export type MikrotikChangeView =
+  | {
+      ok: true;
+      text: string;
+      /** Без кнопок решения, если команды не помещаются; null — клавиатуры нет вовсе. */
+      keyboard: ReplyMarkup | null;
+      /** null — шаг подтверждения показать нельзя. */
+      confirmText: string | null;
+      /** Вопрос подтверждения вместе с командами — это и есть текст шага. */
+      confirmFull: string | null;
+      confirmKeyboard: ReplyMarkup | null;
+    }
+  | MikrotikChangeRefusal;
+
+export type MikrotikChangeDecisionResult =
+  | { ok: true; text: string }
+  | MikrotikChangeRefusal;

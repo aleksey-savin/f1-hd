@@ -50,6 +50,10 @@ const MIGRATIONS = [
   // записи у той не оставит установку без него. Порядок задаёт список, а не
   // дата в id. См. grantUpgradeFirmware.js
   { id: "2026-10-01-grantUpgradeFirmware", script: "grantUpgradeFirmware.js", apply: true },
+  // Право «Утверждать запросы ИИ-агентов по устройствам Mikrotik» — так же, по
+  // одному действию за скрипт: после grantUpgradeFirmware (к этому моменту у
+  // роли уже есть и оно) и до recomputePluginRoles. См. grantApproveChanges.js
+  { id: "2026-10-10-grantApproveChanges", script: "grantApproveChanges.js", apply: true },
   // Роль плагина по адресату учётной записи (W1 §1); пишет только `role`, после
   // grantUpgradeFirmware; см. recomputePluginRoles.js
   { id: "2026-09-30-recomputePluginRoles", script: "recomputePluginRoles.js", apply: true },

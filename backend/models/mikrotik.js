@@ -44,6 +44,12 @@ const mikrotikSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Ответственный за устройство: второй согласующий запросов ИИ-агента на
+    // изменение конфигурации (models/mikrotikChange).
+    responsibleId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
     // Транзит («подключение через устройство»): все соединения с этим
     // устройством (API-SSL и SSH) туннелируются через SSH уже управляемого
     // роутера. Один уровень: запись с jumpRecordId сама транзитом быть не может

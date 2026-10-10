@@ -32,7 +32,8 @@
  */
 const routePaths = (router) => {
   const paths = [];
-  for (const layer of router?.stack || []) {
+  // `new (require("express"))()` — приложение: его стек лежит в `router.router.stack`
+  for (const layer of router?.stack || router?.router?.stack || []) {
     const routePath = layer.route?.path;
     if (routePath !== undefined) {
       paths.push(...(Array.isArray(routePath) ? routePath : [routePath]));
@@ -87,6 +88,10 @@ const mountInventory = (router, gates, routers) => {
     // узкие права (устройства, конфигурации) проверяют сами роуты. Путь
     // /inventory сохранён — его знает фронтенд.
     [["/mikrotik-devices"], [mikrotikIsActive, canReadMikrotik]],
+    // Запросы ИИ-агентов на изменение Mikrotik: рубильник модуля и «не клиент».
+    // Заявитель — обычный сотрудник и может не держать ни одного права на
+    // Mikrotik, поэтому кто что видит и решает, определяют сами ручки.
+    [["/mikrotik-changes"], [mikrotikIsActive, isNotClient]],
   ];
 
   // Гейты стоят на перечисленных префиксах — значит маршрут, который ни под

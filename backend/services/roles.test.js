@@ -33,6 +33,7 @@ const {
   pluginRole,
   mirrorOf,
   needsUpgradeFirmwareGrant,
+  needsApproveChangesGrant,
   rolesToRefresh,
   orphanMessage,
   loadHolderState,
@@ -360,6 +361,96 @@ test("only a role one action short of full access needs the firmware grant", () 
   // Пустое и отсутствующее
   assert.equal(needsUpgradeFirmwareGrant({}), false);
   assert.equal(needsUpgradeFirmwareGrant(undefined), false);
+});
+
+test("only a role one action short of full access needs the approveChanges grant", () => {
+  const full = staffAccessStatements();
+  assert.ok(full.mikrotik.includes("approveChanges"));
+  const short = {
+    ...full,
+    mikrotik: full.mikrotik.filter((action) => action !== "approveChanges"),
+  };
+  assert.equal(isFullAccess(short), false);
+  assert.equal(needsApproveChangesGrant(short), true);
+  assert.equal(needsApproveChangesGrant(full), false);
+  // не хватает ещё чего-то — не раздаём
+  assert.equal(
+    needsApproveChangesGrant({
+      ...short,
+      ticket: short.ticket.filter((action) => action !== "delete"),
+    }),
+    false,
+  );
+  assert.equal(needsApproveChangesGrant({ ticket: ["perform"], mikrotik: ["read"] }), false);
+  assert.equal(needsApproveChangesGrant({}), false);
+  assert.equal(needsApproveChangesGrant(undefined), false);
+  // не хватает и upgradeFirmware — раздача от этого не зависит (см. LATE_STAFF_GRANTS)
+  assert.equal(
+    needsApproveChangesGrant({
+      ...short,
+      mikrotik: short.mikrotik.filter((action) => action !== "upgradeFirmware"),
+    }),
+    true,
+  );
+});
+
+test("late grants are order-independent: a role lacking both late actions gets each in either order", () => {
+  const full = staffAccessStatements();
+  const without = (statements, ...actions) => ({
+    ...statements,
+    mikrotik: statements.mikrotik.filter((action) => !actions.includes(action)),
+  });
+  const add = (statements, action) => ({
+    ...statements,
+    mikrotik: [...statements.mikrotik, action],
+  });
+
+  const both = without(full, "upgradeFirmware", "approveChanges");
+  assert.equal(isFullAccess(both), false);
+  assert.equal(needsUpgradeFirmwareGrant(both), true);
+  assert.equal(needsApproveChangesGrant(both), true);
+
+  // Только одного не хватает
+  const onlyFirmware = without(full, "upgradeFirmware");
+  assert.equal(needsUpgradeFirmwareGrant(onlyFirmware), true);
+  assert.equal(needsApproveChangesGrant(onlyFirmware), false);
+  const onlyApprove = without(full, "approveChanges");
+  assert.equal(needsUpgradeFirmwareGrant(onlyApprove), false);
+  assert.equal(needsApproveChangesGrant(onlyApprove), true);
+
+  // Не хватает ещё чего-то вне списка — не раздаём ни то, ни другое
+  const plusOther = {
+    ...both,
+    ticket: both.ticket.filter((action) => action !== "delete"),
+  };
+  assert.equal(needsUpgradeFirmwareGrant(plusOther), false);
+  assert.equal(needsApproveChangesGrant(plusOther), false);
+
+  // Полная роль — раздавать нечего
+  assert.equal(needsUpgradeFirmwareGrant(full), false);
+  assert.equal(needsApproveChangesGrant(full), false);
+
+  // Раздали одно — второе по-прежнему нужно; после обоих роль полная
+  const afterFirmware = add(both, "upgradeFirmware");
+  assert.equal(needsApproveChangesGrant(afterFirmware), true);
+  assert.equal(isFullAccess(add(afterFirmware, "approveChanges")), true);
+  const afterApprove = add(both, "approveChanges");
+  assert.equal(needsUpgradeFirmwareGrant(afterApprove), true);
+  assert.equal(isFullAccess(add(afterApprove, "upgradeFirmware")), true);
+});
+
+test("rolesToRefresh covers roles needing either late grant", () => {
+  const full = staffAccessStatements();
+  const both = {
+    ...full,
+    mikrotik: full.mikrotik.filter(
+      (action) => action !== "upgradeFirmware" && action !== "approveChanges",
+    ),
+  };
+  assert.deepEqual(
+    rolesToRefresh([{ key: "admin", audience: "staff", statements: both }]),
+    ["admin"],
+  );
 });
 
 test("after the firmware grant every full-access staff role is refreshed, not only the changed ones", () => {
