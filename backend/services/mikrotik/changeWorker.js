@@ -79,6 +79,9 @@ const lazyExecutor = (factory) => {
   const get = () => (built ||= factory());
   return { prepare: () => void get(), applyCommands: (record, items) => get().applyCommands(record, items) };
 };
+// Клиент WireGuard запроса или null. Признак — интерфейс: у запросов, созданных
+// до правки модели, в базе лежит wireguard.client из одних пустых массивов
+const wireguardClient = (change) => (change?.wireguard?.client?.interface ? change.wireguard.client : null);
 // Секреты WireGuard наружу (уведомитель, журнал) не отдаём, даже если хранилище их вернуло
 const publicChange = (doc) => {
   if (!doc?.wireguard) return doc;
@@ -163,7 +166,7 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
     const at = now();
     nextAttempt.delete(String(change._id));
     // Ключи не сохранены ни при каком исходе, кроме applied: человеку нужно знать, что делать с пиром
-    if (change.wireguard?.client && outcome.failure && (outcome.status === STATUS.needsAttention || outcome.status === STATUS.rolledBack)) {
+    if (wireguardClient(change) && outcome.failure && (outcome.status === STATUS.needsAttention || outcome.status === STATUS.rolledBack)) {
       const original = outcome.failure;
       outcome = { ...outcome, failure: `${original} ${WG_NOT_SAVED}`, timeline: (outcome.timeline || []).map((t) => (t === original ? `${original} ${WG_NOT_SAVED}` : t)) };
     }
@@ -245,7 +248,7 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
     // 1. Чтение разделов: один вызов
     const commands = change.commands || [];
     if (!commands.length) return stop(STATUS.notApplied, "В запросе нет команд");
-    const wg = change.wireguard?.client || null;
+    const wg = wireguardClient(change);
     const paths = [...new Set([...commands.map((c) => c.path), ...(wg ? [WG_MENU] : [])])];
     let read;
     try {
@@ -556,7 +559,7 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
       const found = await store.loadDevice(candidate.mikrotik);
       const record = found?.record || null;
       if (record) {
-        if (isUpgrading(record) || isUpgrading(found.jump)) {
+        if (isUpgrading(record, now()) || isUpgrading(found.jump, now())) {
           const gaveUp = await wait(candidate, "устройство обновляется", STATUS.queued);
           if (gaveUp) return gaveUp;
           continue;

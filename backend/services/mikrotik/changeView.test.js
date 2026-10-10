@@ -34,7 +34,7 @@ const change = (extra = {}) => ({
   wireguard: {
     publicKey: "PUB", privateKey: "ENC-PRIV", presharedKey: "ENC-PSK", serverPublicKey: "SRV", endpoint: "h:1",
     keysExpireAt: new Date("2026-10-11T08:00:00Z"),
-    client: { address: "10.0.55.20/32", allowedIps: ["10.0.20.0/24"], dns: [], endpoint: "h:1" },
+    client: { interface: "wg1", address: "10.0.55.20/32", allowedIps: ["10.0.20.0/24"], dns: [], endpoint: "h:1" },
   },
   ...extra,
 });
@@ -220,4 +220,9 @@ test("результат команды: признак отказа роуте�
   const v = view(c, viewer("req"));
   assert.equal(v.commands[0].result.refused, true);
   assert.equal(v.commands[1].result.refused, false);
+});
+
+test("wireguard: клиент без интерфейса (пустые массивы из базы) — блока WireGuard нет", () => {
+  const v = view(change({ wireguard: { client: { allowedIps: [], dns: [] } } }), viewer("req"));
+  assert.equal(v.wireguard, null);
 });

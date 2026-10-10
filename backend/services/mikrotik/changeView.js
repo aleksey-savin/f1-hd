@@ -88,7 +88,8 @@ function wireguardFileName(change) {
 }
 
 function wireguardView(wg, change) {
-  if (!wg) return null;
+  // Клиент без интерфейса — след пустых массивов в старых документах, не запрос WireGuard
+  if (!wg?.client?.interface) return null;
   const c = wg.client || {};
   return {
     fileName: `${wireguardFileName(change)}.conf`,

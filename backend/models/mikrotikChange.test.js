@@ -78,3 +78,10 @@ test("результат команды хранит признак отказа
   assert.equal(MikrotikChange.schema.path("telegram"), undefined);
   assert.equal(doc.toObject().telegram, undefined);
 });
+
+test("запрос без клиента WireGuard не получает wireguard.client из пустых массивов", async () => {
+  const doc = new MikrotikChange(valid());
+  assert.equal(doc.toObject().wireguard, undefined);
+  const wg = new MikrotikChange({ ...valid(), wireguard: { client: { interface: "wg0", address: "10.0.0.2/32", allowedIps: ["10.0.0.0/24"] } } });
+  assert.deepEqual(wg.toObject().wireguard.client.allowedIps, ["10.0.0.0/24"]);
+});

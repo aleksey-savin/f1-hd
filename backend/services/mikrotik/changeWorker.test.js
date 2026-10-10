@@ -463,6 +463,14 @@ test("нет интерфейса WireGuard: not_applied, ключи не соз
   assert.equal(h.backups.length, 0);
 });
 
+test("запрос без клиента WireGuard: пустой wireguard.client из базы не включает ветку WireGuard", async () => {
+  const h = setup({ changes: [makeChange({ wireguard: { client: { allowedIps: [], dns: [] } } })] });
+  const r = await h.worker.tick();
+  assert.equal(r.status, "applied");
+  assert.equal(h.keyGen, 0);
+  assert.equal(h.doc().failure, undefined);
+});
+
 test("откат: ключи не сохраняются совсем", async () => {
   const h = setup({ changes: [wgChange()] });
   h.exec = () => ({ executor: "safe-mode", results: [{ state: "rolled_back", error: null }], rolledBack: true, reachable: false, failure: FAILURES.silent, releaseConfirmed: false });

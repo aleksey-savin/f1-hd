@@ -98,8 +98,10 @@ const mikrotikChangeSchema = new Schema(
       client: {
         interface: String,
         address: String,
-        allowedIps: [String],
-        dns: [String],
+        // Без default: undefined Mongoose заводит пустые массивы, и у запроса без
+        // клиента WireGuard появляется непустой wireguard.client
+        allowedIps: { type: [String], default: undefined },
+        dns: { type: [String], default: undefined },
         endpoint: String,
       },
       serverPublicKey: String,
