@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Panel, Eyebrow } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
 
+import FoldRow from "./FoldRow";
 import UptimeBar from "./UptimeBar";
 import {
   formatDurationShort,
@@ -127,107 +128,125 @@ const AvailabilitySection = ({ recordId }) => {
           </>
         )}
 
-        <div className="mt-4">
+        <div>
           {report && report.outages.length === 0 && (
-            <div className="text-sm text-faint">
+            <div className="mt-4 text-sm text-faint">
               Инцидентов за период не было.
             </div>
           )}
-          {/* Телефон: две колонки — начало и под ним конец, справа
-              длительность и под ней заявка (в таблице конец не помещался) */}
-          {report &&
-            report.outages.map((outage) => (
-              <div
-                key={outage.id}
-                className={cn(
-                  "flex justify-between gap-2.5 border-t border-border-soft py-2 text-sm tabular-nums md:hidden",
-                  outage.planned && "text-muted-foreground",
-                )}
-              >
-                <div className="min-w-0">
-                  {formatDate(outage.startedAt)}
-                  <div className="text-xs">
-                    {outage.ongoing ? (
-                      <span className="font-semibold text-destructive">
-                        продолжается
-                      </span>
-                    ) : (
-                      <span className="text-faint">
-                        до {formatDate(outage.endedAt)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex-none text-end">
-                  {formatDurationShort(outage.durationMs)}
-                  <div className="text-xs">
-                    {outage.planned ? (
-                      <span className="text-faint">по расписанию</span>
-                    ) : outage.ticketNum ? (
-                      <Link
-                        to={`/tickets/${outage.ticketNum}`}
-                        className="font-semibold text-accent-text no-underline hover:underline"
-                      >
-                        {outage.ticketNum}
-                      </Link>
-                    ) : (
-                      <span className="text-faint">—</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+          {/* Журнал свёрнут: нужен редко, а занимал больше места, чем всё
+              остальное в секции (макет 10.10) */}
           {report && report.outages.length > 0 && (
-            <div className="max-md:hidden">
-              <div className="flex gap-3.5 border-b border-border-soft pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
-                <span className="w-44 flex-none">Начало</span>
-                <span className="hidden w-44 flex-none md:block">Конец</span>
-                <span className="flex-1">Длительность</span>
-                <span>Заявка</span>
-              </div>
-              {report.outages.map((outage) => (
-                <div
-                  key={outage.id}
-                  className={cn(
-                    "flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm tabular-nums last:border-b-0",
-                    outage.planned && "text-muted-foreground",
-                  )}
-                >
-                  <span className="w-44 flex-none">
-                    {formatDate(outage.startedAt)}
+            <FoldRow
+              summary={
+                <>
+                  Журнал простоев · последний{" "}
+                  <span className="tabular-nums">
+                    {formatShortDate(report.outages[0].startedAt)}
                   </span>
-                  <span className="hidden w-44 flex-none md:block">
-                    {outage.ongoing ? (
-                      <span className="font-semibold text-destructive">
-                        продолжается
-                      </span>
-                    ) : (
-                      formatDate(outage.endedAt)
+                </>
+              }
+              count={report.outages.length}
+            >
+              {/* Телефон: две колонки — начало и под ним конец, справа
+                  длительность и под ней заявка (в таблице конец не помещался) */}
+              {report &&
+                report.outages.map((outage) => (
+                  <div
+                    key={outage.id}
+                    className={cn(
+                      "flex justify-between gap-2.5 border-t border-border-soft py-2 text-sm tabular-nums md:hidden",
+                      outage.planned && "text-muted-foreground",
                     )}
-                  </span>
-                  <span className="flex-1">
-                    {formatDurationShort(outage.durationMs)}
-                    {outage.planned && " · по расписанию"}
-                  </span>
-                  {outage.ticketNum ? (
-                    <Link
-                      to={`/tickets/${outage.ticketNum}`}
-                      className="font-semibold text-accent-text no-underline hover:underline"
+                  >
+                    <div className="min-w-0">
+                      {formatDate(outage.startedAt)}
+                      <div className="text-xs">
+                        {outage.ongoing ? (
+                          <span className="font-semibold text-destructive">
+                            продолжается
+                          </span>
+                        ) : (
+                          <span className="text-faint">
+                            до {formatDate(outage.endedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-none text-end">
+                      {formatDurationShort(outage.durationMs)}
+                      <div className="text-xs">
+                        {outage.planned ? (
+                          <span className="text-faint">по расписанию</span>
+                        ) : outage.ticketNum ? (
+                          <Link
+                            to={`/tickets/${outage.ticketNum}`}
+                            className="font-semibold text-accent-text no-underline hover:underline"
+                          >
+                            {outage.ticketNum}
+                          </Link>
+                        ) : (
+                          <span className="text-faint">—</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              {report && report.outages.length > 0 && (
+                <div className="max-md:hidden">
+                  <div className="flex gap-3.5 border-b border-border-soft pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
+                    <span className="w-44 flex-none">Начало</span>
+                    <span className="hidden w-44 flex-none md:block">
+                      Конец
+                    </span>
+                    <span className="flex-1">Длительность</span>
+                    <span>Заявка</span>
+                  </div>
+                  {report.outages.map((outage) => (
+                    <div
+                      key={outage.id}
+                      className={cn(
+                        "flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm tabular-nums last:border-b-0",
+                        outage.planned && "text-muted-foreground",
+                      )}
                     >
-                      {outage.ticketNum}
-                    </Link>
-                  ) : (
-                    <span className="text-faint">—</span>
-                  )}
+                      <span className="w-44 flex-none">
+                        {formatDate(outage.startedAt)}
+                      </span>
+                      <span className="hidden w-44 flex-none md:block">
+                        {outage.ongoing ? (
+                          <span className="font-semibold text-destructive">
+                            продолжается
+                          </span>
+                        ) : (
+                          formatDate(outage.endedAt)
+                        )}
+                      </span>
+                      <span className="flex-1">
+                        {formatDurationShort(outage.durationMs)}
+                        {outage.planned && " · по расписанию"}
+                      </span>
+                      {outage.ticketNum ? (
+                        <Link
+                          to={`/tickets/${outage.ticketNum}`}
+                          className="font-semibold text-accent-text no-underline hover:underline"
+                        >
+                          {outage.ticketNum}
+                        </Link>
+                      ) : (
+                        <span className="text-faint">—</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-          {report?.plannedMs > 0 && (
-            <div className="mt-2.5 text-xs text-faint">
-              Простои по расписанию не входят в доступность и счётчик
-              инцидентов.
-            </div>
+              )}
+              {report?.plannedMs > 0 && (
+                <div className="mt-2.5 text-xs text-faint">
+                  Простои по расписанию не входят в доступность и счётчик
+                  инцидентов.
+                </div>
+              )}
+            </FoldRow>
           )}
         </div>
       </Panel>

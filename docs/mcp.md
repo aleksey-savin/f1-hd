@@ -1,15 +1,15 @@
 # MCP Access — Implementation Notes
 
-_Last updated: 2026-09-18. This document covers the `/api/mcp` endpoint end to
-end: keys and permissions, the request path, the knowledge-base and ticket
-tools, data protection and how to test the module. It is a snapshot, not a
+_Last updated: 2026-10-10. This document covers the `/api/mcp` endpoint end to
+end: keys and permissions, the request path, the knowledge-base, ticket and
+Mikrotik tools, data protection and how to test the module. It is a snapshot, not a
 spec — verify against the code before relying on any detail._
 
 ## Overview
 
 `POST /api/mcp` is a read-only [Model Context Protocol](https://modelcontextprotocol.io)
 endpoint that lets the organisation's staff-only AI agent (OpenClaw) read HD's
-knowledge base and tickets. It is one endpoint inside the backend, not a
+knowledge base, tickets and Mikrotik devices. It is one endpoint inside the backend, not a
 separate service: no OAuth, no per-person login — a key belongs to the
 organisation, the same way a Telegram bot token does.
 
@@ -93,7 +93,7 @@ Chain on `POST /`: `requireKey` → per-key rate limiter → `handle`.
 
 ```js
 {
-  modules: { knowledgeBase, timeTracking, inventory },  // booleans
+  modules: { knowledgeBase, timeTracking, inventory, mikrotik },  // booleans
   timezone,                                             // resolveTimezone(prefs)
   systemAccounts: { unidentifiedId, robotIds },         // ids as strings, or null/[]
 }
@@ -105,13 +105,14 @@ Tools never read `Preferences` themselves. `toolFamilies({ scopes, modules })`
 ```js
 knowledge = scopes.includes("knowledge") && Boolean(modules.knowledgeBase);
 tickets   = scopes.includes("tickets");   // no module gate — tickets are core
+mikrotik  = scopes.includes("mikrotik") && Boolean(modules.mikrotik);
 ```
 
-If **neither** family is available, `createMcpRequestHandler` answers `403`
+If **no** family is available, `createMcpRequestHandler` answers `403`
 before the SDK runs at all:
 
 ```json
-{"error":true,"status":403,"message":"Ключу нечего читать: модуль \"База знаний\" отключен, а доступа к заявкам у ключа нет."}
+{"error":true,"status":403,"message":"Ключу нечего читать: модули, к которым у него есть доступ, отключены."}
 ```
 
 This replaces the previous design, where a `knowledgeBaseModuleIsActive`
@@ -150,7 +151,7 @@ knowledge-base module is off.
 
 ### Tool execution and failures
 
-Every registered tool handler, in both families, is wrapped by `guard()` in
+Every registered tool handler, in every family, is wrapped by `guard()` in
 `server.js`. On success it just calls through; on a **thrown** error (a data
 source that fails — a DB timeout, for instance) it:
 
@@ -174,7 +175,7 @@ audience (`.superpowers/sdd/2026-09-17-mcp-tickets/progress.md`, Task 9).
 Collection `mcpkeys`: `name` (required, trimmed, ≤100), `keyHash` (sha256,
 `select: false`, unique index), `keyTail` (last 4 characters, for display),
 `createdBy → User`, `lastUsedAt` (`Date`, default `null`), `scopes`
-(`["knowledge" | "tickets"]`, default `["knowledge"]`), timestamps. The key
+(`["knowledge" | "tickets" | "mikrotik"]`, default `["knowledge"]`), timestamps. The key
 value itself is **never stored** — only its hash and tail.
 
 `services/mcp/keys.js`:
@@ -182,7 +183,7 @@ value itself is **never stored** — only its hash and tail.
 - `issueMcpKey()` — `generateMcpKey()` (`hd_mcp_` + 64 hex,
   `utils/apiKeyGenerator.js`) plus its sha256 (`keyHash`) and last-4
   (`keyTail`). The plaintext value exists only in the create response.
-- `MCP_SCOPES = ["knowledge", "tickets"]` (frozen, this exact order).
+- `MCP_SCOPES = ["knowledge", "tickets", "mikrotik"]` (frozen, this exact order).
 - `normalizeScopes(scopes)` — filters an arbitrary array down to known scopes
   in `MCP_SCOPES` order; an empty, missing or all-unknown input becomes
   `["knowledge"]`. This is what makes a key stored before `scopes` existed
@@ -560,6 +561,231 @@ resolution).
 Rendered as a Markdown table (`ticketFormat.js#formatStats`):
 `| <groupBy> | tickets | open | closed | median hours to close | share |`.
 
+## Mikrotik tools
+
+Added 2026-10-10. The family is registered when the key has the `mikrotik`
+scope **and** `modules.mikrotik.isActive` is on. Code: `services/mcp/mikrotikTools.js`
+(tools), `mikrotikFormat.js` (text), `mikrotikSource.js` (the only file that
+touches models, storage and the connector). All four tools are read-only and
+address a device by `device`: a record id, or a name / host / serial number
+resolved with `resolveByName` — zero or several matches are a tool error
+listing the candidates.
+
+| Tool | Returns |
+|---|---|
+| `list_mikrotik_devices` | `query`, `company`, `status`, `limit` (50, max 200) → name, company, model, RouterOS, serial, status, host, id, link |
+| `get_mikrotik_device` | `device`, `days` (1/7/30/90, default 30) → addresses, license, status and last poll error, firmware against the latest release with CVEs (`evaluateFirmware`), availability and outages (`computeAvailability`), planned offline windows, stored exports with their ids |
+| `get_mikrotik_config` | `device`, `section?`, `search?` → the **running** configuration read from the device. No `section`: header and the list of sections with line counts. `section`: that section and its subsections (`/ip firewall` covers `/ip firewall filter`, `nat`, …). `search`: matching lines, each prefixed with its section (max 200) |
+| `compare_mikrotik_exports` | `device`, `from?`, `to?` (export ids; default the two latest, swapped ids are reordered) → per section, lines removed and added between two **stored** exports |
+
+Output is capped at 40 000 characters by whole lines, with a hint to narrow
+the request.
+
+### What leaves `mikrotikSource.js`
+
+Positive projections only. From `credentials` the source selects `host` and
+`port`; the login, password, TLS certificate pin, SSH host key, SSH port and
+knock sequence are never read for the row and card tools. `readLiveConfig`
+loads the full record (it has to connect) but returns only the redacted
+configuration.
+
+### Live read — `services/mikrotik/liveConfig.js`
+
+`get_mikrotik_config` runs one `/export` over SSH through the same path and
+guards as a backup export (`resolveJumpContext`, `assertPublicHost` /
+`assertJumpTargetHost`, `withSshSession`), with these differences:
+
+- **Nothing is written**: no artifact, no change to the record (the SSH host
+  key is not pinned from this path), no config-change ticket.
+- The command is a constant. `section` and `search` never reach the device —
+  they filter the text already fetched, so the agent cannot run a command.
+- On RouterOS 6 the command is `/export hide-sensitive` (v6 prints secrets
+  by default; v7 hides them and rejects the flag). The major version comes from
+  the record's `currentFirmware`; with no version known the plain `/export` is
+  used and redaction alone does the work. An answer that does not start with
+  `#` or `/` is treated as a command error (`MIKROTIK_LIVE_BAD_EXPORT`).
+- Routers are shielded from the agent: the **redacted** result is cached per
+  device for 5 minutes (outline → section costs one session), concurrent calls
+  for one device share one read, devices behind one transit router are read
+  one at a time, at most two sessions run at once, and at most six calls may
+  wait — for a slot or for their turn at a device — before further ones are
+  refused (`MIKROTIK_LIVE_BUSY`), and a device or its transit router under a
+  firmware upgrade is refused (`MIKROTIK_LIVE_UPGRADING`).
+- A failed read is a tool error with the reason (`describeLiveError`, built on
+  `describeConnectionError`), not the neutral internal-failure text. The raw
+  error goes to the log (`MCP: Mikrotik live read failed`).
+
+The cache is per process and holds redacted text only; the raw export exists
+only inside `readExport` → `redactConfig` and is never logged.
+
+### Redaction — `services/mikrotik/configRedact.js`
+
+`redactConfig(raw)` is a pure function over a copy in memory. **Stored exports
+are not affected**: backups stay complete and importable, `createArtifact`,
+the OTP download and `contentHash` are unchanged, and `exportConfig` takes
+`hideSensitive` only from the live read. `compare_mikrotik_exports` decrypts
+two stored files, redacts both in memory and diffs the redacted text — so a
+changed password or key does not show as a difference (the answer says so).
+
+The parser joins `\`-continued lines, tracks the section (`/path`, including
+the one-line `/path add …` form) and scans `name=value` pairs with quoted
+values. Layers:
+
+1. **Secret by name** — a field whose name contains `key`, `pass`, `secret`,
+   `psk`, `token` or `community`, has `pin` as a whole word of its name
+   (`pin`, `sim-pin`, `pin-number`), or is `passcode` or `cak` (MACsec), gets
+   `[секрет скрыт]`. This is fail-closed: a field RouterOS adds tomorrow
+   with such a name is hidden without a code change. Explicit public
+   exceptions: `public-key`, `key-size`, `key-type`, `key-usage`, `key-id`,
+   `authentication-key-id`, `host-key-size`, `host-key-type`,
+   `group-key-update`, `passthrough`, `passive`.
+2. **Secret by section** — `identity` under `/zerotier`, `value` under
+   `/container envs`.
+3. **Account sections keep names only** — `/user`, `/user ssh-keys`,
+   `/ppp secret`, `/ip hotspot user`, `/certificate…`, `/user-manager…`,
+   `/tool user-manager…`: `name`, `comment`, `disabled`, `group`, `profile`,
+   `service` stay, every other value becomes `[скрыто]`. In `/snmp community`
+   the name is the secret, so only `comment` and `disabled` stay.
+4. **Script bodies** — `source`, `script`, `on-event`, `on-up`, `on-down`,
+   `on-login`, `on-logout`, `on-error`, `up-script`, `down-script`,
+   `test-script`, `lease-script`, and **any field named `on-…`** (`on-alert`,
+   `on-message`, …) become `"[скрипт скрыт: N строк]"` in any section.
+5. **Free text** — `comment`, `note`, `description`, `contact`, `location`,
+   `label` go through `redactSecrets` (the general scanner). It is applied to
+   these fields only: on every value it would also mask public keys and
+   model strings.
+6. **Credentials inside a URL** — `scheme://user:password@host` in any value
+   becomes `scheme://[скрыто]@host`.
+7. **Unparsable line** (an unclosed quote) is replaced whole. While a quote is
+   open, the end of a physical line is always a continuation, so a wrap that
+   falls inside an escape sequence cannot leave the tail of a script as a
+   separate line; a quote that never closes hides everything after it.
+
+IP addresses, public WireGuard keys, peer endpoints and user names stay.
+
+A device account without the `sensitive` policy (the recommended group, see
+`docs/mikrotik-management.md`) is not shown secrets by RouterOS in the first
+place. Redaction does not rely on that.
+
+### Live diagnostics — `services/mcp/mikrotikDiagnostics.js`
+
+Added 2026-10-10 so an agent can answer "site X lost its link to service Y".
+Three more tools in the same family, same scope and module gate:
+
+| Tool | Returns |
+|---|---|
+| `get_mikrotik_state` | `device`, `checks?` (`interfaces`, `tunnels`, `routes`, `arp`, `dhcp`, `resources`; default the first three) → per command a section `## <title> (<n> rows)` with one quoted line per row as `field=value …`, or `## <title>: failed — <reason>` |
+| `ping_from_mikrotik` | `device`, `address` (IPv4), `count?` (1–5, default 3), `trace?` → the rows of `/ping` or `/tool/traceroute` run on the device |
+| `get_mikrotik_log` | `device`, `topics?`, `search?`, `limit?` (1–200, default 100) → the newest matching log lines, oldest first |
+
+**Commands** — `services/mikrotik/liveState.js`, a pure module. The state
+commands are a fixed table of `…/print` words with no arguments:
+
+| Check | Commands |
+|---|---|
+| `interfaces` | `/interface/print` |
+| `tunnels` | `/interface/print` (rows kept in code by `type`: `wg`, GRE/IPIP/EoIP, L2TP/SSTP/OVPN/PPTP/PPPoE in and out, `ipsec`, `vxlan`, `zerotier`), `/interface/wireguard/peers/print`, `/ppp/active/print`, `/ip/ipsec/active-peers/print` |
+| `routes` | `/ip/route/print` |
+| `arp` | `/ip/arp/print` |
+| `dhcp` | `/ip/dhcp-server/lease/print` |
+| `resources` | `/system/resource/print` |
+
+Nothing the agent sends reaches a state command. `/ping` and
+`/tool/traceroute` take the validated address and a clamped count
+(`pingWords`, `traceWords`); the log is a plain `/log/print`.
+
+**Session** — `runOnDevice(id, commands)` in `mikrotikSource.js`: one API
+session through `withApiSession` (TLS pin, knock, transit router — as for a
+poll), under the shared `liveLimiter` (`services/mikrotik/liveLimiter.js`),
+which configuration reads use too: two sessions at once, one per transit
+router, a queue of six. `runCommands` sends the commands one at a time:
+
+- a RouterOS error (`!trap`: unknown command, package not installed) is a
+  complete reply — that command is reported as failed and the next one runs;
+- silence (8 s per command, 20 s for ping, 15 s for the log) is not: a late
+  reply would be read as the next command's rows, so nothing else is sent on
+  that session and the remaining commands are reported as not run.
+
+A session that cannot be opened at all is a tool error with the reason
+(`describeLiveError`).
+
+**Rows** — `redactRow(path, row)`: `.id` is dropped; a field is hidden by the
+same `isSecretField` rule as in configurations (`private-key`,
+`preshared-key`, IPsec `auth-key` / `enc-key`, …); script fields become
+`[скрипт скрыт]`; free-text fields (`comment` and the like) go through
+`redactSecrets` and URL credentials are cut, as in configurations; values are
+collapsed to one line. An address that belongs
+to another managed device (`loadAddressBook`: every record's host and
+addresses) is followed by `(= <device name>)`, which is how the agent sees
+which router is on the other end of a tunnel. At most 300 rows per command.
+
+State and the log are cached per device and check for 30 seconds, and reads
+of one device run one after another, so identical concurrent calls cost one
+session; a ping is never cached. The address sent to the device is rebuilt
+from the validated number (`canonicalIp`), not taken from the agent's string;
+a traceroute is limited to 10 hops.
+
+**Ping guard** — `pingTarget(address, { addresses, routes, extra })`. The
+tool first reads the device's `/ip/address`, `/ip/route`, `/ip/dns` and
+WireGuard peers (cached with the state), then allows the target when it
+
+- lies in a connected network or in a route (disabled ones excluded, inactive
+  routes included — a route through a tunnel that is down is exactly what
+  gets checked) with a prefix of `/8` or longer
+  (so a default route, or the `0.0.0.0/1` + `128.0.0.0/1` pair, allows
+  nothing), or
+- is named in the device's own settings: a route gateway, a DNS server, a
+  tunnel peer endpoint.
+
+Anything else — a hostname, IPv6, loopback, multicast, an address outside
+those networks — is refused before a ping is sent, with the reason and the
+device's networks. If the networks cannot be read, the ping is refused. At
+most ten pings per device per minute (in memory, per process).
+
+**Log** — `filterLog`: lines with the `debug` topic are dropped (PPP and
+IPsec debug prints authentication exchanges); the message of a `script` line
+is replaced with `[вывод скрипта скрыт]`; other messages pass through
+`redactSecrets`. Login names and client addresses in ordinary lines
+(`user admin logged in from …`) stay.
+
+**Finding the device for a site** — `list_mikrotik_devices` and
+`get_mikrotik_device` print `location:` — the chain of the inventory
+location of the linked card (up to five levels), its address and the
+subdivisions attached to that location — when the inventory module is on.
+`query` searches those too. Records without a card, or cards without a
+location, print `location: —`; that is normal, and `INSTRUCTIONS.mikrotik`
+tells the agent to fall back to subdivisions, knowledge base notes, device
+names and networks, and to say what it could not find rather than guess.
+
+### Device text is data
+
+Device names, address comments, configuration lines, state rows and log lines
+are written by the device or by whoever configured it. Names and comments are collapsed to one line
+and passed through `maskText`; every configuration line, state row and log line is emitted with the
+`> ` prefix, and `INSTRUCTIONS.mikrotik` tells the agent that quoted lines are
+never orders.
+
+### Known limits
+
+- Redaction was verified on synthetic exports only (see «Tests»): the dev
+  copy has no export files and no decryptable device credentials, so neither
+  a real stored export nor a live read has been run through it yet.
+- `/export hide-sensitive` on RouterOS 6 and plain `/export` on 7 are from
+  RouterOS documentation, not from a live device.
+- A secret embedded in an ordinary field (a password typed into an interface
+  `name`, a token in a URL path or query) is not recognised.
+- Free text is scanned heuristically: a comment such as `winbox admin/Qwerty12`
+  — no keyword beside the token, no special characters — passes.
+- The live-read cache and limits are per process.
+- None of the diagnostic commands has been run against a device: the paths
+  are from RouterOS documentation. A wrong path shows up as a failed check,
+  not as a broken tool.
+- A TCP port cannot be checked: a ping says the 1C host answers, not that the
+  1C service listens.
+- The ping guard is IPv4-only, and a target routed only through a prefix
+  shorter than `/8` is refused.
+- The 30-second state cache and the ping counter are per process.
+
 ## Data protection
 
 Knowledge base and tickets protect contact/secret data through **different**
@@ -573,6 +799,9 @@ inconsistency:
   selected** from the database at all (positive projections — see below),
   and every piece of free text that *is* selected is passed through
   `maskText`.
+- **Mikrotik** — credentials of the record are never selected, and a
+  configuration is redacted by field name and section before it leaves the
+  source (see «Mikrotik tools» → Redaction).
 
 ### Never-selected ticket fields
 
@@ -745,6 +974,12 @@ Added after implementation and live verification:
 | `services/mcp/ticketFormat.test.js` | row/detail/stats text formatting; no contact/secret/file key from any field reaches the text; injected `## …`/`link:` lines from ticket text stay quoted and one-line |
 | `services/mcp/ticketTools.test.js` | all four tools over a fake source: ranking within filters, newest-first without a query, ambiguous-name error, a number matching both `num` and text, works gated by the time-tracking module, similar-with-"how it was solved", a stats table, calendar-day tool errors with their log line, one log line per call, a page past the last one, the candidate-cap note in the header |
 | `services/mcp/ticketSource.test.js` | wiring only — models stubbed via `require.cache` (the `Ticket` stub is shaped exactly like the real `{ Ticket, … }` export, so a broken non-destructured import fails the same way it would live): `findTickets`/`countTickets`/`loadStatsRows` call the right Mongoose method with the given filter; every `select()` string is pinned (ticket search/detail, comments, works, devices, work descriptions) and none may name `htmlDescription`, `realSender`, `attachments` or the legacy `applicant`; `authorId` for a real `ObjectId`, a plain string, and both shapes of the legacy embedded comment snapshot |
+| `services/mikrotik/configRedact.test.js` | one case per secret class (WireGuard private and preshared keys, PPP, IPsec, Wi-Fi v6/v7, CAPsMAN, SNMP, RADIUS, e-mail, users, OSPF, ZeroTier, container env, SIM pin, scripts, an unknown `*-key` field, a token in a comment): the value must not appear in the output; continuation lines, quoted values, public look-alikes, account sections, unparsable lines, section merging |
+| `services/mikrotik/liveConfig.test.js` | cache and expiry, shared in-flight read, a command error is refused and not cached, a failed read is not cached |
+| `services/mcp/mikrotikTools.test.js` | device resolution, list filters, outline / section / search, quoting of every configuration line, truncation, an unreachable device as a tool error, compare defaults and swapped ids, the device card, `diffConfigs` |
+| `services/mikrotik/liveLimiter.test.js` | one session per transit router, the session cap and queue refusal, a failed run frees its slot |
+| `services/mikrotik/liveState.test.js` | every state command is a bare `…/print`; `redactRow`; the ping guard table (networks, routes, named endpoints, non-unicast, IPv6, hostnames, injection text, the default route); bounded ping words; `filterLog`; `runCommands` on a trap and on silence |
+| `services/mcp/mikrotikDiagnostics.test.js` | the three tools over a fake source: sections and quoting, a failed check beside working ones, peer naming, the 30-second cache, allowed and refused ping targets, the ping rate limit, traceroute, unreadable networks, log filters, an unreachable device, an unknown device |
 | `services/mcp/keys.test.js` | `issueMcpKey`/`toKeyRow`/`normalizeScopes`; an issued key is accepted by `requireMcpKey` |
 | `validations/mcpKey.test.js` | name/scopes/`_id` validation for create/update/remove |
 | `middleware/requireMcpKey.test.js` | format/hash lookup/hourly touch/401 paths |

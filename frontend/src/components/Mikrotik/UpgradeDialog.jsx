@@ -45,15 +45,18 @@ const MINUTES_PER_MAJOR_ITEM = 20;
 // Подтверждение обновления прошивки (макет «Обновление прошивки Mikrotik»,
 // экраны 2 и «Телефон · 2»): план с сервера — кто и до чего обновится, кто и
 // почему пропущен; выбор ветки (по умолчанию — как на устройстве) пересчитывает
-// план. Со страницы записи ветка и переход на RouterOS 7 выбраны в секции —
-// lockChannel прячет и переключатель, и чекбокс.
+// план. Со страницы записи (одно устройство, `singleName`) приходит
+// `currentChannel` — ветка устройства: переключатель тогда из двух веток, своя
+// помечена «текущая», а смена ветки предупреждает, что обратно из HD не
+// вернуться. Выбор ветки и переход на RouterOS 7 живут только здесь — секция
+// «Прошивка и безопасность» их больше не дублирует (макет 10.10).
 const UpgradeDialog = ({
   open,
   onOpenChange,
   recordIds,
-  channel: initialChannel = "current",
+  channel: channelProp = "current",
   toV7: initialToV7 = false,
-  lockChannel = false,
+  currentChannel = null,
   singleName = null,
   onStarted,
 }) => {
@@ -65,6 +68,13 @@ const UpgradeDialog = ({
   );
   const showToast = useToastStore((state) => state.showToast);
 
+  const initialChannel = currentChannel || channelProp;
+  const channelOptions = currentChannel
+    ? ["long-term", "stable"].map((value) => ({
+        value,
+        label: value === currentChannel ? `${value} · текущая` : value,
+      }))
+    : CHANNEL_OPTIONS;
   const [channel, setChannel] = useState(initialChannel);
   const [toV7, setToV7] = useState(initialToV7);
   const [plan, setPlan] = useState(null);
@@ -121,7 +131,9 @@ const UpgradeDialog = ({
   // Пока план грузится, в заголовке и на кнопке — сколько выбрали, а не 0
   const shown = plan === null ? recordIds.length : count;
   const majorCount = items.filter((item) => item.majorUpgrade).length;
-  const showV7Toggle = !lockChannel && (hasV6 || toV7);
+  const showV7Toggle = hasV6 || toV7;
+  // Чужая ветка для одного устройства — это переход, а не обновление
+  const switchesBranch = Boolean(currentChannel) && channel !== currentChannel;
   // Тихое окно — подсказка, когда запускать: одно устройство получает плашку,
   // в пакете — строка под названием. Нет данных — нет и подсказки.
   const zone = displayTimeZone();
@@ -174,20 +186,25 @@ const UpgradeDialog = ({
 
   const body = (
     <div className="grid gap-4">
-      {!lockChannel && (
-        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
-          <span className="text-sm font-semibold text-muted-foreground">
-            Ветка
-          </span>
-          <Segmented
-            options={CHANNEL_OPTIONS}
-            value={channel}
-            onChange={setChannel}
-            ariaLabel="Ветка RouterOS"
-            fit
-            className="max-md:w-full"
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+        <span className="text-sm font-semibold text-muted-foreground">
+          Ветка
+        </span>
+        <Segmented
+          options={channelOptions}
+          value={channel}
+          onChange={setChannel}
+          ariaLabel="Ветка RouterOS"
+          fit
+          className="max-md:w-full"
+        />
+      </div>
+      {switchesBranch && !toV7 && (
+        <p className="-mt-2 text-xs text-warning">
+          Устройство перейдёт на ветку {channel} и дальше будет получать её
+          версии. Вернуться обратно из HD не получится: это откат, его делают
+          вручную.
+        </p>
       )}
 
       {showV7Toggle && (
@@ -286,7 +303,9 @@ const UpgradeDialog = ({
             aria-hidden
             className={cn(
               "mt-0.5 flex-none",
-              singleQuiet.current ? "text-accent-text" : "text-muted-foreground",
+              singleQuiet.current
+                ? "text-accent-text"
+                : "text-muted-foreground",
             )}
           />
           <div>
@@ -360,7 +379,8 @@ const UpgradeDialog = ({
 
   const minutes = Math.max(
     MINUTES_PER_ITEM,
-    majorCount * MINUTES_PER_MAJOR_ITEM + (count - majorCount) * MINUTES_PER_ITEM,
+    majorCount * MINUTES_PER_MAJOR_ITEM +
+      (count - majorCount) * MINUTES_PER_ITEM,
   );
   const estimate = `Около ${minutes} минут. Страницу можно закрыть — HD продолжит сам.`;
 

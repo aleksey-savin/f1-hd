@@ -9,10 +9,13 @@ const Preferences = require("@/models/preferences");
 const { resolveTimezone } = require("@/utils/datetime");
 const ticketSource = require("@/services/mcp/ticketSource");
 const { createTicketTools } = require("@/services/mcp/ticketTools");
+const mikrotikSource = require("@/services/mcp/mikrotikSource");
+const { createMikrotikTools } = require("@/services/mcp/mikrotikTools");
+const { createMikrotikDiagnostics } = require("@/services/mcp/mikrotikDiagnostics");
 
 /**
  * Сборка `/api/mcp` из настоящих частей: модель ключей, заметки, заявки,
- * логгер. Контракт маршрута — в routes/mcp.test.js (на заглушках), устройство
+ * Mikrotik, логгер. Контракт маршрута — в routes/mcp.test.js (на заглушках), устройство
  * — в docs/knowledge-base.md «Agent access (MCP)».
  */
 
@@ -29,6 +32,7 @@ const loadContext = async () => {
       knowledgeBase: Boolean(prefs?.modules?.knowledgeBase?.isActive),
       timeTracking: Boolean(prefs?.modules?.timeTracking?.isActive),
       inventory: Boolean(prefs?.modules?.inventory?.isActive),
+      mikrotik: Boolean(prefs?.modules?.mikrotik?.isActive),
     },
     timezone: resolveTimezone(prefs),
     systemAccounts: {
@@ -50,6 +54,10 @@ module.exports = buildMcpRouter({
     tools: {
       knowledge: createKnowledgeTools({ ...knowledgeSource, baseUrl: process.env.ADDRESS, log }),
       tickets: createTicketTools({ source: ticketSource, baseUrl: process.env.ADDRESS, log }),
+      mikrotik: {
+        ...createMikrotikTools({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log }),
+        ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log }),
+      },
     },
     loadContext,
     // Отклонённые SDK запросы (не тот Accept, не JSON) и сбои после ответа

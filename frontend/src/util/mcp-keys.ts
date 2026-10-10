@@ -12,7 +12,14 @@ export type AgentKeysStatus =
 export const MCP_SCOPE_LABELS: Record<McpScope, string> = {
   knowledge: "База знаний",
   tickets: "Заявки",
+  mikrotik: "Mikrotik",
 };
+
+// «а, б и в»
+const joinList = (items: string[]): string =>
+  items.length < 2
+    ? items.join("")
+    : `${items.slice(0, -1).join(", ")} и ${items[items.length - 1]}`;
 
 // Ключи, выданные до появления доступов, в базе без поля `scopes` — читаются
 // как доступ только к базе знаний (то же самое делает бэкенд,
@@ -27,23 +34,27 @@ const orderedScopes = (scopes?: McpScope[] | null): McpScope[] => {
   );
 };
 
-/** «база знаний и заявки» — доступ ключа словами, в строке списка. */
+/** «база знаний, заявки и Mikrotik» — доступ ключа словами, в строке списка. */
 export const scopeAccessLabel = (scopes?: McpScope[] | null): string =>
-  orderedScopes(scopes)
-    .map((scope) => MCP_SCOPE_LABELS[scope].toLowerCase())
-    .join(" и ");
+  joinList(
+    orderedScopes(scopes).map((scope) =>
+      // Имя собственное остаётся с заглавной
+      scope === "mikrotik"
+        ? MCP_SCOPE_LABELS[scope]
+        : MCP_SCOPE_LABELS[scope].toLowerCase(),
+    ),
+  );
 
 // Дательный падеж нужен только для фразы об утрате доступа при удалении.
 const SCOPE_DATIVE: Record<McpScope, string> = {
   knowledge: "базе знаний",
   tickets: "заявкам",
+  mikrotik: "Mikrotik",
 };
 
-/** «к базе знаний и заявкам» — что теряет агент при удалении ключа. */
+/** «к базе знаний, заявкам и Mikrotik» — что теряет агент при удалении ключа. */
 export const scopeLossPhrase = (scopes?: McpScope[] | null): string =>
-  `к ${orderedScopes(scopes)
-    .map((scope) => SCOPE_DATIVE[scope])
-    .join(" и ")}`;
+  `к ${joinList(orderedScopes(scopes).map((scope) => SCOPE_DATIVE[scope]))}`;
 
 /**
  * Одна строка состояния под ключами — самое важное из трёх:
@@ -99,7 +110,7 @@ export const agentKeysStatus = ({
  * `transport` обязателен: без него OpenClaw подключается по sse. Значения
  * экранируются JSON-кавычками — адрес или ключ не могут сломать фрагмент.
  * Имя сервера — `helpdesk`: сервер теперь отдаёт не только базу знаний
- * (`hd-helpdesk`, backend/services/mcp/server.js), но и заявки.
+ * (`hd-helpdesk`, backend/services/mcp/server.js), но и заявки с Mikrotik.
  */
 export const openClawConfig = (endpoint: string, value: string): string =>
   [

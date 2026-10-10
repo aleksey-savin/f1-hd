@@ -98,10 +98,10 @@ up without it; `./deploy.sh logs tg-service` shows why.
 
 ### AI agents (MCP)
 
-AI agents (OpenClaw and other MCP clients) read the knowledge base and tickets
+AI agents (OpenClaw and other MCP clients) read the knowledge base, tickets and Mikrotik devices
 through `${APP_PUBLIC_URL}/api/mcp`. Nothing goes into `.env`: an administrator
 creates a key in Settings, it is shown once, and deleting it revokes access
-immediately. A key carries permissions — «База знаний» and/or «Заявки»; a key
+immediately. A key carries permissions — «База знаний», «Заявки» and/or «Mikrotik»; a key
 stored before permissions existed reads as «База знаний» only. The
 knowledge-base half answers only while that module is on, and only with
 approved notes that have no leak flag; ticket tools have no module gate of

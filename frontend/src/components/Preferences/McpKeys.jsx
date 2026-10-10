@@ -39,7 +39,7 @@ import {
 } from "@/util/mcp-keys";
 
 // «Доступ ИИ-агентов» в секции «Интеграции»: ключи, по которым агенты
-// (OpenClaw) читают базу знаний и заявки по MCP (backend/routes/mcp.js).
+// (OpenClaw) читают базу знаний, заявки и Mikrotik по MCP (backend/routes/mcp.js).
 // Ключ — не только про базу знаний, поэтому блок живёт среди внешних
 // интеграций, а не внутри «База знаний»; отозвать ключ можно всегда, даже с
 // выключенным модулем.
@@ -51,8 +51,8 @@ import {
 //
 // scanForSecrets — черновое значение свитча секции «База знаний»: строка
 // состояния меняется сразу, ещё до сохранения (так же AiRules получает aiOn /
-// feedbackOn). knowledgeModuleOn — сохранённое состояние модуля «База
-// знаний»: с выключенным модулем чекбокс «База знаний» получает предупреждение.
+// feedbackOn). knowledgeModuleOn / mikrotikModuleOn — сохранённое состояние
+// модулей: с выключенным модулем его флажок получает предупреждение.
 
 const copyText = async (text) => {
   try {
@@ -68,10 +68,20 @@ const SCOPE_HINTS = {
   knowledge: "Проверенные заметки без найденных секретов.",
   tickets:
     "Заявки с комментариями, работами и техникой; телефоны, почта и пароли скрыты.",
+  mikrotik:
+    "Устройства, доступность, прошивки и конфигурация — пароли и ключи скрыты.",
+};
+
+// Доступ есть, а читать нечего: модуль выключен.
+const MODULE_OFF_HINTS = {
+  knowledge:
+    "Модуль «База знаний» выключен — пока его не включат, заметки агенту не видны.",
+  mikrotik:
+    "Модуль «Мониторинг Mikrotik» выключен — пока его не включат, устройства агенту не видны.",
 };
 
 // Доступы ключа — одни и те же флажки в «Создать ключ» и «Изменить доступ».
-const ScopeChecks = ({ idPrefix, value, onChange, knowledgeModuleOn }) => (
+const ScopeChecks = ({ idPrefix, value, onChange, modulesOn }) => (
   <div role="group" aria-label="Доступ" className="flex flex-col gap-3">
     {Object.entries(MCP_SCOPE_LABELS).map(([scope, label]) => (
       <label
@@ -94,10 +104,9 @@ const ScopeChecks = ({ idPrefix, value, onChange, knowledgeModuleOn }) => (
           <span className="block text-sm text-muted-foreground">
             {SCOPE_HINTS[scope]}
           </span>
-          {scope === "knowledge" && !knowledgeModuleOn && (
+          {MODULE_OFF_HINTS[scope] && !modulesOn[scope] && (
             <span className="mt-0.5 block text-sm text-warning">
-              Модуль «База знаний» выключен — пока его не включат, заметки
-              агенту не видны.
+              {MODULE_OFF_HINTS[scope]}
             </span>
           )}
         </span>
@@ -106,7 +115,8 @@ const ScopeChecks = ({ idPrefix, value, onChange, knowledgeModuleOn }) => (
   </div>
 );
 
-const McpKeys = ({ scanForSecrets, knowledgeModuleOn }) => {
+const McpKeys = ({ scanForSecrets, knowledgeModuleOn, mikrotikModuleOn }) => {
+  const modulesOn = { knowledge: knowledgeModuleOn, mikrotik: mikrotikModuleOn };
   const showToast = useToastStore((state) => state.showToast);
 
   const [data, setData] = useState(null);
@@ -416,7 +426,7 @@ const McpKeys = ({ scanForSecrets, knowledgeModuleOn }) => {
                   idPrefix="mcp-key-create"
                   value={scopes}
                   onChange={setScopes}
-                  knowledgeModuleOn={knowledgeModuleOn}
+                  modulesOn={modulesOn}
                 />
               </Field>
 
@@ -459,7 +469,7 @@ const McpKeys = ({ scanForSecrets, knowledgeModuleOn }) => {
               onChange={(next) =>
                 setScopeTarget((current) => ({ ...current, scopes: next }))
               }
-              knowledgeModuleOn={knowledgeModuleOn}
+              modulesOn={modulesOn}
             />
           )}
           <DialogFooter>

@@ -1,6 +1,6 @@
 import type { Types } from "mongoose";
 
-/** Ключ ИИ-агента к MCP (база знаний, заявки); значение не хранится, только отпечаток. */
+/** Ключ ИИ-агента к MCP (база знаний, заявки, Mikrotik); значение не хранится, только отпечаток. */
 export interface IMcpKey {
   name: string;
   keyHash: string;
@@ -8,7 +8,7 @@ export interface IMcpKey {
   createdBy?: Types.ObjectId;
   lastUsedAt: Date | null;
   /** У ключей, выданных до появления доступов, поля нет — читаются как `["knowledge"]`. */
-  scopes?: ("knowledge" | "tickets")[];
+  scopes?: ("knowledge" | "tickets" | "mikrotik")[];
   createdAt: Date;
   updatedAt: Date;
 }

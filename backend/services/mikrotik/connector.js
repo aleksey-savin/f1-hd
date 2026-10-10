@@ -947,9 +947,11 @@ const sshExec = (conn, command) =>
   });
 
 // Captures the full running configuration as a .rsc export (text over stdout —
-// nothing is written to the device).
-const exportConfig = async (conn) => {
-  const output = await sshExec(conn, "/export");
+// nothing is written to the device). Backups take the plain `/export`;
+// `hideSensitive` is for the live read served to AI agents on RouterOS 6, which
+// prints secrets unless told otherwise (v7 hides them and rejects the flag).
+const exportConfig = async (conn, { hideSensitive = false } = {}) => {
+  const output = await sshExec(conn, hideSensitive ? "/export hide-sensitive" : "/export");
   if (!output || output.length === 0) {
     throw new Error("Пустой ответ /export — экспорт конфигурации не выполнен");
   }

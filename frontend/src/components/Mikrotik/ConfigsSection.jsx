@@ -30,6 +30,7 @@ import useToastStore from "@/store/toast-store";
 
 import ConfirmDialog from "./ConfirmDialog";
 import { formatSchedule } from "./meta";
+import FoldRow from "./FoldRow";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 import { formatDate } from "../../util/format-date";
 
@@ -168,6 +169,51 @@ const ConfigsSection = ({ recordId, schedule }) => {
 
   const scheduleText = formatSchedule(schedule);
 
+  // Строка копии: дата, «как · где · размер», скачать и удалить.
+  const copyRow = (artifact) => (
+    <div
+      key={artifact.id}
+      className="flex items-center gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0"
+    >
+      {/* Телефон: дата сверху, «как · где · размер» под ней,
+      кнопки крупнее — под палец */}
+      <span className="min-w-0 flex-1 tabular-nums md:truncate">
+        <span className="max-md:block">{formatDate(artifact.createdAt)}</span>
+        <span className="text-faint max-md:block max-md:text-xs">
+          <span className="max-md:hidden"> · </span>
+          {TRIGGER_LABEL[artifact.trigger] || artifact.trigger} ·{" "}
+          {STORAGE_LABEL[artifact.storage] || artifact.storage}
+          <span className="md:hidden"> · {formatBytes(artifact.size)}</span>
+        </span>
+      </span>
+      <span className="w-20 flex-none text-muted-foreground tabular-nums max-md:hidden">
+        {formatBytes(artifact.size)}
+      </span>
+      <span className="flex flex-none gap-1.5">
+        <Button
+          variant="outline"
+          size="icon-sm"
+          title="Скачать (код придёт на почту)"
+          aria-label="Скачать"
+          className="max-md:size-9"
+          onClick={() => startDownload(artifact)}
+        >
+          <RiDownloadLine />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          className="max-md:size-9"
+          title="Удалить копию"
+          aria-label="Удалить копию"
+          onClick={() => setDeleting(artifact)}
+        >
+          <RiDeleteBinLine />
+        </Button>
+      </span>
+    </div>
+  );
+
   return (
     <Section>
       <Eyebrow
@@ -268,65 +314,32 @@ const ConfigsSection = ({ recordId, schedule }) => {
         </div>
 
         {/* Копии */}
-        {artifacts.length === 0
-          ? // С выключенным расписанием то же самое уже сказала плашка выше
-            scheduleText && (
-              <div className="pt-3 text-sm text-faint">
-                Сохранённых копий пока нет — запустите экспорт или включите
-                расписание.
-              </div>
-            )
-          : artifacts.map((artifact) => (
-              <div
-                key={artifact.id}
-                className="flex items-center gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0"
+        {artifacts.length === 0 ? (
+          // С выключенным расписанием то же самое уже сказала плашка выше
+          scheduleText && (
+            <div className="pt-3 text-sm text-faint">
+              Сохранённых копий пока нет — запустите экспорт или включите
+              расписание.
+            </div>
+          )
+        ) : (
+          <>
+            <div>{copyRow(artifacts[0])}</div>
+            {/* Ранние копии свёрнуты: скачивают почти всегда последнюю */}
+            {artifacts.length > 1 && (
+              <FoldRow
+                flush
+                summary="Более ранние копии"
+                count={artifacts.length}
               >
-                {/* Телефон: дата сверху, «как · где · размер» под ней,
-                  кнопки крупнее — под палец */}
-                <span className="min-w-0 flex-1 tabular-nums md:truncate">
-                  <span className="max-md:block">
-                    {formatDate(artifact.createdAt)}
-                  </span>
-                  <span className="text-faint max-md:block max-md:text-xs">
-                    <span className="max-md:hidden"> · </span>
-                    {TRIGGER_LABEL[artifact.trigger] || artifact.trigger} ·{" "}
-                    {STORAGE_LABEL[artifact.storage] || artifact.storage}
-                    <span className="md:hidden">
-                      {" "}
-                      · {formatBytes(artifact.size)}
-                    </span>
-                  </span>
-                </span>
-                <span className="w-20 flex-none text-muted-foreground tabular-nums max-md:hidden">
-                  {formatBytes(artifact.size)}
-                </span>
-                <span className="flex flex-none gap-1.5">
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    title="Скачать (код придёт на почту)"
-                    aria-label="Скачать"
-                    className="max-md:size-9"
-                    onClick={() => startDownload(artifact)}
-                  >
-                    <RiDownloadLine />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    className="max-md:size-9"
-                    title="Удалить копию"
-                    aria-label="Удалить копию"
-                    onClick={() => setDeleting(artifact)}
-                  >
-                    <RiDeleteBinLine />
-                  </Button>
-                </span>
-              </div>
-            ))}
-        <div className="pt-3 text-xs text-faint">
-          Скачивание — по коду из письма, код действует 10 минут.
-        </div>
+                <div>{artifacts.slice(1).map(copyRow)}</div>
+                <div className="pt-3 text-xs text-faint">
+                  Скачивание — по коду из письма, код действует 10 минут.
+                </div>
+              </FoldRow>
+            )}
+          </>
+        )}
       </Panel>
 
       {/* 2FA-диалог скачивания */}

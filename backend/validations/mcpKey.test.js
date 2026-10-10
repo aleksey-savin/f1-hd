@@ -55,6 +55,7 @@ test("remove: only a valid ObjectId passes", async () => {
 
 test("create: scopes are optional but must be known when given", async () => {
   assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw", scopes: ["knowledge", "tickets"] })).errors, []);
+  assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw", scopes: ["mikrotik"] })).errors, []);
   assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw" })).errors, []);
   assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw", scopes: [] })).errors, ["scopes"]);
   assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw", scopes: ["admin"] })).errors, ["scopes"]);

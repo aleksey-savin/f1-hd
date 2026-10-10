@@ -1135,6 +1135,14 @@ Server-side only; the widgets themselves are described in the UX docs.
 
 ## Security model
 
+AI agents can read devices and configurations through the MCP endpoint
+(`mikrotik` key scope): the running configuration is fetched with a read-only
+`/export` and redacted before it leaves the backend. Stored exports are not
+changed by that path. The same scope lets an agent read live state and the log
+and ping from a device, through a fixed list of `print` commands and a guard
+that limits ping targets to the device's own networks and routes. See
+`docs/mcp.md`, «Mikrotik tools».
+
 Connections go **directly over the internet** to each client's port-forwarded
 device (or through a managed router, see _SSH jump host_), so the module is
 hardened in depth:

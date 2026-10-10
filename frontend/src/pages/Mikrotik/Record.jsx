@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 
@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import useToastStore from "@/store/toast-store";
 
 import ConfirmDialog from "../../components/Mikrotik/ConfirmDialog";
+import FoldRow from "../../components/Mikrotik/FoldRow";
 import ActivitySection from "../../components/Mikrotik/ActivitySection";
 import AvailabilitySection from "../../components/Mikrotik/AvailabilitySection";
 import ConfigsSection from "../../components/Mikrotik/ConfigsSection";
@@ -68,6 +69,43 @@ import { plural } from "../../util/plural";
 import { useCan } from "@/store/authed-user";
 
 const dash = <span className="text-faint">—</span>;
+
+// Сколько адресов секция «Сеть» показывает до «Показать все».
+const ADDRESS_LIMIT = 6;
+
+// Строки адресов: на телефоне — адрес и под ним «интерфейс · комментарий»,
+// на десктопе — строка таблицы.
+const addressRows = (addresses) =>
+  addresses.map((address) => (
+    <Fragment key={address._id || address.address}>
+      <div className="border-t border-border-soft py-2 first:border-t-0 md:hidden">
+        <div className="font-mono text-sm wrap-anywhere">{address.address}</div>
+        <div className="text-xs text-faint">
+          {[
+            address.interface,
+            address.comment,
+            address.dynamic === "true" ? "динамический" : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "—"}
+        </div>
+      </div>
+      <div className="flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0 max-md:hidden">
+        <span className="w-44 flex-none font-mono">{address.address}</span>
+        <span className="hidden w-36 flex-none font-mono text-muted-foreground md:block">
+          {address.network}
+        </span>
+        <span className="w-32 flex-none truncate text-muted-foreground">
+          {address.interface}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-faint">
+          {[address.comment, address.dynamic === "true" ? "динамический" : null]
+            .filter(Boolean)
+            .join(" · ") || "—"}
+        </span>
+      </div>
+    </Fragment>
+  ));
 
 const pillClass =
   "mt-2.5 inline-flex max-w-full items-center gap-2 rounded-lg bg-accent px-2.5 py-1.5 text-sm text-muted-foreground no-underline max-md:flex max-md:w-full max-md:py-2";
@@ -651,55 +689,33 @@ const MikrotikRecordPage = () => {
               <>
                 {/* Телефон: вместо таблицы (колонки шире панели) — адрес и
                     под ним «интерфейс · комментарий» */}
-                {activeAddresses.map((address) => (
-                  <div
-                    key={address._id || address.address}
-                    className="border-t border-border-soft py-2 first:border-t-0 md:hidden"
-                  >
-                    <div className="font-mono text-sm wrap-anywhere">
-                      {address.address}
-                    </div>
-                    <div className="text-xs text-faint">
-                      {[
-                        address.interface,
-                        address.comment,
-                        address.dynamic === "true" ? "динамический" : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
-                    </div>
-                  </div>
-                ))}
                 <div className="flex gap-3.5 border-b border-border-soft pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase max-md:hidden">
                   <span className="w-44 flex-none">Адрес</span>
                   <span className="hidden w-36 flex-none md:block">Сеть</span>
                   <span className="w-32 flex-none">Интерфейс</span>
                   <span className="flex-1">Комментарий</span>
                 </div>
-                {activeAddresses.map((address) => (
-                  <div
-                    key={address._id || address.address}
-                    className="flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0 max-md:hidden"
+                {/* Свой контейнер: first:/last: у строк считаются внутри него */}
+                <div>
+                  {addressRows(activeAddresses.slice(0, ADDRESS_LIMIT))}
+                </div>
+                {/* У нагруженных роутеров адресов десятки — хвост свёрнут */}
+                {activeAddresses.length > ADDRESS_LIMIT && (
+                  <FoldRow
+                    flush
+                    summary={`Ещё ${activeAddresses.length - ADDRESS_LIMIT} ${plural(
+                      activeAddresses.length - ADDRESS_LIMIT,
+                      "адрес",
+                      "адреса",
+                      "адресов",
+                    )}`}
+                    count={activeAddresses.length}
                   >
-                    <span className="w-44 flex-none font-mono">
-                      {address.address}
-                    </span>
-                    <span className="hidden w-36 flex-none font-mono text-muted-foreground md:block">
-                      {address.network}
-                    </span>
-                    <span className="w-32 flex-none truncate text-muted-foreground">
-                      {address.interface}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-faint">
-                      {[
-                        address.comment,
-                        address.dynamic === "true" ? "динамический" : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
-                    </span>
-                  </div>
-                ))}
+                    <div>
+                      {addressRows(activeAddresses.slice(ADDRESS_LIMIT))}
+                    </div>
+                  </FoldRow>
+                )}
               </>
             )}
           </Panel>

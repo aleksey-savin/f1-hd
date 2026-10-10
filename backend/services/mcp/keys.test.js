@@ -101,6 +101,7 @@ test("row: a key whose author was deleted shows no author", () => {
 test("scopes: known values in a fixed order, a key without scopes reads knowledge-only", () => {
   assert.deepEqual(normalizeScopes(["tickets", "knowledge", "tickets"]), ["knowledge", "tickets"]);
   assert.deepEqual(normalizeScopes(["tickets", "admin"]), ["tickets"]);
+  assert.deepEqual(normalizeScopes(["mikrotik", "knowledge"]), ["knowledge", "mikrotik"]);
   assert.deepEqual(normalizeScopes(undefined), ["knowledge"]);
   assert.deepEqual(normalizeScopes([]), ["knowledge"]);
 });

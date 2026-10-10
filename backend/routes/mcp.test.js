@@ -11,6 +11,9 @@ const { buildMcpRouter } = require("./mcpRouter");
 const { createMcpRequestHandler } = require("@/services/mcp/server");
 const { createKnowledgeTools } = require("@/services/mcp/knowledgeTools");
 const { createTicketTools } = require("@/services/mcp/ticketTools");
+const { createMikrotikTools } = require("@/services/mcp/mikrotikTools");
+const { createMikrotikDiagnostics } = require("@/services/mcp/mikrotikDiagnostics");
+const { redactConfig } = require("@/services/mikrotik/configRedact");
 const { createRequireMcpKey } = require("@/middleware/requireMcpKey");
 
 /**
@@ -84,7 +87,7 @@ const NOTES = [
   note(4, { title: "VPN черновик", plainText: "VPN", approved: false }),
 ];
 
-const MODULES_ON = { knowledgeBase: true, timeTracking: true, inventory: true };
+const MODULES_ON = { knowledgeBase: true, timeTracking: true, inventory: true, mikrotik: true };
 
 const TICKETS = [
   {
@@ -106,6 +109,35 @@ const ticketSource = {
   loadStatsRows: async (filter) => TICKETS.filter(sift(filter)),
 };
 
+const MIKROTIK_DEVICE = {
+  _id: "66bb00000000000000000001",
+  name: "F1-MSK01",
+  company: "Ромашка",
+  status: "online",
+  host: "203.0.113.7",
+  port: 8729,
+};
+
+const MIKROTIK_SENT = [];
+
+const mikrotikSource = {
+  listDevices: async () => [MIKROTIK_DEVICE],
+  readLiveConfig: async () => ({
+    config: redactConfig('/interface wireguard\nadd name=wg0 private-key="RawPrivateKeyValue="\n'),
+    fetchedAt: 0,
+    cached: false,
+  }),
+  describeLiveError: () => null,
+  loadAddressBook: async () => new Map(),
+  runOnDevice: async (id, commands) =>
+    commands.map(({ title, words }) => {
+      MIKROTIK_SENT.push(words);
+      if (words[0] === "/ip/route/print") return { title, rows: [{ "dst-address": "10.0.0.0/24" }] };
+      if (words[0] === "/ping") return { title, rows: [{ host: "10.0.0.5", status: "", sent: "3", received: "3" }] };
+      return { title, rows: [] };
+    }),
+};
+
 const buildApp = ({
   scopes = ["knowledge"],
   modules = MODULES_ON,
@@ -121,6 +153,10 @@ const buildApp = ({
     log,
   });
   const tickets = createTicketTools({ source, baseUrl: "https://hd.example.ru", log });
+  const mikrotik = {
+    ...createMikrotikTools({ source: mikrotikSource, baseUrl: "https://hd.example.ru", log }),
+    ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: "https://hd.example.ru", log }),
+  };
 
   const router = buildMcpRouter({
     requireKey: createRequireMcpKey({
@@ -132,7 +168,7 @@ const buildApp = ({
       log: () => {},
     }),
     handle: createMcpRequestHandler({
-      tools: { knowledge, tickets },
+      tools: { knowledge, tickets, mikrotik },
       loadContext: async () => ({ modules, timezone: "Asia/Vladivostok", systemAccounts: { unidentifiedId: null, robotIds: [] } }),
       onError: () => {},
       log,
@@ -237,6 +273,56 @@ test("tools follow the key's permissions and the modules", async () => {
     await names({ scopes: ["knowledge", "tickets"], modules: { ...MODULES_ON, knowledgeBase: false } }),
     ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"],
   );
+  const MIKROTIK_TOOLS = [
+    "compare_mikrotik_exports",
+    "get_mikrotik_config",
+    "get_mikrotik_device",
+    "get_mikrotik_log",
+    "get_mikrotik_state",
+    "list_mikrotik_devices",
+    "ping_from_mikrotik",
+  ];
+  assert.deepEqual(await names({ scopes: ["mikrotik"] }), MIKROTIK_TOOLS);
+  assert.deepEqual(
+    await names({ scopes: ["tickets", "mikrotik"], modules: { ...MODULES_ON, mikrotik: false } }),
+    ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"],
+  );
+});
+
+test("diagnostics over MCP: only listed checks and a plain IPv4 address get through the schema", async () => {
+  await withServer(buildApp({ scopes: ["mikrotik"] }), async (base) => {
+    const rejected = (message) => Boolean(message.error || message.result?.isError);
+    const sentBefore = MIKROTIK_SENT.length;
+    assert.ok(rejected(await callTool(base, "get_mikrotik_state", { device: "F1-MSK01", checks: ["users"] })));
+    assert.ok(rejected(await callTool(base, "ping_from_mikrotik", { device: "F1-MSK01", address: "10.0.0.1; /system reboot" })));
+    assert.ok(rejected(await callTool(base, "ping_from_mikrotik", { device: "F1-MSK01", address: "10.0.0.5", count: 100 })));
+    assert.ok(rejected(await callTool(base, "get_mikrotik_log", { device: "F1-MSK01", limit: 5000 })));
+    assert.equal(MIKROTIK_SENT.length, sentBefore);
+
+    const state = toolText(await callTool(base, "get_mikrotik_state", { device: "F1-MSK01", checks: ["routes"] }));
+    assert.match(state, /## Routes \(1 row\)\n> dst-address=10\.0\.0\.0\/24/);
+    const ping = toolText(await callTool(base, "ping_from_mikrotik", { device: "F1-MSK01", address: "10.0.0.5" }));
+    assert.match(ping, /# Ping from F1-MSK01 to 10\.0\.0\.5/);
+    assert.deepEqual(MIKROTIK_SENT.at(-1), ["/ping", "=address=10.0.0.5", "=count=3"]);
+  });
+});
+
+test("a Mikrotik-only key with the Mikrotik module off gets 403", async () => {
+  await withServer(buildApp({ scopes: ["mikrotik"], modules: { ...MODULES_ON, mikrotik: false } }), async (base) => {
+    const { status } = await rpc(base, "initialize", INITIALIZE);
+    assert.equal(status, 403);
+  });
+});
+
+test("a configuration read over MCP hides the private key and rejects unknown arguments", async () => {
+  await withServer(buildApp({ scopes: ["mikrotik"] }), async (base) => {
+    const text = toolText(await callTool(base, "get_mikrotik_config", { device: "F1-MSK01", section: "/interface wireguard" }));
+    assert.match(text, /> add name=wg0 private-key=\[секрет скрыт\]/);
+    assert.ok(!text.includes("RawPrivateKeyValue"));
+
+    const bad = await callTool(base, "get_mikrotik_config", { device: "F1-MSK01", command: "/user print" });
+    assert.ok(bad.error || bad.result?.isError);
+  });
 });
 
 test("a ticket read over MCP masks the phone and links to HD", async () => {

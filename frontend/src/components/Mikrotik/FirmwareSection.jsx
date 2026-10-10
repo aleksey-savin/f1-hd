@@ -1,33 +1,29 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import {
   RiArrowUpCircleLine,
   RiCheckLine,
   RiErrorWarningLine,
-  RiInformationLine,
   RiKey2Line,
   RiLoader4Line,
   RiShieldFlashLine,
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Panel, Eyebrow } from "@/components/app/Panel";
 import PropRow from "@/components/app/PropRow";
-import Segmented from "@/components/app/Segmented";
 import { cn } from "@/lib/utils";
 
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 import { formatDate, formatShortDate } from "../../util/format-date";
+import { plural } from "../../util/plural";
 import FixCommand from "./FixCommand";
+import FoldRow from "./FoldRow";
 import { CHR_SPEED } from "./health-flags.js";
 import UpgradeDialog from "./UpgradeDialog";
 import UpgradeSheet from "./UpgradeSheet";
 import {
   VISIBLE_STEPS,
-  branchTargets,
-  compareVersions,
-  installsLabel,
   stepIndex,
   stepPhrase,
   v7Option,
@@ -76,11 +72,11 @@ const StepBar = ({ current }) => (
   </div>
 );
 
-// Строка «Лицензия» секции (макет «Mikrotik: лицензия и копии», 09.10): уровень
-// и срок, справа — идентификатор, по которому лицензию ищут в аккаунте
-// MikroTik. Она здесь, а не в «Подключении», потому что истёкшая лицензия CHR
-// блокирует именно обновление RouterOS. Норма — одна тихая строка; проблема —
-// янтарное слово в значении и плашка с объяснением. `row.license === null` —
+// Лицензия секции (макет «Mikrotik: лицензия и копии», 09.10): уровень и срок,
+// справа — идентификатор, по которому лицензию ищут в аккаунте MikroTik. Она
+// здесь, а не в «Подключении», потому что истёкшая лицензия CHR блокирует
+// именно обновление RouterOS. Норма — одна тихая строка свойств; проблема —
+// янтарное слово в значении и плашка с объяснением под строками. `null` —
 // лицензия ещё не считана, строки нет.
 const LICENSE_NOTE = {
   expired:
@@ -91,8 +87,9 @@ const LICENSE_NOTE = {
   demo: "Демо-лицензия: RouterOS без ключа работает 24 часа.",
 };
 
-const LicenseRow = ({ license }) => {
-  if (!license) return null;
+// { row, note } — строка свойств и плашка-пояснение (любая может быть null).
+const licenseParts = (license) => {
+  if (!license) return { row: null, note: null };
   const chr = license.kind === "chr";
   const until = license.until ? formatShortDate(license.until) : null;
   const base = chr
@@ -123,66 +120,91 @@ const LicenseRow = ({ license }) => {
     ? license.systemId && { label: "System ID", value: license.systemId }
     : license.softwareId && { label: "Software ID", value: license.softwareId };
 
-  return (
-    <div id="license" className="mt-2 scroll-mt-28">
-      <PropRow
-        icon={<RiKey2Line size={17} />}
-        label="Лицензия"
-        action={
-          id ? (
-            <span className="flex-none text-end max-md:hidden">
-              <span className="block text-xs text-faint">{id.label}</span>
-              <span className="block font-mono text-sm font-medium">
-                {id.value}
+  return {
+    row: (
+      <div id="license" className="scroll-mt-28">
+        <PropRow
+          icon={<RiKey2Line size={17} />}
+          label="Лицензия"
+          action={
+            id ? (
+              <span className="flex-none text-end max-md:hidden">
+                <span className="block text-xs text-faint">{id.label}</span>
+                <span className="block font-mono text-sm font-medium">
+                  {id.value}
+                </span>
               </span>
+            ) : null
+          }
+          copy={id ? { value: id.value, label: id.label } : undefined}
+        >
+          {base}
+          {quietTail && <span className="text-faint"> · {quietTail}</span>}
+          {tail && (
+            <span className="font-semibold text-warning max-md:block max-md:text-xs">
+              <span className="max-md:hidden"> · </span>
+              {tail}
             </span>
-          ) : null
-        }
-        copy={id ? { value: id.value, label: id.label } : undefined}
-      >
-        {base}
-        {quietTail && <span className="text-faint"> · {quietTail}</span>}
-        {tail && (
-          <span className="font-semibold text-warning max-md:block max-md:text-xs">
-            <span className="max-md:hidden"> · </span>
-            {tail}
-          </span>
-        )}
-      </PropRow>
-      {note && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm max-md:flex-wrap max-md:text-xs">
-          <RiErrorWarningLine
-            size={16}
-            className="mt-0.5 flex-none text-warning max-md:hidden"
-            aria-hidden
-          />
-          <div className="min-w-0 flex-1 max-md:basis-full">{note}</div>
-          {chr && (
-            <a
-              href="https://mikrotik.com/client"
-              target="_blank"
-              rel="noreferrer"
-              className="flex-none font-semibold whitespace-nowrap text-accent-text no-underline hover:underline"
-            >
-              Аккаунт MikroTik ↗
-            </a>
           )}
-        </div>
-      )}
-    </div>
-  );
+        </PropRow>
+      </div>
+    ),
+    note: note && (
+      <div className="mt-1 flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm max-md:flex-wrap max-md:text-xs">
+        <RiErrorWarningLine
+          size={16}
+          className="mt-0.5 flex-none text-warning max-md:hidden"
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1 max-md:basis-full">{note}</div>
+        {chr && (
+          <a
+            href="https://mikrotik.com/client"
+            target="_blank"
+            rel="noreferrer"
+            className="flex-none font-semibold whitespace-nowrap text-accent-text no-underline hover:underline"
+          >
+            Аккаунт MikroTik ↗
+          </a>
+        )}
+      </div>
+    ),
+  };
 };
 
-// Секция «Прошивка и безопасность» страницы записи (макет, экраны 5–6):
-// версии и CVE как раньше, плюс обновление из HD — ветка (текущая отмечена,
-// откат погашен), «Обновить до X», ход, результат, ошибка с командой, или
-// подсказка включить обновление в параметрах. Без права — только версии и CVE.
-// Устройство на RouterOS 6 получает чекбокс «Перейти на RouterOS 7» (макет
-// «Переход с RouterOS 6 на 7», борд 9 и «Телефон · 8»): ветки становятся
-// ветками семёрки, путь — через последнюю шестёрку и «7.x». На последней
-// шестёрке (макет «Прошивка уже последняя», борд 14) обновляться внутри v6
-// некуда: остаётся один чекбокс, а ветка, путь и кнопка появляются под ним,
-// когда переход отмечен.
+const CveRow = ({ cve }) => (
+  <div className="flex items-baseline gap-2.5 border-t border-border-soft py-1.5 text-sm first:border-t-0 max-md:flex-wrap max-md:gap-y-0.5 max-md:py-2">
+    <span className="flex-none font-mono">{cve.id}</span>
+    <span
+      className={cn(
+        "flex-none font-semibold whitespace-nowrap",
+        cve.score >= 9 ? "text-destructive" : "text-warning",
+      )}
+    >
+      {cve.score} {cve.severity?.toLowerCase()}
+    </span>
+    <span className="min-w-0 text-muted-foreground max-md:line-clamp-2 max-md:basis-full md:truncate">
+      {cve.description}
+    </span>
+  </div>
+);
+
+/**
+ * Секция «Прошивка и безопасность» страницы записи (макет «Страница устройства
+ * Mikrotik», 10.10). В секции — факты и одна кнопка:
+ *
+ * - шапка: установленная версия с веткой и «Обновить до X» (на последней
+ *   шестёрке — «Перейти на RouterOS 7»);
+ * - одна строка состояния: уязвимости сводкой (список — под «Показать все»),
+ *   доступное обновление или «всё актуально»;
+ * - строки свойств, как в «Подключении»: лицензия, последнее обновление из HD,
+ *   выключенное обновление из HD.
+ *
+ * Выбор ветки, путь версий и переход на RouterOS 7 живут в диалоге обновления:
+ * раньше они стояли здесь же и делали секцию самой тесной на странице, а
+ * диалог умел всё это и так — им обновляют пакет из списка. Идущее обновление
+ * заменяет состояние шагами; без права обновлять — только факты.
+ */
 const FirmwareSection = ({ row, canUpgrade, canManage }) => {
   const releases = useMikrotikDeviceFilterStore((state) => state.releases);
   const fetchReleases = useMikrotikDeviceFilterStore(
@@ -200,16 +222,11 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
   const last = row.lastUpgrade;
   const inBatch = upgrade?.state === "running" || upgrade?.state === "queued";
 
-  const targets = branchTargets({ firmwareStatus: firmware, releases });
   const v7 = v7Option({
     firmwareStatus: firmware,
     releases,
     totalMemory: row.totalMemory,
   });
-  const [channel, setChannel] = useState(
-    firmware?.channel === "stable" ? "stable" : "long-term",
-  );
-  const [toV7, setToV7] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const now = useUpgradeClock(upgrade?.state === "running");
@@ -217,7 +234,7 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
   useEffect(() => {
     fetchReleases();
   }, [fetchReleases]);
-  // Идущий пакет нужен и вне пакета: пока идёт другой, «Обновить до X» гасится.
+  // Идущий пакет нужен и вне пакета: пока идёт другой, кнопка гасится.
   // Пульс (row.pulse) двигается и на шагах пакета — держит его свежим.
   useEffect(() => {
     fetchCurrentUpgrade();
@@ -227,7 +244,7 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
     if (!inBatch) setSheetOpen(false);
   }, [inBatch]);
 
-  // Во время обновления заголовок показывает переход «с → на» (макет, экран 6).
+  // Во время обновления заголовок показывает переход «с → на».
   const runningItem = currentUpgrade?.items?.find(
     (item) => String(item.recordId) === String(row.recordId),
   );
@@ -236,260 +253,106 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
       ? `RouterOS ${runningItem.from.os} → ${runningItem.to.os}`
       : `RouterOS ${firmware?.installedVersion || row.currentFirmware || "—"}`;
 
-  // Переход на RouterOS 7 включён: ветка и цель — семёрки, а не своей ветки.
-  const useV7 = Boolean(v7?.available && toV7);
   // Своя ветка уже на последней версии: из действий — только переход на 7.
   const branchUpToDate = !firmware?.updateAvailable;
   const currentChannel =
     firmware?.channel === "stable" ? "stable" : "long-term";
-  // Последняя шестёрка ещё не стоит — путь перехода идёт через неё.
-  const needsV6Hop = Boolean(
-    v7?.v6Latest &&
-      firmware?.installedVersion &&
-      compareVersions(v7.v6Latest, firmware.installedVersion) > 0,
-  );
-  const v6Target = targets.find((entry) => entry.channel === channel);
-  const v7Target = v7?.targets.find((entry) => entry.channel === channel);
-  const target = useV7 ? v7Target : v6Target;
+  // Последняя шестёрка: дальше — RouterOS 7, диалог откроется с этим флажком.
+  const offerV7 = Boolean(firmware && branchUpToDate && v7?.available);
   // Идёт чужой пакет (это устройство не в нём): сервер ответит 409 — не даём
   // дойти до него.
   const otherUpgradeRunning = Boolean(currentUpgrade) && !inBatch;
-  const canStart =
+  const offline = row.status !== "online" || !row.monitoringEnabled;
+  const showButton =
     canUpgrade &&
     upgrade?.enabled &&
     !inBatch &&
-    !otherUpgradeRunning &&
-    (useV7
-      ? Boolean(v7Target?.version)
-      : v6Target?.version && !v6Target.downgrade && !v6Target.upToDate);
-  const offline = row.status !== "online" || !row.monitoringEnabled;
+    Boolean(firmware) &&
+    (firmware.updateAvailable || offerV7);
+  const blockedReason = otherUpgradeRunning
+    ? "Идёт другое обновление — дождитесь его окончания"
+    : offline
+      ? "Устройство не в сети"
+      : undefined;
 
   // Стабильный список для диалога: новый `[id]` на каждом рендере (тихая
   // ревалидация по пульсу) перезапускал бы его эффект плана.
   const recordIds = useMemo(() => [row.recordId], [row.recordId]);
 
-  const segmentOptions = useV7
-    ? v7.targets.map((entry) => ({
-        value: entry.channel,
-        label: entry.channel,
-        disabled: !entry.version,
-        title: entry.version
-          ? undefined
-          : `Нет данных о версиях ветки ${entry.channel}`,
-      }))
-    : targets.map((entry) => ({
-        value: entry.channel,
-        label: entry.current ? `${entry.channel} · текущая` : entry.channel,
-        disabled: entry.downgrade,
-        title: entry.downgrade
-          ? `Это откат с ${firmware.installedVersion} на ${entry.version} — из HD не делается`
-          : undefined,
-      }));
+  const cves = firmware?.vulnerable ? firmware.cves : [];
+  // Самая опасная — первой и в сводке
+  const sortedCves = [...cves].sort((a, b) => b.score - a.score);
+  const worst = sortedCves[0];
 
-  // Путь перехода: установленная → последняя шестёрка (если она ещё не стоит)
-  // → 7.x (версия ветки upgrade заранее неизвестна) → цель.
-  const v7Path = useV7
-    ? [
-        firmware.installedVersion,
-        ...(needsV6Hop ? [v7.v6Latest] : []),
-        "7.x",
-        v7Target?.version || "—",
-      ]
-    : null;
-
-  // Подпись под чекбоксом перехода. На телефоне чекбокс стоит над
-  // переключателем ветки (max-md:order-first ниже) — «выше» там было бы
-  // неправдой.
-  let v7Hint = null;
-  if (v7 && !v7.available) {
-    v7Hint = v7.reason;
-  } else if (v7 && useV7) {
-    v7Hint = needsV6Hop
-      ? `Сначала до ${v7.v6Latest}, затем на RouterOS 7 и до последней версии выбранной ветки.`
-      : "На RouterOS 7 и до последней версии выбранной ветки.";
-  } else if (v7 && branchUpToDate) {
-    v7Hint = "Новее в RouterOS 6 ничего нет — дальше только переход.";
-  } else if (v7) {
-    v7Hint = (
-      <>
-        {v7.v6Latest} — последняя версия RouterOS 6.{" "}
-        <span className="max-md:hidden">
-          Ветка выше применится к RouterOS 7.
-        </span>
-        <span className="md:hidden">Ветка ниже применится к RouterOS 7.</span>
-      </>
-    );
-  }
-
-  const showActionRow = !branchUpToDate || useV7;
-
-  const controls = canUpgrade &&
-    upgrade?.enabled &&
-    !inBatch &&
-    targets.length > 0 && (
-      <>
-        {/* Колонка: ряд действий, чекбокс перехода, подпись. На телефоне
-            чекбокс идёт первым (макет «Телефон · 8»); на последней шестёрке —
-            везде первым, а ряд появляется под ним, только когда переход
-            отмечен (борд 14): «6.49.22 → 6.49.22» и погашенная кнопка ничего
-            не предлагали. */}
-        <div className="mt-3 flex flex-col border-t border-border pt-3.5">
-          {showActionRow && (
-            <div
-              className={cn(
-                "flex flex-wrap items-center gap-3.5 max-md:flex-col max-md:items-stretch",
-                branchUpToDate && "mt-3",
-              )}
+  const license = licenseParts(row.license);
+  const lastRow = last?.state === "done" && (
+    <PropRow
+      icon={<RiArrowUpCircleLine size={17} />}
+      label="Последнее обновление из HD"
+    >
+      <span className="tabular-nums">{formatDate(last.finishedAt)}</span> ·{" "}
+      <span className="font-mono text-sm">{versionLine(last)}</span>
+      {last.by && <span className="text-faint"> · {last.by}</span>}
+    </PropRow>
+  );
+  const disabledRow = canUpgrade &&
+    !upgrade?.enabled &&
+    firmware?.updateAvailable && (
+      <PropRow
+        icon={<RiArrowUpCircleLine size={17} />}
+        label="Обновление из HD"
+      >
+        Выключено
+        {canManage && (
+          <>
+            <span className="font-normal"> · </span>
+            <Link
+              to="update"
+              className="font-semibold text-accent-text no-underline hover:underline"
             >
-              <Segmented
-                options={segmentOptions}
-                value={channel}
-                onChange={setChannel}
-                ariaLabel={useV7 ? "Ветка RouterOS 7" : "Ветка RouterOS"}
-                fit
-              />
-              {v7Path ? (
-                <span className="flex flex-wrap items-center gap-1.5 font-mono text-sm text-muted-foreground max-md:text-xs">
-                  {v7Path.map((version, index) => (
-                    <Fragment key={`${index}-${version}`}>
-                      {index > 0 && <span className="text-faint">→</span>}
-                      <span
-                        className={
-                          index === v7Path.length - 1
-                            ? "font-semibold text-foreground"
-                            : undefined
-                        }
-                      >
-                        {version}
-                      </span>
-                    </Fragment>
-                  ))}
-                </span>
-              ) : (
-                target?.version && (
-                  <span className="font-mono text-sm text-muted-foreground max-md:hidden">
-                    {firmware.installedVersion} → {target.version}
-                  </span>
-                )
-              )}
-              <span className="flex-1 max-md:hidden" />
-              <Button
-                onClick={() => setDialogOpen(true)}
-                disabled={!canStart || offline}
-                title={
-                  otherUpgradeRunning
-                    ? "Идёт другое обновление — дождитесь его окончания"
-                    : offline
-                      ? "Устройство не в сети"
-                      : useV7
-                        ? v7Target?.version
-                          ? undefined
-                          : `Нет данных о версиях ветки ${channel}`
-                        : target?.upToDate
-                          ? v7?.available
-                            ? "Уже последняя версия RouterOS 6 — отметьте «Перейти на RouterOS 7»"
-                            : "Уже актуальная версия ветки"
-                          : undefined
-                }
-              >
-                <RiArrowUpCircleLine />
-                {target?.version ? `Обновить до ${target.version}` : "Обновить"}
-              </Button>
-            </div>
-          )}
-          {v7 && (
-            <label
-              className={cn(
-                "flex items-start gap-2.5",
-                branchUpToDate
-                  ? "order-first"
-                  : "mt-3 max-md:order-first max-md:mt-0 max-md:mb-3",
-                v7.available ? "cursor-pointer" : "cursor-not-allowed",
-              )}
-            >
-              <Checkbox
-                checked={useV7}
-                disabled={!v7.available}
-                onCheckedChange={(value) => {
-                  setToV7(value === true);
-                  // Ряд прячется вместе с чекбоксом — выбранная для семёрки
-                  // ветка не должна остаться «переходом на stable» без ряда
-                  if (value !== true && branchUpToDate) {
-                    setChannel(currentChannel);
-                  }
-                }}
-                className="mt-0.5"
-              />
-              <span className="min-w-0">
-                <span
-                  className={cn(
-                    "block text-sm font-medium",
-                    !v7.available && "text-faint",
-                  )}
-                >
-                  Перейти на RouterOS 7
-                </span>
-                <span className="text-xs text-faint">{v7Hint}</span>
-              </span>
-            </label>
-          )}
-          {useV7 ? (
-            <div className="mt-2.5 flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm max-md:text-xs">
-              <RiErrorWarningLine
-                size={16}
-                className="mt-0.5 flex-none text-warning max-md:hidden"
-                aria-hidden
-              />
-              <div>
-                {/* Установок столько, сколько переходов в пути: три, или две
-                    с последней шестёрки; перезагрузок — до четырёх. */}
-                Переход на RouterOS 7 — большое обновление:{" "}
-                {installsLabel(v7Path.length - 1)} и до четырёх перезагрузок,
-                около 20 минут. Конфигурация конвертируется автоматически —
-                после проверьте маршрутизацию (OSPF, BGP). Вернуть устройство на
-                RouterOS 6 из HD нельзя.
-              </div>
-            </div>
-          ) : v6Target && !v6Target.current ? (
-            <div className="mt-2 text-xs text-warning">
-              Устройство перейдёт на ветку {v6Target.channel} и дальше будет
-              получать её версии. Вернуться обратно из HD не получится: это
-              откат, его делают вручную.
-            </div>
-          ) : v7 ? null : (
-            <div className="mt-2 text-xs text-faint">
-              RouterBOOT обновится следом · две перезагрузки, около 5 минут ·
-              перед обновлением сохраним копию конфигурации
-            </div>
-          )}
-        </div>
-        <UpgradeDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          recordIds={recordIds}
-          channel={channel}
-          toV7={useV7}
-          lockChannel
-          singleName={row.displayName}
-          onStarted={() => fetchCurrentUpgrade()}
-        />
-      </>
+              Включить в параметрах
+            </Link>
+          </>
+        )}
+      </PropRow>
     );
+  const left = [disabledRow, license.row].filter(Boolean);
+  const right = [lastRow].filter(Boolean);
+  const hasFacts = left.length + right.length > 0;
 
   return (
     <>
       <Eyebrow id="firmware">Прошивка и безопасность</Eyebrow>
       <Panel>
-        <div className="text-base">
-          <span className="font-mono font-semibold">{heading}</span>
-          {firmware?.channel && (
-            <span className="text-faint"> · ветка {firmware.channel}</span>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+          <div className="font-mono text-lg font-semibold tracking-tight">
+            {heading}
+            {firmware?.channel && (
+              <span className="font-sans text-sm font-normal tracking-normal text-faint">
+                {" "}
+                · ветка {firmware.channel}
+              </span>
+            )}
+          </div>
+          {showButton && (
+            <Button
+              variant={firmware.updateAvailable ? "default" : "outline"}
+              onClick={() => setDialogOpen(true)}
+              disabled={Boolean(blockedReason)}
+              title={blockedReason}
+              className="max-md:w-full"
+            >
+              <RiArrowUpCircleLine />
+              {firmware.updateAvailable
+                ? `Обновить до ${firmware.latestVersion}`
+                : "Перейти на RouterOS 7"}
+            </Button>
           )}
         </div>
 
         {inBatch ? (
           <>
-            <div className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-info-text">
+            <div className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-info-text">
               <RiLoader4Line size={15} className="animate-spin" aria-hidden />
               {upgrade.state === "queued"
                 ? "В очереди пакета обновления"
@@ -523,47 +386,78 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
             />
           </>
         ) : !firmware ? (
-          <>
-            <div className="mt-1.5 text-sm text-faint">
-              Версия прошивки ещё не считана.
-            </div>
-            <LicenseRow license={row.license} />
-          </>
+          <div className="mt-2 text-sm text-faint">
+            Версия прошивки ещё не считана.
+          </div>
         ) : (
           <>
-            {firmware.vulnerable ? (
+            {last?.state === "failed" && firmware.updateAvailable && (
+              <div className="mt-2">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-destructive">
+                  <RiErrorWarningLine size={15} aria-hidden />
+                  Обновление не удалось {formatDate(last.finishedAt)}
+                </div>
+                {last.error && <p className="mt-1 text-sm">{last.error}</p>}
+                {last.fix && (
+                  <FoldRow
+                    summary="Команда, которая это исправляет"
+                    label="Показать"
+                  >
+                    <FixCommand command={last.fix} />
+                  </FoldRow>
+                )}
+              </div>
+            )}
+
+            {worst ? (
               <>
-                <div className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-warning">
-                  <RiShieldFlashLine size={15} aria-hidden />
-                  {firmware.cves.length === 1
-                    ? "1 уязвимость"
-                    : `Уязвимости: ${firmware.cves.length}`}{" "}
-                  · исправлены в {firmware.latestVersion}
+                <div className="mt-2 flex items-start gap-1.5 text-sm font-semibold text-warning">
+                  <RiShieldFlashLine
+                    size={15}
+                    aria-hidden
+                    className="mt-0.5 flex-none"
+                  />
+                  <span>
+                    {cves.length}{" "}
+                    {plural(
+                      cves.length,
+                      "уязвимость",
+                      "уязвимости",
+                      "уязвимостей",
+                    )}
+                    , до {worst.score} {worst.severity?.toLowerCase()} ·{" "}
+                    {plural(
+                      cves.length,
+                      "исправлена",
+                      "исправлены",
+                      "исправлены",
+                    )}{" "}
+                    в {firmware.latestVersion}
+                  </span>
                 </div>
-                <div className="mt-1.5">
-                  {firmware.cves.map((cve) => (
-                    <div
-                      key={cve.id}
-                      className="flex items-baseline gap-2.5 border-t border-border-soft py-1.5 text-sm first:border-t-0 max-md:flex-wrap max-md:gap-y-0.5 max-md:py-2"
-                    >
-                      <span className="flex-none font-mono">{cve.id}</span>
-                      <span
-                        className={cn(
-                          "flex-none font-semibold whitespace-nowrap",
-                          cve.score >= 9 ? "text-destructive" : "text-warning",
-                        )}
-                      >
-                        {cve.score} {cve.severity?.toLowerCase()}
-                      </span>
-                      <span className="min-w-0 text-muted-foreground max-md:line-clamp-2 max-md:basis-full md:truncate">
-                        {cve.description}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                {/* Одна уязвимость видна сразу; список — под «Показать все» */}
+                {cves.length === 1 ? (
+                  <div className="mt-1.5">
+                    <CveRow cve={worst} />
+                  </div>
+                ) : (
+                  <FoldRow
+                    summary={
+                      <>
+                        Самая опасная:{" "}
+                        <span className="font-mono">{worst.id}</span>
+                      </>
+                    }
+                    count={cves.length}
+                  >
+                    {sortedCves.map((cve) => (
+                      <CveRow key={cve.id} cve={cve} />
+                    ))}
+                  </FoldRow>
+                )}
               </>
             ) : firmware.updateAvailable ? (
-              <div className="mt-1.5 text-sm text-muted-foreground">
+              <div className="mt-2 text-sm text-muted-foreground">
                 Доступно обновление до{" "}
                 <span className="font-mono font-semibold text-foreground">
                   {firmware.latestVersion}
@@ -579,58 +473,57 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
                 </a>
               </div>
             ) : (
-              <div className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-                <RiCheckLine size={15} className="text-primary" aria-hidden />
-                Актуальная версия ветки. Известных уязвимостей выше порога из
-                настроек нет.
+              <div className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
+                <RiCheckLine
+                  size={15}
+                  className="mt-0.5 flex-none text-primary"
+                  aria-hidden
+                />
+                <span>
+                  {v7
+                    ? "Последняя версия RouterOS 6. Новее только RouterOS 7."
+                    : "Актуальная версия ветки. Известных уязвимостей выше порога из настроек нет."}
+                  {/* Перейти нельзя (мало памяти, объём не считан) — почему */}
+                  {v7 && !v7.available && (
+                    <span className="block text-xs text-faint">
+                      {v7.reason}
+                    </span>
+                  )}
+                </span>
               </div>
             )}
-
-            <LicenseRow license={row.license} />
-
-            {last?.state === "done" && !firmware.updateAvailable && (
-              <div className="mt-2 text-xs text-faint">
-                Обновлено из HD {formatDate(last.finishedAt)}:{" "}
-                {versionLine(last)}
-                {last.by ? ` · ${last.by}` : ""}
-              </div>
-            )}
-
-            {last?.state === "failed" && firmware.updateAvailable && (
-              <div className="mt-3 border-t border-border pt-3">
-                <div className="flex items-center gap-1.5 text-sm font-semibold text-destructive">
-                  <RiErrorWarningLine size={15} aria-hidden />
-                  Обновление не удалось {formatDate(last.finishedAt)}
-                </div>
-                {last.error && <p className="mt-1 text-sm">{last.error}</p>}
-                {last.fix && (
-                  <div className="mt-2">
-                    <FixCommand command={last.fix} />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {canUpgrade && !upgrade?.enabled && firmware.updateAvailable && (
-              <div className="mt-3 flex items-center gap-1.5 border-t border-border pt-3 text-sm text-muted-foreground">
-                <RiInformationLine size={15} aria-hidden />
-                Обновление из HD для этого устройства выключено.
-                {canManage && (
-                  <Link
-                    to="update"
-                    className="font-semibold text-accent-text no-underline hover:underline"
-                  >
-                    Включить в параметрах подключения
-                  </Link>
-                )}
-              </div>
-            )}
-
-            {/* Устройство на последней шестёрке: внутри v6 ставить нечего, но
-                переход на RouterOS 7 — с этой же страницы: блок остаётся одним
-                чекбоксом (борд 14). */}
-            {(firmware.updateAvailable || Boolean(v7?.available)) && controls}
           </>
+        )}
+
+        {!inBatch && hasFacts && (
+          <div className="mt-3.5 border-t border-border pt-1">
+            <div className="grid gap-x-8 md:grid-cols-2">
+              <div>{left}</div>
+              {/* Телефон: вторая колонка продолжает первую одной чертой */}
+              <div
+                className={cn(
+                  left.length > 0 &&
+                    right.length > 0 &&
+                    "max-md:border-t max-md:border-border-soft",
+                )}
+              >
+                {right}
+              </div>
+            </div>
+            {license.note}
+          </div>
+        )}
+
+        {showButton && (
+          <UpgradeDialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            recordIds={recordIds}
+            currentChannel={currentChannel}
+            toV7={offerV7}
+            singleName={row.displayName}
+            onStarted={() => fetchCurrentUpgrade()}
+          />
         )}
       </Panel>
     </>

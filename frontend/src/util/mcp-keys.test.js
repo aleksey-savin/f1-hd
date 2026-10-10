@@ -105,6 +105,8 @@ test("scopeAccessLabel lists scopes in canonical order, lowercase, joined with �
   assert.equal(scopeAccessLabel(["tickets", "knowledge"]), "база знаний и заявки");
   assert.equal(scopeAccessLabel(["knowledge"]), "база знаний");
   assert.equal(scopeAccessLabel(["tickets"]), "заявки");
+  assert.equal(scopeAccessLabel(["mikrotik", "tickets", "knowledge"]), "база знаний, заявки и Mikrotik");
+  assert.equal(scopeAccessLabel(["mikrotik"]), "Mikrotik");
 });
 
 test("scopeAccessLabel defaults missing or empty scopes to knowledge-only", () => {
@@ -115,6 +117,7 @@ test("scopeAccessLabel defaults missing or empty scopes to knowledge-only", () =
 test("scopeLossPhrase names what a deleted key's agent loses", () => {
   assert.equal(scopeLossPhrase(["knowledge", "tickets"]), "к базе знаний и заявкам");
   assert.equal(scopeLossPhrase(["tickets"]), "к заявкам");
+  assert.equal(scopeLossPhrase(["knowledge", "tickets", "mikrotik"]), "к базе знаний, заявкам и Mikrotik");
   assert.equal(scopeLossPhrase(["knowledge"]), "к базе знаний");
 });
 

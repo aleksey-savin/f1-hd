@@ -1,9 +1,9 @@
-// Ключи ИИ-агентов к MCP (база знаний, заявки) — ответы
+// Ключи ИИ-агентов к MCP (база знаний, заявки, Mikrotik) — ответы
 // `/api/preferences/mcp-keys` (backend/controllers/mcpKey.js). Значение ключа
 // приходит один раз — в ответе на создание; в списке его нет, как и отпечатка.
 
-/** Доступы ключа: база знаний и/или заявки (совпадает с backend MCP_SCOPES). */
-export type McpScope = "knowledge" | "tickets";
+/** Доступы ключа: база знаний, заявки, Mikrotik (совпадает с backend MCP_SCOPES). */
+export type McpScope = "knowledge" | "tickets" | "mikrotik";
 
 export type McpKeyRow = {
   _id: string;
