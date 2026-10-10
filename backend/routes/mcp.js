@@ -9,6 +9,8 @@ const Preferences = require("@/models/preferences");
 const { resolveTimezone } = require("@/utils/datetime");
 const ticketSource = require("@/services/mcp/ticketSource");
 const { createTicketTools } = require("@/services/mcp/ticketTools");
+const directorySource = require("@/services/mcp/directorySource");
+const { createDirectoryTools } = require("@/services/mcp/directoryTools");
 const mikrotikSource = require("@/services/mcp/mikrotikSource");
 const { createMikrotikTools } = require("@/services/mcp/mikrotikTools");
 const { createMikrotikChangeTools, mongoChangeStore } = require("@/services/mcp/mikrotikChangeTools");
@@ -57,6 +59,7 @@ module.exports = buildMcpRouter({
     tools: {
       knowledge: createKnowledgeTools({ ...knowledgeSource, baseUrl: process.env.ADDRESS, log }),
       tickets: createTicketTools({ source: ticketSource, baseUrl: process.env.ADDRESS, log }),
+      directory: createDirectoryTools({ source: directorySource, log }),
       mikrotik: {
         ...createMikrotikTools({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log }),
         ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log }),

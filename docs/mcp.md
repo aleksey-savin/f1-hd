@@ -106,6 +106,8 @@ Tools never read `Preferences` themselves. `toolFamilies({ scopes, modules })`
 knowledge = scopes.includes("knowledge") && Boolean(modules.knowledgeBase);
 tickets   = scopes.includes("tickets");   // no module gate — tickets are core
 mikrotik  = scopes.includes("mikrotik") && Boolean(modules.mikrotik);
+companies = scopes.includes("companies");
+users = scopes.includes("users");
 mikrotikChanges = scopes.includes("mikrotikChanges") && Boolean(modules.mikrotik);
 ```
 
@@ -176,7 +178,7 @@ audience (`.superpowers/sdd/2026-09-17-mcp-tickets/progress.md`, Task 9).
 Collection `mcpkeys`: `name` (required, trimmed, ≤100), `keyHash` (sha256,
 `select: false`, unique index), `keyTail` (last 4 characters, for display),
 `createdBy → User`, `lastUsedAt` (`Date`, default `null`), `scopes`
-(`["knowledge" | "tickets" | "mikrotik" | "mikrotikChanges"]`, default `["knowledge"]`), timestamps. The key
+(`["knowledge" | "tickets" | "companies" | "users" | "mikrotik" | "mikrotikChanges"]`, default `["knowledge"]`), timestamps. The key
 value itself is **never stored** — only its hash and tail.
 
 `services/mcp/keys.js`:
@@ -184,7 +186,7 @@ value itself is **never stored** — only its hash and tail.
 - `issueMcpKey()` — `generateMcpKey()` (`hd_mcp_` + 64 hex,
   `utils/apiKeyGenerator.js`) plus its sha256 (`keyHash`) and last-4
   (`keyTail`). The plaintext value exists only in the create response.
-- `MCP_SCOPES = ["knowledge", "tickets", "mikrotik", "mikrotikChanges"]` (frozen, this exact order).
+- `MCP_SCOPES = ["knowledge", "tickets", "companies", "users", "mikrotik", "mikrotikChanges"]` (frozen, this exact order).
 - `normalizeScopes(scopes)` — filters an arbitrary array down to known scopes
   in `MCP_SCOPES` order; an empty, missing or all-unknown input becomes
   `["knowledge"]`. This is what makes a key stored before `scopes` existed
@@ -561,6 +563,40 @@ resolution).
 
 Rendered as a Markdown table (`ticketFormat.js#formatStats`):
 `| <groupBy> | tickets | open | closed | median hours to close | share |`.
+
+## Directory tools
+
+Two read-only tools (`services/mcp/directoryTools.js`), each behind its own key
+scope and with no module switch: `list_companies` needs `companies`,
+`list_users` needs `users`. They exist so an agent can check that a company
+exists and that a person works in it before acting on a request such as
+"remote access for Pukhova at Avtogarant".
+
+**What leaves `directorySource.js`.** The source is the only reader of the
+models and returns a positive projection, so the tool has nothing to leak:
+
+- company: `alias`, `fullTitle`, `isActive`; subdivision: `name`, company id;
+- user: first and last name, `position`, `isEndUser`, company and subdivision
+  ids, and three derived flags — `isSystem` (service account or cloud
+  telephony), `isBlocked` (`isBanned(user)`, so a ban with an expired term is
+  not a ban) and `telegramLinked` (bot active and a chat id present).
+
+E-mail, phone, the Telegram chat id, addresses, map links and company
+requisites are never selected. Names and positions are personal data that
+tickets already give the agent (`personLabel`); nothing beyond them is added.
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `list_companies` | `query?` (part of alias or full title), `status?` (`active` default, `inactive`, `any`), `limit?` (1-200, default 50) | Sorted by alias: alias, full title when it differs, `active`/`inactive`, `people: N` (not blocked, not system), subdivisions |
+| `list_users` | `query?` (words of the name or position), `company?` (resolved with `resolveByName`: none or several matches is an error result with the options), `kind?` (`client`, `staff`, `any` default), `status?` (`active` default, `blocked`, `any`), `limit?` | Sorted by name: name, company, subdivision, position, `client`/`staff`, `active`/`blocked`, `Telegram linked: yes/no` |
+
+Rules: system accounts (`isSystem`, the unidentified sender and the robot
+applicants from the request context) are never listed; search ignores case and
+`ё`/`е`; an empty result is a normal answer, not an error; a truncated list
+says so. Every cell is single-lined, cut to 120 characters and has `·`
+replaced, because names are written by people; the answer ends with a line
+saying they are data, and `INSTRUCTIONS.directoryData` repeats it. The call
+log carries counts and filters, never the query text.
 
 ## Mikrotik tools
 

@@ -14,6 +14,7 @@ const { createTicketTools } = require("@/services/mcp/ticketTools");
 const { createMikrotikTools } = require("@/services/mcp/mikrotikTools");
 const { createMikrotikDiagnostics } = require("@/services/mcp/mikrotikDiagnostics");
 const { createMikrotikChangeTools } = require("@/services/mcp/mikrotikChangeTools");
+const { createDirectoryTools } = require("@/services/mcp/directoryTools");
 const { redactConfig } = require("@/services/mikrotik/configRedact");
 const { createRequireMcpKey } = require("@/middleware/requireMcpKey");
 
@@ -168,6 +169,16 @@ const buildApp = ({
     ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: "https://hd.example.ru", log }),
   };
 
+  const directory = createDirectoryTools({
+    source: {
+      loadCompanies: async () => ({ companies: [{ _id: "c1", alias: "Автогарант", fullTitle: "ООО «Автогарант»", isActive: true }], subdivisions: [] }),
+      loadUsers: async () => [
+        { _id: "u1", firstName: "Анна", lastName: "Пухова", position: "Бухгалтер", isEndUser: true, isSystem: false, companyId: "c1", subdivisionId: null, isBlocked: false, telegramLinked: false },
+      ],
+    },
+    log,
+  });
+
   const mikrotikChanges = createMikrotikChangeTools({
     proposals: { propose: async (input) => (PROPOSED.push(input), { ok: false, error: "stub refusal" }) },
     store: changeStore,
@@ -185,7 +196,7 @@ const buildApp = ({
       log: () => {},
     }),
     handle: createMcpRequestHandler({
-      tools: { knowledge, tickets, mikrotik, mikrotikChanges },
+      tools: { knowledge, tickets, directory, mikrotik, mikrotikChanges },
       loadContext: async () => ({ modules, timezone: "Asia/Vladivostok", systemAccounts: { unidentifiedId: null, robotIds: [] } }),
       onError: () => {},
       log,
@@ -304,6 +315,28 @@ test("tools follow the key's permissions and the modules", async () => {
     await names({ scopes: ["tickets", "mikrotik"], modules: { ...MODULES_ON, mikrotik: false } }),
     ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"],
   );
+});
+
+test("directory tools: each list needs its own scope; the call answers without contacts", async () => {
+  const names = async (options) =>
+    withServer(buildApp(options), async (base) =>
+      (await rpc(base, "tools/list", {})).message.result.tools.map((tool) => tool.name).sort(),
+    );
+  assert.deepEqual(await names({ scopes: ["companies"] }), ["list_companies"]);
+  assert.deepEqual(await names({ scopes: ["users"] }), ["list_users"]);
+  assert.deepEqual(await names({ scopes: ["companies", "users"] }), ["list_companies", "list_users"]);
+  const others = await names({ scopes: ["knowledge", "tickets", "mikrotik", "mikrotikChanges"] });
+  assert.ok(!others.includes("list_companies") && !others.includes("list_users"));
+
+  await withServer(buildApp({ scopes: ["users"] }), async (base) => {
+    const init = await rpc(base, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } });
+    assert.match(init.message.result.instructions, /list_users/);
+    assert.ok(!init.message.result.instructions.includes("list_companies"));
+    const call = await rpc(base, "tools/call", { name: "list_users", arguments: { query: "пухова", company: "Автогарант" } });
+    assert.match(call.message.result.content[0].text, /Пухова Анна · company: Автогарант · position: Бухгалтер · client · active · Telegram linked: no/);
+    const denied = await rpc(base, "tools/call", { name: "list_companies", arguments: {} });
+    assert.ok(denied.message.error || denied.message.result.isError, "без доступа «Компании» инструмента нет");
+  });
 });
 
 const CHANGE_TOOLS = ["get_mikrotik_change", "list_mikrotik_changes", "propose_mikrotik_change"];

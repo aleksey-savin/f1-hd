@@ -12,6 +12,8 @@ export type AgentKeysStatus =
 export const MCP_SCOPE_LABELS: Record<McpScope, string> = {
   knowledge: "База знаний",
   tickets: "Заявки",
+  companies: "Компании",
+  users: "Пользователи",
   mikrotik: "Mikrotik",
   mikrotikChanges: "Изменения Mikrotik",
 };
@@ -51,6 +53,8 @@ export const scopeAccessLabel = (scopes?: McpScope[] | null): string =>
 const SCOPE_DATIVE: Record<McpScope, string> = {
   knowledge: "базе знаний",
   tickets: "заявкам",
+  companies: "компаниям",
+  users: "пользователям",
   mikrotik: "Mikrotik",
   mikrotikChanges: "изменениям Mikrotik",
 };

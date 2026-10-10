@@ -109,6 +109,13 @@ test("scopeAccessLabel lists scopes in canonical order, lowercase, joined with �
   assert.equal(scopeAccessLabel(["mikrotik"]), "Mikrotik");
 });
 
+test("scopeAccessLabel puts companies and users between tickets and Mikrotik", () => {
+  assert.equal(
+    scopeAccessLabel(["mikrotik", "users", "companies", "tickets"]),
+    "заявки, компании, пользователи и Mikrotik",
+  );
+});
+
 test("scopeAccessLabel names the change-requests scope after Mikrotik", () => {
   assert.equal(
     scopeAccessLabel(["knowledge", "mikrotik", "mikrotikChanges"]),
