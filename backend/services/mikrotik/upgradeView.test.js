@@ -15,10 +15,10 @@ test("job counts and the log tail", () => {
       { _id: "d", mikrotik: "m4", name: "D", state: "queued", log: [] },
     ],
   };
-  const out = publicJob(job, { _id: "u", firstName: "Алексей", lastName: "Савин" });
+  const out = publicJob(job, { _id: "u", firstName: "Сергей", lastName: "Волков" });
   assert.deepEqual(out.counts, { total: 4, done: 1, failed: 1, skipped: 0, processed: 2 });
   assert.equal(out.items[0].log.length, 20);
-  assert.equal(out.createdBy.name, "Алексей Савин");
+  assert.equal(out.createdBy.name, "Сергей Волков");
 });
 
 test("row state comes from the running batch only", () => {

@@ -68,7 +68,7 @@ test("mc:a — не помещается: алерт, решения не пре
   const { ctx, log } = fakeCtx();
   const { d } = deps({ fetchMessage: async () => ({ ok: true, text: "Запрос", keyboard: null, confirmText: null, confirmFull: null, confirmKeyboard: null }) });
   await handleMikrotikChange(ctx, 5, `mc:a:${ID}`, d);
-  assert.deepEqual(log.answers, [{ text: "Команды не помещаются в сообщение — откройте запрос в HD", show_alert: true }]);
+  assert.deepEqual(log.answers, [{ text: "Команды не помещаются в сообщение — откройте запрос в портале", show_alert: true }]);
   assert.deepEqual(log.edits, [{ text: "Запрос", other: {} }]);
 });
 
@@ -108,13 +108,13 @@ test("отказ: алерт с текстом; устаревшие коды з
 
 test("too_long на mc:y: алерт, затем вид без кнопок решения из /message", async () => {
   const { ctx, log } = fakeCtx();
-  const linkOnly = { inline_keyboard: [[{ text: "Открыть в HD", url: "https://x" }]] };
+  const linkOnly = { inline_keyboard: [[{ text: "Открыть в портале", url: "https://x" }]] };
   const { d } = deps({
-    decide: async () => ({ ok: false, code: "too_long", message: "Команды не помещаются в сообщение — утвердите запрос в HD" }),
+    decide: async () => ({ ok: false, code: "too_long", message: "Команды не помещаются в сообщение — утвердите запрос в портале" }),
     fetchMessage: async () => ({ ok: true, text: "Запрос № 7", keyboard: linkOnly as never, confirmText: null, confirmFull: null, confirmKeyboard: null }),
   });
   await handleMikrotikChange(ctx, 1, `mc:y:${ID}`, d);
-  assert.deepEqual(log.answers, [{ text: "Команды не помещаются в сообщение — утвердите запрос в HD", show_alert: true }]);
+  assert.deepEqual(log.answers, [{ text: "Команды не помещаются в сообщение — утвердите запрос в портале", show_alert: true }]);
   assert.deepEqual(log.edits, [{ text: "Запрос № 7", other: { reply_markup: linkOnly } }]);
 });
 

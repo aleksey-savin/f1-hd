@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { load } from "@/store/form-data";
 import { useParams } from "react-router";
 
@@ -28,7 +29,7 @@ const AddDeviceModelPage = ({ presetFrom }) => {
 export default AddDeviceModelPage;
 
 export async function loader() {
-  document.title = "Новая модель устройства";
+  setDocTitle("Новая модель устройства");
 
   // Справочники — из кэша (store/form-data). Тип содержит флаг isConsumable
   // (для поля «Совместимые модели»); атрибуты здесь больше не нужны —

@@ -47,7 +47,7 @@ function harness(doc = baseDoc()) {
   const decisions = { decide: async (args) => { state.decideCalls.push(args); return real.decide(args); } };
   const handlers = createBotHandlers({
     load: async (id) => (id === state.doc._id ? clone(state.doc) : null),
-    loadContext: async () => ({ deviceName: "GW01", companyName: "F1Lab", requesterName: "Иван Петров", timezone: "Europe/Moscow", now: NOW, users: new Map(Object.entries(NAMES)) }),
+    loadContext: async () => ({ deviceName: "GW01", companyName: "Ромашка", requesterName: "Иван Петров", timezone: "Europe/Moscow", now: NOW, users: new Map(Object.entries(NAMES)) }),
     decisions,
     baseUrl: "https://hd.example.com",
     now: () => NOW,
@@ -115,7 +115,7 @@ test("decision: подтверждение на первом шаге — сле
 test("decision: утверждение на последнем шаге и отклонение", async () => {
   const doc = baseDoc({ status: "awaiting_responsible", steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "responsible", user: "resp", decision: null }] });
   const last = await call(harness(doc).handlers.decision, { userId: "resp", can: ["mikrotik.approveChanges"], body: { decision: "approve" } });
-  assert.equal(last.body.text, "Вы утвердили запрос. HD снимет резервную копию и применит команды. Итог придёт отдельным сообщением.");
+  assert.equal(last.body.text, "Вы утвердили запрос. Система снимет резервную копию и применит команды. Итог придёт отдельным сообщением.");
   const rej = await call(harness().handlers.decision, { userId: "req", body: { decision: "reject" } });
   assert.deepEqual(rej.body, { ok: true, text: "Вы отклонили запрос." });
 });
@@ -161,7 +161,7 @@ test("decision: утверждение того, что не помещаетс�
   const { handlers, state } = harness(baseDoc({ commands: long }));
   const out = await call(handlers.decision, { userId: "req", body: { decision: "approve" } });
   assert.equal(out.body.ok, false);
-  assert.equal(out.body.message, "Команды не помещаются в сообщение — утвердите запрос в HD");
+  assert.equal(out.body.message, "Команды не помещаются в сообщение — утвердите запрос в портале");
   assert.equal(state.decideCalls.length, 0);
   // отклонить можно в любом случае
   const rej = await call(handlers.decision, { userId: "req", body: { decision: "reject" } });

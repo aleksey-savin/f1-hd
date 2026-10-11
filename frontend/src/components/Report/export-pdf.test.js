@@ -88,3 +88,15 @@ test("подразделение стоит второй строкой у ин�
     /Петрова Анна<div class="sub">Филиал «Север»<\/div>/,
   );
 });
+
+test("надзаголовок печатается цветом акцента; по умолчанию — как раньше", () => {
+  const model = buildExportModel(sampleReport, "full", sampleFormatters);
+  const kicker = (html) => html.match(/\.kicker \{[^}]*color: (#[0-9a-f]{6});/)[1];
+
+  assert.equal(kicker(renderExportHtml(model, options)), "#007a5e");
+  assert.equal(
+    renderExportHtml(model, { ...options, accent: "#00bc8c" }),
+    renderExportHtml(model, options),
+  );
+  assert.equal(kicker(renderExportHtml(model, { ...options, accent: "#2f7fd6" })), "#2877cd");
+});

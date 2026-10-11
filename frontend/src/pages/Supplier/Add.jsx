@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/Supplier/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { useCan } from "@/store/authed-user";
@@ -27,7 +28,7 @@ const AddSupplierPage = () => {
 export default AddSupplierPage;
 
 export async function loader() {
-  document.title = "Новый поставщик";
+  setDocTitle("Новый поставщик");
   return null;
 }
 

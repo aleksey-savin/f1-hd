@@ -5,6 +5,7 @@ const User = require("@/models/user");
 const {
   renderApprovalEmail,
 } = require("@/services/mail/approvalEmailTemplate");
+const { resolveBrand } = require("@/services/brand");
 const logger = require("@/utils/logger");
 const { pushInApp } = require("@/services/inAppNotifications");
 const {
@@ -221,7 +222,10 @@ const notifyApprovalRequested = async ({
   isReminder = false,
   timezone,
 }) => {
-  const zone = timezone || resolveTimezone(await Preferences.findOne({}).lean());
+  const preferences = await Preferences.findOne({}).lean();
+  const zone = timezone || resolveTimezone(preferences);
+  // Цвет акцента из настроек бренда — кант и кнопка письма
+  const { accent } = resolveBrand(preferences);
   const total = (report.price || 0) + (report.additionalPrice || 0);
   const period = periodLabel(report, zone);
   const deadline = report.approval?.deadlineAt
@@ -319,6 +323,7 @@ const notifyApprovalRequested = async ({
       link: approvalLink(report, user._id),
       deadline,
       isReminder,
+      accent,
     });
   };
 

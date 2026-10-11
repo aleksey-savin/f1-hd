@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import {
   useParams,
   type LoaderFunctionArgs,
@@ -35,9 +36,9 @@ export async function loader({ params }: LoaderFunctionArgs): Promise<ThreadData
     api<ConversationCard>(`/api/conversations/${params.id}`),
     api<MessagesPage>(`/api/conversations/${params.id}/messages?limit=${PAGE_SIZE}`),
   ]);
-  document.title = card.conversation.title
-    ? `Диалог · ${card.conversation.title}`
-    : "Диалог";
+  setDocTitle(
+    card.conversation.title ? `Диалог · ${card.conversation.title}` : "Диалог",
+  );
   return { card, page };
 }
 

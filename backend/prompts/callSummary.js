@@ -7,16 +7,18 @@
  *   (compactSegments) — здесь они только проецируются в { speaker, text }.
  */
 
-// Название нашей службы поддержки — оператор представляется им в начале звонка.
-const SUPPORT_COMPANY = "F1Lab";
-
 // Собираем system/user-промпт для пост-обработки расшифровки: очищенный диалог,
 // связный итог и заголовок. Един для всех провайдеров распознавания.
 module.exports = ({ segments, context = {} }) => {
   const { applicantName, companyName, operatorName } = context;
+  // Название службы поддержки — из настроек (contacts.title): оператор
+  // представляется им в начале звонка. Пустое — предложение о нём опускаем.
+  const supportCompany = String(context.supportCompany || "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   const known = {
-    supportCompany: SUPPORT_COMPANY,
+    supportCompany,
     operator: operatorName || "",
     caller: applicantName || "",
     company: companyName || "",
@@ -25,7 +27,11 @@ module.exports = ({ segments, context = {} }) => {
   const system = [
     "Ты обрабатываешь плохую ASR-расшифровку телефонного разговора службы поддержки.",
     "В разговоре всегда ровно два человека: сотрудник поддержки (оператор) и клиент.",
-    `Наша компания (служба поддержки) называется «${SUPPORT_COMPANY}». В начале оператор обычно представляется: «Здравствуйте, техподдержка ${SUPPORT_COMPANY}». Если распознавание исказило это (например «техподдержка Фатима», «техподдержка эф один лаб»), всегда исправляй на «${SUPPORT_COMPANY}».`,
+    ...(supportCompany
+      ? [
+          `Наша компания (служба поддержки) называется «${supportCompany}». В начале оператор обычно представляется: «Здравствуйте, техподдержка ${supportCompany}». Если распознавание исказило название, всегда исправляй на «${supportCompany}».`,
+        ]
+      : []),
     "Тебе передают сырые реплики (segments) и достоверные данные (known).",
     "Верни ТОЛЬКО JSON с полями title, summary, dialog.",
     "",

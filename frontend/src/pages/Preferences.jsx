@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { useBlocker, useFetcher, useLoaderData, useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
@@ -256,7 +257,7 @@ const Preferences = () => {
 export default Preferences;
 
 export async function loader() {
-  document.title = "Настройки системы";
+  setDocTitle("Настройки системы");
 
   return api(`/api/preferences`);
 }

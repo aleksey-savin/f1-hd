@@ -9,7 +9,7 @@ import {
 } from "./ticket-origin.js";
 
 const formData = {
-  companies: [{ _id: "c1", alias: "ТД Восток" }],
+  companies: [{ _id: "c1", alias: "Ромашка" }],
   applicants: [{ _id: "u1", lastName: "Соколова", firstName: "Марина" }],
 };
 

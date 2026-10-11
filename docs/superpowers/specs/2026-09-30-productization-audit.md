@@ -418,6 +418,14 @@ customers can delegate them.
 
 ### 2.1 F1lab identity and data flows
 
+> **Status 2026-10-11 — W2 implemented (not yet deployed).** H1–H8 are closed in code per
+> `2026-10-11-w2-white-label-design.md`: mail mode from `MAIL_MODE` (H1), error tracking from
+> `SENTRY_DSN` (H2), brand settings and env-level subject prefix (H3, H8), prompts take the
+> organisation name (H4), curated role catalogue (H5), counter fallback 1 (H6), repo scrub with
+> the guard test `backend/scripts/repoBrand.test.js` (H7). Still open from H7: `sync-dev-db.sh`
+> and the internal host notes stay in the repo until W3. H9 remains for W10. The descriptions
+> below are the findings as audited.
+
 **H1 ✔ Outside `NODE_ENV=production`, every e-mail goes to the owner's personal mailbox.** High · P0
 - **Where:** `backend/utils/mailGuard.js:23`: `DEV_MAIL_RECIPIENT || "<owner>@f1lab.ru"`. It
   applies when a notification is saved (`models/notification.js:88-109`), at send

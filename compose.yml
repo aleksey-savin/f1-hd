@@ -76,6 +76,10 @@ services:
       context: ./frontend
       target: prod
     restart: unless-stopped
+    environment:
+      # Origin of the error-tracking service for the CSP connect-src; deploy.sh
+      # keeps it in .env in step with SENTRY_DSN. Empty = 'self' only.
+      SENTRY_CSP_ORIGIN: ${SENTRY_CSP_ORIGIN:-}
     ports:
       # 8080 by default; "127.0.0.1:8080" when a reverse proxy on this host
       # is the only client.

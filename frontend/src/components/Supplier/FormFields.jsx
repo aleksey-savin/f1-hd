@@ -57,7 +57,7 @@ const SupplierFormFields = ({ supplier, onChange }) => {
           name="name"
           value={values.name}
           onChange={set("name")}
-          placeholder="Например, ООО «Ф1 Лаб»"
+          placeholder="Например, ООО «Ромашка»"
         />
       </Field>
 

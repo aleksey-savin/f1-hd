@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { RiFilter3Line } from "react-icons/ri";
@@ -275,6 +276,6 @@ const SubdivisionReport = () => {
 export default SubdivisionReport;
 
 export function loader() {
-  document.title = "Отчёт по подразделению";
+  setDocTitle("Отчёт по подразделению");
   return null;
 }

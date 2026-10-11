@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
 
@@ -128,7 +129,7 @@ const TicketTemplates = () => {
 export default TicketTemplates;
 
 export async function loader() {
-  document.title = "Шаблоны заявок";
+  setDocTitle("Шаблоны заявок");
   return null;
 }
 

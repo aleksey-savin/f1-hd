@@ -83,6 +83,18 @@ export interface IPreferences {
     lastText: string;
   };
   contacts: { tel: string; email: string; address: string };
+  /**
+   * Бренд инсталляции. В документе пустая строка значит «по умолчанию»;
+   * читать через resolveBrand (services/brand.js).
+   */
+  brand: {
+    productName: string;
+    mailSignature: string;
+    /** #rrggbb */
+    accent: string;
+    /** Имя PNG в uploads/. */
+    icon: string;
+  };
   getScreen: { isActive: boolean };
   modules: {
     timeTracking: { isActive: boolean };

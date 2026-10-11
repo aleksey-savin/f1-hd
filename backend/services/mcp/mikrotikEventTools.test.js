@@ -8,8 +8,8 @@ const { KIND_NAMES } = require("../mikrotik/eventKinds");
 
 const DEVICE = "66aa00000000000000000001";
 const NOW = new Date("2026-10-11T12:00:00Z");
-const DEVICES = [{ _id: DEVICE, name: "F1-VLD-GW01", host: "203.0.113.7", company: "F1Lab" }];
-const names = new Map([["u1", "Алексей Савин"]]);
+const DEVICES = [{ _id: DEVICE, name: "GW-OFFICE-01", host: "203.0.113.7", company: "Техноцентр" }];
+const names = new Map([["u1", "Сергей Волков"]]);
 const caller = { keyId: "k9", keyName: "OpenClaw" };
 const text = (result) => result.content[0].text;
 
@@ -40,12 +40,12 @@ test("events: header, one line per event, people by name, foreign text quoted", 
     { at: new Date("2026-10-10T20:14:00Z"), kind: "routerConfig", actor: { type: "routerUser", name: "admin" }, data: { count: 2, lines: ["filter rule changed by admin", "filter rule added by admin"] } },
     { at: new Date("2026-10-02T11:03:00Z"), kind: "reboot", actor: { type: "system" }, data: { cause: "unknown", ranSeconds: 3564000 } },
   ]);
-  const out = text(await tools.events({ device: "F1-VLD-GW01" }, caller));
-  assert.match(out, /^# Journal of F1-VLD-GW01\nlast 30 days: 4 events; showing the newest 4;/);
+  const out = text(await tools.events({ device: "GW-OFFICE-01" }, caller));
+  assert.match(out, /^# Journal of GW-OFFICE-01\nlast 30 days: 4 events; showing the newest 4;/);
   assert.match(out, /link: https:\/\/hd\.example\.ru\/devices\/mikrotik\/records\/66aa00000000000000000001/);
-  assert.match(out, /2026-10-11T09:38Z · agent proposed a change · by agent OpenClaw for Алексей Савин\n {2}> WireGuard для Ивана Петрова/);
+  assert.match(out, /2026-10-11T09:38Z · agent proposed a change · by agent OpenClaw for Сергей Волков\n {2}> WireGuard для Ивана Петрова/);
   assert.match(out, /configuration edited on the router · by router account admin · 2 log lines\n {2}> filter rule changed by admin/);
-  assert.match(out, /rebooted · not started from HD · ran 990 h before it/);
+  assert.match(out, /rebooted · not started from the helpdesk · ran 990 h before it/);
   assert.ok(!out.includes("k1") && !out.includes("u1"));
   assert.deepEqual(asked[0], { deviceId: DEVICE, since: new Date("2026-09-11T12:00:00Z"), group: null, limit: 20 });
 });

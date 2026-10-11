@@ -4,6 +4,8 @@ const crypto = require("node:crypto");
 
 // Ключ шифрования теста — до первого обращения к secretBox (он кэширует ключ)
 process.env.APP_ENC_KEY = crypto.randomBytes(32).toString("base64");
+// Режим почты теста — «live»: без него отправка выключена (utils/mailGuard)
+process.env.MAIL_MODE = "live";
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -913,4 +915,149 @@ test("sendNow: пароль SMTP не читается — не бросает, 
     healthSets(healthWrites)[0]["notify.byEmail.health.lastError"],
     unreadableSecretMessage("notify.byEmail.pass"),
   );
+});
+
+// ── Режим почты (MAIL_MODE) ─────────────────────────────────────────────────
+
+const withMailMode = (t, mode, sandboxRecipient) => {
+  const before = {
+    MAIL_MODE: process.env.MAIL_MODE,
+    MAIL_SANDBOX_RECIPIENT: process.env.MAIL_SANDBOX_RECIPIENT,
+  };
+  const put = (key, value) => {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  };
+  put("MAIL_MODE", mode);
+  put("MAIL_SANDBOX_RECIPIENT", sandboxRecipient);
+  t.after(() => {
+    put("MAIL_MODE", before.MAIL_MODE);
+    put("MAIL_SANDBOX_RECIPIENT", before.MAIL_SANDBOX_RECIPIENT);
+  });
+};
+
+test("sendNow: почта выключена на сервере — одна попытка, документ failed, причина в ответе и в строке состояния", async (t) => {
+  withMailMode(t, undefined);
+  const healthWrites = [];
+  t.mock.method(Preferences, "findOne", async () => ({
+    notify: { byEmail: smtpChannel(encryptSecret("smtp-pass")) },
+  }));
+  t.mock.method(Preferences, "updateOne", async (filter, update) => {
+    healthWrites.push(update);
+    return { acknowledged: true };
+  });
+  await resetChannelHealth(healthWrites);
+  const sockets = trackSockets(t);
+  captureLog(t);
+  const notification = new Notification({
+    instrument: "email",
+    to: { email: "user@example.ru" },
+    title: "Код для входа",
+    text: "<p>1234</p>",
+  });
+  const saves = [];
+  t.mock.method(notification, "save", async function save() {
+    saves.push(this.toObject());
+    return this;
+  });
+
+  const result = await sendNow(notification);
+
+  assert.equal(result.success, false);
+  assert.equal(result.retryable, false);
+  assert.equal(result.failure.state, "Отправка почты выключена на сервере");
+  assert.equal(saves.length, 1);
+  // Адрес получателя на месте: в режиме off модель его не подменяет
+  assert.equal(saves[0].to.email, "user@example.ru");
+  assert.equal(saves[0].attemptsCounter, 1);
+  assert.equal(saves[0].failed, true);
+  assert.equal(saves[0].sent, false);
+  assert.deepEqual(sockets, []);
+  assert.equal(
+    healthSets(healthWrites)[0]["notify.byEmail.health.lastError"],
+    "Отправка почты выключена на сервере",
+  );
+});
+
+// ── Песочница: пометка письма из очереди ────────────────────────────────────
+// Настоящий отправщик поверх транспорта-пустышки: адрес в очереди уже подменён
+// моделью уведомления, и пометить письмо можно только по intendedEmail
+
+const sandboxMail = (t) => {
+  withMailMode(t, "sandbox", "box@example.com");
+  const sent = [];
+  t.mock.method(require("nodemailer"), "createTransport", () => ({
+    sendMail: async (message) => {
+      sent.push(message);
+      return { messageId: "m1" };
+    },
+  }));
+  return sent;
+};
+
+test("песочница: письмо из очереди уходит с пометкой исходного получателя в теме и в теле", async (t) => {
+  stubModels(t, { channel: smtpChannel(encryptSecret("smtp-pass")) });
+  captureLog(t);
+  const sent = sandboxMail(t);
+  const queue = memoryQueue(
+    [
+      // Так письмо лежит в очереди после подмены в модели уведомления
+      letter("n1", { to: { email: "box@example.com" }, intendedEmail: "client@example.ru" }),
+      // Письмо самому адресу песочницы: подмены не было, помечать нечего
+      letter("n2", { to: { email: "box@example.com" }, intendedEmail: null }),
+    ],
+    () => NOW,
+  );
+
+  await sendPendingEmails({ queue });
+
+  assert.deepEqual(
+    sent.map((message) => [message.to, message.subject]),
+    [
+      ["box@example.com", "[SANDBOX → client@example.ru] Уведомление"],
+      ["box@example.com", "Уведомление"],
+    ],
+  );
+  assert.equal(
+    sent[0].html,
+    "<p><b>Письмо предназначалось: client@example.ru</b></p><p>Текст</p>",
+  );
+  assert.equal(sent[1].html, "<p>Текст</p>");
+});
+
+test("песочница, sendNow: пометка одна — и до подмены адреса моделью, и после неё", async (t) => {
+  t.mock.method(Preferences, "findOne", async () => ({
+    notify: { byEmail: smtpChannel(encryptSecret("smtp-pass")) },
+  }));
+  t.mock.method(Preferences, "updateOne", async () => ({ acknowledged: true }));
+  captureLog(t);
+  const sent = sandboxMail(t);
+  const make = (extra = {}) => {
+    const notification = new Notification({
+      instrument: "email",
+      to: { email: "user@example.ru" },
+      title: "Код для входа",
+      text: "<p>1234</p>",
+      ...extra,
+    });
+    t.mock.method(notification, "save", async function save() {
+      return this;
+    });
+    return notification;
+  };
+
+  // Документ ещё не сохранялся: адрес настоящий, подменяет сам отправщик
+  await sendNow(make());
+  // Документ уже прошёл подмену в модели
+  await sendNow(make({ to: { email: "box@example.com" }, intendedEmail: "user@example.ru" }));
+
+  for (const message of sent) {
+    assert.equal(message.to, "box@example.com");
+    assert.equal(message.subject, "[SANDBOX → user@example.ru] Код для входа");
+    assert.equal(
+      message.html,
+      "<p><b>Письмо предназначалось: user@example.ru</b></p><p>1234</p>",
+    );
+  }
+  assert.equal(sent.length, 2);
 });

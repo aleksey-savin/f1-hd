@@ -58,8 +58,8 @@ a header comment stating what it does and where it is used), imported via the
 `@/prompts` alias rather than inlined in services:
 - `prompts/ticketGuide.js` — ticket solution-guide system prompt (§2);
 - `prompts/callSummary.js` — call ASR post-processing prompt builder, `({ segments,
-  context }) → { system, user }`; also owns the `SUPPORT_COMPANY` (`F1Lab`)
-  constant (§3);
+  context }) → { system, user }`; the support
+  organisation name comes in as `context.supportCompany` (§3);
 - `prompts/transcription.js` — OpenAI speech-to-text Russian support-call hint (§3);
 - `prompts/ticketCategory.js` — category-classification prompt builder, `({ title,
   description, categories }) → { system, user }` (§4);
@@ -597,8 +597,8 @@ older ticket code used `mimetype`, while later attachment upload code used
   - **dialog cleanup + name correction** (`buildSummaryPrompt`, imported from
     `prompts/callSummary.js`; the service passes it already-`compactSegments`-ed
     segments): the prompt has the model (a) fix the support-side greeting to our
-    company name **`F1Lab`** (constant `SUPPORT_COMPANY`, also in that file) — so
-    "техподдержка Фатима" → "техподдержка F1Lab";
+    organisation name (`context.supportCompany`, taken from `Preferences.contacts.title`;
+    with an empty name the sentence is omitted) — so a garbled name is restored;
     (b) label the operator's turns with the real employee name and refer to them by
     name in the summary (not "оператор"); (c) remove duplicated text and filler
     words (угу/ага/мм…); (d) capture equipment identifiers (PC/printer/host/serial/

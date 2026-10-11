@@ -55,6 +55,11 @@
   --info-text: #2f6fc0;
   --border: #e2e5e8;
   --border-soft: #ebedef;
+  /* Справка: линейка разделов и тихий текст чтения. В светлой теме равны
+     --border и --foreground; в тёмной штатная граница на листе не видна, а
+     сплошной яркий текст сливал оглавление в одно пятно. */
+  --rule: #e2e5e8;
+  --foreground-soft: #1d2227;
   --input: #e2e5e8;
   --ring: #00bc8c;
   --radius: 0.5rem;
@@ -129,6 +134,8 @@
   --info-text: #6aa8ef;
   --border: #2b2f35;
   --border-soft: #242830;
+  --rule: #3d434c;
+  --foreground-soft: #c3c9cf;
   --input: #2b2f35;
   --ring: #00bc8c;
   /* Те же оттенки ступенью темнее — под тёмную поверхность */
@@ -196,6 +203,8 @@
   --color-info-text: var(--info-text);
   --color-border: var(--border);
   --color-border-soft: var(--border-soft);
+  --color-rule: var(--rule);
+  --color-foreground-soft: var(--foreground-soft);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);

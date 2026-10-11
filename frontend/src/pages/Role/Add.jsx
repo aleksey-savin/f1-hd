@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import RoleForm from "../../components/Role/Form";
 import { api, ApiError } from "@/lib/api";
 
@@ -8,7 +9,7 @@ export default AddRolePage;
 // Каталог для старта «Из роли». Ручки «одна роль» нет намеренно (см. лоадер
 // правки) — каталог маленький и приезжает целиком одним запросом.
 export async function loader() {
-  document.title = "Новая роль";
+  setDocTitle("Новая роль");
   const data = await api("/api/roles");
   return { roles: data?.roles || [] };
 }

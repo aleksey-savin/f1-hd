@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { redirect, useBlocker, useFetcher, useLoaderData } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
@@ -181,7 +182,7 @@ export async function loader() {
     return redirect("/auth");
   }
 
-  document.title = "F1 HD | МОЙ АККАУНТ";
+  setDocTitle("Мой аккаунт");
 
   const userResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,

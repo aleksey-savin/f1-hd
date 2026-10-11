@@ -283,7 +283,7 @@ risk is `high` when any command is.
 
 **Status of the safe-mode behaviour.** That safe mode held by an SSH shell also
 undoes changes made through a separate API session was confirmed on a live
-router on 2026-10-11 (`scripts/spikeSafeMode.js` on `F1-VLD-GW01`, RouterOS
+router on 2026-10-11 (`scripts/spikeSafeMode.js` on `GW-OFFICE-01`, RouterOS
 7.23.7: `SAFE MODE: api rollback=ok keep=ok`): an entry added through the API
 while the shell held safe mode disappeared when the shell was dropped, and
 stayed after a normal release. It is not confirmed on RouterOS 6 (see «Known
@@ -780,7 +780,7 @@ current executor mode gives an automatic rollback).
 ## Known limits and what was not verified live
 
 - **Safe mode is verified on one router and one version only.** The probe
-  `scripts/spikeSafeMode.js` ran on `F1-VLD-GW01` (RouterOS 7.23.7, direct
+  `scripts/spikeSafeMode.js` ran on `GW-OFFICE-01` (RouterOS 7.23.7, direct
   connection) on 2026-10-11 with `rollback=ok keep=ok`. Not verified: RouterOS
   6, a device reached through a transit router, and a real link loss (the probe
   closes the session cleanly; on a silent loss the router rolls back only after
@@ -929,7 +929,7 @@ calls. Job names in the jobs registry: `Mikrotik change worker`,
 
 1. Read the request: `get_mikrotik_change` (MCP) or the portal view show the
    per-command `result` (`done`, `failed` with `refused` or not, `rolled_back`,
-   `skipped`), the `Note from HD` / `failure` text with what the re-read saw
+   `skipped`), the `Note from the helpdesk` / `failure` text with what the re-read saw
    («на месте команды …; нет команд …; неясно по командам …»), the steps and
    the `backupArtifact` time.
 2. Compare with the router itself: read the menus of the commands (`/export`

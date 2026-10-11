@@ -22,7 +22,7 @@ const sentence = (...words) => Buffer.concat([...words.map(word), Buffer.from([0
 
 const USERS = Buffer.concat([
   sentence("!re", "=name=admin", "=group=full", `=comment=${"x".repeat(130)}`),
-  sentence("!re", "=name=f1-hd", "=group=hd-mgmt"),
+  sentence("!re", "=name=hd-api", "=group=hd-mgmt"),
   sentence("!done"),
 ]);
 
@@ -35,7 +35,7 @@ test("a word of 128+ bytes does not derail the reply", () => {
   const sentences = collect([USERS]);
   assert.equal(sentences.length, 3);
   assert.equal(sentences[0][3].length, "=comment=".length + 130);
-  assert.deepEqual(sentences[1], ["!re", "=name=f1-hd", "=group=hd-mgmt"]);
+  assert.deepEqual(sentences[1], ["!re", "=name=hd-api", "=group=hd-mgmt"]);
   assert.deepEqual(sentences[2], ["!done"]);
 });
 

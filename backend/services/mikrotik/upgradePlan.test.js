@@ -53,7 +53,7 @@ test("each ineligible device gets its reason", () => {
     device({ name: "CUR", currentFirmware: "7.23.7 (long-term)" }),
   ]);
   const byName = Object.fromEntries(skipped.map((s) => [s.name, s.reason]));
-  assert.equal(byName.OFF, "обновление из HD выключено");
+  assert.equal(byName.OFF, "обновление из портала выключено");
   assert.equal(byName.MON, "мониторинг выключен");
   assert.equal(byName.DOWN, "не в сети");
   assert.equal(byName.NOFW, "версия прошивки ещё не считана");

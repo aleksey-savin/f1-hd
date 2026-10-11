@@ -26,7 +26,7 @@ const KINDS = {
   exportDeleted: kind("config"),
   exportDownloaded: kind("config"),
   scheduleChanged: kind("config"),
-  // Запись в HD
+  // Запись в портале
   recordCreated: kind("record"),
   parametersChanged: kind("record"),
   monitoringOn: kind("record"),

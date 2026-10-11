@@ -9,7 +9,7 @@ const logger = require("../../utils/logger");
 // A router in the installation's own LAN (the gateway next to the HD server) is
 // a legitimate direct target, so private addresses can be allowed — but only by
 // whoever deploys HD, never from the UI: MIKROTIK_ALLOWED_PRIVATE_NETS lists
-// IPv4 addresses or CIDR blocks (comma-separated, e.g. "10.0.50.1,10.0.60.0/24").
+// IPv4 addresses or CIDR blocks (comma-separated, e.g. "10.0.40.1,10.0.60.0/24").
 // Loopback, 0.0.0.0/8 and link-local/metadata stay blocked whatever it says.
 const parseAllowedNets = (raw) => {
   const list = new net.BlockList();

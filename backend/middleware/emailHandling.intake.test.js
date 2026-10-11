@@ -83,6 +83,7 @@ const TicketLog = require("@/models/ticketLog");
 const TicketRead = require("@/models/ticketRead");
 const logger = require("@/utils/logger");
 const { handleNewEmails } = require("./emailHandling");
+const { ticketSubjectTag } = require("@/services/emailReplyStripper");
 
 const MAILBOX = "support@example.ru";
 const MAX_LOGGED = 300;
@@ -341,7 +342,7 @@ test("текст From и Authentication-Results в строках о письм�
     // Ответ в №77, которого нет: строка «заведён новой заявкой» несёт оба заголовка
     rawMail({
       from,
-      subject: "[F1-HD-77] Re: Printer is broken",
+      subject: `${ticketSubjectTag(77)} Re: Printer is broken`,
       messageId: "<reply-1@mailer.example>",
       extra: [`Authentication-Results: ${authResults}`],
     }),
@@ -376,7 +377,7 @@ test("короткие текст From и Authentication-Results в журнал
   const { log } = await runIntake(t, [
     rawMail({
       from: "Ivan <ivan@client.ru>",
-      subject: "[F1-HD-77] Re: Printer is broken",
+      subject: `${ticketSubjectTag(77)} Re: Printer is broken`,
       messageId: "<reply-2@mailer.example>",
       extra: ["Authentication-Results: mx.client.ru; dkim=none"],
     }),
@@ -522,7 +523,7 @@ test("письмо телефонии, не прошедшее проверку 
         from: `Mango <${TELEPHONY}>`,
         body: CLIENT_BODY,
         messageId: "<phone-3@mango.example>",
-        extra: ["Authentication-Results: mx.f1lab.ru; dmarc=fail header.from=mango.example"],
+        extra: ["Authentication-Results: mx.example.com; dmarc=fail header.from=mango.example"],
       }),
     ],
     (ctx) => {
@@ -688,7 +689,7 @@ const runReply = async (
     [
       rawMail({
         from: `Sender <${sender.email}>`,
-        subject: `[F1-HD-${TICKET_NUM}] Re: Printer is broken`,
+        subject: `${ticketSubjectTag(TICKET_NUM)} Re: Printer is broken`,
         messageId: `<reply-${sender._id}@mailer.example>`,
       }),
     ],

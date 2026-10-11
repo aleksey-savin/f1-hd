@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import {
   Link,
   redirect,
@@ -25,7 +26,7 @@ import { API, OFFLINE_FAILURE, authFailure } from "./session";
 // случай отправки в обход поля (без JS, автозаполнением).
 
 export async function loader() {
-  document.title = "Новый пароль";
+  setDocTitle("Новый пароль");
 
   // Предпроверки ссылки больше нет: ручка `/api/validate-reset-token/:token`
   // удалена вместе с легаси-механикой. Она к тому же была без лимитера, то

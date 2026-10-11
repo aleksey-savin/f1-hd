@@ -57,7 +57,7 @@ const majorVerdict = (record, parsed, { channelMode, releases }) => {
 };
 
 const verdictFor = (record, { channelMode, releases, busyIds, toV7 }) => {
-  if (!record.firmwareUpgradeEnabled) return { reason: "обновление из HD выключено" };
+  if (!record.firmwareUpgradeEnabled) return { reason: "обновление из портала выключено" };
   if (!record.monitoringEnabled) return { reason: "мониторинг выключен" };
   if (record.status !== "online") return { reason: "не в сети" };
   if (busyIds.has(String(record._id))) return { reason: "уже в другом пакете" };

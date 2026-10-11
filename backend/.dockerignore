@@ -24,3 +24,7 @@ README.md
 # Live-device probe with direct connection parameters: a developer tool run from
 # a checkout or the dev container, never part of the product image
 scripts/mikrotikUpgradeProbe.js
+# Dev-only demo data and a one-off probe of a live router: run from a checkout,
+# never part of the product image
+scripts/seedDemoConversations.js
+scripts/spikeSafeMode.js

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import TicketFormRoute from "../../components/Ticket/TicketFormRoute";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
@@ -7,7 +8,7 @@ const AddTicketPage = () => <TicketFormRoute mode="add" />;
 export default AddTicketPage;
 
 export async function loader({ request }) {
-  document.title = "Новая заявка";
+  setDocTitle("Новая заявка");
 
   // Шторка открывается по готовности данных, поэтому справочники — из кэша
   // (store/form-data): без него каждое открытие ждало бы form-data и список

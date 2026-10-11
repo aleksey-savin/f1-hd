@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
 import { RiAddFill, RiFilter3Line, RiListCheck2 } from "react-icons/ri";
 
@@ -418,6 +419,6 @@ const TeamCalendar = () => {
 export default TeamCalendar;
 
 export function loader() {
-  document.title = "Календарь команды";
+  setDocTitle("Календарь команды");
   return null;
 }

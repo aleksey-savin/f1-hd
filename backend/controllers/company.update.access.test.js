@@ -142,7 +142,7 @@ const serve = (company) => {
       person(RESPONSIBLE_ID, {
         firstName: "Пётр",
         lastName: "Сидоров",
-        email: "staff@f1lab.ru",
+        email: "staff@example.com",
         role: "staff",
         isActive: true,
       }),

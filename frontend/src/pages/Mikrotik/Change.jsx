@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState } from "react";
 import { useLoaderData, useLocation } from "react-router";
 
@@ -262,7 +263,7 @@ const MikrotikChangePage = () => {
                 title={change.failure || "Результат применения неизвестен"}
                 className="mt-6"
               >
-                HD не может поручиться, что осталось на устройстве. Проверьте
+                Система не может поручиться, что осталось на устройстве. Проверьте
                 устройство и резервную копию.
                 {change.backup && <> {backupLink}</>}
               </ChangeNote>
@@ -440,6 +441,6 @@ export async function loader({ params }) {
   if (!response.ok) throw response;
 
   const data = await response.json();
-  document.title = "Запрос на изменение конфигурации";
+  setDocTitle("Запрос на изменение конфигурации");
   return { ...data, pulse: response.headers.get("X-Pulse-Cursor") };
 }

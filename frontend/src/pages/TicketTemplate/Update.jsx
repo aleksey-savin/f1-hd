@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
 import Form from "../../components/TicketTemplate/Form";
@@ -7,7 +8,7 @@ const UpdateTicketTemplatePage = () => <Form />;
 export default UpdateTicketTemplatePage;
 
 export async function loader({ params }) {
-  document.title = "Изменить шаблон";
+  setDocTitle("Изменить шаблон");
 
   // Шаблон — всегда свежий; справочники формы заявки — из кэша
   const [template, formData] = await Promise.all([

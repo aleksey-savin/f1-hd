@@ -1423,7 +1423,7 @@ test("права: у группы учётной записи нет write — n
   const seen = [];
   const r = await rightsWorker(h, async (record) => { seen.push(record._id); return account("api,read,ssh,!write,test"); }).tick();
   assert.equal(r.status, "not_applied");
-  assert.equal(h.doc().failure, "У учётной записи HD на устройстве нет политики write: изменения не вносились.");
+  assert.equal(h.doc().failure, "У учётной записи портала на устройстве нет политики write: изменения не вносились.");
   assert.deepEqual(seen, ["d1"]);
   assert.equal(h.backups.length, 0);
   assert.equal(h.execCalls.length, 0);
@@ -1433,7 +1433,7 @@ test("права: у группы учётной записи нет write — n
 test("права: не хватает нескольких политик — названы все", async () => {
   const h = setup({ changes: [makeChange({ commands: [addCmd()] })] });
   await rightsWorker(h, async () => account("read,test")).tick();
-  assert.equal(h.doc().failure, "У учётной записи HD на устройстве нет политик api, write, ssh: изменения не вносились.");
+  assert.equal(h.doc().failure, "У учётной записи портала на устройстве нет политик api, write, ssh: изменения не вносились.");
 });
 
 test("права: все четыре политики есть — применяется", async () => {

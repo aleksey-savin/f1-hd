@@ -151,23 +151,23 @@ test("disabled addresses and routes do not widen the ping guard", () => {
 
 test("namedEndpoints takes the remote ends of IPsec peers and GRE/IPIP/EoIP tunnels", () => {
   const found = namedEndpoints({
-    remotes: [{ "remote-address": "89.108.103.224" }, { "remote-address": "84.252.131.195", port: "4500" }, { "remote-address": "" }, {}],
+    remotes: [{ "remote-address": "203.0.113.24" }, { "remote-address": "198.51.100.95", port: "4500" }, { "remote-address": "" }, {}],
   });
-  assert.deepEqual(found, ["89.108.103.224", "84.252.131.195"]);
+  assert.deepEqual(found, ["203.0.113.24", "198.51.100.95"]);
 });
 
 test("dropOwnSessions removes only the helpdesk account's own API and SSH logins", () => {
   const rows = [
-    { time: "1", topics: "system,info,account", message: "user f1-hd logged in from 89.108.109.83 via api" },
-    { time: "2", topics: "system,info,account", message: "user f1-hd logged out from 89.108.109.83 via ssh" },
+    { time: "1", topics: "system,info,account", message: "user hd-api logged in from 203.0.113.83 via api" },
+    { time: "2", topics: "system,info,account", message: "user hd-api logged out from 203.0.113.83 via ssh" },
     { time: "3", topics: "system,info,account", message: "user admin logged in from 10.0.0.9 via ssh" },
-    { time: "4", topics: "system,info,account", message: "user f1-hd logged in from 10.0.0.9 via winbox" },
-    { time: "5", topics: "system,error,critical", message: "login failure for user f1-hd from 1.2.3.4 via api" },
+    { time: "4", topics: "system,info,account", message: "user hd-api logged in from 10.0.0.9 via winbox" },
+    { time: "5", topics: "system,error,critical", message: "login failure for user hd-api from 1.2.3.4 via api" },
   ];
-  assert.deepEqual(dropOwnSessions(rows, "f1-hd").map((row) => row.time), ["3", "4", "5"]);
+  assert.deepEqual(dropOwnSessions(rows, "hd-api").map((row) => row.time), ["3", "4", "5"]);
   assert.deepEqual(dropOwnSessions(rows, "").map((row) => row.time), ["1", "2", "3", "4", "5"]);
   assert.deepEqual(dropOwnSessions(rows, "f1.hd").length, 5);
-  assert.deepEqual(dropOwnSessions(undefined, "f1-hd"), []);
+  assert.deepEqual(dropOwnSessions(undefined, "hd-api"), []);
 });
 
 test("lastTrace keeps only the final pass of a traceroute and drops empty tail rows", () => {
@@ -176,13 +176,13 @@ test("lastTrace keeps only the final pass of a traceroute and drops empty tail r
     { address: "", loss: "0", sent: "1", ".section": "0" },
     { address: "10.0.0.1", loss: "0", ".section": "1" },
     { address: "", loss: "100", sent: "1", last: "timeout", ".section": "1" },
-    { address: "84.252.131.195", loss: "0", ".section": "1" },
+    { address: "198.51.100.95", loss: "0", ".section": "1" },
     { address: "", loss: "0", sent: "0", ".section": "1" },
   ];
   assert.deepEqual(lastTrace(rows), [
     { address: "10.0.0.1", loss: "0" },
     { address: "", loss: "100", sent: "1", last: "timeout" },
-    { address: "84.252.131.195", loss: "0" },
+    { address: "198.51.100.95", loss: "0" },
   ]);
   assert.deepEqual(lastTrace([{ address: "10.0.0.1", loss: "0" }]), [{ address: "10.0.0.1", loss: "0" }]);
   assert.deepEqual(lastTrace(undefined), []);

@@ -1,3 +1,5 @@
+const fs = require("fs");
+
 const Preferences = require("../models/preferences");
 const User = require("../models/user");
 const Company = require("../models/company");
@@ -32,7 +34,9 @@ const {
   canShareCredentials,
 } = require("../services/speechToTextService");
 const logger = require("../utils/logger");
+const { describeMailMode, mailCanSend } = require("../utils/mailGuard");
 const { resolveAiFeatures } = require("../services/ai/features");
+const { resolveBrand, validateBrandInput } = require("../services/brand");
 
 // Поля почтовых каналов, которые правит форма. Мержим по путям (а не заменяем
 // группу целиком): health пишут крон сбора и отправка уведомлений, форма о нём
@@ -177,8 +181,13 @@ exports.get = async (req, res, next) => {
     if (!preferences) {
       return res.status(200).json({ message: "Preferences are not set" });
     }
-    // Пароли и API-ключи наружу не уходят: вместо значения — флаг «задан»
-    res.status(200).json(maskSecrets(preferences));
+    // Пароли и API-ключи наружу не уходят: вместо значения — флаг «задан».
+    // `mailMode` — режим почты из окружения сервера (MAIL_MODE): только для
+    // показа в настройках, в базе не хранится и при сохранении не читается.
+    res.status(200).json({
+      ...maskSecrets(preferences),
+      mailMode: describeMailMode(),
+    });
   } catch (error) {
     next(new AppError(`Failed to fetch preferences`, 500, true, error));
   }
@@ -196,6 +205,7 @@ exports.getAuth = async (req, res, next) => {
     // первого запуска и саморегистрация удалены. Первый администратор
     // заводится сидом при старте, остальных заводит ИТ-отдел.
     const preferences = await Preferences.findOne({});
+    const brand = resolveBrand(preferences);
 
     return res.status(200).json({
       contacts: {
@@ -205,9 +215,15 @@ exports.getAuth = async (req, res, next) => {
         address: preferences?.contacts?.address || "",
         logo: preferences?.contacts?.logo || "",
       },
+      // Название портала, акцент и значок — уже с умолчаниями. Ручка открыта
+      // всем, поэтому только то, что рисует экран входа: подписи писем здесь нет
+      brand: { productName: brand.productName, accent: brand.accent, icon: brand.icon },
+      // Адрес сборщика ошибок задаётся окружением сервера; пусто — не подключён
+      sentryDsn: process.env.SENTRY_DSN || "",
       timezone: preferences?.timezone || "",
-      // без почты ссылку на смену пароля отправить нечем — путь прячется
-      emailIsActive: preferences?.notify?.byEmail?.isActive || false,
+      // без почты ссылку на смену пароля отправить нечем — путь прячется; так
+      // же и когда почта выключена на сервере (MAIL_MODE=off)
+      emailIsActive: mailCanSend(preferences),
     });
   } catch (error) {
     next(
@@ -243,12 +259,13 @@ exports.getInitial = async (req, res, next) => {
 
     res.status(200).json({
       contacts: preferences.contacts,
+      brand: resolveBrand(preferences),
       htmlTicketDesc: preferences.htmlTicketDesc,
       getScreen: preferences.getScreen,
       timezone: preferences.timezone,
       // Оператор такси нужен каждому: действие «такси» в справочнике компаний
       taxi: { operator: preferences.taxi?.operator || "" },
-      emailNotifications: preferences.notify?.byEmail?.isActive,
+      emailNotifications: mailCanSend(preferences),
       telegramNotifications: preferences.notify?.byTelegram?.isActive,
       // Имя бота для ссылки привязки в «Интеграциях»; пусто — сервис не подключён
       telegramBotUsername: preferences.notify?.byTelegram?.botUsername || "",
@@ -355,6 +372,16 @@ exports.update = async (req, res, next) => {
         email: body.contacts?.email ?? "",
         address: body.contacts?.address ?? "",
         logo: preferences.contacts?.logo ?? "",
+      };
+    }
+    if (has("brand")) {
+      const checked = validateBrandInput(body.brand);
+      if (checked.error) return next(new AppError(checked.error, 400));
+      // brand.icon управляется отдельными ручками (/preferences/brand-icon),
+      // как лого: общая форма его не присылает и затирать не должна
+      preferences.brand = {
+        ...checked.value,
+        icon: preferences.brand?.icon ?? "",
       };
     }
     if (has("taxi")) {
@@ -549,7 +576,8 @@ exports.update = async (req, res, next) => {
       message: "Настройки сохранены",
       // Ответ на сохранение — такой же выход наружу, как и чтение: секреты в нём
       // маскируются (иначе форма получала бы обратно шифртексты ключей)
-      preferences: maskSecrets(preferences),
+      // (`mailMode` — как в чтении: форма кладёт этот ответ на место прежнего)
+      preferences: { ...maskSecrets(preferences), mailMode: describeMailMode() },
     });
   } catch (error) {
     // Инварианты нечитаемые секреты уже называют; это — страховка на случай,
@@ -775,6 +803,78 @@ exports.deleteLogo = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError(`Failed to delete company logo`, 500, true, error));
+  }
+};
+
+// Значок бренда (brand.icon): вкладка браузера и ярлык на телефоне. Хранится и
+// прибирается так же, как лого; наружу отдаётся открытой ручкой
+// /api/brand/icon (controllers/brand.js).
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+// Тип файла заявляет браузер, а отдаём мы его всем подряд как image/png —
+// поэтому сверяем сигнатуру самого файла
+const isPngFile = async (filePath) => {
+  const handle = await fs.promises.open(filePath, "r");
+  try {
+    const { buffer, bytesRead } = await handle.read(Buffer.alloc(8), 0, 8, 0);
+    return bytesRead === 8 && buffer.equals(PNG_SIGNATURE);
+  } finally {
+    await handle.close();
+  }
+};
+
+exports.uploadBrandIcon = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new AppError(`File not uploaded`, 400));
+    }
+
+    if (!(await isPngFile(req.file.path))) {
+      await storage.deleteObject(req.file.filename);
+      return next(new AppError("Значок принимается только в формате PNG", 400));
+    }
+
+    let preferences = await Preferences.findOne({});
+    if (!preferences) {
+      preferences = new Preferences({});
+    }
+
+    const previous = preferences.brand?.icon;
+    preferences.set("brand.icon", req.file.filename);
+    await preferences.save();
+
+    // Прежний файл убираем после записи: сбой сохранения не оставит настройки
+    // со ссылкой на уже удалённый значок
+    if (previous) {
+      await storage.deleteObject(previous);
+    }
+
+    res.status(201).json({
+      message: "Значок обновлён",
+      icon: preferences.brand.icon,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to upload brand icon`, 500, true, error));
+  }
+};
+
+exports.deleteBrandIcon = async (req, res, next) => {
+  try {
+    const preferences = await Preferences.findOne({});
+    const previous = preferences?.brand?.icon;
+
+    if (previous) {
+      preferences.set("brand.icon", "");
+      await preferences.save();
+      await storage.deleteObject(previous);
+    }
+
+    res.status(201).json({
+      message: "Значок удалён",
+      icon: "",
+    });
+  } catch (error) {
+    next(new AppError(`Failed to delete brand icon`, 500, true, error));
   }
 };
 

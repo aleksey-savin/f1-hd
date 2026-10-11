@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useContext, useEffect } from "react";
 import { redirect } from "react-router";
 import { MobileView } from "react-device-detect";
@@ -228,7 +229,7 @@ export function loader() {
   if (!token) {
     return redirect("/auth");
   }
-  document.title = "Главная";
+  setDocTitle("Главная");
   return null;
 }
 

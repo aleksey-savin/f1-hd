@@ -81,8 +81,8 @@ test("a query that looks like a number is searched by its digits", () => {
 
 test("the digits of a query are found through any separators", () => {
   // Новые строки хранят номер в показе, старые — «+цифрами»: находятся обе
-  const pattern = phoneDigitsPattern("9142073318");
-  assert.equal(pattern.test("+7 (914) 207-33-18"), true);
-  assert.equal(pattern.test("+79142073318"), true);
+  const pattern = phoneDigitsPattern("9145550177");
+  assert.equal(pattern.test("+7 (914) 555-01-77"), true);
+  assert.equal(pattern.test("+79145550177"), true);
   assert.equal(pattern.test("+7 (914) 207-33-19"), false);
 });

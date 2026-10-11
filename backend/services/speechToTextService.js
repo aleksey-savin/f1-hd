@@ -11,7 +11,7 @@ const logger = require("@/utils/logger");
 const storage = require("@/services/storage");
 const aiService = require("./aiService");
 const buildSummaryPrompt = require("@/prompts/callSummary");
-const transcriptionPrompt = require("@/prompts/transcription");
+const buildTranscriptionPrompt = require("@/prompts/transcription");
 
 const OPENAI_TRANSCRIPTIONS_ENDPOINT =
   "https://api.openai.com/v1/audio/transcriptions";
@@ -185,6 +185,8 @@ const getSpeechToTextConfig = async () => {
     preferences.ai?.toObject?.() ?? preferences.ai,
     readKey,
   );
+  // Название службы поддержки для промптов расшифровки и итога звонка
+  config.supportCompany = preferences.contacts?.title || "";
 
   if (config.provider === "yandex") {
     if (!config.apiKey) {
@@ -360,6 +362,7 @@ const transcribeWithOpenai = async (
     endpoint = OPENAI_TRANSCRIPTIONS_ENDPOINT,
     timeoutMs,
     provider = "openai",
+    supportCompany = "",
   },
 ) => {
   const buffer = await storage.getObjectBuffer(attachment.name);
@@ -383,7 +386,7 @@ const transcribeWithOpenai = async (
   } else {
     formData.append("response_format", "json");
     formData.append("language", "ru");
-    formData.append("prompt", transcriptionPrompt);
+    formData.append("prompt", buildTranscriptionPrompt({ supportCompany }));
   }
 
   logger.log("info", "Requesting speech recognition", {
@@ -687,7 +690,10 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
   let summaryError = "";
 
   try {
-    const result = await summarizeDialog({ segments, context });
+    const result = await summarizeDialog({
+      segments,
+      context: { ...context, supportCompany: config.supportCompany },
+    });
     summary = result.summary || "";
     title = result.title || "";
     cleanedDialog = result.dialog || [];

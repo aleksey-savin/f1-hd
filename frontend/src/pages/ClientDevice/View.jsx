@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 
 
@@ -18,7 +19,7 @@ export async function loader({ params }) {
   if (!response.ok) throw response;
 
   const device = await response.json();
-  document.title = device.inventoryNumber || "Устройство";
+  setDocTitle(device.inventoryNumber || "Устройство");
   return device;
 }
 

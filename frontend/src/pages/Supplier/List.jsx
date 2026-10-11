@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo } from "react";
 import { redirect, useActionData, useLocation } from "react-router";
 
@@ -103,7 +104,7 @@ const SupplierListPage = () => {
 export default SupplierListPage;
 
 export async function loader() {
-  document.title = "Поставщики";
+  setDocTitle("Поставщики");
   return null;
 }
 

@@ -1,4 +1,5 @@
 import { useContext } from "react";
+import { Link } from "react-router";
 import { isBrowser } from "react-device-detect";
 
 import { cn } from "@/lib/utils";
@@ -18,7 +19,7 @@ import { ThemeContext } from "../store/theme-context";
 // ширины на поля вокруг листа всё равно нет.
 const Footer = () => {
   const { token } = getLocalStorageData();
-  const { contacts } = useInitialPrefs();
+  const { contacts, brand, hasHelp } = useInitialPrefs();
   const { plainCanvas } = useContext(ThemeContext);
 
   const sheet = isBrowser && !plainCanvas;
@@ -83,12 +84,24 @@ const Footer = () => {
       {contacts?.address && <div className="mb-2 text-pretty">{contacts.address}</div>}
       <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-faint">
         <span className="whitespace-nowrap">
-          © {new Date().getFullYear()} F1Lab Helpdesk
+          © {new Date().getFullYear()} {brand.productName}
         </span>
         <span aria-hidden>·</span>
         <span className="whitespace-nowrap">
           Версия {import.meta.env.VITE_VERSION}
         </span>
+        {/* Только когда читателю есть что открыть (prefs.hasHelp из /api/me) */}
+        {hasHelp && (
+          <>
+            <span aria-hidden>·</span>
+            <Link
+              to="/help"
+              className="whitespace-nowrap text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
+            >
+              Справка
+            </Link>
+          </>
+        )}
       </div>
     </footer>
   );

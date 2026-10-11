@@ -22,17 +22,17 @@ const LABELS = {
   firmwareChanged: "RouterOS version changed",
   identityChanged: "identity changed",
   serialChanged: "serial number changed",
-  upgradeStarted: "upgrade from HD started",
-  upgradeFinished: "upgrade from HD finished",
-  upgradeFailed: "upgrade from HD failed",
-  upgradeCancelled: "upgrade from HD cancelled",
+  upgradeStarted: "upgrade from the helpdesk started",
+  upgradeFinished: "upgrade from the helpdesk finished",
+  upgradeFailed: "upgrade from the helpdesk failed",
+  upgradeCancelled: "upgrade from the helpdesk cancelled",
   configChanged: "configuration changed",
   exportCreated: "configuration export stored",
   exportDeleted: "configuration export deleted",
   exportDownloaded: "configuration export downloaded",
   scheduleChanged: "export schedule changed",
-  recordCreated: "added to HD",
-  parametersChanged: "connection parameters changed in HD",
+  recordCreated: "added to the helpdesk",
+  parametersChanged: "connection parameters changed in the helpdesk",
   monitoringOn: "monitoring switched on",
   monitoringOff: "monitoring switched off",
   plannedOfflineChanged: "planned offline windows changed",
@@ -77,8 +77,8 @@ function detail(event) {
   switch (event.kind) {
     case "offline": return [d.planned ? "inside a planned offline window" : null];
     case "recovered": return [seconds(d.downSeconds) ? `was down ${seconds(d.downSeconds)}` : null];
-    case "reboot": return [d.cause === "upgrade" ? "during an upgrade from HD" : "not started from HD", Number.isFinite(d.ranSeconds) ? `ran ${Math.round(d.ranSeconds / 3600)} h before it` : null];
-    case "firmwareChanged": return [`${short(d.from)} → ${short(d.to)}`, d.cause === "upgrade" ? "by an upgrade from HD" : "not from HD"];
+    case "reboot": return [d.cause === "upgrade" ? "during an upgrade from the helpdesk" : "not started from the helpdesk", Number.isFinite(d.ranSeconds) ? `ran ${Math.round(d.ranSeconds / 3600)} h before it` : null];
+    case "firmwareChanged": return [`${short(d.from)} → ${short(d.to)}`, d.cause === "upgrade" ? "by an upgrade from the helpdesk" : "not from the helpdesk"];
     case "identityChanged":
     case "serialChanged": return [`${short(d.from)} → ${short(d.to)}`];
     case "upgradeStarted":
@@ -92,7 +92,7 @@ function detail(event) {
     case "agentAccess": return [event.count > 1 ? `${event.count} reads since ${iso(d.since)}` : null, (d.tools || []).length ? `tools: ${d.tools.map(short).join(", ")}` : null, (d.targets || []).length ? `targets: ${d.targets.map(short).join(", ")}` : null];
     case "routerLogin": return [`from ${short(d.from)} via ${short(d.via)}`];
     case "routerLoginFailed": return [`${d.count} attempts`, (d.sources || []).length ? `from ${d.sources.map(short).join(", ")}` : null, (d.via || []).length ? `via ${d.via.map(short).join(", ")}` : null];
-    case "routerConfig": return [d.count > 1 ? `${d.count} log lines` : null, d.byHd ? "HD's own account" : null];
+    case "routerConfig": return [d.count > 1 ? `${d.count} log lines` : null, d.byHd ? "the helpdesk's own account" : null];
     case "routerMore": return [`${d.count} lines`];
     default: return [];
   }

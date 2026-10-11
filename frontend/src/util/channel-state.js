@@ -13,7 +13,7 @@ import { formatPhone } from "./phone.ts";
 /** Сигнала шлюза нет дольше этого — строка состояния предупреждает. */
 export const GATEWAY_SILENCE_MS = 5 * 60_000;
 
-/** «socks5://relay.f1lab.ru:1080» → «relay.f1lab.ru»; не адрес — пусто. */
+/** «socks5://relay.example.com:1080» → «relay.example.com»; не адрес — пусто. */
 export const proxyHost = (url) => {
   if (!url) return "";
   try {

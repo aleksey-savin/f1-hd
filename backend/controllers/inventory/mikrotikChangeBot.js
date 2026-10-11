@@ -116,7 +116,7 @@ function createBotHandlers({ load, loadContext, decisions, baseUrl = "", now = (
     let ctx = null;
     if (kind === "approve") {
       ctx = await loadContext(change);
-      if (!present(change, ctx).shows) return refuse(res, "too_long", `${NOT_FITS} — утвердите запрос в HD`);
+      if (!present(change, ctx).shows) return refuse(res, "too_long", `${NOT_FITS} — утвердите запрос в портале`);
     }
 
     const result = await decisions.decide({
@@ -135,7 +135,7 @@ function createBotHandlers({ load, loadContext, decisions, baseUrl = "", now = (
     try {
       if (kind === "approve") {
         if (result.change.status === STATUS.queued) {
-          text = "Вы утвердили запрос. HD снимет резервную копию и применит команды. Итог придёт отдельным сообщением.";
+          text = "Вы утвердили запрос. Система снимет резервную копию и применит команды. Итог придёт отдельным сообщением.";
         } else {
           const next = currentStep(result.change);
           const who = next && nameOf(ctx.users?.get(idOf(next.user)));

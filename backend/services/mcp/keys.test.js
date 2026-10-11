@@ -60,8 +60,8 @@ test("row: exposes name, tail, dates and author — never the hash", () => {
     keyTail: "9f3c",
     createdBy: {
       _id: "62d0bdbf5a3314d41cc43eb1",
-      firstName: "Алексей",
-      lastName: "Савин",
+      firstName: "Сергей",
+      lastName: "Волков",
       email: "someone@example.ru",
     },
     lastUsedAt: new Date("2026-09-17T10:00:00.000Z"),
@@ -78,8 +78,8 @@ test("row: exposes name, tail, dates and author — never the hash", () => {
     lastUsedAt: new Date("2026-09-17T10:00:00.000Z"),
     createdBy: {
       _id: "62d0bdbf5a3314d41cc43eb1",
-      firstName: "Алексей",
-      lastName: "Савин",
+      firstName: "Сергей",
+      lastName: "Волков",
     },
   });
 });

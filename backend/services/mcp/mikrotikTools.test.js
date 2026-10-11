@@ -10,7 +10,7 @@ const ID_A = "66aa00000000000000000001";
 const ID_B = "66aa00000000000000000002";
 const device = (over) => ({
   _id: ID_A,
-  name: "F1-MSK01",
+  name: "GW-MSK01",
   label: null,
   company: "Ромашка",
   boardName: "RB4011iGS+",
@@ -26,7 +26,7 @@ const device = (over) => ({
   offlineSince: null,
   ...over,
 });
-const DEVICES = [device(), device({ _id: ID_B, name: "F1-SPB01", company: "Лютик", status: "offline", host: "198.51.100.9", serialNumber: "XYZ789", offlineSince: "2026-10-09T22:00:00.000Z" })];
+const DEVICES = [device(), device({ _id: ID_B, name: "GW-SPB01", company: "Лютик", status: "offline", host: "198.51.100.9", serialNumber: "XYZ789", offlineSince: "2026-10-09T22:00:00.000Z" })];
 
 const RAW = [
   "# 2026-10-10 12:00:00 by RouterOS 7.15.3",
@@ -75,20 +75,20 @@ test("list: filters by status, company and query; never shows a login or a pin",
   assert.ok(!all.includes("records/66aa") && !all.includes("monitoring:"));
   assert.match(all, /offline since 2026-10-09T22:00Z/);
 
-  assert.match(text(await tools.list({ status: "offline" }, caller)), /Found 1 .*\n\n1\. F1-SPB01/s);
-  assert.match(text(await tools.list({ company: "ромаш" }, caller)), /1\. F1-MSK01/);
-  assert.match(text(await tools.list({ query: "xyz789" }, caller)), /1\. F1-SPB01/);
+  assert.match(text(await tools.list({ status: "offline" }, caller)), /Found 1 .*\n\n1\. GW-SPB01/s);
+  assert.match(text(await tools.list({ company: "ромаш" }, caller)), /1\. GW-MSK01/);
+  assert.match(text(await tools.list({ query: "xyz789" }, caller)), /1\. GW-SPB01/);
   assert.match(text(await tools.list({ query: "nothing" }, caller)), /No Mikrotik devices match \(2 in total\)/);
 });
 
 test("a device is addressed by id, name, host or serial; ambiguity is an error with options", async () => {
   const { tools } = buildTools();
-  for (const value of [ID_A, "f1-msk01", "203.0.113.7", "ABC123"]) {
-    assert.match(text(await tools.getConfig({ device: value }, caller)), /# Configuration of F1-MSK01/);
+  for (const value of [ID_A, "gw-msk01", "203.0.113.7", "ABC123"]) {
+    assert.match(text(await tools.getConfig({ device: value }, caller)), /# Configuration of GW-MSK01/);
   }
-  const several = await tools.getConfig({ device: "F1" }, caller);
+  const several = await tools.getConfig({ device: "GW" }, caller);
   assert.equal(several.isError, true);
-  assert.match(text(several), /Several devices match "F1": F1-MSK01 \(Ромашка\) — id 66aa00000000000000000001; F1-SPB01/);
+  assert.match(text(several), /Several devices match "GW": GW-MSK01 \(Ромашка\) — id 66aa00000000000000000001; GW-SPB01/);
   assert.equal((await tools.getConfig({ device: "nope" }, caller)).isError, true);
   assert.equal((await tools.getConfig({ device: "66aa000000000000000000ff" }, caller)).isError, true);
 });
@@ -132,7 +132,7 @@ test("config: an unreachable device is a tool error with the reason, not an inte
   });
   const result = await tools.getConfig({ device: ID_A }, caller);
   assert.equal(result.isError, true);
-  assert.match(text(result), /Could not read the configuration of F1-MSK01 from the device: SSH-порт устройства недоступен/);
+  assert.match(text(result), /Could not read the configuration of GW-MSK01 from the device: SSH-порт устройства недоступен/);
   assert.equal(logs[0].level, "warn");
 });
 
@@ -189,7 +189,7 @@ test("device card: availability, firmware, addresses and exports; comments are o
       lastError: "connect ETIMEDOUT",
       plannedOffline: [{ days: [1, 2], start: "22:00", end: "06:00" }],
       monitoredSince: "2026-01-01T00:00:00.000Z",
-      via: "F1-MSK01",
+      via: "GW-MSK01",
     },
     availability: {
       uptimePct: 99.5,
@@ -205,10 +205,10 @@ test("device card: availability, firmware, addresses and exports; comments are o
   };
   const { tools } = buildTools({ loadDevice: async (id, { days }) => (days === 7 ? detail : null) });
   const out = text(await tools.getDevice({ device: ID_B, days: 7 }, caller, { timezone: "Asia/Vladivostok" }));
-  assert.match(out, /^# F1-SPB01\n/);
+  assert.match(out, /^# GW-SPB01\n/);
   assert.match(out, /\nlocation: —\n/);
   assert.match(out, /last poll error: connect ETIMEDOUT/);
-  assert.match(out, /host: 198\.51\.100\.9:8729; reached through: F1-MSK01/);
+  assert.match(out, /host: 198\.51\.100\.9:8729; reached through: GW-MSK01/);
   assert.match(out, /- 10\.0\.0\.1\/24 on bridge \(network 10\.0\.0\.0\) — LAN ## Firmware /);
   assert.ok(!out.includes("Hunter2Hunter2"));
   assert.match(out, /## Addresses \(2\)/);
@@ -245,7 +245,7 @@ test("location: the card and the row show the place and its subdivisions; no loc
   assert.deepEqual(seen[0], { locations: true });
   assert.match(all, /location: Хабаровск, офис › Серверная \(ул\. Муравьёва-Амурского, 1\); subdivisions: Хабаровский филиал/);
   // Без расположения строки «location» в списке нет (в карточке — прочерк)
-  assert.match(all, /F1-SPB01\n[^\n]*\n[^\n]*\n   id: /);
+  assert.match(all, /GW-SPB01\n[^\n]*\n[^\n]*\n   id: /);
   // Поиск находит устройство по слову из расположения и по подразделению
   assert.match(text(await tools.list({ query: "серверная" }, caller, context)), /Found 1 /);
   assert.match(text(await tools.list({ query: "хабаровский филиал" }, caller, context)), /Found 1 /);

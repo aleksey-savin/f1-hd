@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useContext, useEffect, useMemo, useState } from "react";
 import {
   Link,
@@ -405,7 +406,7 @@ export default LocationList;
 // Loader: только справочник компаний — расположения выбранной компании
 // подтягивает стор (fetch по companyIds).
 export const loader = async () => {
-  document.title = "Расположения";
+  setDocTitle("Расположения");
 
   const companiesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/companies`,

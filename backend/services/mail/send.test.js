@@ -6,6 +6,8 @@ const { spawnSync } = require("node:child_process");
 
 // Ключ шифрования теста — до первого обращения к secretBox (он кэширует ключ)
 process.env.APP_ENC_KEY = crypto.randomBytes(32).toString("base64");
+// Режим почты теста — «live»: без него отправка выключена (utils/mailGuard)
+process.env.MAIL_MODE = "live";
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -197,4 +199,135 @@ test("нет APP_ENC_KEY — ошибка развёртывания: не «в�
     assert.equal(out[name].threw, "Error", `${name}: ошибка названа SecretUnreadableError`);
     assert.match(out[name].message, /^APP_ENC_KEY/);
   }
+});
+
+// ── Режим почты (MAIL_MODE) ─────────────────────────────────────────────────
+
+const withMailMode = (t, mode, sandboxRecipient) => {
+  const before = {
+    MAIL_MODE: process.env.MAIL_MODE,
+    MAIL_SANDBOX_RECIPIENT: process.env.MAIL_SANDBOX_RECIPIENT,
+  };
+  const put = (key, value) => {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  };
+  put("MAIL_MODE", mode);
+  put("MAIL_SANDBOX_RECIPIENT", sandboxRecipient);
+  t.after(() => {
+    put("MAIL_MODE", before.MAIL_MODE);
+    put("MAIL_SANDBOX_RECIPIENT", before.MAIL_SANDBOX_RECIPIENT);
+  });
+};
+
+test("почта выключена на сервере: отказ без повтора, транспорт не собран, сокета нет, в журнале одна строка без адреса", async (t) => {
+  withMailMode(t, undefined);
+  const sockets = trackSockets(t);
+  const createTransport = fakeTransport(t, async () => ({ messageId: "m1" }));
+  const log = captureLog(t);
+
+  // Нечитаемый пароль не мешает: до расшифровки дело не доходит
+  const result = await send(channel(foreignCiphertext("smtp-pass")));
+
+  assert.equal(result.success, false);
+  assert.equal(result.retryable, false);
+  assert.deepEqual(result.failure, {
+    state: "Отправка почты выключена на сервере",
+    hint: "Включается в настройках сервера: MAIL_MODE=live.",
+  });
+  assert.equal(createTransport.mock.callCount(), 0);
+  assert.deepEqual(sockets, []);
+  assert.equal(log.length, 1);
+  assert.ok(!JSON.stringify(log).includes("user@example.ru"), "в журнале адрес получателя");
+});
+
+test("песочница: письмо уходит на адрес песочницы, тема и тело называют исходного получателя", async (t) => {
+  withMailMode(t, "sandbox", "box@example.com");
+  captureLog(t);
+  const sent = [];
+  fakeTransport(t, async (message) => {
+    sent.push(message);
+    return { messageId: "m1" };
+  });
+
+  const result = await send(channel(encryptSecret("smtp-pass")));
+
+  assert.equal(result.success, true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, "box@example.com");
+  assert.equal(sent[0].subject, "[SANDBOX → user@example.ru] Тема");
+  assert.ok(sent[0].html.includes("user@example.ru"));
+});
+
+test("live: получатель и тема не меняются", async (t) => {
+  withMailMode(t, "live");
+  captureLog(t);
+  const sent = [];
+  fakeTransport(t, async (message) => {
+    sent.push(message);
+    return { messageId: "m1" };
+  });
+
+  await send(channel(encryptSecret("smtp-pass")));
+
+  assert.equal(sent[0].to, "user@example.ru");
+  assert.equal(sent[0].subject, "Тема");
+  assert.equal(sent[0].html, "<p>Текст</p>");
+});
+
+// Письмо из очереди: адрес подменён ещё в модели уведомления, отправщик видит
+// в `to` уже адрес песочницы, исходный получатель приходит отдельно
+test("песочница, письмо из очереди: исходный получатель из intendedEmail — в теме и в теле, по одному разу", async (t) => {
+  withMailMode(t, "sandbox", "box@example.com");
+  captureLog(t);
+  const sent = [];
+  fakeTransport(t, async (message) => {
+    sent.push(message);
+    return { messageId: "m1" };
+  });
+  const creds = channel(encryptSecret("smtp-pass"));
+
+  await sendMail(creds, "box@example.com", "Тема", "Текст", "<p>Текст</p>", {
+    intendedEmail: "user@example.ru",
+  });
+
+  assert.equal(sent[0].to, "box@example.com");
+  assert.equal(sent[0].subject, "[SANDBOX → user@example.ru] Тема");
+  assert.equal(sent[0].html, "<p><b>Письмо предназначалось: user@example.ru</b></p><p>Текст</p>");
+  assert.equal(sent[0].text, "[Письмо предназначалось: user@example.ru]\n\nТекст");
+
+  // Подмена у самого отправщика и подсказка вместе: пометка всё равно одна,
+  // и называет она адрес, с которым письмо пришло к отправщику
+  await sendMail(creds, "user@example.ru", "Тема", "", "<p>Текст</p>", {
+    intendedEmail: "user@example.ru",
+  });
+  assert.equal(sent[1].subject, "[SANDBOX → user@example.ru] Тема");
+  assert.equal(sent[1].subject.match(/SANDBOX/g).length, 1);
+  assert.equal(sent[1].html.match(/Письмо предназначалось/g).length, 1);
+
+  // Письмо и предназначалось адресу песочницы: помечать нечего
+  for (const options of [{ intendedEmail: "box@example.com" }, { intendedEmail: null }, {}, undefined]) {
+    await sendMail(creds, "box@example.com", "Тема", "", "<p>Текст</p>", options);
+    const last = sent.at(-1);
+    assert.equal(last.subject, "Тема");
+    assert.equal(last.html, "<p>Текст</p>");
+  }
+});
+
+test("live: intendedEmail ничего не меняет — ни получателя, ни темы, ни тела", async (t) => {
+  withMailMode(t, "live");
+  captureLog(t);
+  const sent = [];
+  fakeTransport(t, async (message) => {
+    sent.push(message);
+    return { messageId: "m1" };
+  });
+
+  await sendMail(channel(encryptSecret("smtp-pass")), "user@example.ru", "Тема", "", "<p>Текст</p>", {
+    intendedEmail: "other@example.ru",
+  });
+
+  assert.equal(sent[0].to, "user@example.ru");
+  assert.equal(sent[0].subject, "Тема");
+  assert.equal(sent[0].html, "<p>Текст</p>");
 });

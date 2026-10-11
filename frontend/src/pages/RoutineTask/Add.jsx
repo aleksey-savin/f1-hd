@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { load } from "@/store/form-data";
 import Form from "../../components/RoutineTask/Form";
 
@@ -8,7 +9,7 @@ const AddRoutineTaskPage = () => {
 export default AddRoutineTaskPage;
 
 export async function loader({ request }) {
-  document.title = "Новый регламент";
+  setDocTitle("Новый регламент");
 
   const fromTemplate = new URL(request.url).searchParams.get("fromTemplate");
 

@@ -180,21 +180,21 @@ const installFullAccessCatalogue = ({ otherAdmins = [] } = {}) => {
 
 const ADMIN = {
   _id: "66aa00000000000000000001",
-  email: "admin@f1lab.ru",
+  email: "admin@example.com",
   isAdmin: true,
   isEndUser: false,
   banned: false,
 };
 const PERSON = {
   _id: "66aa00000000000000000002",
-  email: "ivanov@f1lab.ru",
+  email: "ivanov@example.com",
   isAdmin: false,
   isEndUser: true,
   banned: false,
 };
 const STAFF = {
   _id: "66aa00000000000000000004",
-  email: "sidorov@f1lab.ru",
+  email: "sidorov@example.com",
   isAdmin: false,
   isEndUser: false,
   banned: false,
@@ -280,7 +280,7 @@ test("update: an e-mail change without user.manageAccess stops before any write"
 
   const { failure } = await call(controller.update, {
     params: { id: PERSON._id },
-    body: { email: "petrov@f1lab.ru" },
+    body: { email: "petrov@example.com" },
     auth: actor({ actions: ["user.manage"] }),
   });
 
@@ -329,13 +329,13 @@ test("update: an address taken by another account is a 409", async () => {
 
   const { failure } = await call(controller.update, {
     params: { id: PERSON._id },
-    body: { email: "Petrov@F1lab.ru" },
+    body: { email: "Petrov@Example.com" },
     auth: actor({ actions: ["user.manage", "user.manageAccess"] }),
   });
 
   assert.equal(failure?.statusCode, 409);
   assert.deepEqual(asked, {
-    email: "petrov@f1lab.ru",
+    email: "petrov@example.com",
     _id: { $ne: PERSON._id },
   });
 });
@@ -475,13 +475,13 @@ const callOf = (name) => calls.find(([called]) => called === name);
 test("update: an e-mail change signs the person out and warns the old address", async () => {
   const { doc, failure, sent } = await edit({
     target: PERSON,
-    body: { email: " Petrov@F1lab.ru " },
+    body: { email: " Petrov@Example.com " },
   });
 
   assert.equal(failure, null);
   assert.equal(sent.status, 201);
   // Пишется адрес из решения (без пробелов, в нижнем регистре), не тело запроса
-  assert.equal(doc.email, "petrov@f1lab.ru");
+  assert.equal(doc.email, "petrov@example.com");
   // Запись, затем сеансы и письмо, и только потом роли: отказ на ролях не
   // должен оставить сохранённую смену без последствий
   assert.deepEqual(steps(), [
@@ -503,20 +503,20 @@ test("update: an e-mail change signs the person out and warns the old address", 
   ]);
   const [, notice] = callOf("notify");
   // Письмо — на ПРЕЖНИЙ адрес, новый назван в тексте
-  assert.equal(notice.to.email, "ivanov@f1lab.ru");
-  assert.match(notice.text, /petrov@f1lab\.ru/);
+  assert.equal(notice.to.email, "ivanov@example.com");
+  assert.match(notice.text, /petrov@example\.com/);
 });
 
 test("update: an account with no stored e-mail is signed out too, but no letter is queued", async () => {
   // Старая запись без email: письмо писать некуда, но смена — всё равно смена
   const { doc, failure, sent } = await edit({
     target: { ...PERSON, email: undefined },
-    body: { email: "new@f1lab.ru" },
+    body: { email: "new@example.com" },
   });
 
   assert.equal(failure, null);
   assert.equal(sent.status, 201);
-  assert.equal(doc.email, "new@f1lab.ru");
+  assert.equal(doc.email, "new@example.com");
   assert.deepEqual(steps(), [
     "exists",
     "save",
@@ -529,7 +529,7 @@ test("update: an account with no stored e-mail is signed out too, but no letter 
 test("update: a failing letter queue does not break the saved change", async () => {
   const { failure, sent } = await edit({
     target: PERSON,
-    body: { email: "petrov@f1lab.ru" },
+    body: { email: "petrov@example.com" },
     queueFails: true,
   });
 
@@ -554,11 +554,11 @@ test("update: a failing letter queue does not break the saved change", async () 
 test("update: the same address in another case is not a change", async () => {
   const { doc, failure } = await edit({
     target: PERSON,
-    body: { email: " IVANOV@F1LAB.RU " },
+    body: { email: " IVANOV@EXAMPLE.COM " },
   });
 
   assert.equal(failure, null);
-  assert.equal(doc.email, "ivanov@f1lab.ru");
+  assert.equal(doc.email, "ivanov@example.com");
   // Ни проверки адреса, ни сеансов, ни письма
   assert.deepEqual(steps(), ["save", "ensureMember"]);
 });
@@ -569,12 +569,12 @@ test("update: a person changing their own e-mail keeps the current session", asy
   // Письмо на прежний адрес уходит, как и у чужой правки
   const { doc, failure } = await edit({
     target: STAFF,
-    body: { email: "new.sidorov@f1lab.ru" },
+    body: { email: "new.sidorov@example.com" },
     actorId: STAFF._id,
   });
 
   assert.equal(failure, null);
-  assert.equal(doc.email, "new.sidorov@f1lab.ru");
+  assert.equal(doc.email, "new.sidorov@example.com");
   assert.deepEqual(steps(), [
     "exists",
     "save",
@@ -594,7 +594,7 @@ test("update: an account that disables itself loses every session, the current o
   // запись не должна сохранить ни одного сеанса
   const { failure } = await edit({
     target: STAFF,
-    body: { email: "new.sidorov@f1lab.ru", banned: true },
+    body: { email: "new.sidorov@example.com", banned: true },
     actorId: STAFF._id,
   });
 

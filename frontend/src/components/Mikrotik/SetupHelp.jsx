@@ -68,7 +68,7 @@ const buildSetupCommands = ({
   if (presets.user) {
     blocks.push(
       upgradeEnabled
-        ? `# Пользователь HD: чтение + обновление прошивки (write, reboot, policy — RouterOS требует для проверки обновлений); без full/sensitive
+        ? `# Учётная запись портала: чтение + обновление прошивки (write, reboot, policy — RouterOS требует для проверки обновлений); без full/sensitive
 /user group add name=hd-mgmt policy=${UPGRADE_POLICY}
 /user add name=${login} group=hd-mgmt password="${pass}"`
         : `# Пользователь с минимальными правами: только чтение (без full/policy/sensitive)
@@ -365,7 +365,7 @@ const SetupHelp = ({
           </div>
           {upgradeEnabled && effectivePresets.user && (
             <div className="mt-1 text-xs text-faint">
-              Без «Обновления прошивки из HD» группа получает только{" "}
+              Без «Обновления прошивки из портала» группа получает только{" "}
               {READ_POLICY}.
             </div>
           )}

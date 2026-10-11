@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
 
@@ -79,7 +80,7 @@ const TicketCategories = () => {
 export default TicketCategories;
 
 export async function loader() {
-  document.title = "Категории заявок";
+  setDocTitle("Категории заявок");
 
   return null;
 }

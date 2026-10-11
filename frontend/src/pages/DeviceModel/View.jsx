@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 
 import ViewDeviceModel from "../../components/DeviceModel/View";
@@ -18,7 +19,7 @@ const ViewDeviceModelPage = () => {
 export default ViewDeviceModelPage;
 
 export async function loader({ params }) {
-  document.title = "Просмотр модели устройства";
+  setDocTitle("Просмотр модели устройства");
 
   const headers = {};
   const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;

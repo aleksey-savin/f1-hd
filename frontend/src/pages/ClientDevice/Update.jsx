@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/ClientDevice/Form";
 import { loadFormData } from "./Add";
 
@@ -12,7 +13,7 @@ export default UpdateClientDevicePage;
 // Устройство — всегда свежее (его правят многие), справочники — из кэша
 // (store/form-data): форма открывается готовой, без спиннера внутри шторки.
 export async function loader({ params }) {
-  document.title = "Изменить устройство";
+  setDocTitle("Изменить устройство");
 
   const [device, formData] = await Promise.all([
     api(`/api/inventory/client-devices/${params.id}`),

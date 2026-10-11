@@ -113,7 +113,7 @@ const ticketSource = {
 
 const MIKROTIK_DEVICE = {
   _id: "66bb00000000000000000001",
-  name: "F1-MSK01",
+  name: "GW-MSK01",
   company: "Ромашка",
   status: "online",
   host: "203.0.113.7",
@@ -142,7 +142,7 @@ const mikrotikSource = {
 
 const PROPOSED = [];
 const changeStore = {
-  listDevices: async () => [{ _id: "66aa00000000000000000001", name: "F1-MSK01", label: null, host: "203.0.113.7", serialNumber: "ABC123", company: "Ромашка" }],
+  listDevices: async () => [{ _id: "66aa00000000000000000001", name: "GW-MSK01", label: null, host: "203.0.113.7", serialNumber: "ABC123", company: "Ромашка" }],
   findChange: async () => null,
   listChanges: async () => [],
   people: async () => new Map(),
@@ -394,7 +394,7 @@ test("change tools over MCP: propose is not marked read-only, the schema is a fi
     assert.equal(byName.list_mikrotik_changes.annotations.readOnlyHint, true);
 
     const rejected = (message) => Boolean(message.error || message.result?.isError);
-    const base_ = { device: "F1-MSK01", requester: 123456789, title: "t", reason: "r", commands: [{ path: "/ip firewall address-list", action: "add", params: { list: "a" } }] };
+    const base_ = { device: "GW-MSK01", requester: 123456789, title: "t", reason: "r", commands: [{ path: "/ip firewall address-list", action: "add", params: { list: "a" } }] };
     const before = PROPOSED.length;
     assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, requester: "123" })));
     assert.ok(rejected(await callTool(base, "propose_mikrotik_change", { ...base_, commands: [] })));
@@ -435,16 +435,16 @@ test("diagnostics over MCP: only listed checks and a plain IPv4 address get thro
   await withServer(buildApp({ scopes: ["mikrotik"] }), async (base) => {
     const rejected = (message) => Boolean(message.error || message.result?.isError);
     const sentBefore = MIKROTIK_SENT.length;
-    assert.ok(rejected(await callTool(base, "get_mikrotik_state", { device: "F1-MSK01", checks: ["users"] })));
-    assert.ok(rejected(await callTool(base, "ping_from_mikrotik", { device: "F1-MSK01", address: "10.0.0.1; /system reboot" })));
-    assert.ok(rejected(await callTool(base, "ping_from_mikrotik", { device: "F1-MSK01", address: "10.0.0.5", count: 100 })));
-    assert.ok(rejected(await callTool(base, "get_mikrotik_log", { device: "F1-MSK01", limit: 5000 })));
+    assert.ok(rejected(await callTool(base, "get_mikrotik_state", { device: "GW-MSK01", checks: ["users"] })));
+    assert.ok(rejected(await callTool(base, "ping_from_mikrotik", { device: "GW-MSK01", address: "10.0.0.1; /system reboot" })));
+    assert.ok(rejected(await callTool(base, "ping_from_mikrotik", { device: "GW-MSK01", address: "10.0.0.5", count: 100 })));
+    assert.ok(rejected(await callTool(base, "get_mikrotik_log", { device: "GW-MSK01", limit: 5000 })));
     assert.equal(MIKROTIK_SENT.length, sentBefore);
 
-    const state = toolText(await callTool(base, "get_mikrotik_state", { device: "F1-MSK01", checks: ["routes"] }));
+    const state = toolText(await callTool(base, "get_mikrotik_state", { device: "GW-MSK01", checks: ["routes"] }));
     assert.match(state, /## Routes \(1 row\)\n> dst-address=10\.0\.0\.0\/24/);
-    const ping = toolText(await callTool(base, "ping_from_mikrotik", { device: "F1-MSK01", address: "10.0.0.5" }));
-    assert.match(ping, /# Ping from F1-MSK01 to 10\.0\.0\.5/);
+    const ping = toolText(await callTool(base, "ping_from_mikrotik", { device: "GW-MSK01", address: "10.0.0.5" }));
+    assert.match(ping, /# Ping from GW-MSK01 to 10\.0\.0\.5/);
     assert.deepEqual(MIKROTIK_SENT.at(-1), ["/ping", "=address=10.0.0.5", "=count=3"]);
   });
 });
@@ -458,11 +458,11 @@ test("a Mikrotik-only key with the Mikrotik module off gets 403", async () => {
 
 test("a configuration read over MCP hides the private key and rejects unknown arguments", async () => {
   await withServer(buildApp({ scopes: ["mikrotik"] }), async (base) => {
-    const text = toolText(await callTool(base, "get_mikrotik_config", { device: "F1-MSK01", section: "/interface wireguard" }));
+    const text = toolText(await callTool(base, "get_mikrotik_config", { device: "GW-MSK01", section: "/interface wireguard" }));
     assert.match(text, /> add name=wg0 private-key=\[секрет скрыт\]/);
     assert.ok(!text.includes("RawPrivateKeyValue"));
 
-    const bad = await callTool(base, "get_mikrotik_config", { device: "F1-MSK01", command: "/user print" });
+    const bad = await callTool(base, "get_mikrotik_config", { device: "GW-MSK01", command: "/user print" });
     assert.ok(bad.error || bad.result?.isError);
   });
 });

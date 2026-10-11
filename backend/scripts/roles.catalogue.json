@@ -1,19 +1,14 @@
 {
   "_": [
-    "Каталог ролей: ДАННЫЕ, а не код. СОБИРАЕТСЯ ИЗ БАЗЫ ДЕВА скриптом",
-    "scripts/dumpRoleCatalogue.js --apply после правки ролей в интерфейсе; лежит в",
-    "репозитории: по нему первый запуск заводит роли (services/bootstrapSeed.js),",
-    "а scripts/syncRoleCatalogue.js --apply догоняет каталог существующей базы.",
+    "Каталог ролей поставки: ДАННЫЕ, а не код. По нему первый запуск заводит роли",
+    "(services/bootstrapSeed.js), а scripts/syncRoleCatalogue.js --apply догоняет",
+    "каталог существующей базы. Людей и следов конкретной установки здесь нет.",
     "",
     "`key` — НЕИЗМЕНЯЕМЫЙ ключ роли. Именно его хранит `member.role`, поэтому",
     "менять его нельзя: переименование ключа оставит людей без прав молча.",
     "`title` — то, что видит человек; правится свободно, в том числе из UI.",
     "",
     "`actions` — действия СЛОВАРЯ (backend/auth/access.js), «ресурс.действие».",
-    "",
-    "`members` (роли сотрудников — люди поимённо, по почте) и `matches` (клиентские",
-    "роли — подписи доролевых наборов галочек) — след переезда на роли в 2026-08.",
-    "Их никто не читает; выгрузка хранит их, чтобы диффы оставались читаемыми.",
     "",
     "Роль полного доступа ОБЯЗАНА содержать все действия СОТРУДНИКА (адресат",
     "staff или both): по признаку «роль отдаёт всё» зеркалится user.isAdmin",
@@ -27,26 +22,7 @@
       "title": "Клиент",
       "audience": "client",
       "description": "Заявки только свои",
-      "actions": [],
-      "matches": [
-        [],
-        [
-          "canAvoidWorks"
-        ],
-        [
-          "canUseTimeTrackingModule",
-          "canSeeWorksReport"
-        ]
-      ],
-      "_note": [
-        "Одинокий canAvoidWorks — ошибка раздачи, а не роль: он стоял у клиента",
-        "(главный бухгалтер), который заявок не выполняет вовсе. Поглощаем",
-        "подписью, право не даём.",
-        "canUseTimeTrackingModule + canSeeWorksReport без заявок компании — подпись",
-        "прежней роли «Учёт работ», снятой при пересборке каталога: единственная",
-        "носительница — клиент, отключена и ни разу не входила. Решение 2026-09-03:",
-        "обычный клиент; понадобится отчёт — роль «Клиент: руководитель» из UI."
-      ]
+      "actions": []
     },
     {
       "key": "client-admin",
@@ -64,11 +40,6 @@
         "company.read",
         "user.read",
         "device.read"
-      ],
-      "matches": [
-        [
-          "canSeeAllCompanyTickets"
-        ]
       ]
     },
     {
@@ -79,13 +50,6 @@
       "actions": [
         "ticket.readCompanies",
         "work.read"
-      ],
-      "matches": [
-        [
-          "canSeeAllCompanyTickets",
-          "canUseTimeTrackingModule",
-          "canSeeWorksReport"
-        ]
       ]
     },
     {
@@ -154,12 +118,6 @@
         "conversation.read",
         "conversation.reply",
         "conversation.manage"
-      ],
-      "members": [
-        "a.savin@f1lab.ru",
-        "a.shvetsov@f1lab.ru",
-        "s.odzyal@f1lab.ru",
-        "y.em@f1lab.ru"
       ]
     },
     {
@@ -190,12 +148,6 @@
         "ai.use",
         "conversation.read",
         "conversation.reply"
-      ],
-      "members": [
-        "i.chernov@f1lab.ru",
-        "m.guryanov@f1lab.ru",
-        "t.zhuravskaya@f1lab.ru",
-        "v.yushin@f1lab.ru"
       ]
     },
     {
@@ -208,10 +160,6 @@
         "ticket.closeWithoutWork",
         "company.read",
         "user.read"
-      ],
-      "members": [
-        "crm@anlex.ru",
-        "kirpichev@dvregion.ru"
       ]
     },
     {
@@ -251,10 +199,6 @@
         "ai.use",
         "conversation.read",
         "conversation.reply"
-      ],
-      "members": [
-        "a.echin@f1lab.ru",
-        "i.karpachev@f1lab.ru"
       ]
     },
     {
@@ -265,22 +209,7 @@
       "actions": [
         "knowledge.read",
         "knowledge.moderate"
-      ],
-      "members": [
-        "a.savin@f1lab.ru",
-        "a.shvetsov@f1lab.ru"
       ]
-    },
-    {
-      "key": "klient-ofis-menedzher",
-      "title": "Клиент: офис-менеджер",
-      "audience": "client",
-      "description": "",
-      "actions": [
-        "ticket.createForOthers",
-        "user.read"
-      ],
-      "matches": []
     }
   ]
 }

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
 
@@ -10,7 +11,7 @@ const UpdateCompanyPage = () => {
 export default UpdateCompanyPage;
 
 export async function loader({ params }) {
-  document.title = "Изменить компанию";
+  setDocTitle("Изменить компанию");
 
   // Компания — всегда свежая; справочник ответственных — из кэша
   const [companyData, responsibles] = await Promise.all([

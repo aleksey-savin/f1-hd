@@ -435,7 +435,7 @@ test("ordinary Host values reach better-auth, which routes on the allowed path",
     for (const host of [
       `localhost:${port}`,
       "hd.example.com",
-      "10.0.50.70:8080",
+      "10.0.40.70:8080",
       "[::1]:8080",
     ]) {
       const response = await rawRequest(port, [

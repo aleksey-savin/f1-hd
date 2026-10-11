@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
 import {
   Link,
@@ -118,7 +119,7 @@ const DeviceForm = () => {
   const [linkError, setLinkError] = useState(null);
 
   useEffect(() => {
-    document.title = isEdit ? "Изменить устройство" : "Новое устройство";
+    setDocTitle(isEdit ? "Изменить устройство" : "Новое устройство");
   }, [isEdit]);
 
   // Компании для селекта.
@@ -877,8 +878,8 @@ const DeviceForm = () => {
         onCheckedChange={(checked) =>
           setForm((prev) => ({ ...prev, firmwareUpgradeEnabled: checked }))
         }
-        label="Обновление прошивки из HD"
-        hint="HD сможет обновлять RouterOS и RouterBOOT этого устройства. Пользователю на устройстве нужны права write, reboot и policy."
+        label="Обновление прошивки из портала"
+        hint="Система сможет обновлять RouterOS и RouterBOOT этого устройства. Пользователю на устройстве нужны права write, reboot и policy."
         divider
       />
       {/* Включили у устройства, настроенного раньше: у группы только чтение */}

@@ -255,6 +255,7 @@ export const SECTIONS: Section[] = [
     can: { settings: ["manage"] },
   },
   { key: "my-account", listTo: "/my-account", label: "Мой аккаунт" },
+  { key: "help", listTo: "/help", label: "Справка" },
 ];
 
 const byKey = new Map(SECTIONS.map((section) => [section.key, section]));

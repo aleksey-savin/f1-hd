@@ -27,7 +27,7 @@ const group = {
   conversationId: "c-group",
   network: "telegram",
   kind: "group",
-  title: "ТД Восток × F1Lab",
+  title: "Ромашка × Север",
   available: true,
   reason: null,
   boundHere: false,
@@ -51,9 +51,9 @@ test("пункты меню: заголовок и подпись как на к
   assert.equal(routeSubtitle(busy), "занят заявкой №56790");
 });
 
-test("кнопка выбора: короткое имя или «Почта и бот HD»", () => {
+test("кнопка выбора: короткое имя или «Почта и бот»", () => {
   assert.equal(routeTriggerLabel(marina, ""), "Telegram · Соколова М.");
-  assert.equal(routeTriggerLabel(null, ""), "Почта и бот HD");
+  assert.equal(routeTriggerLabel(null, ""), "Почта и бот");
   assert.equal(routeTriggerLabel({ ...marina, title: "" }, ""), "Telegram · собеседник");
 });
 
@@ -101,10 +101,10 @@ test("chronicleAuthorName: без хвоста сети, «с телефона»
   );
   assert.equal(
     chronicleAuthorName(
-      { channel: { network: "telegram", authorName: "F1Lab Поддержка · с телефона" } },
+      { channel: { network: "telegram", authorName: "Север Поддержка · с телефона" } },
       "Служба техподдержки",
     ),
-    "F1Lab Поддержка · с телефона",
+    "Север Поддержка · с телефона",
   );
   // Связанный клиент: подписи нет — имя автора комментария
   assert.equal(
@@ -134,12 +134,12 @@ test("chronicleAuthorName: письмо от незарегистрирован�
   assert.equal(chronicleAuthorName(mail, "Служба поддержки", ""), "Отправитель письма");
   // С блоком канала (ответ «с телефона») — обычные правила, realSender не при чём
   const fromPhone = {
-    channel: { network: "telegram", authorName: "F1Lab Поддержка · с телефона" },
+    channel: { network: "telegram", authorName: "Север Поддержка · с телефона" },
     createdBy: { isServiceAccount: true },
   };
   assert.equal(
     chronicleAuthorName(fromPhone, "x", "Иванов Пётр"),
-    "F1Lab Поддержка · с телефона",
+    "Север Поддержка · с телефона",
   );
 });
 

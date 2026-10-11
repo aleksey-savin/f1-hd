@@ -4,6 +4,8 @@ import { getLocalStorageData } from "../../util/auth";
 import AuthShell from "../../components/Auth/AuthShell";
 import { API } from "./session";
 import { FALLBACK_PREFS, type AuthPrefs } from "./prefs";
+import { adoptBrand } from "../../store/prefs";
+import { readCachedBrand } from "../../util/brand.js";
 
 /**
  * Беспутевой layout-маршрут пред-авторизационных экранов.
@@ -44,11 +46,16 @@ export async function loader({ request }: { request: Request }) {
     }
   }
 
-  let prefs = FALLBACK_PREFS;
+  // Без ответа сервера бренд берётся с прошлой загрузки: вход не должен
+  // перекрашиваться и менять название из-за икоты на ручке настроек
+  let prefs: AuthPrefs = { ...FALLBACK_PREFS, brand: readCachedBrand() };
   try {
     const response = await fetch(`${API}/api/preferences-auth`);
     if (response.ok) {
-      prefs = { ...FALLBACK_PREFS, ...((await response.json()) as AuthPrefs) };
+      const loaded = (await response.json()) as AuthPrefs;
+      // Бренд применяется здесь, до отрисовки: акцент и название известны
+      // раньше, чем экран входа появится на странице
+      prefs = { ...FALLBACK_PREFS, ...loaded, brand: adoptBrand(loaded.brand) };
     }
   } catch {
     // молчим намеренно: см. FALLBACK_PREFS

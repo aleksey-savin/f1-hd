@@ -62,6 +62,10 @@ const MIGRATIONS = [
   // Журнал устройств Mikrotik: перенос прошлых простоев, обновлений, запросов
   // агентов и копий; только дописывает события. См. backfillMikrotikEvents.js
   { id: "2026-10-11-backfillMikrotikEvents", script: "backfillMikrotikEvents.js", apply: true },
+  // Прежние название портала и подпись в письмах — в настройки «Бренд», если
+  // заданы LEGACY_BRAND_NAME / LEGACY_BRAND_SIGNATURE; без них ничего не пишет
+  // (и всё равно отмечается применённой). См. seedBrand.js
+  { id: "2026-10-11-seedBrand", script: "seedBrand.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

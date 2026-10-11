@@ -1,16 +1,9 @@
 // Обратная выгрузка: КАТАЛОГ РОЛЕЙ ИЗ БАЗЫ → roles.catalogue.json.
 //
-// Роли заводят и правят в интерфейсе, а на прод переезжает ФАЙЛ. Поэтому после
-// правки ролей на деве файл обязан быть пересобран из базы — иначе на прод
-// уедет то, что было до правки. Выгружаются ключ, название, описание, адресат,
-// набор действий и — для ролей сотрудников — ЛЮДИ ПОИМЁННО (`members`, по
-// почте). Так раздача, сделанная руками на деве, повторяется на проде один в
-// один: почта — единственный ключ, общий для копии и прода.
-//
-// Клиентские роли людей не перечисляют: их сотни, и на проде они выводятся из
-// доролевых галочек (`matches`). Подписи в базе не живут — они переносятся из
-// прежней версии файла как есть; новой клиентской роли подписи дописывают
-// руками.
+// Роли заводят и правят в интерфейсе, а в поставку едет ФАЙЛ. Выгружаются ключ,
+// название, описание, адресат и набор действий. Людей и прочих данных раздачи
+// выгрузка не пишет: файл — каталог продукта, а не слепок одной установки.
+// Выгрузку собственной установки держат вне репозитория.
 //
 // Запуск внутри контейнера бэкенда:
 //   node scripts/dumpRoleCatalogue.js            # показать, что изменится
@@ -29,20 +22,15 @@ const { listRoles, organizationId } = require("@/services/permissions");
 const { CATALOGUE } = require("./syncRoleCatalogue");
 
 const HEADER = [
-  "Каталог ролей: ДАННЫЕ, а не код. СОБИРАЕТСЯ ИЗ БАЗЫ ДЕВА скриптом",
-  "scripts/dumpRoleCatalogue.js --apply после правки ролей в интерфейсе; лежит в",
-  "репозитории: по нему первый запуск заводит роли (services/bootstrapSeed.js),",
-  "а scripts/syncRoleCatalogue.js --apply догоняет каталог существующей базы.",
+  "Каталог ролей поставки: ДАННЫЕ, а не код. По нему первый запуск заводит роли",
+  "(services/bootstrapSeed.js), а scripts/syncRoleCatalogue.js --apply догоняет",
+  "каталог существующей базы. Людей и следов конкретной установки здесь нет.",
   "",
   "`key` — НЕИЗМЕНЯЕМЫЙ ключ роли. Именно его хранит `member.role`, поэтому",
   "менять его нельзя: переименование ключа оставит людей без прав молча.",
   "`title` — то, что видит человек; правится свободно, в том числе из UI.",
   "",
   "`actions` — действия СЛОВАРЯ (backend/auth/access.js), «ресурс.действие».",
-  "",
-  "`members` (роли сотрудников — люди поимённо, по почте) и `matches` (клиентские",
-  "роли — подписи доролевых наборов галочек) — след переезда на роли в 2026-08.",
-  "Их никто не читает; выгрузка хранит их, чтобы диффы оставались читаемыми.",
   "",
   "Роль полного доступа ОБЯЗАНА содержать все действия СОТРУДНИКА (адресат",
   "staff или both): по признаку «роль отдаёт всё» зеркалится user.isAdmin",
@@ -51,42 +39,13 @@ const HEADER = [
   "иначе зеркало погаснет у всех администраторов.",
 ];
 
-/** Почты носителей роли — существующие, неслужебные; отключённые тоже. */
-const membersOf = async (db, orgId, key) => {
-  const rows = await db
-    .collection("member")
-    .find(
-      { organizationId: orgId, role: { $regex: `(^|,)\\s*${key}\\s*(,|$)` } },
-      { projection: { userId: 1 } },
-    )
-    .toArray();
-  const ids = rows
-    .map((row) => row.userId)
-    .filter(Boolean)
-    .map((id) => new mongoose.Types.ObjectId(String(id)));
-  if (!ids.length) return [];
-  const users = await db
-    .collection("users")
-    .find(
-      { _id: { $in: ids }, isServiceAccount: { $ne: true } },
-      { projection: { email: 1 } },
-    )
-    .toArray();
-  return users
-    .map((user) => String(user.email || "").trim().toLowerCase())
-    .filter(Boolean)
-    .sort();
-};
-
-const buildCatalogue = async (db, orgId, previous) => {
-  const prevByKey = new Map((previous?.roles || []).map((role) => [role.key, role]));
+const buildCatalogue = async (previous) => {
   const prevOrder = new Map(
     (previous?.roles || []).map((role, index) => [role.key, index]),
   );
 
   const roles = [];
   for (const role of await listRoles()) {
-    const prev = prevByKey.get(role.key);
     const entry = {
       key: role.key,
       title: role.title,
@@ -94,13 +53,6 @@ const buildCatalogue = async (db, orgId, previous) => {
       description: role.description,
       actions: statementsToActions(role.statements),
     };
-    if (role.audience === "client") {
-      // Подписи живут только в файле. Прежние — как были; у новой роли пусто.
-      entry.matches = prev?.matches || [];
-    } else {
-      entry.members = await membersOf(db, orgId, role.key);
-    }
-    if (prev?._note) entry._note = prev._note;
     roles.push(entry);
   }
 
@@ -153,15 +105,6 @@ const describeChanges = (previous, next) => {
     const removed = [...was].filter((id) => !now.has(id));
     if (added.length) diff.push(`+${added.length} действ.`);
     if (removed.length) diff.push(`−${removed.length} действ.`);
-    if (role.members) {
-      const wasMembers = new Set(before.members || []);
-      const nowMembers = new Set(role.members);
-      const joined = [...nowMembers].filter((email) => !wasMembers.has(email));
-      const left = [...wasMembers].filter((email) => !nowMembers.has(email));
-      if (joined.length) diff.push(`люди +${joined.join(", ")}`);
-      if (left.length) diff.push(`люди −${left.join(", ")}`);
-      if (before.matches?.length) diff.push("подписи сняты (сотрудники — поимённо)");
-    }
     if (diff.length) lines.push(`  ~ ${role.key}: ${diff.join("; ")}`);
   }
   for (const key of prev.keys()) {
@@ -178,7 +121,6 @@ const run = async () => {
   await mongoose.connect(
     `mongodb://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@mongodb:27017/${process.env.MONGODB_DATABASE}?authSource=admin`,
   );
-  const db = mongoose.connection.db;
 
   const orgId = await organizationId();
   if (!orgId) {
@@ -188,17 +130,13 @@ const run = async () => {
   const previous = fs.existsSync(CATALOGUE)
     ? JSON.parse(fs.readFileSync(CATALOGUE, "utf8"))
     : null;
-  const next = await buildCatalogue(db, orgId, previous);
+  const next = await buildCatalogue(previous);
 
   console.log(`Ролей в базе: ${next.roles.length}`);
   for (const role of next.roles) {
-    const who =
-      role.members !== undefined
-        ? `${role.members.length} чел. поимённо`
-        : `${(role.matches || []).length} подпис.`;
     console.log(
       `  ${role.key.padEnd(18)} «${role.title}» [${role.audience}] ` +
-        `${role.actions.length} действ., ${who}`,
+        `${role.actions.length} действ.`,
     );
   }
 

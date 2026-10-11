@@ -12,7 +12,7 @@ test("живое письмо роботом не считается", () => {
   assert.equal(
     isMachineMail(
       mail({
-        subject: "Re: [F1-HD-57056] Не удаётся сформировать отчёт",
+        subject: "Re: [HD-57056] Не удаётся сформировать отчёт",
         "return-path": { text: "<olga@clinic.ru>" },
         // Outlook ставит его на обычных письмах — в роботы за это не берём
         "x-auto-response-suppress": "OOF",
@@ -68,7 +68,7 @@ test("письмо из списка рассылки — в том виде, в
 test("прочие List-* и живой ответ роботом не делают", async () => {
   assert.equal(isMachineMail(mail({ list: { help: { mail: "help@example.com" } } })), false);
   const human = await simpleParser(
-    "From: olga@clinic.ru\r\nSubject: Re: [F1-HD-57056] x\r\n\r\nСпасибо\r\n",
+    "From: olga@clinic.ru\r\nSubject: Re: [HD-57056] x\r\n\r\nСпасибо\r\n",
   );
   assert.equal(isMachineMail(human), false);
 });

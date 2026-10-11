@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { useSearchParams } from "react-router";
 
@@ -70,7 +71,7 @@ const Archive = () => {
 export default Archive;
 
 export async function loader() {
-  document.title = "Архив";
+  setDocTitle("Архив");
 
   // Архив — исключение: отключённые компании и их заявители нужны в фильтрах,
   // чтобы искать по истории (обычные формы получают только активные).

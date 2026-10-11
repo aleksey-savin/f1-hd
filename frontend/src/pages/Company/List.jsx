@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo } from "react";
 import { useLocation } from "react-router";
 
@@ -124,7 +125,7 @@ const Companies = () => {
 export default Companies;
 
 export async function loader() {
-  document.title = "Компании";
+  setDocTitle("Компании");
 
   return null;
 }

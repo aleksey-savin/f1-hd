@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData } from "react-router";
 
 import NoteView from "../../components/KnowledgeBase/NoteView";
@@ -21,6 +22,6 @@ export async function loader({ params }) {
   }
 
   const note = await response.json();
-  document.title = `F1 HD | ${note.title}`;
+  setDocTitle(note.title);
   return note;
 }

@@ -136,7 +136,7 @@ const seed = async (m) => {
     .sort({ isAdmin: -1, createdAt: 1 })
     .select("_id firstName lastName")
     .lean();
-  if (!staff) throw new Error("Нет сотрудника (isEndUser: false) — ответы из HD писать некому");
+  if (!staff) throw new Error("Нет сотрудника (isEndUser: false) — ответы из портала писать некому");
   const auth = {
     userId: String(staff._id),
     isAdmin: true,
@@ -204,7 +204,7 @@ const seed = async (m) => {
     type: "telegram",
     name: `${TAG} Telegram`,
     state: "connected",
-    account: { displayName: "F1Lab Поддержка", phone: "+7 (423) 200-00-00", username: "f1lab_support" },
+    account: { displayName: "Техноцентр Поддержка", phone: "+7 (423) 200-00-00", username: "support_desk" },
     settings: { proxyUrl: "socks5://relay.example.invalid:1080", historyDays: 14 },
     gatewaySeenAt: new Date(),
   });
@@ -214,7 +214,7 @@ const seed = async (m) => {
     state: "connected",
     settings: { site: { formKey: `${EXT}${Date.now()}` } },
   });
-  const company = await m.Company.create({ alias: `${TAG} ТД Восток`, fullTitle: `${TAG} ООО «ТД Восток»` });
+  const company = await m.Company.create({ alias: `${TAG} Ромашка`, fullTitle: `${TAG} ООО «Ромашка»` });
   const client = (firstName, lastName, position, key) =>
     m.User.create({
       email: `${key}@${MAIL_DOMAIN}`,
@@ -279,10 +279,10 @@ const seed = async (m) => {
   await say(telegram, olegChat, { id: "o3", direction: "in", sender: olegPeer, text: "Есть кто живой?" }, 9);
 
   // 3. Андрей — неизвестный собеседник: «Кто это?»
-  const andreyPeer = { id: `${EXT}andrey`, firstName: "Андрей", username: "andrey_primavto" };
+  const andreyPeer = { id: `${EXT}andrey`, firstName: "Андрей", username: "andrey_lyutik" };
   const andreyChat = { id: `${EXT}chat-andrey`, kind: "direct", title: "Андрей", peer: andreyPeer };
   await say(telegram, andreyChat, { id: "a1", direction: "in", sender: andreyPeer, text: "Здравствуйте! У нас в офисе на Алеутской, 45 с утра не работает интернет." }, 37);
-  await say(telegram, andreyChat, { id: "a2", direction: "in", sender: andreyPeer, text: "Это Андрей, Примавто. Роутер перезагружали, не помогло." }, 36);
+  await say(telegram, andreyChat, { id: "a2", direction: "in", sender: andreyPeer, text: "Это Андрей, Лютик. Роутер перезагружали, не помогло." }, 36);
 
   // 4. Белов Сергей — вчерашний, ответили с телефона: не ждёт
   const belovPeer = { id: `${EXT}belov`, firstName: "Сергей", lastName: "Белов" };
@@ -295,7 +295,7 @@ const seed = async (m) => {
   const groupChat = {
     id: `${EXT}chat-group`,
     kind: "group",
-    title: `${TAG} ТД Восток × F1Lab`,
+    title: `${TAG} Ромашка × Техноцентр`,
     participants: [olegPeer, kostya],
   };
   await say(telegram, groupChat, { id: "g1", direction: "in", sender: olegPeer, text: "В переговорной не работает HDMI — проектор пишет «нет сигнала»" }, 31);
@@ -323,7 +323,7 @@ const seed = async (m) => {
   const created = await collect(m);
   console.log("Демо «Диалогов» создано:");
   for (const [name, list] of Object.entries(created)) if (list.length) console.log(`  ${name}: ${list.length}`);
-  console.log(`Автор ответов из HD: ${staff.lastName} ${staff.firstName}`);
+  console.log(`Автор ответов из портала: ${staff.lastName} ${staff.firstName}`);
   if (!prefs?.modules?.messaging?.isActive) {
     console.log("Модуль «Диалоги» выключен — включите его: Настройки системы → Модули → «Диалоги».");
   }

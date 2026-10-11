@@ -7,7 +7,7 @@ const { hideStaffContacts } = require("./staffContacts");
 
 const STAFF = {
   ids: new Set(["s1", "s2"]),
-  emails: new Set(["engineer@f1lab.ru"]),
+  emails: new Set(["engineer@example.com"]),
 };
 
 test("у нашего сотрудника клиенту остаются имя и должность — без личных каналов", () => {
@@ -18,7 +18,7 @@ test("у нашего сотрудника клиенту остаются им�
         firstName: "Иван",
         lastName: "Петров",
         position: "Инженер",
-        email: "engineer@f1lab.ru",
+        email: "engineer@example.com",
         phone: "+7 900 000-00-00",
         telegramBot: { chatId: 42 },
       },
@@ -38,10 +38,10 @@ test("коллеги клиента и общая линия поддержки 
       responsibles: [{ _id: "s2", firstName: "Пётр", phone: "555" }],
     },
     company: {
-      phones: ["+7 423 202-52-96"],
+      phones: ["+7 495 000-00-00"],
       employees: [{ _id: "c2", email: "boss@client.ru", phone: "777" }],
     },
-    contacts: { tel: "+7 423 202-52-96", email: "helpdesk@f1lab.ru" },
+    contacts: { tel: "+7 495 000-00-00", email: "helpdesk@example.com" },
   };
   const result = hideStaffContacts(payload, STAFF);
   assert.deepEqual(result.ticket.applicant, payload.ticket.applicant);
@@ -54,7 +54,7 @@ test("сотрудника узнаём и по id-ссылке, и по поч�
   const payload = {
     a: [{ b: { person: { id: "s1", phone: "1" } } }],
     // Встроенная копия без идентификатора — только почта
-    c: { firstName: "Иван", email: "Engineer@F1lab.ru ", phone: "2" },
+    c: { firstName: "Иван", email: "Engineer@Example.com ", phone: "2" },
     // ObjectId после сериализации — строка; сравнение по строке
     d: { _id: "s2", email: "x@y.z" },
   };

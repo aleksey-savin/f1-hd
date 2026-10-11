@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/DeviceAttribute/Form";
 
 const AddDeviceAttributePage = () => {
@@ -7,7 +8,7 @@ const AddDeviceAttributePage = () => {
 export default AddDeviceAttributePage;
 
 export async function loader() {
-  document.title = "Новый атрибут устройства";
+  setDocTitle("Новый атрибут устройства");
   return null;
 }
 

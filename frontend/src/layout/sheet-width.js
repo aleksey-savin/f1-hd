@@ -82,6 +82,8 @@ const MIGRATED_ROUTES = [
   { path: "/users", maxWidth: 1328, exact: true },
   // страница: max-w-4xl (896) + 2×24
   { path: "/my-account", maxWidth: 944 },
+  // Справка: колонка чтения, как «Мой аккаунт»
+  { path: "/help", maxWidth: 944 },
   // Архив заявок: список ListWrapper (max-w-7xl), вложенных
   // маршрутов нет
   { path: "/archive", maxWidth: 1328, exact: true },

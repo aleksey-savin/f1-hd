@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { load } from "@/store/form-data";
 import Form from "../../components/TicketCategory/Form";
 
@@ -8,7 +9,7 @@ const AddTicketCategoryPage = () => {
 export default AddTicketCategoryPage;
 
 export async function loader() {
-  document.title = "Новая категория заявок";
+  setDocTitle("Новая категория заявок");
 
   // Справочники — из кэша (store/form-data); услуги — только при включённом
   // модуле финансов

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useRef } from "react";
 
 import { RiBox3Line } from "react-icons/ri";
@@ -249,7 +250,7 @@ const ClientDevices = () => {
 export default ClientDevices;
 
 export async function loader() {
-  document.title = "Устройства";
+  setDocTitle("Устройства");
 
   return null;
 }

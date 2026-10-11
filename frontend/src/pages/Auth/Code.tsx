@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { Form, redirect, useActionData, useNavigation } from "react-router";
 import { RiMailSendLine } from "react-icons/ri";
 
@@ -55,7 +56,7 @@ type Result =
   | { step: "password"; email: string; otp: string; message?: string };
 
 export async function loader() {
-  document.title = "Вход по коду";
+  setDocTitle("Вход по коду");
   return null;
 }
 

@@ -51,6 +51,9 @@ Reference with comments: `.env.example`.
 |---|---|---|
 | asked once | `APP_PUBLIC_URL`, `BOOTSTRAP_ADMIN_EMAIL` | URL scheme decides whether the session cookie is `Secure`; the admin e-mail is used only on an empty database |
 | generated | `MONGODB_PASSWORD`, `BETTER_AUTH_SECRET`, `APP_ENC_KEY`, `TG_API_TOKEN` | keep a copy with the backups — see rotation costs below |
+| mail mode | `MAIL_MODE`, `MAIL_SANDBOX_RECIPIENT` | where outgoing e-mail really goes — see below |
+| ticket tag | `TICKET_SUBJECT_PREFIX`, `TICKET_SUBJECT_PREFIXES_ACCEPTED` | prefix of the `[HD-51713]` tag in e-mail subjects, by which replies are matched to tickets; empty = `HD`. The key itself must be present (`deploy.sh` writes it into a new `.env` and stops on an older one without it); earlier prefixes still recognised in replies go into the second key, comma-separated |
+| error tracking | `SENTRY_DSN` | DSN of a Sentry-compatible service for browser errors; empty = off, no third party is contacted. `deploy.sh` derives `SENTRY_CSP_ORIGIN` from it |
 | optional | `HTTP_PORT`, `TRUST_PROXY_HOPS`, `TG_TOKEN`, `S3_*`, `TICKET_COUNTER_STARTING_NUMBER`, `ADD_TICKET_LOG`, `CORS_ORIGINS`, `BOOTSTRAP_*`, `GETSCREEN_ROOT_API`, `NVD_API_KEY` | defaults in `.env.example` |
 
 Rotation costs: `BETTER_AUTH_SECRET` — everybody is logged out and existing
@@ -58,6 +61,24 @@ TOTP secrets become unreadable. `APP_ENC_KEY` — every secret stored in the
 database (mail passwords, AI and RouterOS credentials, Mikrotik backups) becomes
 unreadable; it replaced `MIKROTIK_ENC_KEY`, which is still accepted under the
 old name. `MONGODB_PASSWORD` — change it in MongoDB too.
+
+Mail mode. `MAIL_MODE` decides where outgoing e-mail goes, whatever the mail
+settings in the database say; `NODE_ENV` plays no part.
+
+| Value | Behaviour |
+|---|---|
+| `live` | letters go to their real recipients |
+| `sandbox` | every letter goes to `MAIL_SANDBOX_RECIPIENT`; the subject starts with `[SANDBOX → intended address]` and the intended address is kept on the queued letter. For hosts running on a copy of production data |
+| `off` | nothing is sent: a letter is marked as not sent after one attempt and is not retried; Settings and the test button say that sending is switched off on the server |
+
+Unset means `off`. An unknown value, or `sandbox` without
+`MAIL_SANDBOX_RECIPIENT`, stops the backend at start with a message naming the
+variable. `deploy.sh` writes `MAIL_MODE=off` into a new `.env`, and — once,
+with a line in its output — `MAIL_MODE=live` into the `.env` of an installation
+that was configured before this setting existed, so an update does not silence
+its mail. Letters refused while the mode was `off` are not sent later: switch
+the mode first, then let the application queue new ones. Changing `.env` takes
+effect after the backend container is recreated.
 
 Everything else the application needs lives in Settings inside the app (mail,
 AI, modules, Telegram group, timezone). Only what must exist before the
@@ -130,10 +151,10 @@ machine (Compass, the sync script run from a workstation), set the host's LAN
 address in `.env` and re-run `./deploy.sh`:
 
 ```
-MONGO_PORT=10.0.50.231:27017
+MONGO_PORT=<lan-ip>:27017
 ```
 
-Connection string: `mongodb://<MONGODB_USERNAME>:<MONGODB_PASSWORD>@10.0.50.231:27017/?authSource=admin`
+Connection string: `mongodb://<MONGODB_USERNAME>:<MONGODB_PASSWORD>@<lan-ip>:27017/?authSource=admin`
 (the credentials are in `.env`; the password is plain hex, nothing to escape).
 Bind to the LAN address, never `0.0.0.0` on a host with a public interface:
 Docker publishes ports past ufw, so the firewall would not protect it.
@@ -204,6 +225,30 @@ seeds (`initializeInventoryData.js`, `seedMikrotikModels.js`), diagnostics.
 Any script can still be run by hand inside the container:
 `docker compose run --rm backend node scripts/<name>.js [--apply]`, then
 `./deploy.sh migrate mark <id>`.
+
+## Updating an installation that predates brand settings
+
+Releases before brand settings carried the brand, the mail redirect and the
+ticket subject prefix in code. An installation that ran such a release needs
+four things in `.env` before its first `./deploy.sh` on the new one:
+
+| Variable | What to set | If it is missing |
+|---|---|---|
+| `TICKET_SUBJECT_PREFIX` | the text inside the square brackets of a ticket notification subject, before the last hyphen and the number | `./deploy.sh` stops and says so: replies to letters already sent are matched by this prefix |
+| `MAIL_MODE` | `live` | `deploy.sh` writes `live` itself, once, and prints a line about it |
+| `LEGACY_BRAND_NAME`, `LEGACY_BRAND_SIGNATURE` | the portal name and the e-mail signature the installation used (`<br>` or `\n` separates signature lines) | `deploy.sh` prints a warning on that first run (once, together with the `MAIL_MODE` line) and goes on; the `seedBrand` migration writes nothing and is still recorded as applied: the portal shows the product defaults until the name and signature are entered in «Настройки → Основные → Бренд» |
+
+Optional: `SENTRY_DSN` — the previous releases reported browser errors to a
+built-in address; now nothing is reported unless this is set.
+
+To change the prefix later without orphaning replies, put the new one in
+`TICKET_SUBJECT_PREFIX` and the old one in `TICKET_SUBJECT_PREFIXES_ACCEPTED`.
+
+The two `LEGACY_BRAND_*` lines can be removed from `.env` after the deploy.
+
+A dev machine working on a copy of real data sets `MAIL_MODE=sandbox` and
+`MAIL_SANDBOX_RECIPIENT=<your address>`, then recreates the containers
+(`docker compose up -d --force-recreate`); until then its mail is off.
 
 ## Backup and restore
 

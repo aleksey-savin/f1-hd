@@ -360,7 +360,7 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
       // Вердикта нет (списки не читаются, учётная запись или группа не найдены) — не молчим об этом
       if (!rights) warn(`#${change.number} rights check gave no verdict: applying without it`);
       if (rights && !rights.ok) {
-        return stop(STATUS.notApplied, `У учётной записи HD на устройстве нет ${rights.missing.length > 1 ? "политик" : "политики"} ${rights.missing.join(", ")}: изменения не вносились.`);
+        return stop(STATUS.notApplied, `У учётной записи портала на устройстве нет ${rights.missing.length > 1 ? "политик" : "политики"} ${rights.missing.join(", ")}: изменения не вносились.`);
       }
     }
     // Исполнитель должен собраться до бэкапа и до первой команды

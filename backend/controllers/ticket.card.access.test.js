@@ -68,7 +68,7 @@ const SECRETS = [
   "apiKeys",
   "keyHash",
   "ivanov@romashka.ru", // снимок клиента в company.users
-  "staff@f1lab.ru", // ответственный компании
+  "staff@example.com", // ответственный компании
   "buhgalter@romashka.ru", // человек компании (employees)
   "79000000000", // его телефон
   "servicePlans",
@@ -118,7 +118,7 @@ const companyDoc = () =>
         id: oid("66aa00000000000000000004"),
         firstName: "Пётр",
         lastName: "Сидоров",
-        email: "staff@f1lab.ru",
+        email: "staff@example.com",
         phone: "79114445566",
       },
     ],

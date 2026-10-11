@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
 import Form from "../../components/RoutineTask/Form";
@@ -9,7 +10,7 @@ const UpdateRoutineTaskPage = () => {
 export default UpdateRoutineTaskPage;
 
 export async function loader({ params }) {
-  document.title = "Изменить регламент";
+  setDocTitle("Изменить регламент");
 
   // Регламент — всегда свежий; справочники — из кэша (store/form-data)
   const [

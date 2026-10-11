@@ -50,6 +50,9 @@ const AnchorRail = ({
   sections = [],
   ariaLabel = "Разделы",
   offset,
+  // Тихий вид для страницы чтения (справка): пункты — текстовые ссылки без
+  // плашки, текущий выделен начертанием, а не заливкой
+  quiet = false,
   className,
   // Липкое смещение, когда над рейлом висит своя шапка (заголовок формы в
   // шторке): её высота известна только вызывающему
@@ -117,12 +120,21 @@ const AnchorRail = ({
           href={`#${section.id}`}
           onClick={(event) => go(event, section.id)}
           aria-current={active === section.id ? "true" : undefined}
-          className={cn(
-            "flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium no-underline transition-colors",
-            active === section.id
-              ? "bg-primary/15 text-accent-text hover:text-accent-text"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
+          className={
+            quiet
+              ? cn(
+                  "py-1 text-sm no-underline transition-colors",
+                  active === section.id
+                    ? "font-semibold text-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )
+              : cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium no-underline transition-colors",
+                  active === section.id
+                    ? "bg-primary/15 text-accent-text hover:text-accent-text"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )
+          }
         >
           {section.label}
           {section.dirty && (

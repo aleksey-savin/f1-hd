@@ -56,12 +56,12 @@ test("шаблоны ожидания и приглашение", () => {
   assert.ok(RELEASE_UNTIL.test(HIJACK_TEXT));
 });
 
-// Сырые ответы консоли F1-VLD-GW01 (RouterOS 7.23.7), прогон spikeSafeMode.js 2026-10-11
+// Сырые ответы консоли GW-OFFICE-01 (RouterOS 7.23.7), прогон spikeSafeMode.js 2026-10-11
 const LIVE = {
-  enter: "\r[f1-hd@F1-VLD-GW01] > \r\nTaking Safe Mode session... Success!\r\n\r\u001b[9999B\r\r\r\r\u001b[9999B[f1-hd@F1-VLD-GW01] <SAFE>",
+  enter: "\r[hd-api@GW-OFFICE-01] > \r\nTaking Safe Mode session... Success!\r\n\r\u001b[9999B\r\r\r\r\u001b[9999B[hd-api@GW-OFFICE-01] <SAFE>",
   enterTail: " \u001b[c",
-  release: "\r\nReleasing Safe Mode... Success!\r\n\r\u001b[9999B\r\r\r\r\u001b[9999B[f1-hd@F1-VLD-GW01] > \rSafe Mode released",
-  prompt: "Press F1 for help\r\n\r\u001b[9999B\r\u001b[9999B\r\n\r\n\r\r\r\u001b[9999B[f1-hd@F1-VLD-GW01] > ",
+  release: "\r\nReleasing Safe Mode... Success!\r\n\r\u001b[9999B\r\r\r\r\u001b[9999B[hd-api@GW-OFFICE-01] > \rSafe Mode released",
+  prompt: "Press F1 for help\r\n\r\u001b[9999B\r\u001b[9999B\r\n\r\n\r\r\r\u001b[9999B[hd-api@GW-OFFICE-01] > ",
 };
 
 test("живые тексты RouterOS 7.23.7: вход, выход, приглашение, собственный хвост", () => {
@@ -75,7 +75,7 @@ test("живые тексты RouterOS 7.23.7: вход, выход, пригл�
   assert.equal(c.classifyCtrlX("\r\nReleasing Safe Mode... Success!\r\n", { entering: false }), "released");
   assert.equal(c.classifyCtrlX("\r\nTaking Safe Mode session... Success!\r\n", { entering: true }), "taken");
   // неудача входа или выхода — не подтверждение
-  assert.equal(c.classifyCtrlX("\r\nTaking Safe Mode session... Failed!\r\n[f1-hd@F1-VLD-GW01] > ", { entering: true }), "unknown");
+  assert.equal(c.classifyCtrlX("\r\nTaking Safe Mode session... Failed!\r\n[hd-api@GW-OFFICE-01] > ", { entering: true }), "unknown");
   assert.equal(c.classifyCtrlX("\r\nReleasing Safe Mode... Failed!\r\n", { entering: false }), "unknown");
   // слова о входе не подтверждают выход и наоборот
   assert.equal(c.classifyCtrlX(LIVE.enter, { entering: false }), "unknown");

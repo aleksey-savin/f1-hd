@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { useLocation } from "react-router";
 
@@ -206,6 +207,6 @@ const Users = () => {
 export default Users;
 
 export async function loader() {
-  document.title = "Пользователи";
+  setDocTitle("Пользователи");
   return null;
 }

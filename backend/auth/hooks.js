@@ -1,6 +1,8 @@
 const Notification = require("@/models/notification");
+const { mailSignatureHtml } = require("@/services/brand");
 const logger = require("@/utils/logger");
 
+const accessEmails = require("./accessEmails");
 const config = require("./config");
 const {
   mayReceiveMagicLink,
@@ -37,26 +39,29 @@ const isFirstAccess = async (userId) => {
   );
 };
 
-/** Обращение по имени; пустое — «Здравствуйте», а не голая запятая. */
-const greet = (user) => user.firstName || user.name || "Здравствуйте";
-
-const SIGNATURE = "<p>С уважением,<br />Команда F1Lab</p>";
-
 /**
  * Письма авторизации уходят СРАЗУ, а не следующим тиком крона: человек стоит
  * у экрана и ждёт, и экран обязан честно сказать, ушло письмо или нет.
  * Документ `Notification` при этом создаётся как у всех — ради учёта и
- * подмены получателя вне прода, — но В БАЗУ ПОПАДАЕТ УЖЕ С ИСХОДОМ: его
+ * режима почты (MAIL_MODE), — но В БАЗУ ПОПАДАЕТ УЖЕ С ИСХОДОМ: его
  * сохраняет `sendNow` после отправки. Сохранённый заранее документ крон
  * очереди успевал подхватить, пока шёл SMTP-обмен, и письмо уходило дважды.
  * Не ушло — бросаем: вызывающая ручка ответит ошибкой, а не «отправлено».
+ *
+ * Текст собирает `build` из auth/accessEmails.js; настройки читаются один раз
+ * на письмо — из них и названия в тексте, и общая подпись (пустая подпись —
+ * письмо без неё).
  */
-const send = async (to, title, body) => {
+const send = async (to, build, details) => {
+  const Preferences = require("@/models/preferences");
+  const preferences = await Preferences.findOne({}).lean();
+  const { title, body } = build({ preferences, ...details });
+
   const notification = new Notification({
     instrument: "email",
     to: { email: to },
     title,
-    text: `<div>${body}${SIGNATURE}</div>`,
+    text: `<div>${body}${mailSignatureHtml(preferences)}</div>`,
   });
 
   // Лениво: outbox тянет модели и почтовый слой, которым этот файл при
@@ -90,10 +95,10 @@ const checkPasswordBreach = async (password) => {
  * Письмо восстановления пароля.
  *
  * Отправляем НЕ напрямую, а документом `Notification`: физически письма шлёт
- * telegram-bot, а модель уведомления применяет `guardRecipient` — вне прода
- * получатель принудительно подменяется на разработческий ящик. Прямой вызов
- * SMTP из колбэка обошёл бы эту защиту, и репетиция на копии прода разослала
- * бы письма живым клиентам.
+ * telegram-bot, а модель уведомления применяет `guardRecipient`: режим почты
+ * задаёт MAIL_MODE, и в песочнице получатель подменяется. Прямой вызов SMTP
+ * из колбэка обошёл бы эту защиту, и репетиция на копии прода разослала бы
+ * письма живым клиентам.
  *
  * Ссылку строим свою, а не берём `url` из аргументов: better-auth ведёт по
  * своему адресу и оттуда редиректит на `redirectTo`, а у нас уже есть готовый
@@ -107,30 +112,10 @@ const sendResetPassword = async ({ user, token }) => {
   if (first) {
     // ПРИГЛАШЕНИЕ, а не восстановление: человек о портале ещё не знает, и
     // «Восстановление доступа» он читает как чужое письмо или как фишинг.
-    return send(
-      user.email,
-      "Вам открыт доступ в портал F1Lab Helpdesk",
-      `
-        <p>${greet(user)},</p>
-        <p>для вас создана учётная запись в портале поддержки F1Lab — через него
-          отправляют заявки и следят за их выполнением.</p>
-        <p><a href="${url}" target="_blank">Задайте пароль</a> — после этого
-          входите по нему и рабочей почте.</p>
-        <p>Ссылка действительна сутки и срабатывает один раз.</p>
-      `,
-    );
+    return send(user.email, accessEmails.passwordInvitation, { user, url });
   }
 
-  return send(
-    user.email,
-    "Восстановление доступа к порталу F1Lab Helpdesk",
-    `
-      <p>${greet(user)},</p>
-      <p>сбросить пароль можно пройдя по <a href="${url}" target="_blank">ссылке</a>.</p>
-      <p>Ссылка действительна 24 часа и срабатывает один раз.</p>
-      <p>Если вы не запрашивали смену пароля, просто проигнорируйте это письмо.</p>
-    `,
-  );
+  return send(user.email, accessEmails.passwordReset, { user, url });
 };
 
 /**
@@ -201,8 +186,8 @@ const sessionRefusal = async (userId, path = null) => {
  * Письмо со ссылкой для входа.
  *
  * Как и восстановление, уходит документом `Notification`, а не прямым SMTP:
- * письма шлёт services/mail/outbox, а модель применяет `guardRecipient` — вне прода
- * получатель принудительно подменяется на разработческий ящик. Прямой вызов
+ * письма шлёт services/mail/outbox, а модель применяет `guardRecipient`: режим
+ * почты задаёт MAIL_MODE, и в песочнице получатель подменяется. Прямой вызов
  * SMTP обошёл бы защиту, и репетиция на копии прода разослала бы письма живым
  * клиентам.
  *
@@ -241,43 +226,17 @@ const sendMagicLink = async ({ email, url }) => {
   const first = await isFirstAccess(user._id);
 
   if (first) {
-    return send(
-      email,
-      "Вам открыт доступ в портал F1Lab Helpdesk",
-      `
-        <p>${greet(user || {})},</p>
-        <p>для вас создана учётная запись в портале поддержки F1Lab — через него
-          вы отправляете заявки и видите, что с ними происходит.</p>
-        <p><a href="${url}" target="_blank">Войти в портал</a> — пароль не
-          понадобится.</p>
-        <p>Ссылка действительна двое суток и срабатывает один раз. Если она
-          истечёт, на странице входа нажмите «Войти по коду из письма» — код
-          придёт сюда же.</p>
-      `,
-    );
+    return send(email, accessEmails.linkInvitation, { user, url });
   }
 
-  return send(
-    email,
-    "Вход в портал F1Lab Helpdesk",
-    `
-      <p>${greet(user || {})},</p>
-      <p>войти в портал можно по <a href="${url}" target="_blank">этой ссылке</a> —
-        пароль не понадобится.</p>
-      <p>Ссылка действительна 30 минут и срабатывает один раз.</p>
-      <p>Если вы её не запрашивали, просто проигнорируйте это письмо: без
-        перехода по ссылке ничего не произойдёт.</p>
-    `,
-  );
+  return send(email, accessEmails.signInLink, { user, url });
 };
-
-const CODE_STYLE = "font-size: 1.6em; letter-spacing: 0.25em; font-weight: bold;";
 
 /**
  * Письмо с кодом («Войти по коду из письма» на экране входа).
  *
- * Тот же путь через `Notification`, что и у остальных писем: вне прода
- * получатель подменяется на разработческий ящик.
+ * Тот же путь через `Notification`, что и у остальных писем: режим почты
+ * задаёт MAIL_MODE, в песочнице получатель подменяется.
  *
  * ТИП КОДА ПРИВЯЗАН К ТИПУ АККАУНТА: клиенту — код для ВХОДА (`sign-in`),
  * сотруднику — код для СМЕНЫ ПАРОЛЯ (`forget-password`), после которого он
@@ -301,35 +260,11 @@ const sendEmailCode = async ({ email, otp, type }) => {
   const minutes = Math.round(config.loginCodeTtlSeconds / 60);
 
   if (type === "sign-in" && isClient) {
-    return send(
-      email,
-      "Код для входа в портал F1Lab Helpdesk",
-      `
-        <p>${greet(user || {})},</p>
-        <p>ваш код для входа в портал:</p>
-        <p style="${CODE_STYLE}">${otp}</p>
-        <p>Введите его на странице входа — пароль не понадобится. Код
-          действителен ${minutes} минут и срабатывает один раз.</p>
-        <p>Если вы его не запрашивали, просто проигнорируйте это письмо: без
-          кода ничего не произойдёт.</p>
-      `,
-    );
+    return send(email, accessEmails.signInCode, { user, otp, minutes });
   }
 
   if (type === "forget-password" && !isClient) {
-    return send(
-      email,
-      "Код для смены пароля в портале F1Lab Helpdesk",
-      `
-        <p>${greet(user || {})},</p>
-        <p>ваш код для смены пароля:</p>
-        <p style="${CODE_STYLE}">${otp}</p>
-        <p>Введите его на странице входа и задайте новый пароль. Код
-          действителен ${minutes} минут и срабатывает один раз.</p>
-        <p>Если вы его не запрашивали, просто проигнорируйте это письмо: без
-          кода пароль не изменится.</p>
-      `,
-    );
+    return send(email, accessEmails.passwordCode, { user, otp, minutes });
   }
 
   logger.log("warn", "Код из письма не отправлен: тип не подходит аккаунту", {

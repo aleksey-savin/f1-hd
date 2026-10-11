@@ -58,15 +58,25 @@ const navItemClass = (isActive = false) =>
   );
 
 const Brand = ({ size = "default" }) => {
-  const { contacts } = useInitialPrefs();
+  const { contacts, brand } = useInitialPrefs();
 
   return (
     <NavLink
       to="/dashboard"
-      aria-label="HelpDesk — на главную"
-      className="inline-flex flex-none items-center no-underline"
+      aria-label={`${brand.productName} — на главную`}
+      className={cn(
+        "inline-flex items-center no-underline",
+        // Логотип держит свою ширину; название портала может быть длинным —
+        // оно сжимается и обрезается многоточием, не выталкивая соседей
+        contacts?.logo ? "flex-none" : "max-w-72 min-w-0",
+      )}
     >
-      <BrandMark logo={contacts?.logo} size={size} />
+      <BrandMark
+        logo={contacts?.logo}
+        name={brand.productName}
+        icon={brand.icon}
+        size={size}
+      />
     </NavLink>
   );
 };
@@ -352,7 +362,7 @@ const NavigationBar = ({ embedded = false }) => {
             <RiMenuLine size={19} />
           </Button>
         )}
-        <div className="me-3">
+        <div className="me-3 flex min-w-0">
           <Brand />
         </div>
 

@@ -288,7 +288,7 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
   const lastRow = last?.state === "done" && (
     <PropRow
       icon={<RiArrowUpCircleLine size={17} />}
-      label="Последнее обновление из HD"
+      label="Последнее обновление из портала"
     >
       <span className="tabular-nums">{formatDate(last.finishedAt)}</span> ·{" "}
       <span className="font-mono text-sm">{versionLine(last)}</span>
@@ -300,7 +300,7 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
     firmware?.updateAvailable && (
       <PropRow
         icon={<RiArrowUpCircleLine size={17} />}
-        label="Обновление из HD"
+        label="Обновление из портала"
       >
         Выключено
         {canManage && (

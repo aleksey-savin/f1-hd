@@ -22,7 +22,14 @@ COPY . .
 RUN pnpm build
 
 FROM nginxinc/nginx-unprivileged:1.28-alpine AS prod
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx.conf is a template: the image's entrypoint (20-envsubst-on-templates.sh)
+# renders /etc/nginx/templates/*.template into /etc/nginx/conf.d/ at start and
+# replaces only variables that are defined in the environment. The empty default
+# keeps SENTRY_CSP_ORIGIN defined when compose passes nothing, and the filter
+# limits the substitution to that single name.
+ENV SENTRY_CSP_ORIGIN="" \
+    NGINX_ENVSUBST_FILTER="^SENTRY_CSP_ORIGIN\$"
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

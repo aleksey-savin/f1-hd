@@ -13,6 +13,11 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import SectionForm from "./SectionForm";
 import MailChannelFields from "./MailChannelFields";
 import { describeChannelHealth, describeCheckResult } from "./channel-health";
+import {
+  describeMailMode,
+  mailModeRowWithCheck,
+  withoutStaleMailOff,
+} from "./mail-mode";
 
 // «Уведомления»: глобальные рубильники категорий событий, повторы при ошибке
 // отправки и каналы (SMTP, Telegram). Канал Telegram включает единую группу
@@ -147,14 +152,25 @@ const PrefsNotifications = ({ prefs }) => {
   const dimEmail = emailOn ? "py-3" : "py-3 opacity-60";
   const dimTelegram = telegramOn ? "py-3" : "py-3 opacity-60";
 
+  // Режим почты задан на сервере (MAIL_MODE) и важнее сохранённого состояния
+  // канала: в песочнице и при выключенной отправке строка говорит о режиме.
+  // В обычной работе отказ «почта выключена», оставшийся в базе с прежнего
+  // режима, текущим состоянием не считается.
+  const mailModeRow = describeMailMode(prefs.mailMode);
+  const canCheckEmail = !mailModeRow || mailModeRow.canCheck;
+
+  // В песочнице заголовок строки — всегда предупреждение о режиме: исход
+  // тестового письма уходит в подсказку (mailModeRowWithCheck)
   const emailHealth = sending
     ? { state: "busy", title: "Отправляем письмо…" }
-    : testResult
-      ? describeCheckResult(testResult, { hint: testHint })
-      : describeChannelHealth(prefs.notify?.byEmail?.health, {
-          kind: "smtp",
-          hint: testHint,
-        });
+    : mailModeRow
+      ? mailModeRowWithCheck(mailModeRow, testResult)
+      : testResult
+        ? describeCheckResult(testResult, { hint: testHint })
+        : describeChannelHealth(
+            withoutStaleMailOff(prefs.notify?.byEmail?.health),
+            { kind: "smtp", hint: testHint },
+          );
 
   return (
     <SectionForm buildPayload={buildPayload}>
@@ -239,17 +255,19 @@ const PrefsNotifications = ({ prefs }) => {
         <HealthRow
           {...emailHealth}
           action={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={sending}
-              onClick={sendTestEmail}
-            >
-              <RiMailSendLine
-                className={sending ? "animate-pulse" : undefined}
-              />
-              Отправить тестовое письмо
-            </Button>
+            canCheckEmail && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={sending}
+                onClick={sendTestEmail}
+              >
+                <RiMailSendLine
+                  className={sending ? "animate-pulse" : undefined}
+                />
+                Отправить тестовое письмо
+              </Button>
+            )
           }
         />
       )}

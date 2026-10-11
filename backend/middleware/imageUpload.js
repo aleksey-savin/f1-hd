@@ -57,7 +57,12 @@ const imageUpload = multer({
 const LOCAL_UPLOADS_DIR = "uploads";
 fs.mkdirSync(LOCAL_UPLOADS_DIR, { recursive: true });
 
-const makeLocalImageUpload = ({ field, maxSize }) => {
+// `mimeTypes` сужает набор форматов (значок бренда — только PNG); без него
+// принимается всё из IMAGE_EXTENSIONS.
+const makeLocalImageUpload = ({ field, maxSize, mimeTypes }) => {
+  const isAllowed = (mimetype) =>
+    Boolean(IMAGE_EXTENSIONS[mimetype]) && (!mimeTypes || mimeTypes.includes(mimetype));
+
   const upload = multer({
     limits: { fileSize: maxSize, files: 1 },
     storage: multer.diskStorage({
@@ -71,7 +76,7 @@ const makeLocalImageUpload = ({ field, maxSize }) => {
       },
     }),
     fileFilter: (req, file, cb) => {
-      if (!IMAGE_EXTENSIONS[file.mimetype]) {
+      if (!isAllowed(file.mimetype)) {
         return cb(
           new Error(`Недопустимый тип изображения: ${file.mimetype}`),
           false,
@@ -106,6 +111,14 @@ const uploadCompanyLogo = makeLocalImageUpload({
   maxSize: 2 * 1024 * 1024,
 });
 
+// Значок бренда: вкладка браузера и ярлык на телефоне. Только PNG — его же
+// отдаёт открытая ручка /api/brand/icon с типом image/png.
+const uploadBrandIcon = makeLocalImageUpload({
+  field: "brandIcon",
+  maxSize: 1 * 1024 * 1024, // синхронно с подсказкой в UI
+  mimeTypes: ["image/png"],
+});
+
 // Приём поля `photos` с человекочитаемыми ошибками. Отказ multer (тип, размер,
 // количество) — это ошибка запроса, а не сервера: переводим в 400 с текстом,
 // который можно показать пользователю как есть.
@@ -133,6 +146,7 @@ module.exports = {
   uploadPhotos,
   uploadBackgroundImage,
   uploadCompanyLogo,
+  uploadBrandIcon,
   MAX_FILES,
   MAX_FILE_SIZE,
 };

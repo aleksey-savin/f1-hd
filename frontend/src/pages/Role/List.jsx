@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
 
@@ -136,7 +137,7 @@ const RolesPage = () => {
 export default RolesPage;
 
 export function loader() {
-  document.title = "Роли";
+  setDocTitle("Роли");
   return null;
 }
 

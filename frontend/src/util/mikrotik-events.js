@@ -12,7 +12,7 @@ export const JOURNAL_FILTERS = [
   { value: "link", label: "Связь" },
   { value: "power", label: "Питание и прошивка" },
   { value: "config", label: "Конфигурация" },
-  { value: "record", label: "Запись в HD" },
+  { value: "record", label: "Запись в портале" },
   { value: "agent", label: "Агенты" },
   { value: "router", label: "Лог роутера" },
 ];
@@ -54,7 +54,7 @@ const FIELDS = {
   user: "Пользователь",
   sshPort: "Порт SSH",
   label: "Название",
-  firmwareUpgradeEnabled: "Обновление из HD",
+  firmwareUpgradeEnabled: "Обновление из портала",
 };
 const FLAT_FIELDS = {
   transit: "Путь подключения изменён",
@@ -135,11 +135,11 @@ export function eventLine(event, { formatTime = () => "" } = {}) {
       return {
         ...base,
         label: "Перезагрузка",
-        who: data.cause === "upgrade" ? "при обновлении из HD" : "не из HD",
+        who: data.cause === "upgrade" ? "при обновлении из портала" : "не из портала",
         detail: data.ranSeconds ? `До этого работало ${duration(data.ranSeconds)}` : null,
       };
     case "firmwareChanged":
-      return { ...base, label: "Версия RouterOS изменилась", who: data.cause === "upgrade" ? null : "не из HD", change: versions };
+      return { ...base, label: "Версия RouterOS изменилась", who: data.cause === "upgrade" ? null : "не из портала", change: versions };
     case "identityChanged":
       return { ...base, label: "Имя устройства изменилось", change: versions };
     case "serialChanged":
@@ -199,7 +199,7 @@ export function eventLine(event, { formatTime = () => "" } = {}) {
       return { ...base, label: "Агент обращался к роутеру", detail: [count, what].filter(Boolean).join(": ") || null };
     }
     case "routerConfig":
-      return { ...base, label: "Конфигурация изменена на роутере", who: list([base.who, data.byHd ? "учётная запись HD" : null]) || null, raw: data.lines || [], rawTotal: data.count };
+      return { ...base, label: "Конфигурация изменена на роутере", who: list([base.who, data.byHd ? "учётная запись портала" : null]) || null, raw: data.lines || [], rawTotal: data.count };
     case "routerLogin":
       return { ...base, label: "Вход на роутер", who: list([base.who, data.via, data.from ? `с ${data.from}` : null]) || null };
     case "routerLoginFailed":

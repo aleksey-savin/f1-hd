@@ -5,6 +5,8 @@ const Module = require("node:module");
 
 // Ключ шифрования теста — до первого обращения к secretBox (он кэширует ключ)
 process.env.APP_ENC_KEY = crypto.randomBytes(32).toString("base64");
+// Режим почты теста — «live»: без него отправка выключена (utils/mailGuard)
+process.env.MAIL_MODE = "live";
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");

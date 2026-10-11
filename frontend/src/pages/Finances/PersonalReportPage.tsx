@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, type ReactNode } from "react";
 import { useParams } from "react-router";
 import { RiFilter3Line } from "react-icons/ri";
@@ -429,11 +430,11 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
 export default PersonalReportPage;
 
 export function loader() {
-  document.title = "Отчёт сотрудника";
+  setDocTitle("Отчёт сотрудника");
   return null;
 }
 
 export function ownLoader() {
-  document.title = "Мой отчёт";
+  setDocTitle("Мой отчёт");
   return null;
 }

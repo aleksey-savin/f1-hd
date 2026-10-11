@@ -17,7 +17,7 @@ const change = (extra = {}) => ({
   executor: "safe-mode",
   createdAt: new Date("2026-10-10T08:00:00Z"),
   expiresAt: new Date("2026-10-11T08:00:00Z"),
-  mikrotik: { _id: "m1", name: "F1-GW01", label: "Шлюз" },
+  mikrotik: { _id: "m1", name: "GW01", label: "Шлюз" },
   requestedBy: person("req", "Иван", "Петров"),
   requestedVia: { keyId: "k", keyName: "OpenClaw" },
   responsible: person("resp", "Анна", "Смирнова"),
@@ -54,7 +54,7 @@ test("заявитель: полный вид, имена вместо люде�
   assert.equal(v.reason, "Просил сотрудник");
   assert.equal(v.timeline.length, 1);
   assert.deepEqual(v.backup, { artifactId: "a1", createdAt: new Date("2026-10-10T08:30:00Z") });
-  assert.deepEqual(v.device, { _id: "m1", name: "F1-GW01" });
+  assert.deepEqual(v.device, { _id: "m1", name: "GW01" });
   assert.deepEqual(v.my, { step: true, action: "confirm", canCancel: true, canDownload: false });
 });
 
@@ -87,7 +87,7 @@ test("посторонний с mikrotik.read: только номер, назв
   const v = view(change(), viewer("stranger"));
   assert.deepEqual(Object.keys(v).sort(), ["_id", "createdAt", "device", "number", "status", "statusLabel", "title"]);
   assert.equal(v.status, "awaiting_requester");
-  assert.deepEqual(v.device, { _id: "m1", name: "F1-GW01" });
+  assert.deepEqual(v.device, { _id: "m1", name: "GW01" });
 });
 
 test("ни в одном виде нет ключей WireGuard, контактов, Telegram-данных и params/where", () => {
@@ -141,10 +141,10 @@ test("блок конфигурации в полном виде — без се
 });
 
 test("устройство: компания из записи или из карточки инвентаря, без неё ключа нет", () => {
-  const own = view(change({ mikrotik: { _id: "m1", name: "F1-GW01", companyId: { alias: "F1Lab", fullTitle: "ООО Ф1" } } }), viewer("req"));
-  assert.deepEqual(own.device, { _id: "m1", name: "F1-GW01", company: "F1Lab" });
-  const viaCard = view(change({ mikrotik: { _id: "m1", name: "F1-GW01", clientDevice: { companyId: { fullTitle: "ООО Ф1" } } } }), viewer("req"));
-  assert.equal(viaCard.device.company, "ООО Ф1");
+  const own = view(change({ mikrotik: { _id: "m1", name: "GW01", companyId: { alias: "Техноцентр", fullTitle: "ООО Техноцентр" } } }), viewer("req"));
+  assert.deepEqual(own.device, { _id: "m1", name: "GW01", company: "Техноцентр" });
+  const viaCard = view(change({ mikrotik: { _id: "m1", name: "GW01", clientDevice: { companyId: { fullTitle: "ООО Техноцентр" } } } }), viewer("req"));
+  assert.equal(viaCard.device.company, "ООО Техноцентр");
   assert.equal(view(change(), viewer("req")).device.company, undefined);
 });
 
@@ -181,8 +181,8 @@ test("closedAt: время события, закрывшего запрос; п
 });
 
 test("устройство без имени: подпись из карточки инвентаря («модель · SN …»), компания отдельно", () => {
-  const m = { _id: "m1", clientDevice: { serialNumber: "ABC123", deviceModelId: { name: "hAP ax3" }, companyId: { alias: "F1Lab" } } };
-  assert.deepEqual(view(change({ mikrotik: m }), viewer("req")).device, { _id: "m1", name: "hAP ax3 · SN ABC123", company: "F1Lab" });
+  const m = { _id: "m1", clientDevice: { serialNumber: "ABC123", deviceModelId: { name: "hAP ax3" }, companyId: { alias: "Техноцентр" } } };
+  assert.deepEqual(view(change({ mikrotik: m }), viewer("req")).device, { _id: "m1", name: "hAP ax3 · SN ABC123", company: "Техноцентр" });
   const noModel = { _id: "m1", clientDevice: { serialNumber: "ABC123" } };
   assert.equal(view(change({ mikrotik: noModel }), viewer("req")).device.name, "Устройство · SN ABC123");
   assert.equal(view(change({ mikrotik: { _id: "m1", name: "R1", clientDevice: { serialNumber: "Z" } } }), viewer("req")).device.name, "R1");

@@ -5,7 +5,7 @@ const { toCanonicalPhone } = require("../services/phone");
 
 const Counter = require("./counter");
 
-const STARTING_NUMBER = process.env.TICKET_COUNTER_STARTING_NUMBER || 45926;
+const STARTING_NUMBER = Number(process.env.TICKET_COUNTER_STARTING_NUMBER) || 1;
 
 const attachmentSchema = new Schema(
   {

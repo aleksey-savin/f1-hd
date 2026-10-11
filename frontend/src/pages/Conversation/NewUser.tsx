@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import type { ComponentType } from "react";
 import { useLoaderData, type LoaderFunctionArgs } from "react-router";
 
@@ -50,7 +51,7 @@ const ConversationNewUser = () => {
 export default ConversationNewUser;
 
 export async function loader({ params }: LoaderFunctionArgs): Promise<NewUserData> {
-  document.title = "Новый пользователь";
+  setDocTitle("Новый пользователь");
   const [card, companies, categories] = await Promise.all([
     api<ConversationCard>(`/api/conversations/${params.id}`),
     load<unknown[]>("/api/companies"),

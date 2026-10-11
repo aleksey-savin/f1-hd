@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 
@@ -509,6 +510,6 @@ const TicketsPage = () => {
 export default TicketsPage;
 
 export async function loader() {
-  document.title = "Заявки";
+  setDocTitle("Заявки");
   return null;
 }

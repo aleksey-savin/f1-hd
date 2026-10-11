@@ -207,13 +207,17 @@ const attempt = async (notification, channel) => {
      * придётся возвращать и сюда.
      */
     notification.html || textBody(notification),
+    // В песочнице адрес уже подменён моделью уведомления: исходный получатель
+    // идёт отдельно, чтобы отправщик пометил тему и тело письма
+    { intendedEmail: notification.intendedEmail || undefined },
   );
 
   const attemptsCounter = notification.attemptsCounter + 1;
   const sent = Boolean(message?.success);
-  // Отказ, который повтор не исправит (пароль SMTP не читается), не ждёт
-  // остальных попыток: письмо сразу failed, а не три раза с паузой в пятнадцать
-  // минут получает тот же ответ
+  // Отказ, который повтор не исправит (почта выключена на сервере —
+  // MAIL_MODE=off, пароль SMTP не читается), не ждёт остальных попыток: письмо
+  // сразу failed, а не три раза с паузой в пятнадцать минут получает тот же
+  // ответ
   const exhausted =
     !sent &&
     (message?.retryable === false || attemptsCounter >= NOTIFY_MAX_ATTEMPTS);

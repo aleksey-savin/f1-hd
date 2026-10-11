@@ -16,7 +16,7 @@ const describeUpgradeError = (error) => {
     return {
       message:
         // RouterOS требует read + write + policy даже для check-for-updates
-        "У пользователя HD на устройстве не хватает прав: для обновления RouterOS требует write, reboot и policy. Выполните на устройстве и повторите:",
+        "У учётной записи портала на устройстве не хватает прав: для обновления RouterOS требует write, reboot и policy. Выполните на устройстве и повторите:",
       fix: RIGHTS_FIX,
     };
   }

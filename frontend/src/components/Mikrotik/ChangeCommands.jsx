@@ -3,18 +3,19 @@ import { Fragment } from "react";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { cn } from "@/lib/utils";
 import {
+  COMMAND_MARKER,
   RISK_HEADLINE,
   commandsCount,
   firstRisky,
+  hasCommandMarker,
   resultLine,
   riskSentence,
+  splitByMarker,
 } from "@/util/mikrotik-changes";
 
 import ChangeNote from "./ChangeNote";
 import FixCommand from "./FixCommand";
 
-// Метка места, куда HD сам подставит значение (backend/services/mikrotik/changeRender.js)
-const MARKER = "‹создаст HD›";
 const OPEN = ["awaiting_requester", "awaiting_responsible"];
 
 const RESULT_TEXT = {
@@ -28,7 +29,7 @@ const Highlighted = ({ command }) => {
   const head = `${command.path} ${command.action}`;
   const matches = command.text.startsWith(head);
   const rest = matches ? command.text.slice(head.length) : command.text;
-  const pieces = rest.split(MARKER);
+  const pieces = splitByMarker(rest);
   return (
     <>
       {matches && (
@@ -39,7 +40,7 @@ const Highlighted = ({ command }) => {
       )}
       {pieces.map((piece, index) => (
         <Fragment key={index}>
-          {index > 0 && <i className="text-zinc-400 not-italic">{MARKER}</i>}
+          {index > 0 && <i className="text-zinc-400 not-italic">{COMMAND_MARKER}</i>}
           {piece}
         </Fragment>
       ))}
@@ -85,7 +86,7 @@ const DiffRows = ({ command }) => {
 const ChangeCommands = ({ commands = [], status, risk, rollback }) => {
   const risky = risk === "high" ? firstRisky(commands) : null;
   const open = OPEN.includes(status);
-  const hasMarker = commands.some((command) => command.text.includes(MARKER));
+  const hasMarker = commands.some((command) => hasCommandMarker(command.text));
 
   return (
     <>
@@ -105,7 +106,7 @@ const ChangeCommands = ({ commands = [], status, risk, rollback }) => {
             <ChangeNote title={RISK_HEADLINE}>
               {riskSentence(risky)}
               {rollback !== false &&
-                " Если после применения HD не достучится до роутера, safe mode откатит изменения."}
+                " Если после применения система не достучится до роутера, safe mode откатит изменения."}
             </ChangeNote>
           )}
           <ol className="m-0 flex list-none flex-col gap-3 p-0">
@@ -146,9 +147,9 @@ const ChangeCommands = ({ commands = [], status, risk, rollback }) => {
           </ol>
           {open && (
             <span className="text-sm text-muted-foreground">
-              Команды собрал HD из запроса агента.
+              Команды собрала система из запроса агента.
               {hasMarker &&
-                " Ключи WireGuard HD создаст сам перед применением, агент их не увидит."}
+                " Ключи WireGuard система создаст сама перед применением, агент их не увидит."}
             </span>
           )}
         </div>

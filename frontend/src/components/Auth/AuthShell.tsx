@@ -118,7 +118,7 @@ const AuthShell = ({
     setTheme(value);
   };
 
-  const { contacts } = prefs;
+  const { contacts, brand } = prefs;
   const hasContacts = Boolean(contacts.tel || contacts.email);
 
   return (
@@ -141,7 +141,12 @@ const AuthShell = ({
         <div className="contents lg:col-span-2 lg:flex lg:flex-col">
           {/* марка */}
           <div className="order-1 flex items-center justify-between gap-4">
-            <BrandMark logo={contacts.logo} size="lg" />
+            <BrandMark
+              logo={contacts.logo}
+              name={brand.productName}
+              icon={brand.icon}
+              size="lg"
+            />
             <ThemeSegment
               theme={theme}
               onChange={changeTheme}

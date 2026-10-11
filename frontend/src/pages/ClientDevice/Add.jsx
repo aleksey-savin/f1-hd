@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { load } from "@/store/form-data";
 import Form from "../../components/ClientDevice/Form";
 
@@ -11,7 +12,7 @@ export default AddClientDevicePage;
 // показывая спиннер в уже открытой шторке. Шторка обязана открываться по
 // готовности, а ожидание — жить на линии под баром оболочки.
 export async function loader() {
-  document.title = "Новое устройство";
+  setDocTitle("Новое устройство");
 
   return { device: null, formData: await loadFormData() };
 }

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const { guardRecipient } = require("../utils/mailGuard");
+const { mailMode, guardRecipient } = require("../utils/mailGuard");
 
 const Schema = mongoose.Schema;
 
@@ -46,8 +46,8 @@ const notificationSchema = new Schema(
     sent: { type: Boolean, default: false },
     failed: { type: Boolean, default: false },
     attemptsCounter: { type: Number, default: 0 },
-    // Кому письмо предназначалось до подмены получателя вне прода. Пусто на
-    // проде; на деве видно, кому оно ушло бы «по-настоящему».
+    // Кому письмо предназначалось до подмены получателя в песочнице
+    // (MAIL_MODE=sandbox). В остальных режимах пусто.
     intendedEmail: { type: String, default: null },
     /**
      * АРЕНДА для доставки через API (`routes/bot.js`).
@@ -78,15 +78,18 @@ notificationSchema.index({ instrument: 1, sent: 1, failed: 1 });
 notificationSchema.index({ instrument: 1, sent: 1, failed: 1, leaseUntil: 1 });
 
 /**
- * Вне прода письмо не может уйти клиенту. Подмена стоит прямо в модели, а не в
- * двадцати местах, где создаются уведомления (middleware/notifications.js,
- * services/*Notifications.js, контроллер Mikrotik): «без исключений» иначе не
- * гарантировать — новое место создания просто забудут прикрыть.
- * Дублирующая защита стоит у отправщиков: `services/mail/send.js` для почты,
- * `util/chatGuard.ts` в tg-service для телеграма.
+ * В песочнице (MAIL_MODE=sandbox) письмо не может уйти клиенту. Подмена стоит
+ * прямо в модели, а не в двадцати местах, где создаются уведомления
+ * (middleware/notifications.js, services/*Notifications.js, контроллер
+ * Mikrotik): «без исключений» иначе не гарантировать — новое место создания
+ * просто забудут прикрыть. Дублирующая защита стоит у отправщика почты:
+ * `services/mail/send.js`.
+ *
+ * В режимах `live` и `off` документ не меняется: в `off` письмо остаётся со
+ * своим адресом и получает отказ у отправщика — причина видна в очереди.
  */
 const guardDocument = (doc) => {
-  if (!doc || doc.instrument !== "email") {
+  if (!doc || doc.instrument !== "email" || mailMode() !== "sandbox") {
     return;
   }
   const intended = doc.to?.email;

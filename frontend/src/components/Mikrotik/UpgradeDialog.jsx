@@ -154,8 +154,8 @@ const UpgradeDialog = ({
     ? "."
     : " — это две перезагрузки, связь у клиента пропадёт на 3–5 минут.";
   const description = single
-    ? `Перед обновлением HD сохранит копию конфигурации, затем обновит RouterOS и RouterBOOT${reboots}`
-    : `Устройства обновятся по очереди. Перед каждым HD сохранит копию конфигурации, затем обновит RouterOS и RouterBOOT${reboots}`;
+    ? `Перед обновлением система сохранит копию конфигурации, затем обновит RouterOS и RouterBOOT${reboots}`
+    : `Устройства обновятся по очереди. Перед каждым система сохранит копию конфигурации, затем обновит RouterOS и RouterBOOT${reboots}`;
   const submitLabel =
     single && items[0]
       ? `Обновить до ${items[0].toVersion}`
@@ -202,7 +202,7 @@ const UpgradeDialog = ({
       {switchesBranch && !toV7 && (
         <p className="-mt-2 text-xs text-warning">
           Устройство перейдёт на ветку {channel} и дальше будет получать её
-          версии. Вернуться обратно из HD не получится: это откат, его делают
+          версии. Вернуться обратно из портала не получится: это откат, его делают
           вручную.
         </p>
       )}
@@ -355,7 +355,7 @@ const UpgradeDialog = ({
           <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs">
             Переход на RouterOS 7: до четырёх перезагрузок, около 20 минут на
             устройство, конфигурация конвертируется автоматически. Вернуть на
-            RouterOS 6 из HD нельзя.
+            RouterOS 6 из портала нельзя.
           </div>
         ) : (
           <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm">
@@ -368,7 +368,7 @@ const UpgradeDialog = ({
               Переход на RouterOS 7 — большое обновление: до четырёх
               перезагрузок и около 20 минут на устройство. Конфигурация
               конвертируется автоматически — после проверьте маршрутизацию
-              (OSPF, BGP). Вернуть устройство на RouterOS 6 из HD нельзя.
+              (OSPF, BGP). Вернуть устройство на RouterOS 6 из портала нельзя.
             </div>
           </div>
         ))}
@@ -382,7 +382,7 @@ const UpgradeDialog = ({
     majorCount * MINUTES_PER_MAJOR_ITEM +
       (count - majorCount) * MINUTES_PER_ITEM,
   );
-  const estimate = `Около ${minutes} минут. Страницу можно закрыть — HD продолжит сам.`;
+  const estimate = `Около ${minutes} минут. Страницу можно закрыть — система продолжит сама.`;
 
   const actions = (
     <>

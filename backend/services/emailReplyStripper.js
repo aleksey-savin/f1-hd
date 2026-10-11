@@ -11,7 +11,7 @@
 const REPLY_MARKER = "##- Пожалуйста, пишите ответ над этой строкой -##";
 
 /**
- * Тема письма, адресующего заявку: `[F1-HD-51713] Новый комментарий…`. По этому
+ * Тема письма, адресующего заявку: `[HD-51713] Новый комментарий…`. По этому
  * номеру входящий разборщик (middleware/emailHandling) узнаёт ответ в заявку;
  * станет ли он комментарием, решает services/mail/replyRouting.
  *
@@ -19,47 +19,107 @@ const REPLY_MARKER = "##- Пожалуйста, пишите ответ над �
  * (middleware/notifications, через ticketSubjectTag), и только её принимает
  * разбор. Чужие метки — `[JIRA-123] build`, «Счёт [PO-50123]» — заявку не
  * адресуют: прежний разбор брал любое «-<что угодно>]», и такое письмо
- * ложилось комментарием в заявку с тем же номером. Префикс станет настройкой
- * (W2), поэтому в выражение он попадает экранированным.
+ * ложилось комментарием в заявку с тем же номером.
+ *
+ * Префикс задаётся при установке, а не в настройках: он разбирается на каждом
+ * входящем письме, и смена на ходу оборвала бы цепочки ответов.
+ *   TICKET_SUBJECT_PREFIX — префикс новых писем, по умолчанию `HD`;
+ *   TICKET_SUBJECT_PREFIXES_ACCEPTED — через запятую, прежние префиксы,
+ *     которые разбор по-прежнему узнаёт в ответах.
+ * Окружение читается один раз при загрузке модуля; неверное значение
+ * останавливает запуск.
  *
  * Разбор темы живёт здесь, рядом с маркером, по той же причине, по которой
  * маркер импортируется отправщиком, а не пишется рядом: отправщик ставит
  * служебную строку «пишите ответ выше» ровно тем письмам, ответ на которые
  * действительно вернётся в заявку. Проверка вместо договорённости.
  */
-const TICKET_SUBJECT_PREFIX = "F1-HD";
+const DEFAULT_SUBJECT_PREFIX = "HD";
+
+// Латиница, цифры и дефис, 2–12 знаков: префикс стоит в теме письма и в
+// регулярном выражении, скобкам и пробелам в нём не место
+const SUBJECT_PREFIX_RE = /^[A-Za-z0-9-]{2,12}$/;
+
+const assertSubjectPrefix = (value, variable) => {
+  if (typeof value !== "string" || !SUBJECT_PREFIX_RE.test(value)) {
+    throw new Error(
+      `${variable}: допустимы латиница, цифры и дефис, 2–12 знаков`,
+    );
+  }
+};
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Только `[F1-HD-<цифры>]`: без знака, пробелов, 0x и экспоненты
-const TICKET_SUBJECT_RE = new RegExp(
-  `\\[${escapeRegExp(TICKET_SUBJECT_PREFIX)}-(\\d+)\\]`,
-);
+/**
+ * Метка заявки в теме для заданных префиксов. Чистая фабрика: окружение не
+ * читает, поэтому годится для тестов и для сборки экспортов модуля.
+ * @param {object} [options]
+ * @param {string} [options.prefix] префикс новых писем; не передан — `HD`
+ * @param {string[]} [options.accepted] прежние префиксы, принимаемые в ответах
+ * @returns {{ prefix: string, tag: (num: number) => string, numFromSubject: (subject: string) => number|null }}
+ * @throws {Error} префикс не подходит под `[A-Za-z0-9-]{2,12}`
+ */
+const buildSubjectTagging = ({
+  prefix = DEFAULT_SUBJECT_PREFIX,
+  accepted = [],
+} = {}) => {
+  assertSubjectPrefix(prefix, "TICKET_SUBJECT_PREFIX");
+  for (const old of accepted) {
+    assertSubjectPrefix(old, "TICKET_SUBJECT_PREFIXES_ACCEPTED");
+  }
+
+  // Только `[<префикс>-<цифры>]`: без знака, пробелов, 0x и экспоненты.
+  // Выражение держится за «[»: префикс `HD` не узнаёт метку `[OLD-HD-9]`
+  const prefixes = [...new Set([prefix, ...accepted])];
+  const subjectRe = new RegExp(
+    `\\[(?:${prefixes.map(escapeRegExp).join("|")})-(\\d+)\\]`,
+  );
+
+  return {
+    prefix,
+    tag: (num) => `[${prefix}-${num}]`,
+    numFromSubject: (subject) => {
+      const match = subjectRe.exec(subject || "");
+      if (!match) return null;
+      const num = Number(match[1]);
+      return Number.isSafeInteger(num) ? num : null;
+    },
+  };
+};
+
+const envList = (value) =>
+  (value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const subjectTagging = buildSubjectTagging({
+  prefix: (process.env.TICKET_SUBJECT_PREFIX || "").trim() || DEFAULT_SUBJECT_PREFIX,
+  accepted: envList(process.env.TICKET_SUBJECT_PREFIXES_ACCEPTED),
+});
+
+const TICKET_SUBJECT_PREFIX = subjectTagging.prefix;
 
 /**
- * Метка заявки для темы уведомления: `[F1-HD-51713]`.
+ * Метка заявки для темы уведомления: `[HD-51713]`.
  * @param {number} num номер заявки
  * @returns {string}
  */
-const ticketSubjectTag = (num) => `[${TICKET_SUBJECT_PREFIX}-${num}]`;
+const ticketSubjectTag = subjectTagging.tag;
 
 /**
- * Номер заявки из темы письма; null — тема заявку не адресует. Меток
+ * Номер заявки из темы письма; null — тема заявку не адресует. Принимаются
+ * основной префикс и прежние из TICKET_SUBJECT_PREFIXES_ACCEPTED. Меток
  * несколько — решает первая: новая заявка из не принятого ответа хранит его
  * тему, и её собственная метка в уведомлениях стоит раньше.
  * @param {string} subject
  * @returns {number|null}
  */
-const ticketNumFromSubject = (subject) => {
-  const match = TICKET_SUBJECT_RE.exec(subject || "");
-  if (!match) return null;
-  const num = Number(match[1]);
-  return Number.isSafeInteger(num) ? num : null;
-};
+const ticketNumFromSubject = subjectTagging.numFromSubject;
 
 // Строки-заголовки, которыми клиенты предваряют цитату в plain-text части.
 const QUOTE_HEADERS = [
-  // Thunderbird (ru): "07.07.2026 15:07, Техподдержка F1Lab пишет:"
+  // Thunderbird (ru): "07.07.2026 15:07, Техподдержка Техноцентр пишет:"
   /^\d{1,2}\.\d{1,2}\.\d{2,4}\s+\d{1,2}:\d{2},[^\n]*пишет:\s*$/m,
   // Apple Mail (ru): "8 июл. 2026 г., в 11:39, Имя <e@x.ru> написал(а):"
   /^\d{1,2}\s+[а-яё]{3,8}\.?\s+\d{4}\s?г\.,?\s+в\s+\d{1,2}:\d{2},[^\n]*написал[аи]?\s*(\(а\))?:\s*$/im,
@@ -140,4 +200,5 @@ module.exports = {
   TICKET_SUBJECT_PREFIX,
   ticketSubjectTag,
   ticketNumFromSubject,
+  buildSubjectTagging,
 };

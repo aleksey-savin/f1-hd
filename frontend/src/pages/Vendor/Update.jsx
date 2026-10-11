@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import VendorForm from "../../components/Vendor/Form";
 
 import { api } from "@/lib/api";
@@ -10,7 +11,7 @@ const UpdateVendorPage = () => {
 export default UpdateVendorPage;
 
 export async function loader({ params }) {
-  document.title = "Изменить вендора";
+  setDocTitle("Изменить вендора");
 
   return api(`/api/inventory/vendors/${params.id}`);
 }

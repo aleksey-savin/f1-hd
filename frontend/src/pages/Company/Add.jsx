@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { load } from "@/store/form-data";
 import CompanyForm from "../../components/Company/Form";
 
@@ -8,7 +9,7 @@ const AddCompanyPage = () => {
 export default AddCompanyPage;
 
 export async function loader() {
-  document.title = "Новая компания";
+  setDocTitle("Новая компания");
 
   // Справочник ответственных — из кэша (store/form-data)
   return {

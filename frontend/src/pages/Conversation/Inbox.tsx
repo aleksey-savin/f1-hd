@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useMatch, useOutlet } from "react-router";
 import { isMobile } from "react-device-detect";
@@ -149,7 +150,7 @@ const Inbox = () => {
 
   // Заголовок вкладки ставит загрузчик диалога; вернулись к списку — свой
   useEffect(() => {
-    if (!selectedId) document.title = "Диалоги";
+    if (!selectedId) setDocTitle("Диалоги");
   }, [selectedId]);
 
   useLiveTopic(
@@ -166,6 +167,6 @@ const Inbox = () => {
 export default Inbox;
 
 export function loader() {
-  document.title = "Диалоги";
+  setDocTitle("Диалоги");
   return null;
 }

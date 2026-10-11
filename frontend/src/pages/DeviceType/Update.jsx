@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
 import Form from "../../components/DeviceType/Form";
@@ -9,7 +10,7 @@ const UpdateDeviceTypePage = () => {
 export default UpdateDeviceTypePage;
 
 export async function loader({ params }) {
-  document.title = "Изменить тип устройства";
+  setDocTitle("Изменить тип устройства");
 
   // Тип — всегда свежий; список всех типов для attachableToTypeIds — из кэша
   const [deviceType, allDeviceTypes] = await Promise.all([

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Link,
@@ -818,7 +819,7 @@ export async function loader({ params }) {
   if (!response.ok) throw response;
 
   const data = await response.json();
-  document.title = `Просмотр ${data.displayName || "устройства Mikrotik"}`;
+  setDocTitle(`Просмотр ${data.displayName || "устройства Mikrotik"}`);
   // Курсор живых обновлений на момент чтения записи (docs/live-updates.md)
   return { ...data, pulse: response.headers.get("X-Pulse-Cursor") };
 }

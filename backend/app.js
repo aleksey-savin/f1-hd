@@ -6,6 +6,10 @@ const mongoose = require("mongoose");
 const path = require("path");
 
 const logger = require("./utils/logger");
+// Режим почты проверяется до всего остального: с неизвестным MAIL_MODE или
+// песочницей без адреса сервер не запускается. Бросок на верхнем уровне
+// модуля останавливает процесс с этим текстом (код выхода 1).
+require("./utils/mailGuard").assertMailConfig();
 const { redactUrl } = require("./helpers/redactUrl");
 const storage = require("./services/storage");
 const { errorResponse } = require("./middleware/errorHandling");

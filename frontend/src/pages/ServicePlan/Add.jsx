@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { load } from "@/store/form-data";
 import ServicePlanForm from "../../components/ServicePlan/Form";
 
@@ -8,7 +9,7 @@ const AddServicePlanPage = () => {
 export default AddServicePlanPage;
 
 export async function loader() {
-  document.title = "Новая услуга";
+  setDocTitle("Новая услуга");
 
   // Категории — из кэша (store/form-data)
   return {

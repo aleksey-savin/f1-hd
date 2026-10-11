@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
 import DeviceModelForm from "../../components/DeviceModel/Form";
@@ -16,7 +17,7 @@ const UpdateDeviceModelPage = () => {
 export default UpdateDeviceModelPage;
 
 export async function loader({ params }) {
-  document.title = "Изменить модель устройства";
+  setDocTitle("Изменить модель устройства");
 
   // Модель — всегда свежая; справочники — из кэша (store/form-data).
   // Атрибуты типа форме модели больше не нужны (конфигурации — отдельная

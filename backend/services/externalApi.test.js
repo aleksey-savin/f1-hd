@@ -28,7 +28,7 @@ const users = [
   { _id: "66aa000000000000000000a1", email: "anna@romashka.ru", firstName: "Анна", lastName: "Петрова", company: { _id: KEY_COMPANY }, activeDirectoryObjectGUID: "guid-anna" },
   { _id: "66aa000000000000000000a2", email: "gone@romashka.ru", firstName: "Олег", lastName: "Уволен", company: { _id: KEY_COMPANY }, banned: true },
   { _id: "66aa000000000000000000b1", email: "boss@other.ru", firstName: "Борис", lastName: "Чужой", company: { _id: OTHER_COMPANY }, activeDirectoryObjectGUID: "guid-boss" },
-  { _id: "66aa000000000000000000f1", email: "admin@f1lab.ru", firstName: "Админ", lastName: "Наш", company: { _id: "66aa000000000000000000f0" }, isEndUser: false },
+  { _id: "66aa000000000000000000f1", email: "admin@example.com", firstName: "Админ", lastName: "Наш", company: { _id: "66aa000000000000000000f0" }, isEndUser: false },
 ];
 
 const fakeFinder = () => {
@@ -105,7 +105,7 @@ test("people of other companies and staff are never resolved", async () => {
     { userId: "66aa000000000000000000b1" },
     { userEmail: "boss@other.ru" },
     { userId: "66aa000000000000000000f1" },
-    { userEmail: "admin@f1lab.ru" },
+    { userEmail: "admin@example.com" },
     { userEmail: "gone@romashka.ru" },
     { userEmail: { $ne: null } },
   ]) {

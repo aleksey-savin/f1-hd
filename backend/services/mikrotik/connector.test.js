@@ -236,7 +236,7 @@ test("a silent SSH port is named as such, with the port", () => {
 });
 
 test("a refused SSH port says the service is off or on another port", () => {
-  const refused = Object.assign(new Error("connect ECONNREFUSED 89.108.73.94:22"), {
+  const refused = Object.assign(new Error("connect ECONNREFUSED 203.0.113.94:22"), {
     code: "ECONNREFUSED",
   });
   const error = sshConnectError(refused, 2222);

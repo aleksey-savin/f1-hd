@@ -74,7 +74,7 @@ test("lastMessagePrefix: «Вы», «с телефона», коллега, ав
     "Орлова Анна",
   );
   assert.equal(
-    lastMessagePrefix({ direction: "out", origin: "device", authorName: "F1Lab Поддержка · с телефона" }, { kind: "direct", myName }),
+    lastMessagePrefix({ direction: "out", origin: "device", authorName: "Север Поддержка · с телефона" }, { kind: "direct", myName }),
     "с телефона",
   );
   assert.equal(
@@ -89,18 +89,18 @@ test("lastMessagePrefix: «Вы», «с телефона», коллега, ав
 });
 
 test("rowMeta: заявка, «без заявки», неизвестный собеседник, форма", () => {
-  const company = { id: "c1", alias: "ТД Восток" };
+  const company = { id: "c1", alias: "Ромашка" };
   assert.deepEqual(
     rowMeta({ kind: "direct", network: "telegram", company, ticket: { num: 56812 }, unknown: false }),
     [
-      { text: "ТД Восток", tone: "muted" },
+      { text: "Ромашка", tone: "muted" },
       { text: "№56812", tone: "muted" },
     ],
   );
   assert.deepEqual(
     rowMeta({ kind: "group", network: "telegram", company, ticket: null, unknown: false }),
     [
-      { text: "ТД Восток", tone: "muted" },
+      { text: "Ромашка", tone: "muted" },
       { text: "без заявки", tone: "faint" },
     ],
   );

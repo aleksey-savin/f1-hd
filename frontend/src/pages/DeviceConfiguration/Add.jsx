@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/DeviceConfiguration/Form";
 
 const AddDeviceConfigurationPage = () => {
@@ -8,7 +9,7 @@ const AddDeviceConfigurationPage = () => {
 export default AddDeviceConfigurationPage;
 
 export async function loader({ params }) {
-  document.title = "Новая конфигурация";
+  setDocTitle("Новая конфигурация");
 
   // Fetch device model
   const deviceModelResponse = await fetch(

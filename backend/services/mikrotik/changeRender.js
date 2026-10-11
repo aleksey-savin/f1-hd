@@ -3,7 +3,7 @@
 // Экранирование в показываемой строке — граница достоверности: значение читается ровно одним значением.
 const { PLACEHOLDERS } = require("./changeRules");
 
-const MARKER = "‹создаст HD›";
+const MARKER = "‹создаст система›";
 const BARE = /^[A-Za-z0-9_.:/,@-]+$/;
 const PATH = /^\/[a-z0-9-]+( [a-z0-9-]+)*$/i;
 const FIELD = /^[a-z0-9][a-z0-9.-]*$/;

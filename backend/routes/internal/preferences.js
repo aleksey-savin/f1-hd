@@ -7,7 +7,7 @@ const mcpKeyController = require("@/controllers/mcpKey");
 const mcpKeyValidation = require("@/validations/mcpKey");
 const isAuth = require("@/middleware/isAuth");
 const { canManageSettings } = require("@/middleware/permissions");
-const { uploadCompanyLogo } = require("@/middleware/imageUpload");
+const { uploadCompanyLogo, uploadBrandIcon } = require("@/middleware/imageUpload");
 const { checkValidationResult } = require("@/middleware/validation");
 
 // Проверки ходят во внешнюю сеть по адресу и ключу из тела запроса, отправляют
@@ -49,6 +49,20 @@ router.post(
   isAuth,
   canManageSettings,
   preferencesController.deleteLogo,
+);
+// Значок бренда — так же, как лого: сохраняется сразу, мимо общей формы
+router.post(
+  "/preferences/brand-icon",
+  isAuth,
+  canManageSettings,
+  uploadBrandIcon,
+  preferencesController.uploadBrandIcon,
+);
+router.post(
+  "/preferences/delete-brand-icon",
+  isAuth,
+  canManageSettings,
+  preferencesController.deleteBrandIcon,
 );
 router.post(
   "/preferences/ai-models",

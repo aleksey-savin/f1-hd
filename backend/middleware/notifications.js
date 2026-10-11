@@ -15,7 +15,6 @@ const {
 } = require("../services/telegramMessage");
 const { resolveTimezone } = require("../utils/datetime");
 const { htmlToPlainLines } = require("../helpers/htmlToPlainText");
-const { formatPhone } = require("../services/phone");
 const { ticketSubjectTag } = require("../services/emailReplyStripper");
 
 /**
@@ -38,6 +37,8 @@ const Company = require("../models/company");
 const Subdivision = require("../models/subdivision");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
 const { permissionFilter } = require("@/services/permissions");
+const { mailSignatureHtml } = require("@/services/brand");
+const { mailContactLine } = require("@/services/mailContactLine");
 const {
   notifyTicketEvent,
   notifyCommentEvent,
@@ -497,15 +498,10 @@ exports.createTicketNotifications = async () => {
                                     её специалисту и сообщим Вам, как только он примет её в работу.
                                 </p>
                                 <p>
-                                    Если у Вас есть вопросы или дополнительная
-                                    информация, пожалуйста, позвоните нам по номеру
-                                    ${formatPhone(prefs.contacts.tel)} или отправьте ответное
-                                    письмо(только не меняйте тему).
+                                    ${mailContactLine(prefs)}
                                 </p>
                                 <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
-                                <p>
-                                    С уважением,<br></br>Команда F1Lab
-                                </p>
+                                ${mailSignatureHtml(prefs)}
                             </div>
                         `,
             });
@@ -752,15 +748,10 @@ exports.createTicketNotifications = async () => {
                                 чтобы всё прошло гладко и без задержек.
                             </p>
                             <p>
-                                Если у Вас есть вопросы или дополнительная
-                                информация, пожалуйста, позвоните нам по номеру
-                                ${formatPhone(prefs.contacts.tel)} или отправьте ответное
-                                письмо(только не меняйте тему).
+                                ${mailContactLine(prefs)}
                             </p>
                             <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
-                            <p>
-                                С уважением,<br></br>Команда F1Lab
-                            </p>
+                            ${mailSignatureHtml(prefs)}
                         </div>
                         `,
             });
@@ -1254,15 +1245,10 @@ exports.createTicketNotifications = async () => {
                             </p>
                             <p>Комментарий: ${ticket.closingComment}</p>
                             <p>
-                                Если у Вас есть вопросы или дополнительная
-                                информация, пожалуйста, позвоните нам по номеру
-                                ${formatPhone(prefs.contacts.tel)} или отправьте ответное
-                                письмо(только не меняйте тему).
+                                ${mailContactLine(prefs)}
                             </p>
                             <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
-                            <p>
-                                С уважением,<br></br>Команда F1Lab
-                            </p>
+                            ${mailSignatureHtml(prefs)}
                         </div>
                     `,
             });
@@ -1467,15 +1453,10 @@ exports.createTicketNotifications = async () => {
                             </p>
                             <p>Комментарий: ${ticket.returningComment}</p>
                             <p>
-                                Если у Вас есть вопросы или дополнительная
-                                информация, пожалуйста, позвоните нам по номеру
-                                ${formatPhone(prefs.contacts.tel)} или отправьте ответное
-                                письмо(только не меняйте тему).
+                                ${mailContactLine(prefs)}
                             </p>
                             <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
-                            <p>
-                                С уважением,<br></br>Команда F1Lab
-                            </p>
+                            ${mailSignatureHtml(prefs)}
                         </div>
                         `,
             });
@@ -1860,9 +1841,7 @@ exports.createCommentNotifications = async () => {
                 К Заявке ${ticket.num}, ${ticket.title}, добавлен новый комментарий: ${comment.content}
                 </p>
                 <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
-                <p>
-                    С уважением,<br></br>Команда F1Lab
-                </p>
+                ${mailSignatureHtml(prefs)}
                 </div>`,
             });
             await newCommentNotification.save();
@@ -1901,9 +1880,7 @@ exports.createCommentNotifications = async () => {
                                 К Заявке ${ticket.num}, ${ticket.title}, добавлен новый комментарий: ${comment.content}
                                 </p>
                                 <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
-                                <p>
-                                    С уважением,<br></br>Команда F1Lab
-                                </p>
+                                ${mailSignatureHtml(prefs)}
                                 </div>`,
               });
               await newCommentNotification.save();
@@ -2204,7 +2181,7 @@ exports.createScheduledWorkNotifications = async () => {
                               )}</b></li>
                             </ul>
                             </p>
-                            <p>С уважением,<br>Команда F1Lab</p>
+                            ${mailSignatureHtml(prefs)}
                             </div>`,
           });
           await newWorkNotification.save();
@@ -2325,7 +2302,7 @@ exports.createScheduledWorkNotifications = async () => {
                 )}</b></li>
               </ul>
               </p>
-              <p>С уважением,<br>Команда F1Lab</p>
+              ${mailSignatureHtml(prefs)}
             </div>`,
           });
           await newWorkNotification.save();

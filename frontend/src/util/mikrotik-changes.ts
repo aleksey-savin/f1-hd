@@ -33,6 +33,23 @@ const TONE_BY_STATUS: Record<ChangeStatus, Tone> = {
   cancelled: "idle",
 };
 
+// Метка места, куда система сама подставит значение
+// (backend/services/mikrotik/changeRender.js). Текст команды хранится в запросе
+// вместе с меткой, поэтому у запросов, созданных раньше, она в прежней
+// формулировке: узнаём обе, показываем всегда нынешнюю.
+export const COMMAND_MARKER = "‹создаст система›";
+const MARKER_SPELLINGS = [COMMAND_MARKER, "‹создаст HD›"];
+
+// Куски текста команды между метками: между соседними кусками стоит метка
+export const splitByMarker = (text: string): string[] =>
+  MARKER_SPELLINGS.reduce<string[]>(
+    (pieces, marker) => pieces.flatMap((piece) => piece.split(marker)),
+    [String(text ?? "")],
+  );
+
+export const hasCommandMarker = (text: string): boolean =>
+  splitByMarker(text).length > 1;
+
 export const statusTone = (status: string): Tone =>
   TONE_BY_STATUS[status as ChangeStatus] ?? "idle";
 
@@ -181,14 +198,14 @@ export const applyDialog = ({
   rollback?: boolean;
 }): { title: string; body: string } => ({
   title: `Применить ${commandsAccusative(count)} на ${device}?`,
-  body: `${risky ? `${RISK_HEADLINE}. ${riskSentence(risky)} ` : ""}HD снимет резервную копию и выполнит команды на роутере${company ? ` компании ${company}` : ""}. ${rollback === false ? NO_ROLLBACK : ROLLBACK_PROMISE}`,
+  body: `${risky ? `${RISK_HEADLINE}. ${riskSentence(risky)} ` : ""}Система снимет резервную копию и выполнит команды на роутере${company ? ` компании ${company}` : ""}. ${rollback === false ? NO_ROLLBACK : ROLLBACK_PROMISE}`,
 });
 
 /** Подсказка под кнопками утверждения. */
 export const approveHint = (rollback?: boolean): string =>
   rollback === false
-    ? "Перед применением HD снимет резервную копию. Автоматического отката нет."
-    : "Перед применением HD снимет резервную копию. При сбое роутер откатит изменения сам.";
+    ? "Перед применением система снимет резервную копию. Автоматического отката нет."
+    : "Перед применением система снимет резервную копию. При сбое роутер откатит изменения сам.";
 
 // Причины риска сервер пишет по-английски (их читает ИИ-агент); человеку —
 // по-русски. Список повторяет backend/services/mikrotik/changeRules.js.

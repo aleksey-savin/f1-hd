@@ -484,7 +484,7 @@ const verifyAndBuild = async (body, existing) => {
     // A live poll just succeeded — reset the anti-flap counter. (firstFailureAt is
     // cleared with $unset by the callers: a stored null would freeze its $min.)
     failedPolls: 0,
-    // Переключатель «Обновление прошивки из HD». Нет поля в теле (старый
+    // Переключатель «Обновление прошивки из портала». Нет поля в теле (старый
     // клиент) — сохраняем прежнее значение.
     firmwareUpgradeEnabled:
       body.firmwareUpgradeEnabled === undefined

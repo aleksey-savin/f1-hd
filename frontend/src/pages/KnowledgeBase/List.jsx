@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import {
   Link,
@@ -189,6 +190,6 @@ const KnowledgeBaseList = () => {
 export default KnowledgeBaseList;
 
 export async function loader() {
-  document.title = "F1 HD | База знаний";
+  setDocTitle("База знаний");
   return null;
 }

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
@@ -66,6 +67,6 @@ const Companies = () => {
 export default Companies;
 
 export function loader() {
-  document.title = "Компании";
+  setDocTitle("Компании");
   return null;
 }

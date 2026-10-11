@@ -6,7 +6,7 @@ const { resolveIdentity, identityPatch } = require("./identity");
 const { toCanonicalPhone: normalizePhone } = require("../phone");
 
 const CLIENT = { _id: "u-client", isEndUser: true, company: { _id: "c-vostok" } };
-const STAFF = { _id: "u-staff", isEndUser: false, company: { _id: "c-f1lab" } };
+const STAFF = { _id: "u-staff", isEndUser: false, company: { _id: "c-own" } };
 
 const fakeDeps = ({ byTelegram = {}, byPhone = {}, existing = null } = {}) => {
   const store = new Map();
@@ -81,7 +81,7 @@ test("a foreign WhatsApp number is kept, a Telegram number loses its plus", asyn
 
 test("a name alone links nobody", async () => {
   const { deps } = fakeDeps();
-  const identity = await resolveIdentity("whatsapp", { id: "79142073318@s.whatsapp.net", name: "Андрей" }, deps);
+  const identity = await resolveIdentity("whatsapp", { id: "79145550177@s.whatsapp.net", name: "Андрей" }, deps);
   assert.equal(identity.userId, undefined);
   assert.equal(identity.displayName, "Андрей");
 });
@@ -97,6 +97,6 @@ test("an existing link is never overwritten by automation", async () => {
 });
 
 test("the patch keeps only what the sender brought", () => {
-  assert.deepEqual(identityPatch(null, { id: "1", email: "E.Kravtsova@SevPort.ru" }, null, normalizePhone), { email: "e.kravtsova@sevport.ru" });
+  assert.deepEqual(identityPatch(null, { id: "1", email: "E.Kravtsova@Example.org" }, null, normalizePhone), { email: "e.kravtsova@example.org" });
   assert.deepEqual(identityPatch(null, { id: "1" }, null, normalizePhone), {});
 });

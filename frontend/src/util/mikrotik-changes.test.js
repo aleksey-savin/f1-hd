@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  COMMAND_MARKER,
   actionLabel,
   applyDialog,
   approveHint,
@@ -12,12 +13,14 @@ import {
   expiresPhrase,
   expiryLabel,
   firstRisky,
+  hasCommandMarker,
   listSummary,
   listWhen,
   expiredAfter,
   pendingNote,
   riskSentence,
   resultLine,
+  splitByMarker,
   riskReasonText,
   stepState,
   statusTone,
@@ -111,13 +114,13 @@ test("команд: числительное и винительный паде�
 test("диалог утверждения: заголовок с устройством, текст с компанией", () => {
   const dialog = applyDialog({
     count: 3,
-    device: "F1-VLD-GW01",
-    company: "F1Lab",
+    device: "GW-OFFICE-01",
+    company: "Север",
   });
-  assert.equal(dialog.title, "Применить 3 команды на F1-VLD-GW01?");
+  assert.equal(dialog.title, "Применить 3 команды на GW-OFFICE-01?");
   assert.equal(
     dialog.body,
-    "HD снимет резервную копию и выполнит команды на роутере компании F1Lab. Если команда не пройдёт или связь пропадёт, роутер откатит изменения сам.",
+    "Система снимет резервную копию и выполнит команды на роутере компании Север. Если команда не пройдёт или связь пропадёт, роутер откатит изменения сам.",
   );
   assert.equal(
     applyDialog({ count: 1, device: "R1" }).body.includes("компании"),
@@ -125,7 +128,7 @@ test("диалог утверждения: заголовок с устройс�
   );
   assert.equal(
     applyDialog({ count: 1, device: "R1" }).body,
-    "HD снимет резервную копию и выполнит команды на роутере. Если команда не пройдёт или связь пропадёт, роутер откатит изменения сам.",
+    "Система снимет резервную копию и выполнит команды на роутере. Если команда не пройдёт или связь пропадёт, роутер откатит изменения сам.",
   );
 });
 
@@ -377,16 +380,16 @@ test("диалог утверждения при высоком риске: ме
   const dialog = applyDialog({
     count: 2,
     device: "R1",
-    company: "F1Lab",
+    company: "Север",
     risky,
   });
   assert.equal(
     dialog.body,
-    "Может оборвать связь с устройством. Команда 2 меняет правило цепочки input. HD снимет резервную копию и выполнит команды на роутере компании F1Lab. Если команда не пройдёт или связь пропадёт, роутер откатит изменения сам.",
+    "Может оборвать связь с устройством. Команда 2 меняет правило цепочки input. Система снимет резервную копию и выполнит команды на роутере компании Север. Если команда не пройдёт или связь пропадёт, роутер откатит изменения сам.",
   );
   assert.equal(
     applyDialog({ count: 2, device: "R1", risky: null }).body.startsWith(
-      "HD снимет",
+      "Система снимет",
     ),
     true,
   );
@@ -396,13 +399,13 @@ test("диалог утверждения при высоком риске: ме
 
 test("диалог утверждения без автоматического отката (режим api): честный текст", () => {
   assert.equal(
-    applyDialog({ count: 3, device: "GW", company: "F1Lab", rollback: false })
+    applyDialog({ count: 3, device: "GW", company: "Север", rollback: false })
       .body,
-    "HD снимет резервную копию и выполнит команды на роутере компании F1Lab. Автоматического отката нет: если команда не пройдёт, уже применённое останется.",
+    "Система снимет резервную копию и выполнит команды на роутере компании Север. Автоматического отката нет: если команда не пройдёт, уже применённое останется.",
   );
   assert.equal(
     applyDialog({ count: 1, device: "R1", rollback: false }).body,
-    "HD снимет резервную копию и выполнит команды на роутере. Автоматического отката нет: если команда не пройдёт, уже применённое останется.",
+    "Система снимет резервную копию и выполнит команды на роутере. Автоматического отката нет: если команда не пройдёт, уже применённое останется.",
   );
   const risky = { number: 2, reason: "меняет правило цепочки input" };
   const body = applyDialog({
@@ -426,12 +429,12 @@ test("диалог утверждения без автоматического 
 test("подсказка под кнопками утверждения — по наличию отката", () => {
   assert.equal(
     approveHint(true),
-    "Перед применением HD снимет резервную копию. При сбое роутер откатит изменения сам.",
+    "Перед применением система снимет резервную копию. При сбое роутер откатит изменения сам.",
   );
   assert.equal(approveHint(undefined), approveHint(true));
   assert.equal(
     approveHint(false),
-    "Перед применением HD снимет резервную копию. Автоматического отката нет.",
+    "Перед применением система снимет резервную копию. Автоматического отката нет.",
   );
 });
 
@@ -452,4 +455,23 @@ test("ошибка команды — «Ответ роутера» только
       });
     }
   }
+});
+
+test("метка подстановки: узнаётся и нынешняя, и прежняя формулировка из сохранённых запросов", () => {
+  assert.equal(COMMAND_MARKER, "‹создаст система›");
+  const current = " interface=wg1 public-key=‹создаст система›";
+  const previous = " interface=wg1 public-key=‹создаст HD›";
+  for (const text of [current, previous]) {
+    assert.deepEqual(splitByMarker(text), [" interface=wg1 public-key=", ""], text);
+    assert.equal(hasCommandMarker(text), true, text);
+    // Показ собирается из кусков и нынешней метки — прежняя на экран не выходит
+    assert.equal(splitByMarker(text).join(COMMAND_MARKER), current);
+  }
+  assert.deepEqual(
+    splitByMarker(" public-key=‹создаст HD› preshared-key=‹создаст система› comment=a"),
+    [" public-key=", " preshared-key=", " comment=a"],
+  );
+  assert.deepEqual(splitByMarker(" comment=office"), [" comment=office"]);
+  assert.equal(hasCommandMarker("/ip address add address=10.0.0.1/24"), false);
+  assert.equal(hasCommandMarker(undefined), false);
 });

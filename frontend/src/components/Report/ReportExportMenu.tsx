@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import useInitialPrefsStore from "../../store/prefs";
 import { orgTimezone } from "../../util/timezone-display";
 import { fillWorkbook } from "./export-excel";
 import {
@@ -66,6 +67,7 @@ const ReportExportMenu = ({
   /** Пояс организации из ответа сервера — тот же, что у карточки. */
   zone?: string | null;
 }) => {
+  const accent = useInitialPrefsStore((state) => state.brand.accent);
   const dates = reportDates(zone || orgTimezone());
   const extra = extraAvailability(report);
 
@@ -80,6 +82,7 @@ const ReportExportMenu = ({
       fileBase: exportFileBase(report, variant),
       madeAt: dates.shortDate(new Date()) || "",
       startLabel: (value) => dates.weekdayDateTime(value) || "",
+      accent,
     });
 
     const printWindow = window.open("", "_blank");

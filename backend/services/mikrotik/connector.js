@@ -423,7 +423,7 @@ const pollDevice = (
           { host: params.host, error: error.message },
         );
       }
-      // The group's policy string says whether the account can upgrade from HD
+      // The group's policy string says whether the account can upgrade from the helpdesk
       // (services/mikrotik/upgradeRights.js). Same `policy` privilege as
       // /user/print, so it is read only once that one answered — and bounded
       // the same way; a failure leaves the rights unknown, never fails the poll.

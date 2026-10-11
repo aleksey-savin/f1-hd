@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useContext, useEffect, useMemo, useState } from "react";
 
 import {
@@ -837,7 +838,7 @@ const ViewTicket = () => {
 export default ViewTicket;
 
 export async function loader({ params }) {
-  document.title = `Заявка ${params.ticketNum}`;
+  setDocTitle(`Заявка ${params.ticketNum}`);
 
   const { userId } = getLocalStorageData();
   // Заголовков не осталось: сеанс едет cookie, и объект пустой лишь потому,

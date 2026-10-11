@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { isMobile } from "react-device-detect";
@@ -198,14 +199,14 @@ const MikrotikDevices = () => {
       label: "Чтение",
       count: counts.read,
       icon: <RiEyeLine size={iconSize} aria-hidden />,
-      title: "Только чтение — «Обновление прошивки из HD» выключено",
+      title: "Только чтение — «Обновление прошивки из портала» выключено",
     },
     {
       value: "write",
       label: "Запись",
       count: counts.write,
       icon: <RiPencilLine size={iconSize} aria-hidden />,
-      title: "Чтение и запись — «Обновление прошивки из HD» включено",
+      title: "Чтение и запись — «Обновление прошивки из портала» включено",
     },
     {
       value: "noWrite",
@@ -213,7 +214,7 @@ const MikrotikDevices = () => {
       count: counts.noWrite,
       icon: <RiErrorWarningLine size={iconSize} aria-hidden />,
       title:
-        "Нет прав на запись — обновление включено, но группа пользователя HD на устройстве не даёт прав write, reboot и policy",
+        "Нет прав на запись — обновление включено, но группа учётной записи портала на устройстве не даёт прав write, reboot и policy",
     },
   ];
 
@@ -345,7 +346,7 @@ const MikrotikDevices = () => {
               onChange={(value) =>
                 setFacet("access", value === "all" ? null : value)
               }
-              ariaLabel="Права HD"
+              ariaLabel="Права портала"
               fit
               compact={isMobile}
               className="max-md:order-last max-md:w-full"
@@ -477,7 +478,7 @@ const MikrotikDevices = () => {
 export default MikrotikDevices;
 
 export async function loader() {
-  document.title = "Мониторинг Mikrotik";
+  setDocTitle("Мониторинг Mikrotik");
 
   return null;
 }

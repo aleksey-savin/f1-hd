@@ -399,12 +399,12 @@ test("a domain is taken literally, and an empty one matches nothing", () => {
 
 test("the envelope: sender, Message-ID and the topmost Authentication-Results", async () => {
   const mail = await parse(
-    "Authentication-Results: mx.f1lab.ru;",
+    "Authentication-Results: mx.example.com;",
     "\tspf=pass smtp.mailfrom=evil.com;",
     "\tdmarc=fail (p=REJECT) header.from=client.ru",
     "Authentication-Results: evil.com; dmarc=pass header.from=client.ru",
     'From: "boss@client.ru" <Attacker@Evil.COM>',
-    "Subject: Re: [F1-HD-45926] x",
+    "Subject: Re: [HD-45926] x",
     "Message-ID: <abc.123@evil.com>",
   );
   assert.deepEqual(inboundEnvelope(mail), {
@@ -412,7 +412,7 @@ test("the envelope: sender, Message-ID and the topmost Authentication-Results", 
     realSender: "attacker@evil.com",
     messageId: "<abc.123@evil.com>",
     authResults:
-      "mx.f1lab.ru; spf=pass smtp.mailfrom=evil.com; dmarc=fail (p=REJECT) header.from=client.ru",
+      "mx.example.com; spf=pass smtp.mailfrom=evil.com; dmarc=fail (p=REJECT) header.from=client.ru",
   });
 });
 
@@ -420,7 +420,7 @@ test("the envelope: a single header, and neither Message-ID nor results", async 
   assert.deepEqual(
     inboundEnvelope(
       await parse(
-        "Authentication-Results: mx.f1lab.ru; dkim=pass header.d=client.ru",
+        "Authentication-Results: mx.example.com; dkim=pass header.d=client.ru",
         "From: ivan@client.ru",
         "Subject: x",
       ),
@@ -429,7 +429,7 @@ test("the envelope: a single header, and neither Message-ID nor results", async 
       fromAddress: "ivan@client.ru",
       realSender: "ivan@client.ru",
       messageId: undefined,
-      authResults: "mx.f1lab.ru; dkim=pass header.d=client.ru",
+      authResults: "mx.example.com; dkim=pass header.d=client.ru",
     },
   );
   assert.deepEqual(

@@ -6,7 +6,7 @@ const { clampLimit, parseGroup, encodeCursor, decodeCursor, olderThan, lookups, 
 
 const ID = "66aa00000000000000000001";
 const AT = new Date("2026-10-10T09:00:00Z");
-const names = new Map([["u1", "Алексей Савин"], ["u2", "Олег Миронов"]]);
+const names = new Map([["u1", "Сергей Волков"], ["u2", "Олег Миронов"]]);
 
 test("limit and group are clamped to what the journal knows", () => {
   assert.equal(clampLimit(undefined), 20);
@@ -37,7 +37,7 @@ test("people appear by name, ids of users and keys never leave", () => {
     { _id: ID, at: AT, kind: "changeProposed", group: "agent", severity: "info", actor: { type: "mcpKey", keyId: "k1", keyName: "OpenClaw", onBehalfOf: "u1" }, data: { title: "WireGuard" }, refs: { changeId: "c1" } },
     { names },
   );
-  assert.deepEqual(view.actor, { type: "agent", name: "OpenClaw", onBehalfOf: "Алексей Савин" });
+  assert.deepEqual(view.actor, { type: "agent", name: "OpenClaw", onBehalfOf: "Сергей Волков" });
   assert.equal(view.changeId, "c1");
   assert.ok(!JSON.stringify(view).includes("k1"));
   assert.ok(!JSON.stringify(view).includes("u1"));

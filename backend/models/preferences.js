@@ -163,6 +163,18 @@ const preferencesSchema = new Schema({
     // Имя файла в uploads/ (локальное хранение — читается на каждой странице)
     logo: { type: String, default: "" },
   },
+  // Бренд инсталляции. Пустая строка = «по умолчанию»: наружу значения уходят
+  // только через resolveBrand (services/brand.js), умолчания живут там же.
+  brand: {
+    // Название портала (не организации — та в contacts.title)
+    productName: { type: String, default: "" },
+    // Подпись в письмах, простой текст; пусто — «С уважением» + организация
+    mailSignature: { type: String, default: "" },
+    // Цвет акцента #rrggbb
+    accent: { type: String, default: "" },
+    // Значок вкладки и ярлыка: имя PNG в uploads/, управляется как лого
+    icon: { type: String, default: "" },
+  },
   getScreen: {
     isActive: { type: Boolean, default: false },
   },

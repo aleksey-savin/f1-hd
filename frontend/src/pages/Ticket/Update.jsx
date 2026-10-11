@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import TicketFormRoute from "../../components/Ticket/TicketFormRoute";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
@@ -15,10 +16,11 @@ export default UpdateTicketPage;
 
 export function makeLoader(mode) {
   return async function loader({ params }) {
-    document.title =
+    setDocTitle(
       mode === "process"
         ? `Обработать заявку ${params.ticketNum}`
-        : `Изменить заявку ${params.ticketNum}`;
+        : `Изменить заявку ${params.ticketNum}`,
+    );
 
     // Справочники — из кэша (store/form-data); сама заявка — всегда свежая:
     // её правят многие и часто. `?view=form` отдаёт одну заявку без компании,

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import {
   Form,
   redirect,
@@ -37,7 +38,7 @@ const onCodeStep = (result?: LoginResult) =>
   Boolean(result && ("twoFactor" in result || "twoFactorStep" in result));
 
 export async function loader() {
-  document.title = "Вход";
+  setDocTitle("Вход");
   return null;
 }
 

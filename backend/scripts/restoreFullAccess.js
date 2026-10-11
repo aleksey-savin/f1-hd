@@ -15,8 +15,8 @@
 //
 // Запуск внутри контейнера бэкенда. Без --apply ничего не пишет:
 //   node scripts/restoreFullAccess.js                      — кто держит полный доступ
-//   node scripts/restoreFullAccess.js a@f1lab.ru b@f1lab.ru          — что изменится
-//   node scripts/restoreFullAccess.js a@f1lab.ru b@f1lab.ru --apply  — выдать
+//   node scripts/restoreFullAccess.js a@example.com b@example.com          — что изменится
+//   node scripts/restoreFullAccess.js a@example.com b@example.com --apply  — выдать
 require("module-alias/register");
 const mongoose = require("mongoose");
 

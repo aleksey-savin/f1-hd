@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useMemo, useState } from "react";
 import { Link, useLoaderData } from "react-router";
 import { BrowserView, MobileView, isMobile } from "react-device-detect";
@@ -328,7 +329,7 @@ const Networks = () => {
 export default Networks;
 
 export async function loader() {
-  document.title = "Диапазоны сетей";
+  setDocTitle("Диапазоны сетей");
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/report/networks`,

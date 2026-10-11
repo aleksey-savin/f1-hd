@@ -37,12 +37,12 @@ test("placeholders: real value when executing, a marker when shown to a person",
   const command = { path: "/interface wireguard peers", action: "add", where: null, params: { interface: "wg1", "public-key": "{{wireguard.public-key}}" } };
   assert.equal(renderCommand(command, { values: { "{{wireguard.public-key}}": "kQ3v+a/b=" } }), '/interface wireguard peers add interface=wg1 public-key="kQ3v+a/b="');
   assert.throws(() => renderCommand(command), /placeholder/);
-  assert.equal(displayCommand(command), "/interface wireguard peers add interface=wg1 public-key=‹создаст HD›");
+  assert.equal(displayCommand(command), "/interface wireguard peers add interface=wg1 public-key=‹создаст система›");
 });
 
 test("diffRows lists only the fields a set changes", () => {
-  const command = { path: "/ip firewall address-list", action: "set", where: { address: "10.0.20.116" }, params: { disabled: "yes", comment: "savin" } };
-  assert.deepEqual(diffRows(command, { address: "10.0.20.116", disabled: "false", comment: "savin" }), [{ field: "disabled", from: "false", to: "yes" }]);
+  const command = { path: "/ip firewall address-list", action: "set", where: { address: "10.0.20.116" }, params: { disabled: "yes", comment: "volkov" } };
+  assert.deepEqual(diffRows(command, { address: "10.0.20.116", disabled: "false", comment: "volkov" }), [{ field: "disabled", from: "false", to: "yes" }]);
   assert.deepEqual(diffRows({ ...command, action: "remove" }, {}), []);
 });
 
@@ -84,7 +84,7 @@ test("placeholder in a where or an unknown placeholder is unresolved", () => {
 
 test("displayCommand shows the marker for both placeholders and does not throw on them", () => {
   const command = { path: "/interface wireguard peers", action: "add", where: null, params: { "public-key": "{{wireguard.public-key}}", "preshared-key": "{{wireguard.preshared-key}}" } };
-  assert.equal(displayCommand(command), "/interface wireguard peers add public-key=‹создаст HD› preshared-key=‹создаст HD›");
+  assert.equal(displayCommand(command), "/interface wireguard peers add public-key=‹создаст система› preshared-key=‹создаст система›");
 });
 
 test("diffRows treats true/false as yes/no both ways and reports absent fields", () => {
@@ -128,10 +128,10 @@ test("forbidden characters: C1, bidi, zero-width, separators, BOM; Cyrillic is f
 });
 
 test("a literal equal to the marker text is refused", () => {
-  const c = { path: "/p", action: "add", where: null, params: { comment: "‹создаст HD›" } };
+  const c = { path: "/p", action: "add", where: null, params: { comment: "‹создаст система›" } };
   assert.throws(() => displayCommand(c), /marker/);
   assert.throws(() => renderCommand(c), /marker/);
-  assert.throws(() => displayCommand({ path: "/p", action: "remove", where: { a: "‹создаст HD›" }, params: {} }), /marker/);
+  assert.throws(() => displayCommand({ path: "/p", action: "remove", where: { a: "‹создаст система›" }, params: {} }), /marker/);
 });
 
 test("apiWords: one sentence per action", () => {

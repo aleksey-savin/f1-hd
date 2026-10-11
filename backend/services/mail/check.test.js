@@ -6,6 +6,8 @@ const { spawnSync } = require("node:child_process");
 
 // Ключ шифрования теста — до первого обращения к secretBox (он кэширует ключ)
 process.env.APP_ENC_KEY = crypto.randomBytes(32).toString("base64");
+// Режим почты теста — «live»: без него отправка выключена (utils/mailGuard)
+process.env.MAIL_MODE = "live";
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -180,4 +182,42 @@ test("нет APP_ENC_KEY — ошибка развёртывания: прове
     assert.equal(out[name].threw, "Error");
     assert.match(out[name].message, /^APP_ENC_KEY/);
   }
+});
+
+// ── Режим почты (MAIL_MODE) ─────────────────────────────────────────────────
+
+const withMailMode = (t, mode, sandboxRecipient) => {
+  const before = {
+    MAIL_MODE: process.env.MAIL_MODE,
+    MAIL_SANDBOX_RECIPIENT: process.env.MAIL_SANDBOX_RECIPIENT,
+  };
+  const put = (key, value) => {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  };
+  put("MAIL_MODE", mode);
+  put("MAIL_SANDBOX_RECIPIENT", sandboxRecipient);
+  t.after(() => {
+    put("MAIL_MODE", before.MAIL_MODE);
+    put("MAIL_SANDBOX_RECIPIENT", before.MAIL_SANDBOX_RECIPIENT);
+  });
+};
+
+test("тестовое письмо: почта выключена на сервере — честный отказ, к SMTP не идём", async (t) => {
+  withMailMode(t, undefined);
+  const sockets = trackSockets(t);
+  const createTransport = t.mock.method(nodemailer, "createTransport", () => {
+    throw new Error("транспорт собран при выключенной почте");
+  });
+  captureLog(t);
+
+  const result = await sendTestEmail(channel(foreignCiphertext("smtp-pass")), "admin@example.ru");
+
+  assert.deepEqual(result, {
+    ok: false,
+    state: "Отправка почты выключена на сервере",
+    hint: "Включается в настройках сервера: MAIL_MODE=live.",
+  });
+  assert.equal(createTransport.mock.callCount(), 0);
+  assert.deepEqual(sockets, []);
 });

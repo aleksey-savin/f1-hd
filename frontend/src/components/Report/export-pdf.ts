@@ -1,3 +1,4 @@
+import { printAccent } from "../../util/brand.js";
 import { hhmm, rubles } from "./export-format.js";
 import type { ExportModel, ExportTable } from "./export-model";
 
@@ -23,6 +24,11 @@ export type ExportHtmlOptions = {
   madeAt: string;
   /** Время начала работы — в поясе организации. */
   startLabel: (value: string) => string;
+  /**
+   * Цвет акцента инсталляции (`brand.accent`): надзаголовок печатается его
+   * читаемым на белом оттенком. Не задан или по умолчанию — прежняя бирюза.
+   */
+  accent?: string;
 };
 
 const escapeHtml = (value: unknown) =>
@@ -111,7 +117,7 @@ export const renderExportHtml = (
   @media screen { body { max-width: 1033px; margin: 0 auto; padding: 32px 24px; } }
   h1, h2, p { margin: 0; }
   .head { display: flex; align-items: flex-end; gap: 24px; padding-bottom: 12px; border-bottom: 2px solid #16191d; }
-  .kicker { font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #007a5e; }
+  .kicker { font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${printAccent(options.accent)}; }
   .title { margin-top: 3px; font-size: 26px; line-height: 30px; font-weight: 700; letter-spacing: -0.01em; }
   .made { margin-left: auto; text-align: right; color: #5b646d; white-space: nowrap; }
   .facts { display: flex; flex-wrap: wrap; gap: 8px 36px; margin-top: 12px; }

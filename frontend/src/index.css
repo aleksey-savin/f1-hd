@@ -439,6 +439,48 @@ body[data-scroll-locked][data-scroll-locked] {
   min-height: 380px;
 }
 
+/* Статья справки (pages/Help/Article): мера чтения как у заметки базы знаний,
+   но блоки с собственной границей — в тёмной теме подложка без неё не видна. */
+/* Цвет Toast UI ставит самим p и заголовкам (в тёмной теме — #fff, цитате —
+   серый), поэтому перебиваем адресно и с запасом специфичности */
+.help-doc
+  .toastui-editor-contents.toastui-editor-contents
+  :is(p, li, td, blockquote) {
+  color: var(--foreground-soft);
+}
+.help-doc .toastui-editor-contents > p,
+.help-doc .toastui-editor-contents > ul,
+.help-doc .toastui-editor-contents > ol,
+.help-doc .toastui-editor-contents > blockquote,
+.help-doc .toastui-editor-contents > h2,
+.help-doc .toastui-editor-contents > h3 {
+  max-width: 74ch;
+}
+.help-doc
+  .toastui-editor-contents.toastui-editor-contents
+  :is(h2, h3, strong, th) {
+  color: var(--foreground);
+}
+.help-doc .toastui-editor-contents h2 {
+  /* scroll-margin — под fixed-навбар при переходе с рейки */
+  scroll-margin-top: 7rem;
+  border-bottom: 0;
+}
+.help-doc .toastui-editor-contents blockquote {
+  margin-inline: 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.5rem;
+  background: var(--muted);
+}
+.help-doc .toastui-editor-contents img {
+  border: 1px solid var(--rule);
+  border-radius: 0.625rem;
+}
+.help-doc .toastui-editor-contents table {
+  width: 100%;
+}
+
 @media (max-width: 575.98px) {
   /* На узком экране редактор растёт по содержимому — высоту не навязываем,
      скроллит .mobile-shell__scroll */

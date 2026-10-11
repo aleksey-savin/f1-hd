@@ -16,9 +16,9 @@ const {
 
 const NOW = new Date("2026-10-10T09:00:00Z");
 const ctx = {
-  deviceName: "F1-VLD-GW01",
-  companyName: "F1Lab",
-  requesterName: "Алексей Савин",
+  deviceName: "GW-OFFICE-01",
+  companyName: "Техноцентр",
+  requesterName: "Сергей Волков",
   agentName: "OpenClaw",
   timezone: "Europe/Moscow",
   now: NOW,
@@ -43,7 +43,7 @@ const change = (extra = {}) => ({
   risk: "normal",
   expiresAt: new Date("2026-10-11T09:38:00Z"),
   commands: [
-    cmd("/interface wireguard peers add interface=wireguard1 public-key=‹создаст HD›"),
+    cmd("/interface wireguard peers add interface=wireguard1 public-key=‹создаст система›"),
     cmd("/ip firewall address-list set [find where list=x]", {
       action: "set",
       params: { disabled: "yes" },
@@ -60,7 +60,7 @@ const change = (extra = {}) => ({
 test("сообщение шага: номер, устройство, компания, название, просит, команды, было, риск, срок", () => {
   const { text, fits } = stepMessage(change(), ctx);
   assert.equal(fits, true);
-  assert.match(text, /^Запрос на изменение конфигурации\nF1-VLD-GW01, F1Lab\n\nWireGuard для Ивана Петрова\nПросит: Алексей Савин\nАгент: OpenClaw\n\nКоманды \(2\):\n1\. \/interface/);
+  assert.match(text, /^Запрос на изменение конфигурации\nGW-OFFICE-01, Техноцентр\n\nWireGuard для Ивана Петрова\nПросит: Сергей Волков\nАгент: OpenClaw\n\nКоманды \(2\):\n1\. \/interface/);
   assert.match(text, /2\. \/ip firewall address-list set .*\n {3}было: disabled=no/);
   assert.match(text, /Риск обычный\. Истекает завтра в 12:38\.$/);
 });
@@ -73,7 +73,7 @@ test("второй шаг: «подтвердил в …»", () => {
       { role: "responsible", user: "resp" },
     ],
   });
-  assert.match(stepMessage(c, ctx).text, /Просит: Алексей Савин \(подтвердил в 12:41\)/);
+  assert.match(stepMessage(c, ctx).text, /Просит: Сергей Волков \(подтвердил в 12:41\)/);
 });
 
 test("высокий риск: строка про обрыв связи стоит перед командами", () => {
@@ -90,10 +90,10 @@ test("30 длинных команд: не помещается, список о
   const { text, fits } = stepMessage(c, ctx);
   assert.equal(fits, false);
   assert.ok(text.length <= 3500);
-  assert.match(text, /…и ещё \d+ — откройте запрос в HD$/);
+  assert.match(text, /…и ещё \d+ — откройте запрос в портале$/);
   const kb = stepKeyboard(c, fits, { baseUrl: "https://hd.example.com" });
   assert.ok(!JSON.stringify(kb).includes("mc:"));
-  assert.equal(kb.inline_keyboard[0][0].text, "Открыть в HD");
+  assert.equal(kb.inline_keyboard[0][0].text, "Открыть в портале");
 });
 
 test("кнопки: шаг заявителя при двух шагах — «Подтвердить», иначе «Утвердить»", () => {
@@ -104,7 +104,7 @@ test("кнопки: шаг заявителя при двух шагах — «�
     { text: "Отклонить", callback_data: "mc:r:c14" },
   ]);
   assert.deepEqual(k1.inline_keyboard[1], [
-    { text: "Открыть в HD", url: "https://hd.example.com/devices/mikrotik/changes/c14" },
+    { text: "Открыть в портале", url: "https://hd.example.com/devices/mikrotik/changes/c14" },
   ]);
   const second = change({
     status: "awaiting_responsible",
@@ -126,7 +126,7 @@ test("localhost или http: кнопки-ссылки нет вовсе", () =>
 
 test("«Вы уверены?»: число команд, устройство, ROLLBACK_NOTE", () => {
   const text = confirmText(change(), ctx);
-  assert.match(text, /^Запрос на изменение конфигурации, F1-VLD-GW01, F1Lab\nWireGuard для Ивана Петрова\n\nПрименить 2 команды на роутере\?\nHD снимет резервную копию\. /);
+  assert.match(text, /^Запрос на изменение конфигурации, GW-OFFICE-01, Техноцентр\nWireGuard для Ивана Петрова\n\nПрименить 2 команды на роутере\?\nСистема снимет резервную копию\. /);
   assert.ok(text.endsWith(ROLLBACK_NOTE));
   assert.deepEqual(confirmKeyboard(change()).inline_keyboard[0].map((b) => b.text), ["Да, применить", "Назад"]);
 });
@@ -142,7 +142,7 @@ test("итог: применён, с копией и сроком конфигу
   });
   const users = new Map([["resp", ok("resp", { firstName: "Олег", lastName: "Миронов" })]]);
   const text = resultMessage(c, { ...ctx, users, backupAt: new Date("2026-10-10T09:51:00Z") });
-  assert.match(text, /^Запрос на изменение конфигурации применён\nF1-VLD-GW01, F1Lab\nWireGuard для Ивана Петрова\n\n2 команды выполнены, устройство отвечает\./);
+  assert.match(text, /^Запрос на изменение конфигурации применён\nGW-OFFICE-01, Техноцентр\nWireGuard для Ивана Петрова\n\n2 команды выполнены, устройство отвечает\./);
   assert.match(text, /Утвердил: Олег Миронов, 12:51/);
   assert.match(text, /Резервная копия снята в 12:51\./);
   assert.match(text, /Конфигурация для сотрудника готова, скачать можно до 11\.10, 12:52\./);
@@ -205,11 +205,11 @@ test("step: только человек текущего шага; три кан
   assert.equal(tg.to.chatId, "chat-req");
   assert.equal(tg.replyMarkup.inline_keyboard[0][0].callback_data, "mc:a:c14");
   const mail = saved.find((d) => d.instrument === "email");
-  assert.equal(mail.title, "Запрос на изменение конфигурации: F1-VLD-GW01");
+  assert.equal(mail.title, "Запрос на изменение конфигурации: GW-OFFICE-01");
   assert.equal(mail.to.email, "req@x.ru");
   assert.equal(mail.replyMarkup, undefined);
   // Финальная волна (A3): письмо — HTML, ссылка настоящая
-  assert.ok(mail.text.endsWith('<a href="https://hd.example.com/devices/mikrotik/changes/c14">Открыть в HD</a>'));
+  assert.ok(mail.text.endsWith('<a href="https://hd.example.com/devices/mikrotik/changes/c14">Открыть в портале</a>'));
   assert.ok(!/mc:/.test(JSON.stringify(mail)));
 });
 
@@ -495,7 +495,7 @@ test("A1: команда длиннее показываемого — fits=fals
   const { text, fits } = stepMessage(c, ctx);
   assert.equal(fits, false);
   assert.ok(!text.includes("кккк"), "обрезанная команда не показывается");
-  assert.match(text, /…и ещё 1 — откройте запрос в HD$/);
+  assert.match(text, /…и ещё 1 — откройте запрос в портале$/);
   const kb = stepKeyboard(c, fits, { baseUrl: "https://hd.example.com" });
   assert.ok(!JSON.stringify(kb).includes("mc:"));
   assert.equal(confirmFull(c, ctx), null);
@@ -505,7 +505,7 @@ test("A1: показываются целые команды до длинной
   const c = change({ commands: [cmd("/ip dns static add name=a address=10.0.0.1"), hiddenPeer(), cmd("/ip dns static add name=b address=10.0.0.2")] });
   const { text, fits } = stepMessage(c, ctx);
   assert.equal(fits, false);
-  assert.match(text, /Команды \(3\):\n1\. \/ip dns static add name=a address=10\.0\.0\.1\n…и ещё 2 — откройте запрос в HD$/);
+  assert.match(text, /Команды \(3\):\n1\. \/ip dns static add name=a address=10\.0\.0\.1\n…и ещё 2 — откройте запрос в портале$/);
 });
 
 test("A1: длинное «было» — тоже не помещается, строка не режется", () => {
@@ -541,23 +541,23 @@ test("A1: команда ровно в 600 знаков показывается
 
 // ---------------------------------------------------------------- финальная волна: A3 — письмо уходит как HTML
 
-const phishing = () => change({ title: 'WG <a href="https://evil.example">Открыть в HD</a>' });
+const phishing = () => change({ title: 'WG <a href="https://evil.example">Открыть в портале</a>' });
 
 test("A3: название от агента приходит в письме экранированным, переводы строк — <br>", async () => {
   const { notifier, saved, pushed } = harness();
   await notifier.step(phishing());
   const mail = saved.find((d) => d.instrument === "email");
   assert.ok(!mail.text.includes("<a href=\"https://evil.example\">"), "чужая разметка не должна быть живой");
-  assert.ok(mail.text.includes("WG &lt;a href=\"https://evil.example\"&gt;Открыть в HD&lt;/a&gt;"));
+  assert.ok(mail.text.includes("WG &lt;a href=\"https://evil.example\"&gt;Открыть в портале&lt;/a&gt;"));
   assert.ok(!mail.text.includes("\n"));
-  assert.match(mail.text, /Запрос на изменение конфигурации<br>F1-VLD-GW01, F1Lab<br><br>WG &lt;a/);
+  assert.match(mail.text, /Запрос на изменение конфигурации<br>GW-OFFICE-01, Техноцентр<br><br>WG &lt;a/);
   // единственная живая ссылка — на страницу запроса, из baseUrl и фиксированного пути
   const links = mail.text.match(/<a [^>]*>/g);
   assert.deepEqual(links, ['<a href="https://hd.example.com/devices/mikrotik/changes/c14">']);
-  assert.ok(mail.text.endsWith('<br><br><a href="https://hd.example.com/devices/mikrotik/changes/c14">Открыть в HD</a>'));
+  assert.ok(mail.text.endsWith('<br><br><a href="https://hd.example.com/devices/mikrotik/changes/c14">Открыть в портале</a>'));
   assert.ok(!mail.html, "своей вёрстки нет: письмо собирается из text");
   // колокольчик — обычный текст без экранирования
-  assert.ok(pushed[0].text.includes('WG <a href="https://evil.example">Открыть в HD</a>'));
+  assert.ok(pushed[0].text.includes('WG <a href="https://evil.example">Открыть в портале</a>'));
   assert.ok(!pushed[0].text.includes("&lt;"));
 });
 
@@ -586,7 +586,7 @@ test("A4: needs_attention — заголовок, суть, «Что извес�
   const users = new Map([["req", ok("req", { firstName: "Иван", lastName: "Петров" })], ["resp", ok("resp", { firstName: "Олег", lastName: "Миронов" })]]);
   const lines = resultMessage(c, { ...ctx, users, backupAt: new Date("2026-10-10T09:52:00Z") }).split("\n");
   assert.equal(lines[0], "Запрос на изменение конфигурации требует проверки");
-  assert.ok(lines.includes("HD не может поручиться за состояние устройства — проверьте его вручную."));
+  assert.ok(lines.includes("Система не может поручиться за состояние устройства — проверьте его вручную."));
   assert.ok(lines.includes("Что известно: Состояние устройства неясно; проверка показала: на месте команды 1"));
   assert.ok(lines.includes("Утвердил: Олег Миронов, 12:51"));
   assert.ok(lines.includes("Резервная копия снята в 12:52."));
@@ -595,7 +595,7 @@ test("A4: needs_attention — заголовок, суть, «Что извес�
   const { notifier, pushed, saved } = harness();
   await notifier.result(c);
   assert.equal(pushed[0].title, "Запрос на изменение конфигурации требует проверки");
-  assert.match(pushed[0].text, /HD не может поручиться за состояние устройства/);
+  assert.match(pushed[0].text, /Система не может поручиться за состояние устройства/);
   assert.match(saved.find((d) => d.instrument === "telegram").text, /Что известно: Состояние устройства неясно/);
 });
 
@@ -655,10 +655,10 @@ const withMode = (value, fn) => {
 };
 
 test("B4: safe-mode — обещание отката; api — честное «отката нет»", () => {
-  assert.equal(NO_ROLLBACK_NOTE, "HD снимет резервную копию. Автоматического отката нет: если команда не пройдёт, уже применённое останется — смотрите результат по командам.");
+  assert.equal(NO_ROLLBACK_NOTE, "Система снимет резервную копию. Автоматического отката нет: если команда не пройдёт, уже применённое останется — смотрите результат по командам.");
   for (const mode of [undefined, "safe-mode"]) {
     const text = withMode(mode, () => confirmText(change(), ctx));
-    assert.ok(text.endsWith(`HD снимет резервную копию. ${ROLLBACK_NOTE}`), String(mode));
+    assert.ok(text.endsWith(`Система снимет резервную копию. ${ROLLBACK_NOTE}`), String(mode));
     assert.ok(withMode(mode, () => confirmFull(change(), ctx)).includes(ROLLBACK_NOTE));
   }
   const api = withMode("api", () => confirmText(change(), ctx));

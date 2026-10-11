@@ -131,7 +131,7 @@ const BORIS = {
 // Сотрудник сервиса
 const DISPATCHER = {
   _id: oid("66aa000000000000000000f2"),
-  email: "dispatcher@f1lab.ru",
+  email: "dispatcher@example.com",
   firstName: "Пётр",
   lastName: "Диспетчеров",
   activeDirectoryObjectGUID: "guid-dispatcher",
@@ -141,7 +141,7 @@ const DISPATCHER = {
 // Пользователь по умолчанию из настроек: служебная учётка сервиса
 const ADMIN = {
   _id: oid("66aa000000000000000000f1"),
-  email: "admin@f1lab.ru",
+  email: "admin@example.com",
   firstName: "Админ",
   lastName: "Наш",
   isEndUser: false,
@@ -396,7 +396,7 @@ for (const [who, identity] of [
   ["a person of ANOTHER company by id", { userId: String(BORIS._id) }],
   ["a person of ANOTHER company by e-mail", { userEmail: "boss@other.ru" }],
   ["a staff member by id", { userId: String(DISPATCHER._id) }],
-  ["a staff member by e-mail", { userEmail: "dispatcher@f1lab.ru" }],
+  ["a staff member by e-mail", { userEmail: "dispatcher@example.com" }],
   ["a disabled colleague by e-mail", { userEmail: "gone@romashka.ru" }],
 ]) {
   test(`createTicket, ${who}: the default applicant, in the KEY's company`, async () => {
@@ -731,7 +731,7 @@ for (const [who, body] of [
   ["a person of ANOTHER company by GUID", { activeDirectoryObjectGUID: "guid-boss" }],
   ["a person of ANOTHER company by e-mail", { activeDirectoryObjectGUID: "unknown-guid", email: "boss@other.ru" }],
   ["a staff member by GUID", { activeDirectoryObjectGUID: "guid-dispatcher" }],
-  ["a staff member by e-mail", { activeDirectoryObjectGUID: "unknown-guid", email: "dispatcher@f1lab.ru" }],
+  ["a staff member by e-mail", { activeDirectoryObjectGUID: "unknown-guid", email: "dispatcher@example.com" }],
 ]) {
   test(`addUserActivity, ${who}: not linked, not named, the entry stays in the key's company`, async () => {
     const result = await logLogin({ ...LOGIN, ...body });

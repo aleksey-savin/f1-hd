@@ -2,6 +2,7 @@ import { redirect } from "react-router";
 
 import { api, ApiError } from "@/lib/api";
 import { clearSession } from "@/pages/Auth/session";
+import { adoptBrand } from "@/store/prefs";
 
 export function getTokenDuration() {
   const storedExpiryDate = localStorage.getItem("expiryDate");
@@ -58,6 +59,10 @@ export async function authDataLoader() {
       api("/api/app-version"),
       api("/api/me"),
     ]);
+
+    // Бренд применяется в загрузчике, до отрисовки оболочки: акцент и название
+    // портала известны раньше, чем появится первый экран
+    adoptBrand(me.prefs?.brand);
 
     return {
       appVersion,

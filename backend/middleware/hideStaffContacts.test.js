@@ -26,7 +26,7 @@ const respond = (auth, body) =>
   });
 
 const BODY = {
-  responsibles: [{ _id: "s1", firstName: "Иван", email: "i@f1lab.ru", phone: "1" }],
+  responsibles: [{ _id: "s1", firstName: "Иван", email: "i@example.com", phone: "1" }],
 };
 
 test("клиенту ответ уходит без личных контактов сотрудника", async () => {
@@ -46,5 +46,5 @@ test("не смогли проверить — не отдаём вовсе", as
   };
   const { status, payload } = await respond({ isEndUser: true }, BODY);
   assert.equal(status, 500);
-  assert.ok(!JSON.stringify(payload).includes("f1lab.ru"));
+  assert.ok(!JSON.stringify(payload).includes("example.com"));
 });

@@ -10,17 +10,13 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta
-      name="theme-color"
-      media="(prefers-color-scheme: light)"
-      content="#2c3e50"
-    />
-    <meta
-      name="theme-color"
-      media="(prefers-color-scheme: dark)"
-      content="#375a7f"
-    />
-    <title>F1Lab Helpdesk</title>
+    <!-- Название, значок и манифест — из «Настроек → Бренд»: их отдаёт бэкенд
+         (`/api/brand/*`, без входа; значок не задан — нейтральный по умолчанию).
+         Название вкладки дописывает приложение: «страница · название портала». -->
+    <title>HelpDesk</title>
+    <link rel="icon" type="image/png" href="/api/brand/icon" />
+    <link rel="apple-touch-icon" href="/api/brand/icon" />
+    <link rel="manifest" href="/api/brand/manifest.webmanifest" />
   </head>
   <body>
     <div id="root"></div>

@@ -85,7 +85,7 @@ test("edits, deletions, statuses, chats and channel states", () => {
   assert.equal(validateEvent({ type: "message.status", channelId: CHANNEL, jobId: "66f2a1b2c3d4e5f6a7b8c9d1", status: "delivered" }).ok, true);
   assert.equal(validateEvent({ type: "message.status", channelId: CHANNEL, status: "delivered" }).ok, false);
   assert.equal(validateEvent({ type: "message.status", channelId: CHANNEL, chat: { id: "1" }, messageIds: ["9"], status: "lost" }).ok, false);
-  assert.equal(validateEvent({ type: "chat", channelId: CHANNEL, chat: { id: "-100", kind: "group", title: "ТД Восток × F1Lab" } }).ok, true);
-  assert.equal(validateEvent({ type: "channel.state", channelId: CHANNEL, state: "connected", account: { displayName: "F1Lab Поддержка" } }).ok, true);
+  assert.equal(validateEvent({ type: "chat", channelId: CHANNEL, chat: { id: "-100", kind: "group", title: "Ромашка × Техноцентр" } }).ok, true);
+  assert.equal(validateEvent({ type: "channel.state", channelId: CHANNEL, state: "connected", account: { displayName: "Техноцентр Поддержка" } }).ok, true);
   assert.equal(validateEvent({ type: "channel.state", channelId: CHANNEL, state: "sleepy" }).ok, false);
 });

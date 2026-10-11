@@ -36,6 +36,8 @@ exports.update = [
   body("htmlTicketDesc").optional().isBoolean(),
   body("deadline").optional().isNumeric(),
   body("contacts").optional().isObject(),
+  // Поля бренда проверяет контроллер (services/brand.js → validateBrandInput)
+  body("brand").optional().isObject(),
   phoneBody("contacts.tel"),
   body("taxi").optional().isObject(),
 

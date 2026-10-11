@@ -29,7 +29,7 @@ test("an e-mail ticket loses the quoted previous correspondence", () => {
   const ticket = {
     source: "Почта",
     description:
-      "Добрый день, не работает VPN.\n\nС уважением, Иван\n\nчт, 17 сент. 2026 г. в 10:00, Поддержка F1 <help@f1lab.ru>:\n> Заявка принята",
+      "Добрый день, не работает VPN.\n\nС уважением, Иван\n\nчт, 17 сент. 2026 г. в 10:00, Поддержка <help@example.com>:\n> Заявка принята",
   };
 
   assert.equal(ticketPlainText(ticket), "Добрый день, не работает VPN.\n\nС уважением, Иван");

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
 import ServicePlanForm from "../../components/ServicePlan/Form";
@@ -9,7 +10,7 @@ const UpdateServicePlanPage = () => {
 export default UpdateServicePlanPage;
 
 export async function loader({ params }) {
-  document.title = "Изменить услугу";
+  setDocTitle("Изменить услугу");
 
   // Услуга — всегда свежая; категории — из кэша (store/form-data)
   const [servicePlan, ticketCategories] = await Promise.all([

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import DeviceAttributeForm from "../../components/DeviceAttribute/Form";
 
 import { api } from "@/lib/api";
@@ -10,7 +11,7 @@ const UpdateDeviceAttributePage = () => {
 export default UpdateDeviceAttributePage;
 
 export async function loader({ params }) {
-  document.title = "Изменить атрибут устройства";
+  setDocTitle("Изменить атрибут устройства");
 
   return api(`/api/inventory/device-attributes/${params.id}`);
 }

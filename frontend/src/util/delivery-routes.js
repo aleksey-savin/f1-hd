@@ -15,7 +15,7 @@ import { formatMailSender } from "./mail-sender.js";
  * @typedef {{ createdAt: string, channel?: import("../types/conversation").CommentChannel | null }} ChannelComment
  */
 
-/** «Почта и бот HD — как сейчас»: комментарий без доставки в мессенджер. */
+/** «Почта и бот — как сейчас»: комментарий без доставки в мессенджер. */
 export const NOTIFY_ROUTE = "notify";
 
 /** Источники заявки из мессенджеров (backend/services/messaging/rules.js#TICKET_SOURCE). */
@@ -40,14 +40,14 @@ export const routeSubtitle = (route) => {
 };
 
 /**
- * Подпись кнопки выбора: «Telegram · Соколова М.»; без маршрута — «Почта и бот HD».
+ * Подпись кнопки выбора: «Telegram · Соколова М.»; без маршрута — «Почта и бот».
  * @param {DeliveryRoute | null | undefined} route
  * @param {string} [applicantName]
  */
 export const routeTriggerLabel = (route, applicantName = "") =>
   route
     ? `${networkLabel(route.network)} · ${shortPersonName(route.title || applicantName) || "собеседник"}`
-    : "Почта и бот HD";
+    : "Почта и бот";
 
 /**
  * Маршрут, выбранный при открытии: тот, что предложил сервер, если он ещё
@@ -98,7 +98,7 @@ export const dialogLabel = (route) =>
 /**
  * Имя автора записи хроники. У зеркала сообщения неопознанного собеседника
  * подпись канала «Андрей · Telegram» — сеть уже названа меткой рядом, поэтому
- * хвост « · Telegram» срезаем; «F1Lab Поддержка · с телефона» остаётся как
+ * хвост « · Telegram» срезаем; «Север Поддержка · с телефона» остаётся как
  * есть.
  *
  * Письмо от незарегистрированного отправителя (автор в БД — служебная учётка

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import NoteView from "../../components/KnowledgeBase/NoteView";
 
 const AddKnowledgeNotePage = () => {
@@ -9,6 +10,6 @@ const AddKnowledgeNotePage = () => {
 export default AddKnowledgeNotePage;
 
 export async function loader() {
-  document.title = "F1 HD | Новая заметка";
+  setDocTitle("Новая заметка");
   return null;
 }

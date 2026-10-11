@@ -180,7 +180,7 @@ export type DeliveryRoute = {
 
 export type DeliveryRoutes = {
   routes: DeliveryRoute[];
-  /** id диалога или `"notify"` — «Почта и бот HD, как сейчас». */
+  /** id диалога или `"notify"` — «Почта и бот, как сейчас». */
   defaultRoute: string;
   applicantName: string;
 };

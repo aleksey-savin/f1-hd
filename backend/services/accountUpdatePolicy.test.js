@@ -15,7 +15,7 @@ const {
  * делает контроллер (controllers/user.js#update).
  */
 
-const TARGET = { email: "ivanov@f1lab.ru", banned: false, isEndUser: true };
+const TARGET = { email: "ivanov@example.com", banned: false, isEndUser: true };
 
 const plan = (
   body,
@@ -35,25 +35,25 @@ test("fields that are not sent are left alone", () => {
 });
 
 test("the same address in another case or with spaces is not a change", () => {
-  const result = plan({ email: "  Ivanov@F1LAB.ru " }, { mayManageAccess: false });
+  const result = plan({ email: "  Ivanov@EXAMPLE.com " }, { mayManageAccess: false });
 
   assert.equal(result.refusal, null);
   assert.equal(result.emailChange, null);
 });
 
 test("changing the e-mail needs user.manageAccess", () => {
-  const refused = plan({ email: "petrov@f1lab.ru" }, { mayManageAccess: false });
+  const refused = plan({ email: "petrov@example.com" }, { mayManageAccess: false });
   assert.deepEqual(refused.refusal, {
     status: 403,
     message: ACCOUNT_UPDATE_MESSAGES.emailRight,
   });
   assert.equal(refused.emailChange, null);
 
-  const allowed = plan({ email: " Petrov@F1lab.ru" });
+  const allowed = plan({ email: " Petrov@Example.com" });
   assert.equal(allowed.refusal, null);
   assert.deepEqual(allowed.emailChange, {
-    from: "ivanov@f1lab.ru",
-    to: "petrov@f1lab.ru",
+    from: "ivanov@example.com",
+    to: "petrov@example.com",
   });
 });
 
@@ -61,12 +61,12 @@ test("a malformed e-mail is a 400 whatever the rights", () => {
   for (const email of [
     "",
     "   ",
-    "petrov@f1lab",
+    "petrov@example",
     "not an address",
     null,
     42,
     { $ne: "" },
-    ["petrov@f1lab.ru"],
+    ["petrov@example.com"],
   ]) {
     const result = plan({ email });
     assert.equal(result.refusal?.status, 400, JSON.stringify(email));
@@ -207,7 +207,7 @@ test("an account with no stored type is a client: true is no change, false is", 
 
 test("form errors come before permission errors", () => {
   const result = plan(
-    { isEndUser: "yes", email: "petrov@f1lab.ru", banned: true },
+    { isEndUser: "yes", email: "petrov@example.com", banned: true },
     { mayManageAccess: false, mayBan: false },
   );
   assert.deepEqual(result.refusal, {
@@ -220,7 +220,7 @@ test("rights are refused in order: e-mail, account type, ban", () => {
   const noRights = { mayManageAccess: false, mayBan: false };
 
   assert.equal(
-    plan({ email: "petrov@f1lab.ru", isEndUser: false, banned: true }, noRights)
+    plan({ email: "petrov@example.com", isEndUser: false, banned: true }, noRights)
       .refusal.message,
     ACCOUNT_UPDATE_MESSAGES.emailRight,
   );
@@ -236,17 +236,17 @@ test("rights are refused in order: e-mail, account type, ban", () => {
 
 test("the notice goes to the old address, the new one escaped", () => {
   assert.deepEqual(
-    emailChangedNotice({ from: "ivanov@f1lab.ru", to: "petrov@f1lab.ru" }),
+    emailChangedNotice({ from: "ivanov@example.com", to: "petrov@example.com" }),
     {
       instrument: "email",
-      to: { email: "ivanov@f1lab.ru" },
+      to: { email: "ivanov@example.com" },
       title: "Email учётной записи изменён",
-      text: "<p>Email вашей учётной записи изменён на petrov@f1lab.ru. Если это сделали не вы — обратитесь к администратору.</p>",
+      text: "<p>Email вашей учётной записи изменён на petrov@example.com. Если это сделали не вы — обратитесь к администратору.</p>",
     },
   );
   // Кавычки в локальной части адреса допустимы — и `<` в них тоже
   assert.match(
-    emailChangedNotice({ from: "a@f1lab.ru", to: '"<b>"@f1lab.ru' }).text,
-    /"&lt;b&gt;"@f1lab\.ru/,
+    emailChangedNotice({ from: "a@example.com", to: '"<b>"@example.com' }).text,
+    /"&lt;b&gt;"@example\.com/,
   );
 });

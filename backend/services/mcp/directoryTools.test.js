@@ -24,7 +24,7 @@ const USERS = [
   user({ _id: "u1", firstName: "Анна", lastName: "Пухова", position: "Главный бухгалтер", subdivisionId: "s1", telegramLinked: true }),
   user({ _id: "u2", firstName: "Ольга", lastName: "Пухова", companyId: "c2" }),
   user({ _id: "u3", firstName: "Иван", lastName: "Петров", isBlocked: true }),
-  user({ _id: "u4", firstName: "Алексей", lastName: "Савин", isEndUser: false, companyId: null, position: "Инженер" }),
+  user({ _id: "u4", firstName: "Сергей", lastName: "Волков", isEndUser: false, companyId: null, position: "Инженер" }),
   user({ _id: "u5", firstName: "Робот", lastName: "Почта", isSystem: true }),
   user({ _id: "u6", firstName: "Неопознанный", lastName: "Отправитель" }),
 ];
@@ -70,7 +70,7 @@ test("list_users: фамилия + компания — один человек 
 test("list_users: однофамильцы видны оба; поиск по должности; ё = е", async () => {
   const { tools } = build();
   assert.equal(rows(await tools.listUsers({ query: "Пухова" }, caller, context)).length, 2);
-  assert.match(rows(await tools.listUsers({ query: "инженер" }, caller, context))[0], /^Савин Алексей · company: — · position: Инженер · staff · active/);
+  assert.match(rows(await tools.listUsers({ query: "инженер" }, caller, context))[0], /^Волков Сергей · company: — · position: Инженер · staff · active/);
   assert.equal(rows(await tools.listUsers({ query: "Пётров", status: "any" }, caller, context)).length, 1);
 });
 

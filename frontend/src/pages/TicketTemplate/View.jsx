@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 
 
@@ -21,7 +22,7 @@ export async function loader({ params }) {
 
   const template = await response.json();
 
-  document.title = "Просмотр шаблона";
+  setDocTitle("Просмотр шаблона");
 
   return { template };
 }

@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { redirect, useLoaderData } from "react-router";
 
 import ViewSupplier from "../../components/Supplier/View";
@@ -25,7 +26,7 @@ export async function loader({ params }) {
   if (!response.ok) throw response;
 
   const supplier = await response.json();
-  document.title = supplier.name || "Поставщик";
+  setDocTitle(supplier.name || "Поставщик");
   return supplier;
 }
 

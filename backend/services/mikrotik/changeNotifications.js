@@ -14,7 +14,7 @@ const DEFAULT_TZ = "Europe/Moscow";
 // Одна фраза про откат: если проверка на живом роутере покажет, что откат не работает, правится здесь.
 const ROLLBACK_NOTE = "Если команда не пройдёт или связь пропадёт, роутер откатит изменения сам.";
 // Режим api (MIKROTIK_CHANGE_EXECUTOR): safe mode нет, отката нет — обещать его нельзя. Строка целиком, вместе с копией.
-const NO_ROLLBACK_NOTE = "HD снимет резервную копию. Автоматического отката нет: если команда не пройдёт, уже применённое останется — смотрите результат по командам.";
+const NO_ROLLBACK_NOTE = "Система снимет резервную копию. Автоматического отката нет: если команда не пройдёт, уже применённое останется — смотрите результат по командам.";
 // Итог отката — то же обещание, что и ROLLBACK_NOTE: менять вместе.
 const ROLLED_BACK_NOTE = "Одна из команд не прошла, роутер вернул прежнюю конфигурацию.";
 const HIGH_RISK_NOTE = "Может оборвать связь с устройством";
@@ -89,7 +89,7 @@ function stepKeyboard(change, fits, { baseUrl } = {}) {
     ]);
   }
   const url = buttonUrl(baseUrl, change);
-  if (url) rows.push([{ text: "Открыть в HD", url }]);
+  if (url) rows.push([{ text: "Открыть в портале", url }]);
   return rows.length ? { inline_keyboard: rows } : undefined;
 }
 
@@ -172,7 +172,7 @@ function stepMessage(change, ctx) {
   const compose = (count) => {
     const more = total - count;
     const lines = [...top, `Команды (${total}):`, ...all.slice(0, count).map((c) => c.text)];
-    if (more > 0) lines.push(`…и ещё ${more} — откройте запрос в HD`);
+    if (more > 0) lines.push(`…и ещё ${more} — откройте запрос в портале`);
     return lines.join("\n") + (more > 0 ? "" : tail.join("\n"));
   };
   if (showable === total && wireLength(compose(total)) <= MAX_LENGTH) return { text: compose(total), fits: true };
@@ -192,7 +192,7 @@ function confirmText(change, ctx) {
     titleOf(change),
     "",
     `Применить ${commandsWord(change.commands.length)} на роутере?`,
-    (ctx?.rollback ?? rollbackAvailable()) ? `HD снимет резервную копию. ${ROLLBACK_NOTE}` : NO_ROLLBACK_NOTE,
+    (ctx?.rollback ?? rollbackAvailable()) ? `Система снимет резервную копию. ${ROLLBACK_NOTE}` : NO_ROLLBACK_NOTE,
   ].join("\n");
 }
 
@@ -210,7 +210,7 @@ const quoted = (text) => (oneLine(text, 300) ? `«${oneLine(text, 300)}»` : "")
 // Ответом роутера подписывается только его отказ (result.refused); остальное — слова HD
 const routerSays = (text) => (oneLine(text, 300) ? `Роутер ответил: ${oneLine(text, 300)}` : "");
 const notConfirmed = (text) => (oneLine(text, 300) ? `Не подтверждена: ${oneLine(text, 300)}` : "");
-const ATTENTION_NOTE = "HD не может поручиться за состояние устройства — проверьте его вручную.";
+const ATTENTION_NOTE = "Система не может поручиться за состояние устройства — проверьте его вручную.";
 
 // Краткая суть итога: для колокольчика и для тела сообщения.
 function resultFacts(change, ctx) {
@@ -343,7 +343,7 @@ function createChangeNotifier({ loadUsers, loadContext, loadPrefs, saveNotificat
   const withLink = (text, change) => {
     const body = escapeHtml(text).replace(/\n/g, "<br>");
     const url = mailUrl(baseUrl, change);
-    return url ? `${body}<br><br><a href="${escapeHtml(url).replace(/"/g, "&quot;")}">Открыть в HD</a>` : body;
+    return url ? `${body}<br><br><a href="${escapeHtml(url).replace(/"/g, "&quot;")}">Открыть в портале</a>` : body;
   };
 
   async function stepEvent(change, { prefix, bellTitle } = {}) {

@@ -243,7 +243,7 @@ const LIVE_MESSAGES = {
   MIKROTIK_LIVE_UPGRADING: "the device is being upgraded right now — try again in a few minutes",
   MIKROTIK_LIVE_BUSY: "too many device sessions are in progress — try again in a minute",
   MIKROTIK_LIVE_BAD_EXPORT: "the device did not return a configuration export",
-  MIKROTIK_BLOCKED_HOST: "the device address is not allowed for connections from HD",
+  MIKROTIK_BLOCKED_HOST: "the device address is not allowed for connections from the helpdesk",
 };
 
 // Понятная агенту причина сбоя живого чтения; null — причина неизвестна.

@@ -1432,7 +1432,7 @@ re-encrypts records via the `v1` version prefix.
 - **`MIKROTIK_ALLOWED_PRIVATE_NETS`** — the SSRF guard (`services/mikrotik/hostGuard.js#assertPublicHost`)
   rejects a direct device on a private address. A router in the installation's
   own LAN is allowed by listing it here: IPv4 addresses or CIDR blocks,
-  comma-separated (`10.0.50.1,10.0.60.0/24`; prefixes shorter than /8 and
+  comma-separated (`10.0.40.1,10.0.60.0/24`; prefixes shorter than /8 and
   malformed entries are ignored with a warning). Deploy-time only, never
   editable from the UI. Loopback, `0.0.0.0/8` and link-local/metadata
   (`169.254.0.0/16`) stay blocked whatever it says; IPv6 private ranges cannot

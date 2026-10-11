@@ -49,7 +49,7 @@ const leakyTicket = () => ({
   company: { _id: "c1", alias: "Ромашка" },
   applicantId: "u1",
   applicant: { email: "legacy@romashka.ru", phone: "+7 900 111-22-33" },
-  responsibles: [{ _id: "u2", firstName: "Пётр", lastName: "Петров", email: "petrov@f1lab.ru", phone: "+7 900 444-55-66" }],
+  responsibles: [{ _id: "u2", firstName: "Пётр", lastName: "Петров", email: "petrov@example.com", phone: "+7 900 444-55-66" }],
   attachments: [{ name: "file-key-7f3a.pdf", originalName: "паспорт.pdf", speechToText: { text: "звоните 8 900 777-88-99" } }],
   customFields: [{ name: "Контакт", type: "text", value: "тел. 222-29-99" }],
   checklist: [{ description: "Позвонить на 89991112233", checked: true }],
@@ -61,7 +61,7 @@ const leakyTicket = () => ({
 
 const LEAKS = [
   "8 999 123-45-67", "+7 924 555 12 34", "maria@romashka.ru", "Kap2022#", "+7 924 000-11-22",
-  "maria.private@mail.ru", "legacy@romashka.ru", "+7 900 111-22-33", "petrov@f1lab.ru", "+7 900 444-55-66",
+  "maria.private@mail.ru", "legacy@romashka.ru", "+7 900 111-22-33", "petrov@example.com", "+7 900 444-55-66",
   "file-key-7f3a", "паспорт.pdf", "8 900 777-88-99", "222-29-99", "89991112233", "ivan@corp.ru", "10.5.5.5-secret",
   "8 995 111-22-33",
 ];

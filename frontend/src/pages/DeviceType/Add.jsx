@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { load } from "@/store/form-data";
 import Form from "../../components/DeviceType/Form";
 
@@ -18,7 +19,7 @@ const AddDeviceTypePage = () => {
 export default AddDeviceTypePage;
 
 export async function loader() {
-  document.title = "Новый тип устройства";
+  setDocTitle("Новый тип устройства");
 
   // Все типы для attachableToTypeIds — из кэша (store/form-data).
   // Атрибуты в форму типа больше не входят — их добавляют с карточки типа.

@@ -69,7 +69,7 @@ People search (`services/personSearch.js`) matches the phone by the digits of th
 query; a query that looks like a whole number is one phone term. The «Диалоги» list
 search (`controllers/conversation.js`) also matches such a query by its digits
 across separators (`phoneDigitsPattern`) in conversation titles and last-message
-author names, which hold both `+7 (914) 207-33-18` and older `+79142073318`.
+author names, which hold both `+7 (914) 555-01-77` and older `+79145550177`.
 
 ## Migration
 

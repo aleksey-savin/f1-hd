@@ -22,9 +22,9 @@ const channel = (extra = {}) => ({
   stateReason: "",
   gatewaySeenAt: "2026-09-25T07:59:00Z",
   lastMessageAt: "2026-09-25T07:58:00Z",
-  settings: { proxyUrl: "socks5://relay.f1lab.ru:1080", historyDays: 14 },
+  settings: { proxyUrl: "socks5://relay.example.com:1080", historyDays: 14 },
   login: { qr: null, expiresAt: null },
-  account: { displayName: "F1Lab Поддержка", phone: "74232000000" },
+  account: { displayName: "Север Поддержка", phone: "74232000000" },
   ...extra,
 });
 
@@ -33,7 +33,7 @@ test("подключён: прокси и история в подсказке (
     state: "ok",
     title: "Подключён",
     meta: "сообщение 2 мин назад",
-    hint: "Через прокси relay.f1lab.ru · история загружена за 14 дней",
+    hint: "Через прокси relay.example.com · история загружена за 14 дней",
   });
   assert.equal(
     channelHealth(channel({ settings: { proxyUrl: "", historyDays: 0 } }), { now, ago }).hint,
@@ -92,15 +92,15 @@ test("loginStage: что показать в диалоге входа", () => {
 });
 
 test("мелочи: хост прокси, секунды QR, пример подписи, подсказка канала", () => {
-  assert.equal(proxyHost("socks5://user@relay.f1lab.ru:1080"), "relay.f1lab.ru");
+  assert.equal(proxyHost("socks5://user@relay.example.com:1080"), "relay.example.com");
   assert.equal(proxyHost("не адрес"), "");
   assert.equal(proxyHost(""), "");
   assert.equal(qrSecondsLeft("2026-09-25T08:00:18Z", now), 18);
   assert.equal(qrSecondsLeft("2026-09-25T07:59:00Z", now), 0);
   assert.equal(qrSecondsLeft(null, now), null);
-  assert.equal(signatureExample("Игорь", "F1Lab"), "«— Игорь, F1Lab» — имя без контактов");
+  assert.equal(signatureExample("Игорь", "Север"), "«— Игорь, Север» — имя без контактов");
   assert.equal(signatureExample("", ""), "Имя и организация — без контактов");
-  assert.equal(channelHint(channel()), "F1Lab Поддержка · +7 (423) 200-00-00");
+  assert.equal(channelHint(channel()), "Север Поддержка · +7 (423) 200-00-00");
   assert.equal(channelHint({ account: {} }), "Корпоративный аккаунт не подключён");
   assert.equal(historyEnabled({ historyDays: 14 }), true);
   assert.equal(historyEnabled({ historyDays: 0 }), false);
@@ -134,17 +134,17 @@ test("loginStepPending: шаг входа (телефон/код/пароль) �
 
 test("splitProxyPassword: пароль из адреса — наружу, в адресе остаётся user@host", () => {
   assert.deepEqual(
-    splitProxyPassword("socks5://relay:s3cr3t@relay.f1lab.ru:1080"),
-    { url: "socks5://relay@relay.f1lab.ru:1080", password: "s3cr3t" },
+    splitProxyPassword("socks5://relay:s3cr3t@relay.example.com:1080"),
+    { url: "socks5://relay@relay.example.com:1080", password: "s3cr3t" },
   );
   // Без пароля — адрес не трогаем
   assert.deepEqual(
-    splitProxyPassword("socks5://relay.f1lab.ru:1080"),
-    { url: "socks5://relay.f1lab.ru:1080", password: null },
+    splitProxyPassword("socks5://relay.example.com:1080"),
+    { url: "socks5://relay.example.com:1080", password: null },
   );
   assert.deepEqual(
-    splitProxyPassword("socks5://user@relay.f1lab.ru:1080"),
-    { url: "socks5://user@relay.f1lab.ru:1080", password: null },
+    splitProxyPassword("socks5://user@relay.example.com:1080"),
+    { url: "socks5://user@relay.example.com:1080", password: null },
   );
   // Пусто и не-адрес — как есть, без падения
   assert.deepEqual(splitProxyPassword(""), { url: "", password: null });

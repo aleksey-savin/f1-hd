@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { RiCheckLine, RiErrorWarningLine, RiLinkUnlink } from "react-icons/ri";
@@ -221,6 +222,6 @@ const Message = ({
 export default Public;
 
 export function loader() {
-  document.title = "Согласование отчёта";
+  setDocTitle("Согласование отчёта");
   return null;
 }

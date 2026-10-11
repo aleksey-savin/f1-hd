@@ -50,7 +50,7 @@ const Participants = ({ card }: { card: ConversationCard }) => (
           <div className="truncate text-sm font-medium">{person.name}</div>
           {!person.userId && (
             <div className="truncate text-xs text-warning-text">
-              не связан с пользователем HD
+              не связан с пользователем портала
             </div>
           )}
         </div>

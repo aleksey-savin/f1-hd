@@ -7,8 +7,8 @@ const { createMikrotikDiagnostics } = require("./mikrotikDiagnostics");
 
 const ID = "66aa00000000000000000001";
 const DEVICES = [
-  { _id: ID, name: "DVR-KHV-GW01", company: "ДВ Регион", status: "online", host: "198.51.100.9" },
-  { _id: "66aa00000000000000000002", name: "DVR-VLD-GW01", company: "ДВ Регион", status: "online", host: "203.0.113.7" },
+  { _id: ID, name: "RMK-KHV-GW01", company: "Ромашка", status: "online", host: "198.51.100.9" },
+  { _id: "66aa00000000000000000002", name: "RMK-VLD-GW01", company: "Ромашка", status: "online", host: "203.0.113.7" },
 ];
 
 const REPLIES = {
@@ -44,7 +44,7 @@ const build = (over = {}) => {
   let clock = 1_000_000;
   const source = {
     listDevices: async () => DEVICES,
-    loadAddressBook: async () => new Map([["203.0.113.7", "DVR-VLD-GW01"], ["198.51.100.9", "DVR-KHV-GW01"]]),
+    loadAddressBook: async () => new Map([["203.0.113.7", "RMK-VLD-GW01"], ["198.51.100.9", "RMK-KHV-GW01"]]),
     describeLiveError: (error) => (error.code === "MIKROTIK_LIVE_UPGRADING" ? "the device is being upgraded right now" : null),
     runOnDevice: async (id, commands) => {
       calls.push(commands.map((command) => command.words));
@@ -70,7 +70,7 @@ const sentPaths = (calls) => calls.flat().map((words) => words[0]);
 test("state: every requested check comes back, rows are quoted, secrets hidden", async () => {
   const { tools, logs } = build();
   const out = text(await tools.state({ device: "KHV", checks: ["interfaces", "tunnels", "routes"] }, caller));
-  assert.match(out, /^# Live state of DVR-KHV-GW01\n/);
+  assert.match(out, /^# Live state of RMK-KHV-GW01\n/);
   assert.match(out, /## Interfaces \(3 rows\)\n> name=ether1 type=ether running=true\n/);
   assert.match(out, /> name=pppoe-out1 type=pppoe-out running=false comment="ISP ## Routes"/);
   // Туннельные интерфейсы уже есть в «Interfaces»: второй раз не печатаются
@@ -130,7 +130,7 @@ test("state: search keeps only the matching rows and says how many there were", 
 test("state: a peer that is another managed device is named", async () => {
   const { tools } = build();
   const out = text(await tools.state({ device: ID, checks: ["tunnels"] }, caller));
-  assert.match(out, /endpoint-address=203\.0\.113\.7 \(= DVR-VLD-GW01\)/);
+  assert.match(out, /endpoint-address=203\.0\.113\.7 \(= RMK-VLD-GW01\)/);
 });
 
 test("state: default checks; a repeat within 30 s does not touch the device", async () => {
@@ -150,7 +150,7 @@ test("ping: an address in a connected network is pinged with a bounded count", a
   const { tools, calls } = build();
   const out = text(await tools.ping({ device: ID, address: "192.168.27.50", count: 50 }, caller));
   assert.deepEqual(calls.at(-1), [["/ping", "=address=192.168.27.50", "=count=5"]]);
-  assert.match(out, /# Ping from DVR-KHV-GW01 to 192\.168\.27\.50/);
+  assert.match(out, /# Ping from RMK-KHV-GW01 to 192\.168\.27\.50/);
   assert.match(out, /> host=10\.10\.0\.5 status=timeout sent=3 received=0 packet-loss=100/);
 });
 
@@ -164,7 +164,7 @@ test("ping: a routed network and a configured DNS server are allowed", async () 
 
 test("ping: an address outside the device's networks is refused before any ping is sent", async () => {
   const { tools, calls } = build();
-  for (const address of ["9.9.9.9", "192.168.28.1", "127.0.0.1", "10.0.0.1; /system reboot", "1c.dvregion.ru"]) {
+  for (const address of ["9.9.9.9", "192.168.28.1", "127.0.0.1", "10.0.0.1; /system reboot", "1c.example.com"]) {
     const result = await tools.ping({ device: ID, address }, caller);
     assert.equal(result.isError, true, address);
   }
@@ -219,7 +219,7 @@ test("a session that cannot be opened is a tool error with the reason", async ()
   for (const run of [tools.state({ device: ID }, caller), tools.readLog({ device: ID }, caller), tools.ping({ device: ID, address: "192.168.27.50" }, caller)]) {
     const result = await run;
     assert.equal(result.isError, true);
-    assert.match(text(result), /Could not reach DVR-KHV-GW01: the device is being upgraded right now/);
+    assert.match(text(result), /Could not reach RMK-KHV-GW01: the device is being upgraded right now/);
   }
   assert.equal(logs[0].level, "warn");
 });
@@ -227,7 +227,7 @@ test("a session that cannot be opened is a tool error with the reason", async ()
 test("an unknown device is a tool error and the router is never contacted", async () => {
   const { tools, calls } = build();
   assert.equal((await tools.state({ device: "nope" }, caller)).isError, true);
-  assert.equal((await tools.state({ device: "DVR" }, caller)).isError, true);
+  assert.equal((await tools.state({ device: "RMK" }, caller)).isError, true);
   assert.equal(calls.length, 0);
 });
 
@@ -289,8 +289,8 @@ test("ping: the remote end of an IPsec peer or a GRE tunnel is an allowed target
       calls.push(commands.map((command) => command.words));
       const replies = {
         ...REPLIES,
-        "/ip/ipsec/active-peers/print": [{ "remote-address": "89.108.103.224" }],
-        "/interface/gre/print": [{ name: "gre1", "remote-address": "84.252.131.195" }],
+        "/ip/ipsec/active-peers/print": [{ "remote-address": "203.0.113.24" }],
+        "/interface/gre/print": [{ name: "gre1", "remote-address": "198.51.100.95" }],
         "/interface/ipip/print": new Error("no such command prefix"),
       };
       return commands.map(({ title, words }) => {
@@ -299,10 +299,10 @@ test("ping: the remote end of an IPsec peer or a GRE tunnel is an allowed target
       });
     },
   });
-  for (const address of ["89.108.103.224", "84.252.131.195"]) {
+  for (const address of ["203.0.113.24", "198.51.100.95"]) {
     assert.equal((await tools.ping({ device: ID, address }, caller)).isError, undefined, address);
   }
-  assert.equal((await tools.ping({ device: ID, address: "89.108.103.225" }, caller)).isError, true);
+  assert.equal((await tools.ping({ device: ID, address: "203.0.113.25" }, caller)).isError, true);
 });
 
 test("log: the read asks the source to leave out the helpdesk's own sessions and says so", async () => {

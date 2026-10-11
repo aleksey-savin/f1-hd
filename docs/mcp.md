@@ -161,7 +161,7 @@ source that fails — a DB timeout, for instance) it:
 1. logs one `error`-level line `"MCP tool call failed"` with
    `{ mcpKeyId, mcpKeyName, tool, error: error.message, durationMs }`;
 2. returns a **neutral** tool error to the agent —
-   `{ isError: true, content: [{ type: "text", text: "HD could not answer this call because of an internal error. Try again later." }] }`
+   `{ isError: true, content: [{ type: "text", text: "The helpdesk could not answer this call because of an internal error. Try again later." }] }`
    — the database's own error message never reaches the agent.
 
 On success `guard()` logs one `info` line `"MCP tool result"` with
@@ -983,7 +983,7 @@ devices.
 | Tool | Input | Returns |
 |---|---|---|
 | `propose_mikrotik_change` | `device`, `requester` (Telegram id, integer), `title` (1-200), `reason` (1-1000), `commands[]` (1-30; `path`, `action`, `where?`, `params?`; field names at most 64 characters), `wireguardClient?` (`interface`, `address`, `allowedIps`, `dns?`, `endpoint?`) | A created request: title, id, status, who it waits for, device, risk, numbered commands (HD's display lines), link, expiry; the first person is notified by the tool call itself (`notifier.step`), and a notification failure is only logged (`MCP: Mikrotik change notification failed`). A refusal is an error result `The request was not created:` followed by one `- reason` line per entry of the service's `reasons[]`; a reason that carries router or device text has a second line `  > quoted` (single-lined, masked, at most 300 characters). Reasons are never split on `"; "` (the service also returns a joined `error` string, which the tool does not print). Annotations: not read-only, not destructive, not idempotent, open world |
-| `get_mikrotik_change` | `change` (id) | Status, device, requester, creation and expiry time, risk, who it waits for, the agent's `reason` (quoted), every step (who, approved/rejected, when, channel, or waiting / not reached), each command with its risk and result (`done`, `failed`, `rolled back`, `not run`) and quoted error (marked `refused by the router` or `not confirmed; HD's own note follows`), backup time, `Note from HD (may quote the device):` followed by a quoted line, the `needs_attention` warning, and for an applied WireGuard request the configuration page link while the keys live (or that they are gone) |
+| `get_mikrotik_change` | `change` (id) | Status, device, requester, creation and expiry time, risk, who it waits for, the agent's `reason` (quoted), every step (who, approved/rejected, when, channel, or waiting / not reached), each command with its risk and result (`done`, `failed`, `rolled back`, `not run`) and quoted error (marked `refused by the router` or `not confirmed; the helpdesk's own note follows`), backup time, `Note from the helpdesk (may quote the device):` followed by a quoted line, the `needs_attention` warning, and for an applied WireGuard request the configuration page link while the keys live (or that they are gone) |
 | `list_mikrotik_changes` | `device?`, `status?` (one of the status values), `limit?` (1-20, default 10) | Newest first: id, title, status, device, created, waiting for |
 
 Status words in answers (`STATUS_TEXT`): waiting for the requester to confirm /
@@ -1013,7 +1013,7 @@ WireGuard key field (private, preshared, public, server public), raw `params` /
 single-lined and cut to 80 characters. Texts from people and routers
 (`reason`, router errors) are one line per row with the `> ` prefix and
 masked; the request's `failure` (HD's own sentence, which may quote the device)
-is printed as `Note from HD (may quote the device):` followed by one quoted
+is printed as `Note from the helpdesk (may quote the device):` followed by one quoted
 `> ` line. A failed command is marked `result: failed (refused by the router)`
 when the router refused it, or `result: failed (not confirmed; HD's own note
 follows)` when it was sent but not confirmed. Logs

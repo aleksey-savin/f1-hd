@@ -15,10 +15,14 @@ const {
 } = require("@/services/telegramPairing");
 const { GROUPS } = require("@/auth/access");
 const { resolveAiFeatures } = require("@/services/ai/features");
+const { resolveBrand } = require("@/services/brand");
+const { mailCanSend } = require("@/utils/mailGuard");
 const {
   getModerationCounts,
   ZERO_COUNTS,
 } = require("@/services/knowledgeModerationCounts");
+const { getCatalogue } = require("@/services/help/catalogue");
+const { hasHelp } = require("@/services/help/visibility");
 
 /**
  * Профиль текущего пользователя, его эффективные права, рубильники модулей и
@@ -109,12 +113,16 @@ exports.getMe = async (req, res, next) => {
        */
       prefs: {
         contacts: preferences?.contacts,
+        // Бренд уже сведён с умолчаниями: фронт не подставляет их сам
+        brand: resolveBrand(preferences),
         htmlTicketDesc: preferences?.htmlTicketDesc,
         timezone: preferences?.timezone,
         getScreen: preferences?.getScreen,
         // Оператор такси — действие «такси» в справочнике компаний
         taxi: { operator: preferences?.taxi?.operator || "" },
-        emailNotifications: Boolean(preferences?.notify?.byEmail?.isActive),
+        // Выключенная на сервере почта (MAIL_MODE=off) — тоже «почты нет»:
+        // приглашение письмом и сброс пароля письмом не предлагаются
+        emailNotifications: mailCanSend(preferences),
         telegramNotifications: Boolean(
           preferences?.notify?.byTelegram?.isActive,
         ),
@@ -126,6 +134,12 @@ exports.getMe = async (req, res, next) => {
           features: resolveAiFeatures(preferences?.ai),
         },
         knowledgeBase,
+        // Есть ли у читателя хоть одна видимая статья справки: без них
+        // ссылки «Справка» в подвале нет
+        hasHelp: hasHelp(getCatalogue().sections, {
+          isEndUser: user.isEndUser !== false,
+          modules: preferences?.modules || {},
+        }),
       },
       // Идентификатор текущего сеанса нужен разделу «Активные сеансы», чтобы
       // пометить «это устройство».

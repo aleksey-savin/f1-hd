@@ -127,7 +127,7 @@ const waitAfterReboot = async (item, record, deps, now, { boot }) => {
 
 const runStep = async (item, { record, job }, deps) => {
   const now = deps.now();
-  if (!record) return failWith(now, "Устройство удалено из HD — пропущено");
+  if (!record) return failWith(now, "Устройство удалено из портала — пропущено");
 
   const step = item.step || "export";
   try {

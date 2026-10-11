@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
@@ -280,11 +281,11 @@ const ApprovalReport = () => {
 export default ApprovalReport;
 
 export function loader() {
-  document.title = "Просмотр отчёта";
+  setDocTitle("Просмотр отчёта");
   return null;
 }
 
 export function previewLoader() {
-  document.title = "Проверка расчёта";
+  setDocTitle("Проверка расчёта");
   return null;
 }

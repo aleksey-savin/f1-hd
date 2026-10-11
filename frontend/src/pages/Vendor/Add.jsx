@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/Vendor/Form";
 
 const AddVendorPage = () => {
@@ -15,7 +16,7 @@ const AddVendorPage = () => {
 export default AddVendorPage;
 
 export async function loader() {
-  document.title = "Новый вендор";
+  setDocTitle("Новый вендор");
   return null;
 }
 

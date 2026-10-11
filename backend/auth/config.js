@@ -32,7 +32,7 @@ module.exports = {
   totpIssuer:
     String(publicUrl || "")
       .replace(/^https?:\/\//, "")
-      .replace(/\/.*$/, "") || "Helpdesk",
+      .replace(/\/.*$/, "") || "HelpDesk",
 
   // Совпадает с нынешним сроком JWT, чтобы переезд не поменял привычный горизонт
   sessionExpiresInSeconds: 60 * 60 * 24 * 14,

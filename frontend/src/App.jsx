@@ -754,6 +754,29 @@ function App() {
               loader: myAccountLoader,
               action: myAccountAction,
             },
+            // Справка: открыта каждому вошедшему, аудиторию и модули сверяет
+            // сервер (backend/controllers/help.js). Свои чанки — страницу
+            // открывают редко, а вьюер Markdown нужен только статье.
+            {
+              path: "help",
+              lazy: async () => {
+                const helpModule = await import("./pages/Help/Index");
+                return {
+                  Component: helpModule.default,
+                  loader: helpModule.loader,
+                };
+              },
+            },
+            {
+              path: "help/:audience/:section/:slug",
+              lazy: async () => {
+                const articleModule = await import("./pages/Help/Article");
+                return {
+                  Component: articleModule.default,
+                  loader: articleModule.loader,
+                };
+              },
+            },
             // Роли
             {
               path: "roles",

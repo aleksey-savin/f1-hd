@@ -31,8 +31,8 @@ const STATUS_TEXT = {
   [STATUS.cancelled]: "cancelled",
   [STATUS.needsAttention]: "needs checking by a person",
 };
-const CHANNELS = { portal: "the HD portal", telegram: "Telegram" };
-const COMMANDS_LABEL = "commands (as proposed by the agent, validated by HD):";
+const CHANNELS = { portal: "the helpdesk portal", telegram: "Telegram" };
+const COMMANDS_LABEL = "commands (as proposed by the agent, validated by the helpdesk):";
 const RISK_HIGH = "high — may cut the device off";
 
 const oneLine = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -91,7 +91,7 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, events, baseUrl
       if (c.risk === "high") lines.push(`   risk: high${c.riskReason ? ` (${oneLine(c.riskReason)})` : ""}`);
       const label = { done: "done", failed: "failed", rolled_back: "rolled back" }[state] || "not run";
       // Ответ роутера — только при его отказе; иначе текст ниже — слова HD (таймаут, не подтверждена)
-      const source = state === "failed" && c.result?.error ? (c.result.refused === true ? " (refused by the router)" : " (not confirmed; HD's own note follows)") : "";
+      const source = state === "failed" && c.result?.error ? (c.result.refused === true ? " (refused by the router)" : " (not confirmed; the helpdesk's own note follows)") : "";
       lines.push(`   result: ${label}${source}`);
       if (c.result?.error) lines.push(...quoted(c.result.error).map((line) => `   ${line}`));
       return lines;
@@ -135,7 +135,7 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, events, baseUrl
         `link: ${changeLink(baseUrl, change._id)}`,
         `expires: ${iso(change.expiresAt)}`,
         "",
-        "Nothing is applied until people approve it in HD. Give the link to the person who asked.",
+        "Nothing is applied until people approve it in the helpdesk. Give the link to the person who asked.",
       ].join("\n"),
     );
   };
@@ -189,9 +189,9 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, events, baseUrl
       lines.push(`backup: ${at ? iso(at) : "taken"}`);
     }
     // Заметку пишет HD, но в ней бывает текст роутера или соединения: цитатой, одной строкой
-    if (change.failure) lines.push("Note from HD (may quote the device):", `> ${safeLine(change.failure)}`);
+    if (change.failure) lines.push("Note from the helpdesk (may quote the device):", `> ${safeLine(change.failure)}`);
     if (change.status === STATUS.needsAttention) {
-      lines.push("HD cannot vouch for what is on the device — a person must check it. Do not propose the same change again until they have.");
+      lines.push("The helpdesk cannot vouch for what is on the device — a person must check it. Do not propose the same change again until they have.");
     }
     if (change.status === STATUS.applied && change.wireguard?.client?.address) {
       const until = change.wireguard.keysExpireAt;

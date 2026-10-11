@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/Supplier/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { useCan } from "@/store/authed-user";
@@ -17,7 +18,7 @@ const UpdateSupplierPage = () => {
 export default UpdateSupplierPage;
 
 export async function loader({ params }) {
-  document.title = "Изменить поставщика";
+  setDocTitle("Изменить поставщика");
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/suppliers/${params.id}`,

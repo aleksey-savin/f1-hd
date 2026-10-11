@@ -10,7 +10,11 @@ const {
 const { connectMailbox } = require("./imapConnect");
 const { MAILBOX, SMTP, recordOk, recordError } = require("./health");
 const logger = require("../../utils/logger");
-const { guardRecipient } = require("../../utils/mailGuard");
+const {
+  MAIL_OFF_FAILURE,
+  mailMode,
+  guardRecipient,
+} = require("../../utils/mailGuard");
 const { SecretUnreadableError } = require("../../helpers/preferencesSecrets");
 
 // Проверка почтовых каналов по кнопке в настройках. Возвращает ту же пару фраз,
@@ -124,8 +128,12 @@ const checkMailbox = async (mailbox = {}) => {
 };
 
 const sendTestEmail = async (channel = {}, requestedTo) => {
-  // Вне прода тестовое письмо тоже уходит только на разработческий ящик:
-  // «без исключений» значит без исключений (см. utils/mailGuard)
+  // Почта выключена на сервере: кнопка отвечает этим честно и к SMTP не идёт
+  if (mailMode() === "off") {
+    return { ok: false, ...MAIL_OFF_FAILURE };
+  }
+  // В песочнице тестовое письмо тоже уходит только на её адрес: «без
+  // исключений» значит без исключений (см. utils/mailGuard)
   const to = guardRecipient(requestedTo, { module: "mailCheck" });
   let options;
   try {

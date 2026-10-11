@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { companyOptions, scopeTotals, yearOptions } from "./supplier-scope.js";
 
 const supplier = {
-  name: "ООО «Ф1 Лаб»",
+  name: "ООО «Ромашка»",
   purchases: [
     {
       year: 2026,

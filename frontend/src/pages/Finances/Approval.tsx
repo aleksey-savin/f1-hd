@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { RiAlertLine } from "react-icons/ri";
@@ -1093,6 +1094,6 @@ const StateCell = ({ row }: { row: ReportRow }) => {
 export default Approval;
 
 export function loader() {
-  document.title = "Согласование работ";
+  setDocTitle("Согласование работ");
   return null;
 }

@@ -6,7 +6,7 @@
 // verdict: the account lacks `policy`, which an upgrade needs anyway
 // (check-for-updates is refused without it).
 
-// What an upgrade from HD needs on the device, in the order of the fix command
+// What an upgrade from the helpdesk needs on the device, in the order of the fix command
 // (upgradeErrors.js#RIGHTS_FIX is built from this list — keep the order).
 const REQUIRED_UPGRADE_POLICIES = [
   "api",

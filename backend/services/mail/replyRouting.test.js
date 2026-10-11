@@ -14,7 +14,7 @@ const {
 const { classify } = require("../ticketEvents");
 
 // Заголовок так, как его отдаёт mailparser: свёрнутые строки уже склеены
-const MX = "mx.f1lab.ru";
+const MX = "mx.example.com";
 
 test("auth: a DMARC failure fails whatever else passed", () => {
   assert.equal(
@@ -135,7 +135,7 @@ const RESPONSIBLE = user("u-resp");
 const COLLEAGUE = user("u-colleague", { company: { _id: CLIENT_CO } });
 const OUTSIDER = user("u-outsider");
 // Сотрудник — явный isEndUser: false
-const STAFF = user("u-staff", { isEndUser: false, company: { _id: "c-f1lab" } });
+const STAFF = user("u-staff", { isEndUser: false, company: { _id: "c-own" } });
 const DAY = 24 * 60 * 60 * 1000;
 
 // Правило одно для всех (решение владельца 2026-10-03): письмом в заявку пишет
@@ -498,7 +498,7 @@ test("plan: a robot that isn't let in opens no ticket, only a log line on #N", (
 
 // Правило одно для клиента и сотрудника: вне своей видимости — как посторонний
 for (const [kind, sender, address] of [
-  ["staff", STAFF, "contractor@f1lab.ru"],
+  ["staff", STAFF, "contractor@example.com"],
   ["a client colleague", COLLEAGUE, "olga@client.ru"],
 ]) {
   test(`plan: ${kind} outside their scope is handled like an outsider`, () => {

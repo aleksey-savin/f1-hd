@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 
 import ViewVendor from "../../components/Vendor/View";
@@ -12,7 +13,7 @@ const ViewVendorPage = () => {
 export default ViewVendorPage;
 
 export async function loader({ params }) {
-  document.title = "Просмотр вендора";
+  setDocTitle("Просмотр вендора");
 
   const headers = {};
   const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;

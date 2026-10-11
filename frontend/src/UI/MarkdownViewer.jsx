@@ -4,8 +4,11 @@ import { ThemeContext } from "../store/theme-context";
 
 // Рендер Markdown в режиме чтения. Toast UI санитизирует HTML встроенно.
 // Пакет грузится динамически — см. MarkdownEditor: в главном чанке ему не место.
-const MarkdownViewer = ({ value = "" }) => {
+const MarkdownViewer = ({ value = "", onRendered }) => {
   const elRef = useRef(null);
+  // Колбэк в ref: новая функция на каждом рендере не пересоздаёт вьюер
+  const onRenderedRef = useRef(onRendered);
+  onRenderedRef.current = onRendered;
   const { isDark } = useContext(ThemeContext);
 
   useEffect(() => {
@@ -29,6 +32,8 @@ const MarkdownViewer = ({ value = "" }) => {
         initialValue: value || "",
         usageStatistics: false,
       });
+      // Справка проставляет заголовкам якоря для рейки (pages/Help/Article)
+      onRenderedRef.current?.(elRef.current);
     })();
 
     return () => {

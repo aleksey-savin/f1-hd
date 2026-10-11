@@ -160,7 +160,7 @@ const mikrotikSchema = new Schema(
     // downtime is still measured from the moment connectivity actually died.
     failedPolls: { type: Number, default: 0 },
     firstFailureAt: Date,
-    // Обновление прошивки из HD разрешено: у пользователя на устройстве есть
+    // Обновление прошивки из портала разрешено: у пользователя на устройстве есть
     // write, reboot и policy (RouterOS требует policy даже для
     // check-for-updates). Это переключатель формы; что устройство ответило о
     // правах — в upgradeRights ниже.

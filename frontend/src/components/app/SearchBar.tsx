@@ -16,6 +16,7 @@ const SearchBar = ({
   autoFocus,
   className,
   placeholder = "Поиск…",
+  ariaLabel,
 }: {
   onChange?: ChangeEventHandler<HTMLInputElement>;
   size?: "lg" | "md";
@@ -24,6 +25,8 @@ const SearchBar = ({
   autoFocus?: boolean;
   className?: string;
   placeholder?: string;
+  /** Имя поля для скринридера, когда рядом нет видимой подписи. */
+  ariaLabel?: string;
 }) => {
   const controlled = value !== undefined;
 
@@ -41,6 +44,7 @@ const SearchBar = ({
         id="search-bar"
         type="search"
         placeholder={placeholder}
+        aria-label={ariaLabel}
         className={cn(
           // Поиск живёт в шапке на канве — фон панели, иначе сливается
           "bg-card pl-9 text-sm",

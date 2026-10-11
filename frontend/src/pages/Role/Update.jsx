@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData } from "react-router";
 
 import RoleForm from "../../components/Role/Form";
@@ -11,7 +12,7 @@ const UpdateRolePage = () => {
 export default UpdateRolePage;
 
 export async function loader({ params }) {
-  document.title = "Изменить роль";
+  setDocTitle("Изменить роль");
 
   // Отдельной ручки «одна роль» нет намеренно: каталог — девять строк, и
   // второй эндпоинт ради выборки одной из них был бы работой ради работы.

@@ -14,9 +14,9 @@ test("the comment channel block carries names only", () => {
       authorName: "Андрей · WhatsApp",
       status: undefined,
       // лишнее отбрасывается, даже если его передали по ошибке
-      phone: "+79142073318",
+      phone: "+79145550177",
       username: "andrey",
-      externalId: "79142073318@s.whatsapp.net",
+      externalId: "79145550177@s.whatsapp.net",
     },
     new Date("2026-09-24T10:00:00Z"),
   );
@@ -27,19 +27,19 @@ test("the comment channel block carries names only", () => {
 test("a person without a real name is «Собеседник», never a phone or @nick", () => {
   assert.equal(publicName({ firstName: "Андрей" }), "Андрей");
   assert.equal(publicName({ displayName: "Марина Соколова", phone: "+79145550142" }), "Марина Соколова");
-  assert.equal(publicName({ phone: "+79142073318", username: "kostya_it" }), "Собеседник");
+  assert.equal(publicName({ phone: "+79145550177", username: "kostya_it" }), "Собеседник");
   assert.equal(publicName(null), "Собеседник");
 });
 
 test("mirror author names", () => {
-  const channel = { name: "Telegram — корпоративный", account: { displayName: "F1Lab Поддержка" } };
+  const channel = { name: "Telegram — корпоративный", account: { displayName: "Техноцентр Поддержка" } };
   // связанный пользователь — имя берёт интерфейс из автора комментария
   assert.equal(mirrorAuthorName({ identity: { userId: "u1", firstName: "Марина" }, message: { direction: "in", origin: "client" }, channel, network: "telegram" }), "");
   assert.equal(
     mirrorAuthorName({ identity: { displayName: "Андрей", phone: "+7914" }, message: { direction: "in", origin: "client" }, channel, network: "whatsapp" }),
     "Андрей · WhatsApp",
   );
-  assert.equal(mirrorAuthorName({ identity: null, message: { direction: "out", origin: "device" }, channel, network: "telegram" }), "F1Lab Поддержка · с телефона");
+  assert.equal(mirrorAuthorName({ identity: null, message: { direction: "out", origin: "device" }, channel, network: "telegram" }), "Техноцентр Поддержка · с телефона");
   // ответ из HD — автор комментария сам сотрудник, подпись не нужна
   assert.equal(mirrorAuthorName({ identity: null, message: { direction: "out", origin: "hd" }, channel, network: "telegram" }), "");
 });
@@ -64,13 +64,13 @@ test("a direct conversation row is named by the linked user", () => {
     {
       identities: new Map([[ids.ident, { _id: ids.ident, userId: ids.user, username: "m_sokolova" }]]),
       users: new Map([[ids.user, { _id: ids.user, lastName: "Соколова", firstName: "Марина" }]]),
-      companies: new Map([[ids.company, { _id: ids.company, alias: "ТД Восток" }]]),
+      companies: new Map([[ids.company, { _id: ids.company, alias: "Ромашка" }]]),
       unread: new Map([[ids.conv, 250]]),
     },
   );
   assert.equal(row.title, "Соколова Марина");
   assert.equal(row.unknown, false);
-  assert.deepEqual(row.company, { id: ids.company, alias: "ТД Восток" });
+  assert.deepEqual(row.company, { id: ids.company, alias: "Ромашка" });
   assert.deepEqual(row.ticket, { id: ids.ticket, num: 56812 });
   assert.equal(row.unread, 99);
   assert.equal(row.decision, null);
@@ -79,9 +79,9 @@ test("a direct conversation row is named by the linked user", () => {
 test("an unknown direct contact is named by the identity and flagged", () => {
   const row = conversationRow(
     { _id: ids.conv, kind: "direct", network: "whatsapp", title: "", counterpartIdentityId: ids.ident, binding: {}, decision: {}, lastMessage: {} },
-    { identities: new Map([[ids.ident, { _id: ids.ident, phone: "79142073318" }]]) },
+    { identities: new Map([[ids.ident, { _id: ids.ident, phone: "79145550177" }]]) },
   );
-  assert.equal(row.title, "+7 (914) 207-33-18");
+  assert.equal(row.title, "+7 (914) 555-01-77");
   assert.equal(row.unknown, true);
   assert.equal(row.ticket, null);
   assert.equal(row.lastMessage, null);
@@ -118,11 +118,11 @@ test("identity candidates carry name, position and company — never contacts", 
     firstName: "Андрей",
     lastName: "Кузнецов",
     position: "завхоз",
-    company: { _id: "c1", alias: "Примавто" },
-    email: "a.kuznetsov@primavto.ru",
-    phone: "+79142073318",
+    company: { _id: "c1", alias: "Лютик" },
+    email: "a.kuznetsov@example.org",
+    phone: "+79145550177",
   });
-  assert.deepEqual(row, { id: "u1", name: "Кузнецов Андрей", position: "завхоз", company: "Примавто" });
+  assert.deepEqual(row, { id: "u1", name: "Кузнецов Андрей", position: "завхоз", company: "Лютик" });
   assert.equal(JSON.stringify(row).includes("7914"), false);
   assert.equal(JSON.stringify(row).includes("@"), false);
   assert.deepEqual(candidateRow({ _id: "u2", firstName: "Ольга" }), { id: "u2", name: "Ольга", position: "", company: "" });

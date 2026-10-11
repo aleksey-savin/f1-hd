@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 import { useShallow } from "zustand/react/shallow";
 
@@ -80,7 +81,7 @@ export async function loader({ params }) {
     );
   }
 
-  document.title = "Просмотр пользователя";
+  setDocTitle("Просмотр пользователя");
 
   return {
     user: await userResponse.json(),

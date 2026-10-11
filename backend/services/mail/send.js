@@ -1,7 +1,12 @@
 const nodemailer = require("nodemailer");
 
 const logger = require("@/utils/logger");
-const { guardRecipient, guardSubject } = require("@/utils/mailGuard");
+const {
+  MAIL_OFF_FAILURE,
+  mailMode,
+  guardRecipient,
+  guardSubject,
+} = require("@/utils/mailGuard");
 const { SecretUnreadableError } = require("@/helpers/preferencesSecrets");
 const {
   buildSmtpOptions,
@@ -23,10 +28,31 @@ const {
  *
  * Возвращает `{success, failure}`: `failure` — пара фраз для строки состояния
  * канала в настройках, чтобы причина была видна без похода в журнал сервера.
- * `retryable: false` — повтор бессмыслен (пароль SMTP не читается): очередь не
- * ждёт новых попыток, а сразу помечает письмо `failed` (services/mail/outbox).
+ * `retryable: false` — повтор бессмыслен (почта выключена на сервере, пароль
+ * SMTP не читается): очередь не ждёт новых попыток, а сразу помечает письмо
+ * `failed` (services/mail/outbox).
+ *
+ * `intendedEmail` (необязателен) — кому письмо предназначалось, если адрес уже
+ * подменён до отправщика: письмо из очереди приходит сюда с адресом песочницы
+ * в `to` (подмена в `models/notification.js`), и без этой подсказки отправщик
+ * подмены не видит.
  */
-exports.sendMail = async (creds, to, subject, text, html) => {
+exports.sendMail = async (creds, to, subject, text, html, { intendedEmail } = {}) => {
+  // Почта выключена на сервере (MAIL_MODE=off или не задан): до SMTP дело не
+  // доходит вовсе — ни сборки транспорта, ни расшифровки пароля. Одна строка
+  // журнала на письмо, без адреса получателя.
+  if (mailMode() === "off") {
+    logger.log("warn", "Письмо не отправлено: почта выключена на сервере", {
+      module: "mailSend",
+      mailMode: "off",
+    });
+    return {
+      success: false,
+      retryable: false,
+      failure: { ...MAIL_OFF_FAILURE },
+    };
+  }
+
   let options;
   try {
     options = buildSmtpOptions(creds);
@@ -63,7 +89,7 @@ exports.sendMail = async (creds, to, subject, text, html) => {
   }
 
   /**
-   * Вне прода письмо не может уйти клиенту НИ ПРИ КАКИХ настройках в базе.
+   * В песочнице письмо не может уйти клиенту НИ ПРИ КАКИХ настройках в базе.
    *
    * Проверка стоит здесь второй раз намеренно: первый — в модели уведомления
    * (`models/notification.js`), у самого создания документа. Здесь она у самой
@@ -76,8 +102,17 @@ exports.sendMail = async (creds, to, subject, text, html) => {
   // получатель выходил undefined, и каждое письмо из очереди падало с
   // «No recipients defined» — тихо, потому что крон просто считал попытки.
   const actual = guardRecipient(to, { module: "mailSend" });
-  const redirected = actual !== to;
-  const finalSubject = redirected ? guardSubject(subject, to) : subject;
+  // Кому письмо предназначалось, если уходит не туда: адрес, подменённый
+  // здесь, либо — в песочнице — подменённый раньше, в модели уведомления.
+  // Пометка одна и ставится в одном месте, откуда бы подмена ни пришла
+  const intended =
+    actual !== to
+      ? to
+      : mailMode() === "sandbox" && intendedEmail && intendedEmail !== actual
+        ? intendedEmail
+        : null;
+  const redirected = Boolean(intended);
+  const finalSubject = redirected ? guardSubject(subject, intended) : subject;
 
   try {
     const transport = nodemailer.createTransport(options);
@@ -86,10 +121,10 @@ exports.sendMail = async (creds, to, subject, text, html) => {
       to: actual,
       subject: finalSubject,
       text: redirected
-        ? `[Письмо предназначалось: ${to}]\n\n${text || ""}`
+        ? `[Письмо предназначалось: ${intended}]\n\n${text || ""}`
         : text,
       html: redirected
-        ? `<p><b>Письмо предназначалось: ${to}</b></p>${html || ""}`
+        ? `<p><b>Письмо предназначалось: ${intended}</b></p>${html || ""}`
         : html,
     });
 

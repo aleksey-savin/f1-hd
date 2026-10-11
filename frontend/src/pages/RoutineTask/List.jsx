@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
 
@@ -123,7 +124,7 @@ const RoutineTasks = () => {
 export default RoutineTasks;
 
 export async function loader() {
-  document.title = "Регламенты";
+  setDocTitle("Регламенты");
   return null;
 }
 

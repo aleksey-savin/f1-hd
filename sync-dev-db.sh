@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Internal F1lab tooling — not part of the product.
+
 # HD System — Sync a dev/test MongoDB with production
 #
 # Runs from the shell of the machine whose database is the TARGET: the

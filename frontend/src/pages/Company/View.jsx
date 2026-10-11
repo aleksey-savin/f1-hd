@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 
 
@@ -127,7 +128,7 @@ export async function loader({ params }) {
     servicePlansData = await servicePlansResponse.json();
   }
 
-  document.title = `Просмотр ${companyData?.company.alias}`;
+  setDocTitle(`Просмотр ${companyData?.company.alias}`);
 
   return {
     company: companyData.company,

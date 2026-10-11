@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 
 import ViewLocation from "../../components/Location/View";
@@ -21,7 +22,7 @@ const ViewLocationPage = () => {
 export default ViewLocationPage;
 
 export async function loader({ params }) {
-  document.title = "Просмотр расположения";
+  setDocTitle("Просмотр расположения");
 
   // getOne отдаёт всё для карточки разом: location + ancestors (крошки) +
   // children с числом устройств + устройства «здесь» (тонкие DTO).

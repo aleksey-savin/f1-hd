@@ -1,5 +1,5 @@
 {
-  "name": "f1-hd-tg-service",
+  "name": "hd-tg-service",
   "version": "2.0.0",
   "private": true,
   "description": "Telegram-адаптер хелпдеска: говорит с Telegram, ходит в бэкенд по HTTP, своей базы приложения не имеет",
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\""
   },
-  "author": "Aleksey Savin",
+  "author": "",
   "license": "ISC",
   "engines": {
     "node": ">=24"

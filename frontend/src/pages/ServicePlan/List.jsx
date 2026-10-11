@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
 
@@ -79,7 +80,7 @@ const ServicePlans = () => {
 export default ServicePlans;
 
 export async function loader() {
-  document.title = "Услуги";
+  setDocTitle("Услуги");
 
   return null;
 }

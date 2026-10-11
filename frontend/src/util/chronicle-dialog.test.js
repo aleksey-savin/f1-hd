@@ -42,7 +42,7 @@ test("staff: the team on the right, the applicant, other clients and unknown sen
   );
   // Ответ с корпоративного телефона — команда, хоть автор и служебный
   assert.equal(
-    commentSide(comment("c5", now, service, { channel: { network: "telegram", direction: "out", authorName: "F1Lab Поддержка · с телефона" } }), ctx),
+    commentSide(comment("c5", now, service, { channel: { network: "telegram", direction: "out", authorName: "Север Поддержка · с телефона" } }), ctx),
     "out",
   );
   // Старый снимок автора без признака: заявитель — слева, прочие — справа
@@ -73,7 +73,7 @@ test("письмо от незарегистрированного отправ�
   // С блоком канала — это не письмо, а «с телефона»: обычные правила канала,
   // не оговорка про служебную учётку
   const fromPhone = comment("c2", now, unregistered, {
-    channel: { network: "telegram", direction: "out", authorName: "F1Lab Поддержка · с телефона" },
+    channel: { network: "telegram", direction: "out", authorName: "Север Поддержка · с телефона" },
   });
   assert.equal(
     commentSide(fromPhone, { viewer: staffViewer, applicantId: "u-marina" }),
@@ -183,7 +183,7 @@ test("names: staff sees colleagues and unknown senders by name, the applicant an
         channel: { network: "telegram", direction: "in", authorName: "Андрей · Telegram" },
       }),
       comment("c6", "2026-09-26T06:05:00Z", service, {
-        channel: { network: "telegram", direction: "out", authorName: "F1Lab Поддержка · с телефона" },
+        channel: { network: "telegram", direction: "out", authorName: "Север Поддержка · с телефона" },
       }),
     ],
     viewer: staffViewer,

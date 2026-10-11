@@ -153,9 +153,9 @@ test("preview is one line of at most 140 characters", () => {
 
 test("an identity is named by its name, then @username, then phone", () => {
   assert.equal(identityName({ firstName: "Марина", lastName: "Соколова" }), "Марина Соколова");
-  assert.equal(identityName({ displayName: "Андрей", phone: "79142073318" }), "Андрей");
+  assert.equal(identityName({ displayName: "Андрей", phone: "79145550177" }), "Андрей");
   assert.equal(identityName({ username: "kostya_it" }), "@kostya_it");
-  assert.equal(identityName({ phone: "79142073318", externalId: "x" }), "+7 (914) 207-33-18");
+  assert.equal(identityName({ phone: "79145550177", externalId: "x" }), "+7 (914) 555-01-77");
   assert.equal(identityName({ phone: "375291234567" }), "+375291234567");
   assert.equal(identityName(null), "");
 });
@@ -165,8 +165,8 @@ test("backoff grows 30 s → 30 min", () => {
 });
 
 test("a signature is the first name and the organisation — never contacts", () => {
-  assert.equal(signReply("Будем в 14:00.", { firstName: "Игорь", organization: "F1Lab" }), "Будем в 14:00.\n\n— Игорь, F1Lab");
+  assert.equal(signReply("Будем в 14:00.", { firstName: "Игорь", organization: "Техноцентр" }), "Будем в 14:00.\n\n— Игорь, Техноцентр");
   assert.equal(signReply("Будем.", { firstName: "Игорь", organization: "" }), "Будем.\n\n— Игорь");
-  assert.equal(signReply("Будем.", { firstName: "", organization: "F1Lab" }), "Будем.\n\n— F1Lab");
+  assert.equal(signReply("Будем.", { firstName: "", organization: "Техноцентр" }), "Будем.\n\n— Техноцентр");
   assert.equal(signReply("Будем.", {}), "Будем.");
 });

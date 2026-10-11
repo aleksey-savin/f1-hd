@@ -1,3 +1,4 @@
+import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
 
@@ -11,7 +12,7 @@ const AttributeAddPage = () => {
 export default AttributeAddPage;
 
 export async function loader({ params }) {
-  document.title = "Добавить атрибут типа";
+  setDocTitle("Добавить атрибут типа");
 
   // Тип — свежий (по нему считаем занятые атрибуты); каталог — из кэша
   const [deviceType, catalog] = await Promise.all([

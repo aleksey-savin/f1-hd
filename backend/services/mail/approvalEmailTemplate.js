@@ -21,6 +21,8 @@
  * светлый вариант базовый и самодостаточный.
  */
 
+const { accentTokens, isHexColor, DEFAULT_ACCENT } = require("@/services/brandColor");
+
 const C = {
   canvas: "#f4f5f6",
   paper: "#ffffff",
@@ -32,6 +34,27 @@ const C = {
   primary: "#00bc8c",
   accent: "#007a5e",
   warn: "#b26a00",
+  // текст на кнопке цвета `primary`
+  onPrimary: "#ffffff",
+};
+
+/**
+ * Палитра письма под цвет акцента из настроек («Бренд»).
+ *
+ * С цветом по умолчанию отдаётся `C` как есть: письмо не должно измениться ни
+ * на байт. Свой цвет заменяет три значения — сам акцент, читаемый на белом
+ * текст цвета акцента и текст на кнопке (на светлом акценте белый не читается).
+ * Тёмная тема (`@media` ниже) акцента не касается: кант и кнопка в ней те же.
+ */
+const paletteFor = (accent) => {
+  if (!isHexColor(accent) || accent.toLowerCase() === DEFAULT_ACCENT) return C;
+  const tokens = accentTokens(accent);
+  return {
+    ...C,
+    primary: tokens.primary,
+    accent: tokens.accentTextLight,
+    onPrimary: tokens.primaryForeground,
+  };
 };
 
 const esc = (value) =>
@@ -63,6 +86,8 @@ const factRow = (label, value, { strong = false, tone } = {}) => `
  * @param {string|null} input.link
  * @param {string|null} input.deadline
  * @param {boolean} input.isReminder
+ * @param {string} [input.accent]     — цвет акцента #rrggbb из настроек бренда;
+ *   без него — цвет по умолчанию
  */
 const renderApprovalEmail = ({
   greeting,
@@ -75,7 +100,9 @@ const renderApprovalEmail = ({
   link,
   deadline,
   isReminder = false,
+  accent,
 }) => {
+  const palette = paletteFor(accent);
   const title = isReminder
     ? "Напоминание: отчёт ждёт вашей подписи"
     : "Отчёт на согласование";
@@ -116,7 +143,7 @@ const renderApprovalEmail = ({
   <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%">
 
     <!-- кант: единственный фирменный элемент, картинка тут была бы заблокирована -->
-    <tr><td style="height:3px;background:${C.primary};font-size:0;line-height:0;border-radius:3px 3px 0 0">&nbsp;</td></tr>
+    <tr><td style="height:3px;background:${palette.primary};font-size:0;line-height:0;border-radius:3px 3px 0 0">&nbsp;</td></tr>
 
     <tr><td class="paper" style="background:${C.paper};border-radius:0 0 12px 12px">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -147,8 +174,8 @@ const renderApprovalEmail = ({
           link
             ? `<tr><td class="pad" style="padding:24px 32px 0">
           <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-            <tr><td style="border-radius:8px;background:${C.primary}">
-              <a href="${esc(link)}" style="display:inline-block;padding:13px 26px;font:600 15px/1 ${FONT};color:#ffffff;text-decoration:none;border-radius:8px">Открыть отчёт</a>
+            <tr><td style="border-radius:8px;background:${palette.primary}">
+              <a href="${esc(link)}" style="display:inline-block;padding:13px 26px;font:600 15px/1 ${FONT};color:${palette.onPrimary};text-decoration:none;border-radius:8px">Открыть отчёт</a>
             </td></tr>
           </table>
         </td></tr>`

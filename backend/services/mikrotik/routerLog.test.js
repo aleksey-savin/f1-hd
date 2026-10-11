@@ -49,7 +49,7 @@ test("toEvents: RouterOS 7 names the account inside the connection token", () =>
 });
 
 test("toEvents: edits by HD's own account are kept and marked", () => {
-  const [event] = toEvents([row(1, "peer added by f1-hd")], { hdUser: "f1-hd" });
+  const [event] = toEvents([row(1, "peer added by hd-api")], { hdUser: "hd-api" });
   assert.equal(event.kind, "routerConfig");
   assert.equal(event.data.byHd, true);
 });
@@ -57,12 +57,12 @@ test("toEvents: edits by HD's own account are kept and marked", () => {
 test("toEvents: HD's own api and ssh sessions and all logouts are dropped", () => {
   const events = toEvents(
     [
-      row(1, "user f1-hd logged in from 89.1.1.1 via api", "system,info,account"),
-      row(2, "user f1-hd logged out from 89.1.1.1 via api", "system,info,account"),
+      row(1, "user hd-api logged in from 89.1.1.1 via api", "system,info,account"),
+      row(2, "user hd-api logged out from 89.1.1.1 via api", "system,info,account"),
       row(3, "user admin logged in from 10.0.0.9 via winbox", "system,info,account"),
       row(4, "user admin logged out from 10.0.0.9 via winbox", "system,info,account"),
     ],
-    { hdUser: "f1-hd" },
+    { hdUser: "hd-api" },
   );
   assert.deepEqual(events, [
     { kind: "routerLogin", actor: { type: "routerUser", name: "admin" }, data: { from: "10.0.0.9", via: "winbox", time: "12:00:00" } },

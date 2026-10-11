@@ -126,7 +126,7 @@ const Channels = ({ prefs }: { prefs: Prefs }) => {
         <>
           <SettingRow
             title="Telegram — корпоративный аккаунт"
-            hint="Клиенты пишут на корпоративный аккаунт, ответы уходят из HD"
+            hint="Клиенты пишут на корпоративный аккаунт, ответы уходят из портала"
             leading={<ChannelIcon network="telegram" size={18} className="text-inherit" />}
             leadingClassName={telegramTile}
           >

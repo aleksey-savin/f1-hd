@@ -24,9 +24,9 @@ test("link: recovery says how long the device was silent; a planned outage is na
 
 test("reboot: cause and how long the device ran before it", () => {
   const outside = line({ kind: "reboot", data: { cause: "unknown", ranSeconds: 41 * 86400 + 6 * 3600 } });
-  assert.equal(outside.who, "не из HD");
+  assert.equal(outside.who, "не из портала");
   assert.equal(outside.detail, "До этого работало 41 день 6 часов");
-  assert.equal(line({ kind: "reboot", data: { cause: "upgrade" } }).who, "при обновлении из HD");
+  assert.equal(line({ kind: "reboot", data: { cause: "upgrade" } }).who, "при обновлении из портала");
 });
 
 test("versions are shown as a change", () => {
@@ -51,16 +51,16 @@ test("a copy names its trigger and the person", () => {
 test("parameters: fields with both values, secrets only by name, the responsible person by name", () => {
   const result = line({
     kind: "parametersChanged",
-    actor: { type: "user", name: "Алексей Савин" },
+    actor: { type: "user", name: "Сергей Волков" },
     data: { fields: [{ field: "host", from: "10.0.0.1", to: "10.0.0.2" }, { field: "password" }], responsible: { from: null, to: "Олег Миронов" } },
   });
-  assert.equal(result.who, "Алексей Савин");
+  assert.equal(result.who, "Сергей Волков");
   assert.equal(result.detail, "Адрес: 10.0.0.1 → 10.0.0.2. Пароль изменён. Ответственный: не назначен → Олег Миронов");
 });
 
 test("agent requests: title for the link, the agent and who asked, the channel of a decision", () => {
-  const proposed = line({ kind: "changeProposed", actor: { type: "agent", name: "OpenClaw", onBehalfOf: "Алексей Савин" }, data: { title: "WireGuard", commands: 3 } });
-  assert.equal(proposed.who, "OpenClaw, просит Алексей Савин");
+  const proposed = line({ kind: "changeProposed", actor: { type: "agent", name: "OpenClaw", onBehalfOf: "Сергей Волков" }, data: { title: "WireGuard", commands: 3 } });
+  assert.equal(proposed.who, "OpenClaw, просит Сергей Волков");
   assert.equal(proposed.title, "WireGuard");
   assert.equal(proposed.detail, "3 команды");
   assert.equal(line({ kind: "changeApproved", actor: { type: "user", name: "Олег Миронов" }, data: { channel: "portal" } }).who, "Олег Миронов, на портале");
@@ -76,7 +76,7 @@ test("agent reads fold into one line with the count, the start and what was read
 
 test("router log: account, HD's own account, logins and failures", () => {
   const own = line({ kind: "routerConfig", actor: { type: "router", name: "hd-api" }, data: { byHd: true, count: 3, lines: ["a", "b", "c"] } });
-  assert.equal(own.who, "hd-api, учётная запись HD");
+  assert.equal(own.who, "hd-api, учётная запись портала");
   assert.deepEqual(own.raw, ["a", "b", "c"]);
   assert.equal(line({ kind: "routerLogin", actor: { type: "router", name: "admin" }, data: { via: "winbox", from: "10.0.20.15" } }).who, "admin, winbox, с 10.0.20.15");
   assert.equal(

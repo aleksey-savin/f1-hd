@@ -52,6 +52,14 @@ env_get() {
   sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1 | sed "s/^'\(.*\)'\$/\1/; s/^\"\(.*\)\"\$/\1/"
 }
 
+# Every append to .env goes through this first: a file whose last line has no
+# newline would otherwise get the new key glued onto that line.
+env_eol() {
+  if [ -s "$ENV_FILE" ] && [ -n "$(tail -c1 "$ENV_FILE")" ]; then
+    echo >> "$ENV_FILE"
+  fi
+}
+
 # Replace or append KEY=VALUE in .env.
 env_set() {
   local value
@@ -59,6 +67,7 @@ env_set() {
   if grep -q "^$1=" "$ENV_FILE" 2>/dev/null; then
     sed -i "s#^$1=.*#$1=$value#" "$ENV_FILE"
   else
+    env_eol
     printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"
   fi
 }
@@ -97,9 +106,119 @@ host_ip() {
 port_of()  { printf '%s' "${1##*:}"; }
 bind_host() { case "$1" in *:*) printf '%s' "${1%:*}" ;; *) printf '127.0.0.1' ;; esac; }
 
+# Mail mode (MAIL_MODE). An installation configured before this setting existed
+# was sending mail, so it keeps doing so: "live" is written once and announced.
+# A new .env starts with "off" — the operator switches mail on deliberately.
+# The dev stack (COMPOSE_FILE=compose.dev.yml) runs on a copy of production
+# data and must never be switched to live by a script.
+ensure_mail_mode() {
+  local existing=$1
+  env_has MAIL_MODE && return 0
+  if [ "$existing" = yes ]; then
+    case "$(env_get COMPOSE_FILE)" in
+      *dev*)
+        env_set MAIL_MODE off
+        echo "MAIL_MODE was not set: wrote MAIL_MODE=off (dev stack). Use MAIL_MODE=sandbox with MAIL_SANDBOX_RECIPIENT to receive mail."
+        ;;
+      *)
+        env_set MAIL_MODE live
+        echo "MAIL_MODE was not set: wrote MAIL_MODE=live to .env so this installation keeps sending e-mail."
+        warn_legacy_brand
+        ;;
+    esac
+  else
+    env_eol
+    printf '%s\n' \
+      '# Outgoing e-mail: live = real recipients, sandbox = everything to' \
+      '# MAIL_SANDBOX_RECIPIENT, off = nothing is sent. See .env.example.' \
+      'MAIL_MODE=off' >> "$ENV_FILE"
+    echo "Outgoing e-mail is switched off (MAIL_MODE=off in .env). Set MAIL_MODE=live once mail is configured in Settings."
+  fi
+}
+
+# The portal name and the e-mail signature became settings in the same release
+# as MAIL_MODE, and the seedBrand migration carries the earlier wording over
+# only from LEGACY_BRAND_NAME / LEGACY_BRAND_SIGNATURE. Asking the database
+# whether that migration has run is not cheap from here, so the warning is tied
+# to the run that writes MAIL_MODE=live — the first run of that release on an
+# installation that was already in use. A warning, not a stop.
+warn_legacy_brand() {
+  env_has LEGACY_BRAND_NAME && return 0
+  printf '%s\n' \
+    "WARNING: LEGACY_BRAND_NAME is not set in $ENV_FILE." \
+    "  This update turns the portal name and the e-mail signature into settings." \
+    "  Unless LEGACY_BRAND_NAME / LEGACY_BRAND_SIGNATURE are in $ENV_FILE before this" \
+    "  deploy migrates the database (see .env.example), both switch to the product" \
+    "  defaults; the values can then be entered in Settings" \
+    "  (Настройки → Основные → Бренд). This warning is not repeated." >&2
+}
+
+# Error tracking (SENTRY_DSN, optional). The browser may only talk to origins
+# the CSP allows, and the CSP is written by nginx in the frontend container,
+# which gets nothing but SENTRY_CSP_ORIGIN (compose.yml). Keep that key in .env
+# equal to the DSN's scheme://host[:port] — no key, no path — on every run, so
+# plain `docker compose up` sees the same value as this script.
+ensure_sentry_origin() {
+  local dsn origin="" rest
+  dsn=$(env_get SENTRY_DSN)
+  if [ -n "$dsn" ]; then
+    rest=${dsn#*://}      # key@host[:port]/project
+    rest=${rest%%/*}      # key@host[:port]
+    origin="${dsn%%://*}://${rest##*@}"
+    # The value lands inside a quoted nginx string: accept a plain origin only.
+    if ! printf '%s' "$origin" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?$'; then
+      echo "WARNING: SENTRY_DSN does not look like https://<key>@<host>/<project>; error tracking stays blocked by the CSP."
+      origin=""
+    fi
+  fi
+  [ "$(env_get SENTRY_CSP_ORIGIN)" = "$origin" ] && return 0
+  # Nothing to clear and nothing to set: do not add an empty key.
+  [ -z "$origin" ] && ! env_has SENTRY_CSP_ORIGIN && return 0
+  env_set SENTRY_CSP_ORIGIN "$origin"
+}
+
+# Prefix of the ticket tag in e-mail subjects (TICKET_SUBJECT_PREFIX). A new
+# .env gets the key with an empty value: the product default applies, and the
+# key itself records that this installation was set up with the setting in
+# place. An installation configured earlier has no such key — see
+# require_subject_prefix.
+ensure_subject_prefix() {
+  local existing=$1
+  env_has TICKET_SUBJECT_PREFIX && return 0
+  [ "$existing" = yes ] && return 0
+  env_eol
+  printf '%s\n' \
+    '# Prefix of the ticket tag in e-mail subjects; empty = the product default.' \
+    '# Set it before the first e-mail goes out, not after. See .env.example.' \
+    'TICKET_SUBJECT_PREFIX=' >> "$ENV_FILE"
+}
+
+# Replies are matched to tickets by the tag in the subject. An installation
+# that was sending mail before the prefix became a setting must name the prefix
+# its letters already carry; guessing it here would orphan every reply to
+# earlier mail. Called by the install/update path only, after ensure_env, so
+# `./deploy.sh env` can still create and repair .env.
+require_subject_prefix() {
+  env_has TICKET_SUBJECT_PREFIX && return 0
+  die "TICKET_SUBJECT_PREFIX is not set in $ENV_FILE.
+This installation was configured before the prefix became a setting, and replies
+to its earlier e-mails are matched to tickets by that prefix. Look at the subject
+of any ticket notification it has sent: the tag in square brackets is
+<prefix>-<ticket number>. Add the line
+    TICKET_SUBJECT_PREFIX=<prefix>
+to $ENV_FILE (the text inside the brackets before the last hyphen and the number)
+and run ./deploy.sh again. Nothing has been built or restarted."
+}
+
 ensure_env() {
+  # "Existing" = configured by an earlier run: the database password is there.
+  local existing=no
+  [ -n "$(env_get MONGODB_PASSWORD)" ] && existing=yes
   [ -f .env ] || : > .env
   chmod 600 .env
+  ensure_mail_mode "$existing"
+  ensure_subject_prefix "$existing"
+  ensure_sentry_origin
   [ -n "$(env_get MONGODB_USERNAME)" ]   || env_set MONGODB_USERNAME hd
   [ -n "$(env_get MONGODB_DATABASE)" ]   || env_set MONGODB_DATABASE hd
   [ -n "$(env_get MONGODB_PASSWORD)" ]   || env_set MONGODB_PASSWORD "$(openssl rand -hex 24)"
@@ -231,7 +350,7 @@ migrate() {
 }
 
 deploy() {
-  need_tools; ensure_docker; ensure_env; load_env
+  need_tools; ensure_docker; ensure_env; require_subject_prefix; load_env
   tag_previous
   ensure_volumes
   log "Building images"
