@@ -1,8 +1,9 @@
-import { RiEditLine } from "react-icons/ri";
+import { RiEditLine, RiRobot2Line } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
 import useInitialPrefsStore from "../../store/prefs";
+import { agentOrigin } from "../../util/knowledgeNoteAgent";
 import { getVerificationSummary } from "../../util/knowledgeNoteTypes";
 
 const TONE_CLASS = {
@@ -70,6 +71,28 @@ const VerificationLine = ({ note, isEditing = false }) => {
       {parts.length > 0 && (
         <span className="text-muted-foreground">· {parts.join(" · ")}</span>
       )}
+    </p>
+  );
+};
+
+// Вторая строка под проверкой: заметку записал ИИ-агент. Отдельная строка, а не
+// часть фразы о проверке — отметка не снимается правкой и не зависит от
+// проверки. У заметки без отметки компонент ничего не рисует, отступы героя
+// остаются прежними.
+export const AgentOriginLine = ({ note, isEditing = false }) => {
+  const origin = agentOrigin(note);
+
+  if (isEditing || !origin) {
+    return null;
+  }
+
+  return (
+    <p className="mt-1 mb-0 flex items-center gap-1.5 text-sm text-muted-foreground">
+      <RiRobot2Line size={16} aria-hidden className="flex-none" />
+      <span>
+        Записал ИИ-агент{origin.keyName ? ` «${origin.keyName}»` : ""}
+        {origin.requester ? ` · по запросу: ${origin.requester}` : ""}
+      </span>
     </p>
   );
 };

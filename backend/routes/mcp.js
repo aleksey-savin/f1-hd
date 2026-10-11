@@ -3,6 +3,8 @@ const McpKey = require("@/models/mcpKey");
 const { createRequireMcpKey } = require("@/middleware/requireMcpKey");
 const knowledgeSource = require("@/services/mcp/knowledgeSource");
 const { createKnowledgeTools } = require("@/services/mcp/knowledgeTools");
+const knowledgeWriteSource = require("@/services/mcp/knowledgeWriteSource");
+const { createKnowledgeWriteTools } = require("@/services/mcp/knowledgeWriteTools");
 const { createMcpRequestHandler } = require("@/services/mcp/server");
 const { buildMcpRouter } = require("./mcpRouter");
 const Preferences = require("@/models/preferences");
@@ -60,6 +62,7 @@ module.exports = buildMcpRouter({
   handle: createMcpRequestHandler({
     tools: {
       knowledge: createKnowledgeTools({ ...knowledgeSource, baseUrl: process.env.ADDRESS, log }),
+      knowledgeWrite: createKnowledgeWriteTools({ source: knowledgeWriteSource, baseUrl: process.env.ADDRESS, log }),
       tickets: createTicketTools({ source: ticketSource, baseUrl: process.env.ADDRESS, log }),
       directory: createDirectoryTools({ source: directorySource, log }),
       mikrotik: {

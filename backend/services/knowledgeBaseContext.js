@@ -1,4 +1,5 @@
 const KnowledgeNote = require("@/models/knowledgeNote");
+const { isUnverifiedAgentDraft } = require("@/helpers/knowledgeNoteVisibility");
 
 // Сколько релевантных заметок максимум подмешивать в контекст модели и сколько
 // символов брать из каждой (plainText уже очищен от markdown — см. модель).
@@ -198,7 +199,8 @@ const byRelevance = (a, b) =>
  *
  * Видимость: AI-руководство — общий staff-only артефакт (генерируется в фоне без
  * пользовательского контекста, в getOne удаляется для end-user), поэтому per-user
- * canViewNote здесь НЕ применяется — берём все связанные заметки.
+ * canViewNote здесь НЕ применяется — берём все связанные заметки, кроме
+ * непроверенных черновиков ИИ-агента.
  *
  * @param {string} [params.title] тема заявки
  * @param {string} [params.text] описание заявки
@@ -220,14 +222,20 @@ exports.collectRelevantNotes = async ({
 
   // Архивные заметки в контекст AI не подмешиваем
   const notes = await KnowledgeNote.find({ $or: or, archivedAt: null })
-    .select("title type plainText companies categories users updatedAt")
+    .select(
+      "title type plainText companies categories users updatedAt approved agent.keyId",
+    )
     .lean();
 
   const titleStems = toStems(title);
   const textStems = toStems(text);
+  // Непроверенный черновик ИИ-агента (заведён по MCP) в промпт не берём: его
+  // текст не проверял человек, а руководство по заявке читают как подсказку.
   const candidates = notes
-    .filter((note) =>
-      matchesTicketContext(note, { companyId, categoryId, applicantId }),
+    .filter(
+      (note) =>
+        !isUnverifiedAgentDraft(note) &&
+        matchesTicketContext(note, { companyId, categoryId, applicantId }),
     )
     .map((note) => ({
       ...annotate(note, companyId, categoryId, applicantId),

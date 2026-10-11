@@ -1,6 +1,6 @@
 # Knowledge Base — Implementation Notes
 
-_Last updated: 2026-09-17. This document covers the data model, the API, the
+_Last updated: 2026-10-11. This document covers the data model, the API, the
 background jobs, agent access over MCP and the operational rules of the Knowledge
 Base module.
 Interface rules live in `docs/ux-ui-guide.md` — the module's components are its
@@ -105,6 +105,13 @@ categories[]     { _id→TicketCategory, title }               // denormalized b
 type             "info" | "backlog" | "instructions"  (default "info")
 createdBy/updatedBy  → User
 
+// Written by an AI agent over MCP (docs/mcp.md, «Knowledge base write tools»)
+agent {
+  keyId         → McpKey
+  keyName       String    // snapshot: the key can be deleted
+  at            Date      // when the note was created through MCP
+}
+
 // Moderation — approval
 approved         Boolean (default false)
 approvedBy       → User
@@ -143,6 +150,17 @@ existing notes until the note is re-saved. Indexes exist on each binding id, on
 `title`, `type`, `approved+approvedAt`, `pendingDeletion`, `pendingArchive`,
 `archivedAt`, `secretsScan.flagged`, and `serviceExpiry.entries.expiresAt`.
 
+`agent` is set on creation through MCP and never cleared, also when a person
+later edits the note; its presence (`agent.keyId`) is the definition of
+"agent-written" (`isAgentNote` in `services/mcp/knowledgeTools.js`). For such a
+note `createdBy` / `updatedBy` hold the person who asked the agent. Because the
+mark stays, a person's edits to such a note can be replaced by a later agent
+update, and no history of note text is kept (`docs/mcp.md`, «A person's edits
+can be replaced»). The binding
+builders (`buildCompanies`, `buildUsers`, `buildCategories`, `normalizeType`)
+live in `backend/helpers/knowledgeNoteBindings.js`, shared by the controller and
+the MCP write source.
+
 `approved` defaults to `false`, but the code everywhere treats **absence** of the
 field as unapproved too (`note.approved !== true`) so legacy notes are safe before
 the backfill script runs.
@@ -167,8 +185,9 @@ avoid wiping moderation config on a partial POST).
 
 Access keys for AI agents (collection `mcpkeys`): `name`, `keyHash` (sha256,
 `select: false`, unique index), `keyTail`, `createdBy → User`, `lastUsedAt`,
-`scopes` (`knowledge` and/or `tickets`; a key stored without the field reads
-as `["knowledge"]`), timestamps. The key value is never stored. Full notes:
+`scopes` (any of `knowledge`, `knowledgeWrite`, `tickets`, `companies`, `users`,
+`mikrotik`, `mikrotikChanges`; a key stored without the field reads as
+`["knowledge"]`), timestamps. The key value is never stored. Full notes:
 `docs/mcp.md`, «Keys and permissions».
 
 ## Visibility model
@@ -185,7 +204,12 @@ DB query is not the security boundary — the predicate is). Order of checks:
 3. **`hideNotApproved` && note unapproved && not manager** → deny.
 4. **End user / client** (`isEndUser`) → allow **only** notes bound to **their own
    company**. Global, category-only, and other-company notes are invisible to
-   clients.
+   clients. **An unverified agent draft is denied here whatever
+   `hideNotApproved` says** (`isUnverifiedAgentDraft(note)`: `agent.keyId` set
+   and `approved !== true`): a text written by an AI agent reaches a client only
+   after a person verified it. Once verified, the note follows the ordinary
+   client rule. A person's unverified note is unchanged — only `hideNotApproved`
+   hides it.
 5. **Staff (non-manager)** — a note with **no bindings at all is "global"** and
    visible to every staffer. Otherwise allow if any holds:
    - note category ∈ user's `categories`, or
@@ -194,6 +218,16 @@ DB query is not the security boundary — the predicate is). Order of checks:
 
 **Accessible companies** (`getAccessibleCompanyIds`) = the user's own company +
 every company in `responsibleForCompanies` (stored under `id`, not `_id`).
+
+**Fields the predicate needs.** `canViewNote` reads `approved`, `agent.keyId`,
+`companies`, `categories`, `users`; a query that feeds it must select them, or
+the predicate silently decides the mark or the binding is absent. `getAll` and
+`getRelated` use exclusion projections and `getOne` and the bulk handlers load
+whole documents, so all carry them. `getServiceExpiry` has a positive
+projection (it lists `approved` and `agent.keyId`) and a client branch of its
+own — clients do not pass `canViewNote`'s first check — which repeats the
+client rule: own company, `hideNotApproved`, and never an unverified agent
+draft. Staff rules do not look at the `agent` mark.
 
 ### Ticket-context matching (restrictive bindings)
 
@@ -229,10 +263,20 @@ only) — keep them in sync.
         archivedAt set (hidden everywhere)            hard delete (pruned from DB)
 ```
 
+- **Created through MCP** — an AI agent with a `knowledgeWrite` key creates a
+  note through `services/mcp/knowledgeWriteSource.js` (`createNote`), the same
+  path as the form: bindings from `helpers/knowledgeNoteBindings.js`,
+  `plainText` from `markdownToPlainText`, `rescanNoteDerived` before `save()`.
+  The note is unverified (`approved=false`, in the moderation queue like any
+  other) and carries `agent`; `createdBy` is the person who asked the agent
+  (a user with `knowledge.manage`). The agent can later change only notes with
+  `agent.keyId`; every such change resets approval, as an edit from the form
+  does. It cannot delete, archive or verify.
 - **Create / edit** (`add` / `update`) — manager only. `update` recomputes
   `plainText` and **resets approval** (`approved=false`, clears approvedBy/At).
   Both also **re-derive the scan fields synchronously** (`rescanNoteDerived`):
-  the secret scan (gated by `scanForSecrets`, `ignoredHashes` preserved) and the
+  the secret scan (gated by `scanForSecrets` — or always, for a note with
+  `agent.keyId`; `ignoredHashes` preserved) and the
   service-expiry parse (gated by `trackServiceExpiry`, skipped for archived notes)
   run with the same semantics as their crons — so a leak flag clears, and renewal
   dates refresh, the moment the content changes instead of waiting for the cron.
@@ -401,6 +445,40 @@ Placeholders (`example`, `changeme`, `xxxx`, all-same-char, …) are dropped;
 results capped at 25 per note. "Не секрет" stores the **value hash**, so a
 *different* real secret in the same note still trips on the next scan.
 
+**The `jwt` rule's left edge (2026-10-11).** The rule begins with
+`(?<![A-Za-z0-9_-])` instead of `\b`. `-` belongs to the token's own alphabet
+but is not a word character, so on a text like `-eyJ` repeated `\b` matched
+before every `eyJ` and from each of them the expression read to the end of the
+text looking for the first dot: quadratic, seconds on 40,000 characters, on a
+path that runs inside the web application's event loop (the MCP write tools,
+the on-save rescan). Now a token starts only where the previous character is
+not a token character, so each run is read once. The one difference in what is
+matched: a JWT glued to a preceding `-` is no longer a `jwt` finding. Nothing
+else in the scanner changed.
+
+**Agent-written notes are scanned always.** `rescanNoteDerived`
+(`helpers/knowledgeNoteDerived.js`) scans when `scanForSecrets` is on **or** the
+note has `agent.keyId`, so a password a person types into an agent's draft
+cannot reach agents unchecked. With the preference off such a note shows its
+finding on the note page and a moderator can dismiss it, but it has no entry in
+the moderation queue or counters (those are gated by the preference). Every
+scan of a note with `agent.keyId` — this rescan and the hourly run — goes
+through `scanNote` on a copy with the helpdesk's own markers (`[скрыто]`,
+`[секрет скрыт]`, `[e-mail]`, `[телефон]` …) neutralised
+(`services/portalMarkers.js`, see `docs/mcp.md`, «Secret check»), the same copy
+the MCP write tools check; the hourly run loads `agent.keyId` for it. Notes
+written by people are scanned as they are.
+
+**Known limit (found 2026-10-11).** The module's own scanner (hourly run and
+on-save rescan) scans the title and `plainText` only, and `plainText` drops code
+fences, link URLs and HTML. A credential inside a code fence, a link URL or an
+HTML block is therefore not flagged, while `get_knowledge_note` serves the raw
+Markdown `content`. The MCP write tools compensate on their own path (they also
+scan the raw Markdown for exact-format secrets, a password in a URL and
+secret-named fields such as `private-key="…"`, see `docs/mcp.md`, «Secret
+check»), but only for the text an agent passes: notes written by people, and a
+person's edits to an agent's note, are not covered.
+
 ## Service-renewal scanner — `backend/services/serviceExpiryScanner.js`
 
 `parseServiceTables(content)` (no AI) extracts every markdown pipe-table, then
@@ -448,21 +526,41 @@ guide is a staff-only artifact generated in the background without a viewer
 context (it's stripped for end-users in the ticket `getOne`), so it sees all
 context-matched notes.
 
+**Except unverified agent drafts.** `collectRelevantNotes` drops notes with
+`agent.keyId` and `approved !== true` (`isUnverifiedAgentDraft`, the same
+predicate as in «Visibility model»; the query selects `approved` and
+`agent.keyId` for it) before ranking. A text an AI agent saved and no person
+checked must not become a "priority source" of another model's prompt. If the
+only context-matched notes are such drafts the guide gets no knowledge context,
+not a fallback order. A verified agent note and a person's unverified note are
+taken as before.
+
 ## Agent access (MCP)
 
 The organisation's AI agent (OpenClaw) reads the knowledge base — and, since
-2026-09-18, tickets — over a read-only
+2026-09-18, tickets and more — over the
 [Model Context Protocol](https://modelcontextprotocol.io) endpoint,
-`POST /api/mcp`. Full implementation notes (request path, keys and
-permissions, both tool families, data protection, tests): **`docs/mcp.md`**.
+`POST /api/mcp`; since 2026-10-11 a key with `knowledgeWrite` can also create
+notes and update the ones agents wrote. Full implementation notes (request
+path, keys and permissions, the tool families, data protection, tests):
+**`docs/mcp.md`**.
 
-Scope for this module is unchanged: an agent key sees a note only when it is
-**approved**, has **no current secret-leak flag**, and is not archived or
-pending deletion; a note whose findings a moderator all marked «Не секрет» is
+Scope: an agent key sees a note only when it is **approved or agent-written**
+(`agent.keyId`; a draft is served marked `unverified draft, written by an
+agent`, and every key with `knowledge` sees drafts), has **no current
+secret-leak flag**, and is not archived or pending deletion; a note whose findings a moderator all marked «Не секрет» is
 served — only the current `secretsScan.flagged` decides, `findings` /
 `ignoredHashes` / `scannedAt` are never consulted. Not per user: there is no
 viewer, so company/category bindings never restrict what an agent key can
-read.
+read. An unverified agent draft is read by staff (by their ordinary rules) and
+by agents only: clients never see it and the ticket AI context does not take it
+(«Visibility model», «AI guide integration»).
+
+A write is refused when the title or the text the agent passes carries a
+detected secret, regardless of `scanForSecrets` (the write tools run the
+scanner themselves, plus their own checks on the raw Markdown); an update
+without new text checks only the new title. Other refusals, the order of checks
+and the limits are in `docs/mcp.md`, «Knowledge base write tools».
 
 Operations (rotating a key, the OpenClaw config snippet): `docs/deployment.md`,
 «AI agents (MCP)».
@@ -584,4 +682,6 @@ own header.
     leak in.
 12. **Agent access (MCP)** — create a key in Settings and run the manual check
     from «Agent access (MCP)»: an approved note is found and readable, a flagged
-    or unapproved one is not; delete the key and the next call gets `401`.
+    one or a person's unverified one is not; with `knowledgeWrite`, a note the
+    agent creates is found as a draft and, once verified, as `approved`;
+    delete the key and the next call gets `401`.

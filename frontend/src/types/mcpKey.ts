@@ -2,8 +2,8 @@
 // `/api/preferences/mcp-keys` (backend/controllers/mcpKey.js). Значение ключа
 // приходит один раз — в ответе на создание; в списке его нет, как и отпечатка.
 
-/** Доступы ключа: база знаний, заявки, компании, пользователи, Mikrotik, изменения Mikrotik (совпадает с backend MCP_SCOPES). */
-export type McpScope = "knowledge" | "tickets" | "companies" | "users" | "mikrotik" | "mikrotikChanges";
+/** Доступы ключа: чтение и запись по ресурсам (совпадает с backend MCP_SCOPES). */
+export type McpScope = "knowledge" | "knowledgeWrite" | "tickets" | "companies" | "users" | "mikrotik" | "mikrotikChanges";
 
 export type McpKeyRow = {
   _id: string;

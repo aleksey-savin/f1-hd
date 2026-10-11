@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 import { getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
-import VerificationLine from "./VerificationLine";
+import VerificationLine, { AgentOriginLine } from "./VerificationLine";
 
 // Шапка заметки по канону карточки сущности: плитка-глиф · заголовок · строка
 // доверия · кластер действий справа. Заголовок в правке — тот же h1 с теми же
@@ -69,6 +69,7 @@ const NoteHero = ({
             ) : (
               <VerificationLine note={note} isEditing={isEditing} />
             )}
+            <AgentOriginLine note={note} isEditing={isEditing} />
           </div>
         )}
       </div>

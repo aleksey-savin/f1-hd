@@ -17,6 +17,8 @@ const SEARCH_FIELDS = [
   "users",
   "approved",
   "approvedAt",
+  "agent",
+  "updatedAt",
   "archivedAt",
   "pendingDeletion",
   "pendingArchive",

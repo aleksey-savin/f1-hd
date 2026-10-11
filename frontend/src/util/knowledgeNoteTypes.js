@@ -7,6 +7,7 @@ import {
   RiArchiveLine,
   RiDeleteBin6Line,
   RiShieldKeyholeLine,
+  RiRobot2Line,
 } from "react-icons/ri";
 
 import { formatShortDate } from "./format-date";
@@ -168,6 +169,15 @@ export const getNoteFlags = (note, { approvalPeriodDays = 0 } = {}) => {
       icon: RiArchiveLine,
       tone: "faint",
       title: "Ожидает архивации",
+    });
+  }
+  // Происхождение, а не состояние: идёт после всех флагов и приглушено.
+  if (note.agent?.keyId) {
+    flags.push({
+      key: "agent",
+      icon: RiRobot2Line,
+      tone: "faint",
+      title: "Записал ИИ-агент",
     });
   }
 

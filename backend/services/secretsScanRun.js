@@ -13,9 +13,10 @@ const runSecretsScan = async () => {
     return;
   }
 
+  // agent.keyId нужен scanNote: заметку агента он сканирует без пометок портала
   const notes = await KnowledgeNote.find(
     {},
-    { title: 1, plainText: 1, "secretsScan.ignoredHashes": 1 },
+    { title: 1, plainText: 1, "agent.keyId": 1, "secretsScan.ignoredHashes": 1 },
   ).lean();
 
   const scannedAt = new Date();

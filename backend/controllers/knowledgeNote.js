@@ -11,7 +11,10 @@ const {
   getModerationCounts,
   ZERO_COUNTS,
 } = require("../services/knowledgeModerationCounts");
-const { canViewNote } = require("../helpers/knowledgeNoteVisibility");
+const {
+  canViewNote,
+  isUnverifiedAgentDraft,
+} = require("../helpers/knowledgeNoteVisibility");
 
 // Конфиг модерации для проверки видимости: флаг скрытия неодобренных заметок
 // и признак поиска секретов. Кто модератор — решает право `knowledge.moderate`
@@ -31,6 +34,7 @@ const getKbConfig = async () => {
 // в интерфейсе висел бы голый id до перезагрузки страницы.
 // В getAll не подтягиваем: список показывает только иконку проверки, не имена.
 const ACTOR_PATHS = [
+  "createdBy",
   "approvedBy",
   "updatedBy",
   "pendingDeletionBy",
@@ -38,56 +42,12 @@ const ACTOR_PATHS = [
   "archivedBy",
 ].map((path) => ({ path, select: "firstName lastName" }));
 
-const NOTE_TYPES = ["info", "backlog", "instructions"];
-
-// Приводит тип заметки к допустимому значению (некорректное/пустое → "info")
-const normalizeType = (type) => (NOTE_TYPES.includes(type) ? type : "info");
-
-// Превращает массив id компаний в denormalized-массив для заметки
-const buildCompanies = async (ids = []) => {
-  const list = [];
-  for (const id of ids) {
-    if (!id) continue;
-    const company = await Company.findById(id);
-    if (company) {
-      list.push({ _id: company._id, alias: company.alias });
-    }
-  }
-  return list;
-};
-
-// Превращает массив id пользователей в denormalized-массив (с компанией пользователя)
-const buildUsers = async (ids = []) => {
-  const list = [];
-  for (const id of ids) {
-    if (!id) continue;
-    const user = await User.findById(id);
-    if (user) {
-      list.push({
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        company: user.company
-          ? { _id: user.company._id, alias: user.company.alias }
-          : undefined,
-      });
-    }
-  }
-  return list;
-};
-
-// Превращает массив id категорий заявок в denormalized-массив
-const buildCategories = async (ids = []) => {
-  const list = [];
-  for (const id of ids) {
-    if (!id) continue;
-    const category = await TicketCategory.findById(id);
-    if (category) {
-      list.push({ _id: category._id, title: category.title });
-    }
-  }
-  return list;
-};
+const {
+  normalizeType,
+  buildCompanies,
+  buildUsers,
+  buildCategories,
+} = require("../helpers/knowledgeNoteBindings");
 
 // Что список НЕ получает. Раньше отдавали plainText, потому что поиск жил на
 // клиенте: на двух сотнях статей это мегабайты при каждом заходе в раздел.
@@ -924,17 +884,20 @@ exports.getServiceExpiry = async (req, res, next) => {
         companies: 1,
         users: 1,
         approved: 1,
+        "agent.keyId": 1,
       },
     ).lean();
 
     // Клиента через canViewNote не пропустить — он первым делом требует
     // canReadKnowledge, которого у клиента нет. Для него правило своё и
     // узкое: только своя компания, и неодобренное скрывается, если так
-    // настроено. Для сотрудника правило не дублируем — оно уже написано.
+    // настроено; непроверенный черновик ИИ-агента скрыт всегда (как в
+    // canViewNote). Для сотрудника правило не дублируем — оно уже написано.
     const notes = ownCompanyId
       ? allNotes.filter(
           (note) =>
             (!hideNotApproved || note.approved === true) &&
+            !isUnverifiedAgentDraft(note) &&
             (note.companies || []).some(
               (company) =>
                 company._id?.toString() === ownCompanyId.toString(),

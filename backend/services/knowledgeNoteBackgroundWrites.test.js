@@ -72,6 +72,29 @@ test("hourly secrets scan does not stamp updatedAt", async (t) => {
   assert.doesNotMatch(JSON.stringify(calls[0].ops), /updatedAt/);
 });
 
+// Заметку агента крон сканирует в копии без пометок портала — как инструмент
+// записи и пересчёт перед сохранением; для этого в проекции нужен agent.keyId.
+test("hourly secrets scan does not flag the helpdesk's markers in an agent's note", async (t) => {
+  withPreferences(t, { scanForSecrets: true });
+  const plainText = "Доступ: password: [скрыто], логин: [e-mail]";
+  const projections = [];
+  t.mock.method(KnowledgeNote, "find", (filter, projection) => {
+    projections.push(projection);
+    return leanQuery([
+      note(4, { title: "Роутер", plainText, agent: { keyId: new Types.ObjectId("66aa000000000000000000aa") } }),
+      note(5, { title: "Роутер", plainText }),
+      note(6, { title: "Роутер", plainText: "password: [скрыто]R00tP@ss123", agent: { keyId: new Types.ObjectId("66aa000000000000000000aa") } }),
+    ]);
+  });
+  const calls = captureBulkWrite(t);
+
+  await runSecretsScan();
+
+  assert.equal(projections[0]["agent.keyId"], 1);
+  const flagged = calls[0].ops.map((op) => op.updateOne.update.$set["secretsScan.flagged"]);
+  assert.deepEqual(flagged, [false, true, true]);
+});
+
 test("daily service-expiry scan does not stamp updatedAt", async (t) => {
   withPreferences(t, { trackServiceExpiry: true });
   t.mock.method(KnowledgeNote, "find", () =>

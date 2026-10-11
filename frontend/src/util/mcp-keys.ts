@@ -7,15 +7,62 @@ export type AgentKeysStatus =
   | { state: "warning"; title: string; hint: string }
   | { state: "ok"; title: string; at: string };
 
-// Названия доступов — они же порядок, в котором доступы ключа перечисляются
-// везде (строка списка, диалоги). Совпадает с backend MCP_SCOPES.
-export const MCP_SCOPE_LABELS: Record<McpScope, string> = {
-  knowledge: "База знаний",
-  tickets: "Заявки",
-  companies: "Компании",
-  users: "Пользователи",
-  mikrotik: "Mikrotik",
-  mikrotikChanges: "Изменения Mikrotik",
+export type McpResource = {
+  key: string;
+  label: string;
+  /** «к чему» — для фразы об утрате доступа при удалении ключа */
+  dative: string;
+  read: McpScope;
+  write?: McpScope;
+};
+
+// Ресурсы и порядок, в котором доступ ключа показывается везде (флажки,
+// строка списка, диалоги). «Запись» есть только там, где у агента есть
+// инструменты записи; хранятся доступы прежними строками (backend MCP_SCOPES).
+export const MCP_RESOURCES: McpResource[] = [
+  { key: "knowledge", label: "База знаний", dative: "базе знаний", read: "knowledge", write: "knowledgeWrite" },
+  { key: "tickets", label: "Заявки", dative: "заявкам", read: "tickets" },
+  { key: "companies", label: "Компании", dative: "компаниям", read: "companies" },
+  { key: "users", label: "Пользователи", dative: "пользователям", read: "users" },
+  { key: "mikrotik", label: "Mikrotik", dative: "Mikrotik", read: "mikrotik", write: "mikrotikChanges" },
+];
+
+const SCOPE_ORDER: McpScope[] = MCP_RESOURCES.flatMap(({ read, write }) => (write ? [read, write] : [read]));
+
+// Порядок ресурсов, чужие значения — в хвосте как пришли
+const inResourceOrder = (scopes: Set<McpScope>): McpScope[] => [
+  ...SCOPE_ORDER.filter((item) => scopes.has(item)),
+  ...[...scopes].filter((item) => !SCOPE_ORDER.includes(item)),
+];
+
+/**
+ * Флажок доступа: «Запись» без «Чтения» агенту бесполезна, поэтому запись
+ * включает чтение, а снятое чтение снимает запись.
+ */
+export const toggleScope = (scopes: McpScope[], scope: McpScope, checked: boolean): McpScope[] => {
+  const resource = MCP_RESOURCES.find(({ read, write }) => read === scope || write === scope);
+  const next = new Set(scopes);
+  if (checked) {
+    next.add(scope);
+    if (resource?.write === scope) next.add(resource.read);
+  } else {
+    next.delete(scope);
+    if (resource?.read === scope && resource.write) next.delete(resource.write);
+  }
+  return inResourceOrder(next);
+};
+
+/**
+ * Доступы перед отправкой на сервер: каждой «Записи» — её «Чтение». Флажки
+ * такого и так не дают; ключ с одной записью бывает только сохранённым раньше —
+ * диалог показывает его как есть, а сохранение приводит к правилу.
+ */
+export const withReadForWrite = (scopes: McpScope[]): McpScope[] => {
+  const next = new Set(scopes);
+  MCP_RESOURCES.forEach(({ read, write }) => {
+    if (write && next.has(write)) next.add(read);
+  });
+  return inResourceOrder(next);
 };
 
 // «а, б и в»
@@ -30,38 +77,33 @@ const joinList = (items: string[]): string =>
 const normalizeScopes = (scopes?: McpScope[] | null): McpScope[] =>
   scopes && scopes.length ? scopes : ["knowledge"];
 
-const orderedScopes = (scopes?: McpScope[] | null): McpScope[] => {
+const heldResources = (scopes?: McpScope[] | null) => {
   const given = normalizeScopes(scopes);
-  return (Object.keys(MCP_SCOPE_LABELS) as McpScope[]).filter((scope) =>
-    given.includes(scope),
-  );
+  return MCP_RESOURCES.map((resource) => ({
+    resource,
+    read: given.includes(resource.read),
+    write: Boolean(resource.write && given.includes(resource.write)),
+  })).filter(({ read, write }) => read || write);
 };
 
-/** «база знаний, заявки и Mikrotik» — доступ ключа словами, в строке списка. */
+/** Первая буква строчная; имя собственное «Mikrotik» остаётся с заглавной. */
+export const lowerFirst = (text: string): string =>
+  text.startsWith("Mikrotik") ? text : text.replace(/^./, (first) => first.toLowerCase());
+
+/** «база знаний (чтение и запись), заявки и Mikrotik (чтение)» — доступ ключа словами. */
 export const scopeAccessLabel = (scopes?: McpScope[] | null): string =>
   joinList(
-    orderedScopes(scopes).map((scope) =>
-      // Имя собственное остаётся с заглавной; «Изменения Mikrotik» теряет
-      // заглавную только у первого слова
-      scope === "mikrotik"
-        ? MCP_SCOPE_LABELS[scope]
-        : MCP_SCOPE_LABELS[scope].replace(/^./, (first) => first.toLowerCase()),
-    ),
+    heldResources(scopes).map(({ resource, read, write }) => {
+      const name = lowerFirst(resource.label);
+      // У ресурса без записи уточнять нечего
+      if (!resource.write) return name;
+      return `${name} (${read && write ? "чтение и запись" : write ? "запись" : "чтение"})`;
+    }),
   );
-
-// Дательный падеж нужен только для фразы об утрате доступа при удалении.
-const SCOPE_DATIVE: Record<McpScope, string> = {
-  knowledge: "базе знаний",
-  tickets: "заявкам",
-  companies: "компаниям",
-  users: "пользователям",
-  mikrotik: "Mikrotik",
-  mikrotikChanges: "изменениям Mikrotik",
-};
 
 /** «к базе знаний, заявкам и Mikrotik» — что теряет агент при удалении ключа. */
 export const scopeLossPhrase = (scopes?: McpScope[] | null): string =>
-  `к ${joinList(orderedScopes(scopes).map((scope) => SCOPE_DATIVE[scope]))}`;
+  `к ${joinList(heldResources(scopes).map(({ resource }) => resource.dative))}`;
 
 /**
  * Одна строка состояния под ключами — самое важное из трёх:
@@ -89,7 +131,7 @@ export const agentKeysStatus = ({
     return {
       state: "warning",
       title: "Поиск секретов выключен",
-      hint: "Агенты с доступом к базе знаний получают все проверенные заметки: пароли и ключи в них никто не ищет. Поиск включается в разделе «База знаний».",
+      hint: "Агенты с доступом к базе знаний получают все проверенные заметки и черновики агентов: пароли и ключи в них никто не ищет. Поиск включается в разделе «База знаний».",
     };
   }
 

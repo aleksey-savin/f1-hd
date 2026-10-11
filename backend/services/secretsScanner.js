@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { withoutMarkers } = require("./portalMarkers");
 
 // Поиск утечек секретов в заметках базы знаний без ИИ — только регулярные
 // выражения и оценка энтропии Шеннона. Корпус правил основан на общеизвестных
@@ -21,8 +22,11 @@ const PATTERN_RULES = [
   { id: "github-token", regex: /\bgh[pousr]_[0-9A-Za-z]{36,}\b/g },
   {
     id: "jwt",
+    // Слева — не «\b», а «не знак самого токена»: «-» входит в алфавит токена, и
+    // на «-eyJ»×N граница слова была перед каждым «eyJ» — от каждой текст читался
+    // до конца (квадратичное время, секунды на 40 000 знаков).
     regex:
-      /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+      /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
   },
   {
     id: "generic-api-key",
@@ -239,13 +243,21 @@ const redactSecrets = (text) => {
 
 // Сканирует заметку (заголовок + plainText без markdown-разметки).
 // ignoredHashes — список «не секрет» из note.secretsScan.ignoredHashes.
+//
+// Заметку, написанную ИИ-агентом (note.agent.keyId), сканируем в копии без
+// пометок портала ([скрыто], [e-mail] … — portalMarkers.js): ту же копию
+// проверяет инструмент записи, и принятое им не должно помечаться здесь. Правило
+// живёт в scanNote, чтобы его нельзя было пропустить в одном из вызовов; тому,
+// кто читает заметки с проекцией полей, нужно поле agent.keyId. Заметки людей
+// сканируются как есть. Меняется только копия для сканера, не сама заметка.
 const scanNote = (note, ignoredHashes = []) => {
   if (!note) {
     return [];
   }
+  const seen = note.agent?.keyId ? withoutMarkers : (text) => text;
   const findings = [
-    ...scanText(note.title, "title", ignoredHashes),
-    ...scanText(note.plainText, "content", ignoredHashes),
+    ...scanText(seen(note.title), "title", ignoredHashes),
+    ...scanText(seen(note.plainText), "content", ignoredHashes),
   ];
   // Ограничиваем размер, чтобы не раздувать документ на «бинарных» заметках
   return findings.slice(0, 25);

@@ -71,6 +71,15 @@ const knowledgeNoteSchema = new Schema(
       ref: "User",
       required: false,
     },
+    // Заметку завёл ИИ-агент по MCP (services/mcp/knowledgeWriteTools.js).
+    // Ставится при создании и не снимается никогда, даже после правки
+    // человеком: по этой отметке агент видит заметку до проверки и может её
+    // править. keyName — снимок: ключ могут удалить.
+    agent: {
+      keyId: { type: Schema.Types.ObjectId, ref: "McpKey" },
+      keyName: String,
+      at: Date,
+    },
     // Модерация: заметка создаётся неодобренной и требует одобрения модератора.
     // Существующие заметки (без поля approved) тоже считаются неодобренными —
     // в коде проверяем approved !== true (бэкфилл 2026-06 проставил им

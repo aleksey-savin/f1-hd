@@ -17,6 +17,13 @@ const getAccessibleCompanyIds = (authedUser) => {
   return [...new Set(ids)];
 };
 
+// Заметка заведена ИИ-агентом по MCP (отметка `agent.keyId`) и не проверена
+// человеком. Такие не показываются клиентам и не идут в ИИ-контекст заявки
+// (services/knowledgeBaseContext.js). Запрос, чей результат сюда приходит,
+// обязан выбирать `agent` и `approved`.
+const isUnverifiedAgentDraft = (note) =>
+  Boolean(note?.agent?.keyId) && note.approved !== true;
+
 // Может ли сотрудник видеть заметку базы знаний.
 // Без права knowledge.read заметки недоступны; носитель knowledge.manage видит
 // все. Остальные — по пересечению связей заметки (категории / компании /
@@ -64,6 +71,11 @@ const canViewNote = (note, auth, kbConfig = {}) => {
   if (authedUser.isEndUser) {
     const companyId = authedUser.company?._id?.toString();
     if (!companyId) {
+      return false;
+    }
+    // Черновик ИИ-агента клиенту не показываем, пока его не проверил человек —
+    // и при выключенном «скрывать непроверенные»: текст писал не сотрудник
+    if (isUnverifiedAgentDraft(note)) {
       return false;
     }
     return (note.companies || []).some(
@@ -117,4 +129,4 @@ const canViewNote = (note, auth, kbConfig = {}) => {
   return false;
 };
 
-module.exports = { getAccessibleCompanyIds, canViewNote };
+module.exports = { getAccessibleCompanyIds, canViewNote, isUnverifiedAgentDraft };

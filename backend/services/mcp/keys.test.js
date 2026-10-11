@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const express = require("express");
 
-const { issueMcpKey, toKeyRow, normalizeScopes } = require("./keys");
+const { issueMcpKey, toKeyRow, normalizeScopes, MCP_SCOPES } = require("./keys");
 const { createRequireMcpKey } = require("../../middleware/requireMcpKey");
 
 /**
@@ -105,4 +105,13 @@ test("scopes: known values in a fixed order, a key without scopes reads knowledg
   assert.deepEqual(normalizeScopes(["mikrotikChanges", "x"]), ["mikrotikChanges"]);
   assert.deepEqual(normalizeScopes(undefined), ["knowledge"]);
   assert.deepEqual(normalizeScopes([]), ["knowledge"]);
+});
+
+test("knowledgeWrite is a known scope, ordered right after knowledge", () => {
+  assert.deepEqual([...MCP_SCOPES], ["knowledge", "knowledgeWrite", "tickets", "companies", "users", "mikrotik", "mikrotikChanges"]);
+  assert.deepEqual(normalizeScopes(["mikrotik", "knowledgeWrite", "knowledge"]), ["knowledge", "knowledgeWrite", "mikrotik"]);
+});
+
+test("a write-only key is kept as stored, not widened to reading", () => {
+  assert.deepEqual(normalizeScopes(["knowledgeWrite"]), ["knowledgeWrite"]);
 });

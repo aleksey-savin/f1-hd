@@ -325,15 +325,12 @@ const mongoStore = {
     const d = hits[0];
     return { device: { _id: d._id, name: d.name || d.label, responsibleId: d.responsibleId || null } };
   },
-  // Сотрудник (не клиент, не служебная учётка), не заблокирован, Telegram привязан и активен;
-  // двое с одним id — отказ, а не выбор наугад
+  // Сотрудник за Telegram id — общее правило с записью в базу знаний (services/mcp/requester.js)
   async findUserByTelegram(id) {
-    const User = require("@/models/user");
-    const { isBanned } = require("@/services/authBan");
-    const users = await User.find({ "telegramBot.chatId": String(id), "telegramBot.isActive": true, isEndUser: false, isServiceAccount: { $ne: true } }).limit(10).lean();
-    const fit = users.filter((u) => !isBanned(u) && String(u.telegramBot?.chatId) === String(id));
-    if (fit.length > 1) return { error: "more than one employee has this Telegram id" };
-    return fit[0] ? { _id: fit[0]._id, name: fit[0].name } : null;
+    const { findStaffByTelegram } = require("@/services/mcp/requester");
+    const user = await findStaffByTelegram(id);
+    if (!user || user.error) return user;
+    return { _id: user._id, name: user.name };
   },
   // Право держит действующий сотрудник; по ролям считает canFor (полный документ обязателен)
   async canApprove(userId) {

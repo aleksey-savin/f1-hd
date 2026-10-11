@@ -31,11 +31,14 @@ import { cn } from "@/lib/utils";
 import useToastStore from "@/store/toast-store";
 import { formatAgo, formatShortDate } from "@/util/format-date";
 import {
-  MCP_SCOPE_LABELS,
+  MCP_RESOURCES,
   agentKeysStatus,
+  lowerFirst,
   openClawConfig,
   scopeAccessLabel,
   scopeLossPhrase,
+  toggleScope,
+  withReadForWrite,
 } from "@/util/mcp-keys";
 
 // «Доступ ИИ-агентов» в секции «Интеграции»: ключи, по которым агенты
@@ -64,17 +67,20 @@ const copyText = async (text) => {
   }
 };
 
+// Подсказки по доступам: у чтения — что агент видит, у записи — что делает.
 const SCOPE_HINTS = {
-  knowledge: "Проверенные заметки без найденных секретов.",
+  knowledge: "Проверенные заметки без найденных секретов и черновики агентов.",
+  knowledgeWrite:
+    "Агент создаёт заметки и правит свои. Они ждут проверки модератором.",
   tickets:
     "Заявки с комментариями, работами и техникой; телефоны, почта и пароли скрыты.",
   companies: "Названия, подразделения и число людей. Без адресов и контактов.",
   users:
-    "Имя, компания, подразделение, должность и состояние учётной записи. Без почты, телефонов и Telegram.",
+    "Имя, компания, должность и состояние учётной записи. Без контактов.",
   mikrotik:
     "Устройства, доступность, прошивки и конфигурация. Пароли и ключи скрыты.",
   mikrotikChanges:
-    "Агент предлагает изменения конфигурации. Применяются только после утверждения человеком.",
+    "Агент предлагает изменения. Применяются после утверждения человеком.",
 };
 
 // Доступ есть, а читать нечего: модуль выключен.
@@ -83,41 +89,91 @@ const MODULE_OFF_HINTS = {
     "Модуль «База знаний» выключен — пока его не включат, заметки агенту не видны.",
   mikrotik:
     "Модуль «Мониторинг Mikrotik» выключен — пока его не включат, устройства агенту не видны.",
-  mikrotikChanges:
-    "Модуль «Мониторинг Mikrotik» выключен — пока его не включат, предложить изменения нельзя.",
 };
 
-// Доступы ключа — одни и те же флажки в «Создать ключ» и «Изменить доступ».
+const GRID = "grid grid-cols-[minmax(0,1fr)_64px_64px]";
+
+// Флажок в ячейке таблицы: метка 44×32 — зона нажатия.
+const ScopeCell = ({ id, scope, label, value, onChange }) => (
+  <label
+    htmlFor={id}
+    className="flex h-8 w-11 cursor-pointer items-center justify-center"
+  >
+    <Checkbox
+      id={id}
+      aria-label={label}
+      checked={value.includes(scope)}
+      onCheckedChange={(checked) =>
+        onChange(toggleScope(value, scope, Boolean(checked)))
+      }
+    />
+  </label>
+);
+
+// Доступы ключа — одни и те же флажки в «Создать ключ» и «Изменить доступ»:
+// таблица, строка на ресурс; «Чтение» и «Запись» там, где запись у агента есть.
 const ScopeChecks = ({ idPrefix, value, onChange, modulesOn }) => (
-  <div role="group" aria-label="Доступ" className="flex flex-col gap-3">
-    {Object.entries(MCP_SCOPE_LABELS).map(([scope, label]) => (
-      <label
-        key={scope}
-        htmlFor={`${idPrefix}-${scope}`}
-        className="flex cursor-pointer items-start gap-2.5"
-      >
-        <Checkbox
-          id={`${idPrefix}-${scope}`}
-          checked={value.includes(scope)}
-          onCheckedChange={(checked) =>
-            onChange(
-              checked ? [...value, scope] : value.filter((item) => item !== scope),
-            )
-          }
-          className="mt-0.5"
-        />
-        <span>
-          <span className="block text-sm font-semibold">{label}</span>
+  <div
+    role="group"
+    aria-label="Доступ"
+    className="overflow-hidden rounded-lg border border-border-soft"
+  >
+    <div
+      className={cn(
+        GRID,
+        "items-center bg-muted py-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase",
+      )}
+    >
+      <div className="px-3">Ресурс</div>
+      <div className="text-center">Чтение</div>
+      <div className="text-center">Запись</div>
+    </div>
+    {MCP_RESOURCES.map((resource) => (
+      <div key={resource.key} className={cn(GRID, "border-t border-border-soft")}>
+        <div className="min-w-0 px-3 py-2.5">
+          <span className="block font-semibold">{resource.label}</span>
           <span className="block text-sm text-muted-foreground">
-            {SCOPE_HINTS[scope]}
+            {SCOPE_HINTS[resource.read]}
           </span>
-          {MODULE_OFF_HINTS[scope] && !modulesOn[scope] && (
-            <span className="mt-0.5 block text-sm text-warning">
-              {MODULE_OFF_HINTS[scope]}
+          {resource.write && (
+            <span className="block text-sm">
+              Запись: {lowerFirst(SCOPE_HINTS[resource.write])}
             </span>
           )}
-        </span>
-      </label>
+          {MODULE_OFF_HINTS[resource.read] && !modulesOn[resource.read] && (
+            <span className="block text-sm text-warning">
+              {MODULE_OFF_HINTS[resource.read]}
+            </span>
+          )}
+        </div>
+        <div className="flex justify-center py-2.5">
+          <ScopeCell
+            id={`${idPrefix}-${resource.read}`}
+            scope={resource.read}
+            label={`${resource.label}: чтение`}
+            value={value}
+            onChange={onChange}
+          />
+        </div>
+        <div className="flex justify-center py-2.5">
+          {resource.write ? (
+            <ScopeCell
+              id={`${idPrefix}-${resource.write}`}
+              scope={resource.write}
+              label={`${resource.label}: запись`}
+              value={value}
+              onChange={onChange}
+            />
+          ) : (
+            <span
+              className="flex h-8 w-11 items-center justify-center text-faint"
+              aria-hidden="true"
+            >
+              —
+            </span>
+          )}
+        </div>
+      </div>
     ))}
   </div>
 );
@@ -126,7 +182,6 @@ const McpKeys = ({ scanForSecrets, knowledgeModuleOn, mikrotikModuleOn }) => {
   const modulesOn = {
     knowledge: knowledgeModuleOn,
     mikrotik: mikrotikModuleOn,
-    mikrotikChanges: mikrotikModuleOn,
   };
   const showToast = useToastStore((state) => state.showToast);
 
@@ -177,7 +232,7 @@ const McpKeys = ({ scanForSecrets, knowledgeModuleOn, mikrotikModuleOn }) => {
     try {
       const created = await api("/api/preferences/mcp-keys", {
         method: "POST",
-        body: { name, scopes },
+        body: { name, scopes: withReadForWrite(scopes) },
       });
       const { value, ...row } = created.key;
       setData((current) => ({
@@ -199,7 +254,12 @@ const McpKeys = ({ scanForSecrets, knowledgeModuleOn, mikrotikModuleOn }) => {
     try {
       const result = await api("/api/preferences/mcp-keys/update", {
         method: "POST",
-        body: { _id: scopeTarget.key._id, scopes: scopeTarget.scopes },
+        // Ключ с одной «Записью» (сохранён до правила) открыт в диалоге как есть;
+        // на сервер уходит уже с чтением
+        body: {
+          _id: scopeTarget.key._id,
+          scopes: withReadForWrite(scopeTarget.scopes),
+        },
       });
       setData((current) => ({
         ...current,
