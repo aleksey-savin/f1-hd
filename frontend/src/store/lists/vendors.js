@@ -24,7 +24,7 @@ const vendorFilter = (state) => {
 const searchItems = (query, items) => {
   if (!query) return items;
 
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
+  // Split the query into individual terms (e.g., "Анна Иванова" becomes ["Анна", "Иванова"])
   const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
 
   return items.filter((item) => {

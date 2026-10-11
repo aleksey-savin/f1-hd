@@ -3,11 +3,12 @@
 # HD — deployment on one Linux host (Debian/Ubuntu or Fedora/RHEL family).
 #
 #   ./deploy.sh                 install or update: Docker if missing, .env with
-#                               generated secrets, build, backup, migrate, start
+#                               generated secrets, build or pull images,
+#                               backup, migrate, start
 #   ./deploy.sh backup          mongodump + uploads → backups/<timestamp>/
 #   ./deploy.sh restore DIR     load a backup into this installation
 #   ./deploy.sh migrate ARGS    status | up | baseline <id> | mark <id>
-#   ./deploy.sh status          containers and health
+#   ./deploy.sh status          build, containers and health
 #   ./deploy.sh logs [service]  follow logs
 #   ./deploy.sh env             only create/repair .env
 #
@@ -21,7 +22,7 @@ log() { printf '\n== %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 dc()  { docker compose -f compose.yml "$@"; }
 
-usage() { sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'; }
 
 # --- prerequisites ----------------------------------------------------------
 
@@ -32,6 +33,17 @@ need_tools() {
   done
 }
 
+# compose.yml gives every image build a named context (`additional_contexts`),
+# which Docker Compose reads since 2.17. Takes `docker compose version --short`
+# ("2.20.2", "v2.20.2", "2.39.1-desktop.1"); fails only for a version that
+# parses and is lower. A string that does not parse is not judged.
+compose_version_ok() {
+  local version=${1#v}
+  [[ "$version" =~ ^([0-9]+)\.([0-9]+) ]] || return 0
+  local major=$((10#${BASH_REMATCH[1]})) minor=$((10#${BASH_REMATCH[2]}))
+  [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 17 ]; }
+}
+
 ensure_docker() {
   if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
     [ "$(id -u)" = 0 ] || die "Docker (with the compose plugin) is missing; run this script as root once to install it"
@@ -40,11 +52,19 @@ ensure_docker() {
     systemctl enable --now docker >/dev/null 2>&1 || true
   fi
   docker info >/dev/null 2>&1 || die "cannot talk to the Docker daemon: run as root or add yourself to the docker group"
+  local compose_version
+  compose_version=$(docker compose version --short 2>/dev/null || true)
+  compose_version_ok "$compose_version" \
+    || die "Docker Compose 2.17 or newer is required (found $compose_version): compose.yml uses named build contexts. Update the docker-compose-plugin package and run ./deploy.sh again."
 }
 
 # --- .env -------------------------------------------------------------------
 
+# Always the literal .env: Docker Compose reads that file and nothing else, so
+# the script must not be pointed elsewhere from the operator's environment.
+# Only a test that loads the functions (DEPLOY_SH_SOURCED=1) may redirect it.
 ENV_FILE=.env
+if [ "${DEPLOY_SH_SOURCED:-}" = 1 ]; then ENV_FILE=${DEPLOY_TEST_ENV_FILE:-.env}; fi
 
 # Value of a key in $ENV_FILE, surrounding quotes stripped. Empty when absent.
 env_get() {
@@ -210,15 +230,125 @@ to $ENV_FILE (the text inside the brackets before the last hyphen and the number
 and run ./deploy.sh again. Nothing has been built or restarted."
 }
 
+# --- images: built here or pulled -------------------------------------------
+
+# IMAGE_REGISTRY of .env without trailing slashes; a value of slashes only is
+# no registry. The one reading of the key: mode and prefix cannot disagree.
+image_registry() {
+  local registry
+  registry=$(env_get IMAGE_REGISTRY)
+  while [ "${registry%/}" != "$registry" ]; do registry=${registry%/}; done
+  printf '%s' "$registry"
+}
+
+# "pull" when IMAGE_REGISTRY is set in .env, "build" otherwise.
+image_mode() {
+  if [ -n "$(image_registry)" ]; then echo pull; else echo build; fi
+}
+
+# compose.yml names the images ${IMAGE_PREFIX}backend:${IMAGE_TAG}. The prefix
+# is derived here and kept in .env, so that a plain `docker compose ps|up|logs`
+# sees the same names as this script (the way SENTRY_CSP_ORIGIN is kept).
+#   build mode: hd-backend:latest — the name compose gave these images before
+#   pull mode:  <IMAGE_REGISTRY>/backend:<IMAGE_TAG>
+ensure_image_source() {
+  local registry tag
+  registry=$(image_registry)
+  tag=$(env_get IMAGE_TAG)
+  if [ -z "$registry" ]; then
+    [ -z "$tag" ] || die "IMAGE_TAG=$tag is set but IMAGE_REGISTRY is empty: set both to run pulled images, or clear IMAGE_TAG to build here"
+    env_set IMAGE_PREFIX hd-
+    return 0
+  fi
+  case "$registry" in
+    *[!A-Za-z0-9._:/-]*) die "IMAGE_REGISTRY has characters a registry path cannot have: '$registry'" ;;
+  esac
+  [ -n "$tag" ] || die "IMAGE_REGISTRY is set, so IMAGE_TAG must name the release to run (for example IMAGE_TAG=2.1.0)"
+  [ "$tag" != latest ] || die "IMAGE_TAG=latest is not accepted: name a release, so that an update is a decision and a rollback is possible"
+  case "$tag" in
+    *[!A-Za-z0-9._-]*) die "IMAGE_TAG has characters an image tag cannot have: '$tag'" ;;
+  esac
+  env_set IMAGE_PREFIX "$registry/"
+}
+
+# Version and commit of the tree being built; passed to the image builds.
+# A tree that is a git checkout but whose commit cannot be read (no git on the
+# host, or git refuses the repository — "dubious ownership" under another
+# user) is built as <version>+dev, and that is said aloud: browsers compare
+# build ids, and a build that is +dev again does not look new to them.
+build_identity() {
+  local git_error=""
+  APP_VERSION=dev; APP_COMMIT=dev
+  [ -f VERSION ] && APP_VERSION=$(tr -d '[:space:]' < VERSION)
+  if ! command -v git >/dev/null 2>&1; then
+    git_error="git is not installed"
+  elif ! git_error=$(git rev-parse --git-dir 2>&1 >/dev/null); then
+    git_error=$(printf '%s\n' "$git_error" | head -n 1)
+    git_error=${git_error:-git rev-parse failed}
+  else
+    git_error=""
+    APP_COMMIT=$(git rev-parse --short=12 HEAD)
+    [ -z "$(git status --porcelain 2>/dev/null)" ] || APP_COMMIT="$APP_COMMIT.dirty"
+  fi
+  if [ -n "$git_error" ] && [ -e .git ]; then
+    echo "warning: cannot read the commit from git ($git_error): the build is labelled $APP_VERSION+dev, and open tabs will not be told about this update" >&2
+  fi
+  export APP_VERSION APP_COMMIT
+}
+
+# Application services of this installation, one per line: the images that are
+# pulled and then checked. tg-service only with the telegram profile.
+image_services() {
+  echo backend
+  echo frontend
+  if [ "$(env_get COMPOSE_PROFILES)" = telegram ]; then echo tg-service; fi
+}
+
+# Pull the application images and make sure each one is on this host. Compose's
+# exit code is not enough: for a service that also has `build:` some versions
+# only warn that the image "must be built from source" and exit 0.
+pull_images() {
+  local prefix tag service services=()
+  prefix=$(env_get IMAGE_PREFIX); tag=$(env_get IMAGE_TAG)
+  mapfile -t services < <(image_services)
+  dc pull "${services[@]}" \
+    || die "cannot pull $prefix*:$tag: check IMAGE_TAG, the registry login (docker login) and the network; nothing was stopped"
+  for service in "${services[@]}"; do
+    docker image inspect "$prefix$service:$tag" >/dev/null 2>&1 \
+      || die "image $prefix$service:$tag is not on this host after the pull: check IMAGE_TAG, the registry login (docker login) and the network; nothing was stopped"
+  done
+}
+
+# "2.1.0+3f2a9c1d07be" of the backend that runs now; empty when none runs or
+# the image predates build identities.
+running_build() {
+  dc exec -T backend cat /app/build-info.json 2>/dev/null \
+    | sed -n 's/.*"version":"\([^"]*\)","commit":"\([^"]*\)".*/\1+\2/p' || true
+}
+
+# The running build for the log and for `status`, given running_build's output:
+# the build id; "unknown (…)" when a backend runs but its image has no
+# build-info.json; "nothing" when no backend runs.
+running_build_label() {
+  if [ -n "$1" ]; then
+    printf '%s' "$1"
+  elif [ -n "$(dc ps -q backend 2>/dev/null | head -n 1)" ]; then
+    printf 'unknown (image predates build identities)'
+  else
+    printf 'nothing'
+  fi
+}
+
 ensure_env() {
   # "Existing" = configured by an earlier run: the database password is there.
   local existing=no
   [ -n "$(env_get MONGODB_PASSWORD)" ] && existing=yes
-  [ -f .env ] || : > .env
-  chmod 600 .env
+  [ -f "$ENV_FILE" ] || : > "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
   ensure_mail_mode "$existing"
   ensure_subject_prefix "$existing"
   ensure_sentry_origin
+  ensure_image_source
   [ -n "$(env_get MONGODB_USERNAME)" ]   || env_set MONGODB_USERNAME hd
   [ -n "$(env_get MONGODB_DATABASE)" ]   || env_set MONGODB_DATABASE hd
   [ -n "$(env_get MONGODB_PASSWORD)" ]   || env_set MONGODB_PASSWORD "$(openssl rand -hex 24)"
@@ -351,12 +481,24 @@ migrate() {
 
 deploy() {
   need_tools; ensure_docker; ensure_env; require_subject_prefix; load_env
+  # Pulled images are never rebuilt by `up`, even if a source tree is here.
+  local up_flags=(); [ "$(image_mode)" = pull ] && up_flags=(--no-build)
   tag_previous
   ensure_volumes
-  log "Building images"
-  dc build --pull
+  local before; before=$(running_build_label "$(running_build)")
+  if [ "$(image_mode)" = pull ]; then
+    log "Pulling images: $(env_get IMAGE_PREFIX)*:$(env_get IMAGE_TAG) (running now: $before)"
+    # Only the application images: MongoDB is pinned in compose.yml and is not
+    # re-pulled by an update. A failed pull stops here, before anything else.
+    pull_images
+  else
+    [ -f backend/Dockerfile ] || die "no source tree here: set IMAGE_REGISTRY and IMAGE_TAG in .env to run pulled images"
+    build_identity
+    log "Building images: $APP_VERSION+$APP_COMMIT (running now: $before)"
+    dc build --pull
+  fi
   log "Starting MongoDB"
-  dc up -d --wait mongodb
+  dc up -d --wait "${up_flags[@]}" mongodb
   if db_is_empty; then
     log "Empty database: the first start creates the administrator"
   else
@@ -379,10 +521,14 @@ deploy() {
     *) die "migrations cannot run (see above): ./deploy.sh migrate status" ;;
   esac
   log "Starting services"
-  dc up -d --wait --remove-orphans mongodb backend frontend
+  dc up -d --wait --remove-orphans "${up_flags[@]}" mongodb backend frontend
   smoke_test
   echo
-  echo "Application is up: $(env_get APP_PUBLIC_URL)"
+  local now; now=$(running_build)
+  echo "Application is up: $(env_get APP_PUBLIC_URL)${now:+ — build $now}"
+  if [ "$(image_mode)" = pull ] && [ -n "$now" ] && [ "${now%%+*}" != "$(env_get IMAGE_TAG)" ]; then
+    echo "warning: the image tagged $(env_get IMAGE_TAG) reports version ${now%%+*}"
+  fi
   dc logs --no-log-prefix backend 2>/dev/null \
     | grep -o 'Пароль администратора сгенерирован: [^ ]*' | tail -n 1 | sed 's/^/   /' || true
   # Telegram is optional and its health depends on the outside world (token,
@@ -390,7 +536,7 @@ deploy() {
   # the same token), so it must not take the deployment down with it.
   if [ "$(env_get COMPOSE_PROFILES)" = telegram ]; then
     log "Starting the Telegram service"
-    if ! dc up -d --wait tg-service; then
+    if ! dc up -d --wait "${up_flags[@]}" tg-service; then
       echo "WARNING: tg-service is not healthy. The app works without it; see: ./deploy.sh logs tg-service"
       echo "         (a bot token can poll Telegram from ONE place only — stop the old bot first)"
     fi
@@ -401,13 +547,16 @@ deploy() {
   docker builder prune -f --keep-storage 4GB >/dev/null 2>&1 || true
 }
 
+# Tests load the functions above without running a command.
+[ "${DEPLOY_SH_SOURCED:-}" = 1 ] && return 0
+
 case "${1:-deploy}" in
   deploy)   deploy ;;
   env)      need_tools; ensure_docker; ensure_env; echo ".env is ready" ;;
   backup)   ensure_docker; backup ;;
   restore)  shift; restore "$@" ;;
   migrate)  shift; migrate "$@" ;;
-  status)   dc ps ;;
+  status)   echo "build: $(running_build_label "$(running_build)")"; dc ps ;;
   logs)     shift; dc logs -f --tail=100 "$@" ;;
   help|-h|--help) usage ;;
   *)        usage; exit 1 ;;

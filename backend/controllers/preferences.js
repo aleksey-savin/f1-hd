@@ -1,8 +1,9 @@
 const fs = require("fs");
 
 const Preferences = require("../models/preferences");
-const User = require("../models/user");
-const Company = require("../models/company");
+// Модели нужны только ради регистрации в mongoose (populate по ref).
+require("../models/user");
+require("../models/company");
 const AiFeedback = require("../models/aiFeedback");
 
 const { AppError } = require("../middleware/errorHandling");

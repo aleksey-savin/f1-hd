@@ -12,6 +12,8 @@ backups, moving an installation, rollback.
 | `compose.dev.yml` | development stack with bind-mounted sources; selected by `COMPOSE_FILE=compose.dev.yml` in the dev machine's `.env` |
 | `.env` / `.env.example` | the only configuration file; `deploy.sh` creates and fills it |
 | `deploy.sh` | install/update, backup, restore, migrations, status, logs |
+| `check.sh` | every quality gate in a container: `./check.sh` (sources), `./check.sh images` (production images) |
+| `VERSION` | the version of the tree; goes into the images as their build identity |
 | `backend/scripts/migrate.js` | ordered list of one-off data migrations plus the `migrations` ledger collection |
 | `*/Dockerfile` | one multi-stage file per service, targets `dev` and `prod` |
 | `frontend/nginx.conf` | nginx inside the frontend image: serves the SPA, proxies `/api` and `/uploads` to the backend |
@@ -28,19 +30,85 @@ network. TLS and the public domain belong to an external reverse proxy.
 ./deploy.sh backup          mongodump + uploads → backups/<timestamp>/
 ./deploy.sh restore DIR     load a backup into this installation
 ./deploy.sh migrate ARGS    status | up | baseline <id> | mark <id>
-./deploy.sh status          docker compose ps
+./deploy.sh status          running build + docker compose ps
 ./deploy.sh logs [service]  follow logs
 ```
 
 `deploy` does, in order: install Docker if missing (Docker's own `get.docker.com`
 script: apt on Debian/Ubuntu, dnf on Fedora/RHEL/Alma) → create or repair `.env`
-→ tag the running images `hd-<service>:prev` → build → start MongoDB → back up
+→ tag the running images `hd-<service>:prev` → build the images, or pull them
+(see "Images") → start MongoDB → back up
 (unless the database is empty) → run pending migrations with the application stopped → start everything
 and wait for health checks → smoke-test `GET /api/preferences-auth` through nginx
 → print the URL and, on a fresh database, the generated administrator password.
 
-Requirements on the host: bash, curl, openssl, root for the first run (Docker
-install). Later runs work as any user in the `docker` group.
+Requirements on the host:
+
+- bash 4.4 or newer, curl, openssl;
+- Docker with BuildKit (the default builder since Docker 23) and the Compose
+  plugin 2.17 or newer: `compose.yml` gives the image builds a named build
+  context. `deploy.sh` installs a current Docker when none is there; with an
+  older Compose it stops before anything is changed and names the version it
+  found — update the `docker-compose-plugin` package and run it again;
+- root for the first run (Docker install). Later runs work as any user in the
+  `docker` group.
+
+## Images
+
+The application images (`backend`, `frontend`, `tg-service`) are either built
+on the host or pulled from a registry. `IMAGE_REGISTRY` in `.env` decides.
+
+| | Build mode (`IMAGE_REGISTRY` empty) | Pull mode (`IMAGE_REGISTRY` and `IMAGE_TAG` set) |
+|---|---|---|
+| The host needs | the repository | `compose.yml`, `deploy.sh`, `.env` — no git, no sources; `docker login` once if the registry is private |
+| Images | `docker compose build --pull`, named `hd-<service>:latest` | `docker compose pull` of `<IMAGE_REGISTRY>/<service>:<IMAGE_TAG>` |
+| Start | `docker compose up` | `docker compose up --no-build` |
+| An update is | `git pull && ./deploy.sh` | change `IMAGE_TAG` in `.env`, run `./deploy.sh` |
+
+Everything else is the same in both modes: the `.env` checks, the `:prev`
+tags, the backup, migrations with the application stopped, the smoke test, the
+Telegram profile.
+
+`IMAGE_TAG` names a release; `latest` is refused, so that an update is a
+decision and a rollback is possible. `IMAGE_TAG` without `IMAGE_REGISTRY` stops
+the script as well. `deploy.sh` derives `IMAGE_PREFIX` from the two keys and
+keeps it in `.env` (`hd-` in build mode, `<IMAGE_REGISTRY>/` in pull mode), so
+that a plain `docker compose ps|up|logs` sees the same image names as the
+script; do not edit it by hand. After changing `IMAGE_REGISTRY` or
+`IMAGE_TAG`, run `./deploy.sh` before any other command (`migrate`, `status`,
+`logs`): the derived `IMAGE_PREFIX` is written by the deploy. `deploy.sh` does
+not touch registry credentials.
+
+A failed pull (wrong tag, no access, no network) stops the run before anything
+is stopped, backed up or migrated: the running containers stay as they are.
+After the pull the script also checks that every image it needs is on the host.
+Only the application images are pulled. MongoDB is pinned in `compose.yml`
+(`mongo:8.0`) and is never pulled by an update; Docker fetches it once, when the
+host does not have it yet.
+
+Build identity. Every image carries the version (the `VERSION` file) and the
+commit it was built from. In build mode `deploy.sh` takes them from the tree —
+the commit is 12 hex digits, with `.dirty` appended when the tree has
+uncommitted changes — and passes them to the build; pulled images already have
+them. Where it shows:
+
+- `GET /health` of the backend — `version` and `commit`. The built-in nginx
+  proxies only `/api` and `/uploads`, so this address answers on the compose
+  network (the container health check uses it), not on `HTTP_PORT`;
+- `./deploy.sh status` — the first line, `build: 2.1.0+3f2a9c1d07be`
+  (`unknown (image predates build identities)` when a backend runs but its
+  image has no build identity, `nothing` when no backend runs); `./deploy.sh`
+  prints the build after the smoke test, and the build that was running before
+  it, in the same words, in the "Building images" / "Pulling images" line;
+- open browser tabs — after an update they offer to reload.
+
+In pull mode a version that differs from `IMAGE_TAG` (a pre-release tag, for
+example) is reported as a warning, not an error.
+
+In build mode a checkout whose commit cannot be read — no git on the host, or
+git refuses the repository ("dubious ownership" when the tree belongs to
+another user) — is built as `<version>+dev` with a warning: open browser tabs
+compare build ids and are not told about such an update.
 
 ## Configuration (`.env`)
 
@@ -54,6 +122,7 @@ Reference with comments: `.env.example`.
 | mail mode | `MAIL_MODE`, `MAIL_SANDBOX_RECIPIENT` | where outgoing e-mail really goes — see below |
 | ticket tag | `TICKET_SUBJECT_PREFIX`, `TICKET_SUBJECT_PREFIXES_ACCEPTED` | prefix of the `[HD-51713]` tag in e-mail subjects, by which replies are matched to tickets; empty = `HD`. The key itself must be present (`deploy.sh` writes it into a new `.env` and stops on an older one without it); earlier prefixes still recognised in replies go into the second key, comma-separated |
 | error tracking | `SENTRY_DSN` | DSN of a Sentry-compatible service for browser errors; empty = off, no third party is contacted. `deploy.sh` derives `SENTRY_CSP_ORIGIN` from it |
+| images | `IMAGE_REGISTRY`, `IMAGE_TAG`, `IMAGE_PREFIX` | both empty = build on this host; both set = pull `<IMAGE_REGISTRY>/<service>:<IMAGE_TAG>` (`latest` is refused). `IMAGE_PREFIX` is written by `deploy.sh` — see "Images" |
 | optional | `HTTP_PORT`, `TRUST_PROXY_HOPS`, `TG_TOKEN`, `S3_*`, `TICKET_COUNTER_STARTING_NUMBER`, `ADD_TICKET_LOG`, `CORS_ORIGINS`, `BOOTSTRAP_*`, `GETSCREEN_ROOT_API`, `NVD_API_KEY` | defaults in `.env.example` |
 
 Rotation costs: `BETTER_AUTH_SECRET` — everybody is logged out and existing
@@ -158,21 +227,6 @@ Connection string: `mongodb://<MONGODB_USERNAME>:<MONGODB_PASSWORD>@<lan-ip>:270
 (the credentials are in `.env`; the password is plain hex, nothing to escape).
 Bind to the LAN address, never `0.0.0.0` on a host with a public interface:
 Docker publishes ports past ufw, so the firewall would not protect it.
-
-### Filling a test host with production data
-
-Run the sync script on the test host itself; it needs SSH access to the
-production host (your key, or `ssh -A` when you log in) and nothing else — when
-`mongorestore` is not installed it uses the one inside the `mongodb` container:
-
-```bash
-./sync-dev-db.sh          # replaces every collection except `preferences`
-./deploy.sh migrate up    # whatever this code has that production has not
-```
-
-The script finds the production containers by itself. The copy brings the
-production `migrations` ledger along, so `migrate up` runs only the entries
-production has not applied yet.
 
 ### Attachments
 
@@ -288,10 +342,12 @@ Rehearse steps 4–5 on the new host before the real switch: it is empty, and
 
 ## Rollback
 
-- Code: the images that ran before the last deploy are tagged
+- Built images: the images that ran before the last deploy are tagged
   `hd-backend:prev`, `hd-frontend:prev`, `hd-tg-service:prev`. Retag them as
   `hd-<service>:latest` and `docker compose up -d --no-build`, or check out the
   previous commit and run `./deploy.sh`.
+- Pulled images: set `IMAGE_TAG` back to the previous release and run
+  `./deploy.sh`.
 - Data: `./deploy.sh restore backups/<timestamp>` with the backup taken right
   before the migrations. A data rollback always goes together with a code
   rollback.
@@ -336,3 +392,15 @@ Containers log to stdout; Docker keeps five rotated 10 MB files per container
 (`x-logging` in `compose.yml`). `./deploy.sh logs backend` follows them. In
 production the backend writes no log files of its own; in development the
 rotating files under `backend/logs/` are kept.
+
+## Known advisories
+
+`./check.sh` fails on a dependency advisory of level high or critical. The ones
+below have no fixed version in the npm registry and are listed in
+`pnpm.auditConfig.ignoreGhsas` of the service; an entry leaves the list together
+with the dependency or as soon as a fixed version is published.
+
+| Advisory | Package | Service | Why it does not apply |
+|---|---|---|---|
+| `GHSA-4r6h-8v6p-xvw6` (prototype pollution) | `xlsx` 0.18.5 | frontend | triggered by reading a crafted spreadsheet; the browser code only builds workbooks from its own data and writes them (`components/Report/export.ts`, `components/Mikrotik/networks-export.js`), it never parses a file |
+| `GHSA-5pgg-2g8v-p4x9` (ReDoS) | `xlsx` 0.18.5 | frontend | same: the vulnerable code is the parser, which is not called |

@@ -20,7 +20,7 @@ const serve = async (t) => {
   app.post("/tickets", fileUpload.array("files"), (req, res) =>
     res.json({ length: req.body.description.length }),
   );
-  app.use((error, req, res, next) => res.status(400).json({ code: error.code }));
+  app.use((error, req, res, _next) => res.status(400).json({ code: error.code }));
   const server = await new Promise((resolve) => {
     const listening = app.listen(0, "127.0.0.1", () => resolve(listening));
   });

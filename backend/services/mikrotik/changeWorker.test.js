@@ -485,7 +485,7 @@ test("откат: ключи не сохраняются совсем", async ()
 
 test("текст ошибки роутера с секретом очищается", async () => {
   const h = setup({ changes: [wgChange()] });
-  h.exec = (record, items) => ({
+  h.exec = (_record, _items) => ({
     executor: "safe-mode",
     results: [{ state: "failed", error: "invalid value PSK1 for preshared-key" }],
     rolledBack: true, reachable: true, failure: "command 1 failed: invalid value PSK1", releaseConfirmed: false,
@@ -497,7 +497,7 @@ test("текст ошибки роутера с секретом очищает�
 
 // --- итоги
 
-const failing = (extra = {}) => (h) => (record, items) => ({
+const failing = (extra = {}) => (_h) => (_record, _items) => ({
   executor: "safe-mode",
   results: [{ state: "rolled_back", error: null }, { state: "failed", error: "failure: already have such entry", refused: true }],
   rolledBack: true, reachable: true, failure: "command 2 failed: already have such entry; safe mode was dropped and the router rolls the change back",
@@ -596,7 +596,7 @@ test("потерян safe mode (его взял другой админ), всё
 
 test("режим api: вторая команда упала, первая на месте — needs_attention", async () => {
   const h = setup({ mode: "api" });
-  h.exec = (record, items) => {
+  h.exec = (_record, _items) => {
     h.rows[AL].find((r) => r[".id"] === "*A").comment = "new";
     return { executor: "api", results: [{ state: "done", error: null }, { state: "failed", error: "failure: boom" }], rolledBack: false, reachable: true, failure: "command 2 failed: boom; earlier commands stay applied", releaseConfirmed: true };
   };
@@ -1011,7 +1011,7 @@ test("N2: ошибка без кода и без признака transient — 
   assert.equal((await h.worker.tick()).status, "not_applied");
 });
 
-const transportFail = (mode, results, rolledBack) => (record, items) => ({
+const transportFail = (mode, results, rolledBack) => (_record, _items) => ({
   executor: mode, results, rolledBack, reachable: true, failure: "x", releaseConfirmed: mode === "api",
 });
 
@@ -1184,8 +1184,7 @@ test("R3: пока ждали, другой запрос на устройств
 
 test("R3: дрейф на второй попытке не приписывает этой попытке бэкап", async () => {
   const h = setup();
-  let n = 0;
-  h.exec = (r, items) => { n += 1; return upgradeRefusal(items); };
+  h.exec = (r, items) => upgradeRefusal(items);
   await h.worker.tick();
   h.rows[AL][0].comment = "кто-то поправил";
   h.clock = new Date(NOW.getTime() + 61000);

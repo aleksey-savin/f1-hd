@@ -474,7 +474,7 @@ rules.
     model, and the bell reads settings with `.lean()`). The **module switch**
     itself, `Preferences.modules.messaging.isActive`, is untouched — always a
     manual opt-in.
-- **`sync-dev-db.sh`** excludes `preferences`, `channels`, `channeljobs` from
+- **`ops/sync-dev-db.sh`** excludes `preferences`, `channels`, `channeljobs` from
   every sync — the dump, the restore's namespace filter, and the pre-restore
   local cleanup all agree on the same list — so a dev copy never receives
   production's bot tokens, the MAX webhook secret, or production's queued

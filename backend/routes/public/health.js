@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const { buildInfo } = require('../../utils/buildInfo');
 
 // Health check endpoint
 router.get('/', async (req, res) => {
@@ -26,7 +27,8 @@ router.get('/', async (req, res) => {
       status: 'healthy',
       timestamp,
       uptime: Math.floor(uptime),
-      version: process.env.npm_package_version || '1.0.0',
+      version: buildInfo.version,
+      commit: buildInfo.commit,
       environment: process.env.NODE_ENV || 'development',
       database: {
         status: mongoStatus,

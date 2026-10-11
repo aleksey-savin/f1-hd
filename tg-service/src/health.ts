@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 
+import { buildInfo } from "./buildInfo.ts";
 import { config } from "./config.ts";
 import { logger } from "./logger.ts";
 
@@ -47,6 +48,8 @@ export const startHealthServer = (): Server => {
     res.end(
       JSON.stringify({
         status: healthy ? "ok" : "degraded",
+        version: buildInfo.version,
+        commit: buildInfo.commit,
         telegramOkAt: state.telegramOkAt || null,
         backendOkAt: state.backendOkAt || null,
       }),

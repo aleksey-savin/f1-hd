@@ -49,8 +49,10 @@ Thumbs.db
 # Backups made by deploy.sh
 backups/
 
-# Husky
-.husky/
+# Чужие менеджеры пакетов и ошибки инструментов
+package-lock.json
+yarn.lock
+*.err
 
 # Runtime data
 pids
@@ -104,3 +106,15 @@ jspm_packages/
 
 # DynamoDB Local files
 .dynamodb/
+
+# Operator configuration of ops/sync-dev-db.sh
+ops/sync.env
+
+# Build identity written by the image build
+build-info.json
+
+# Vite dependency cache written by the dev container
+.vite/
+
+# Local Claude Code settings (per developer)
+.claude/settings.local.json

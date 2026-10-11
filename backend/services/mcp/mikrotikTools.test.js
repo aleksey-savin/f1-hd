@@ -71,7 +71,7 @@ test("list: filters by status, company and query; never shows a login or a pin",
   assert.match(all, /Found 2 Mikrotik devices \(1 offline\)/);
   // Адрес — один раз в заголовке, в строках только id
   assert.match(all, /device link: https:\/\/hd\.example\.ru\/devices\/mikrotik\/records\/<id>\.\n/);
-  assert.match(all, /\n   id: 66aa00000000000000000001$/);
+  assert.match(all, /\n {3}id: 66aa00000000000000000001$/);
   assert.ok(!all.includes("records/66aa") && !all.includes("monitoring:"));
   assert.match(all, /offline since 2026-10-09T22:00Z/);
 
@@ -245,7 +245,7 @@ test("location: the card and the row show the place and its subdivisions; no loc
   assert.deepEqual(seen[0], { locations: true });
   assert.match(all, /location: Хабаровск, офис › Серверная \(ул\. Муравьёва-Амурского, 1\); subdivisions: Хабаровский филиал/);
   // Без расположения строки «location» в списке нет (в карточке — прочерк)
-  assert.match(all, /GW-SPB01\n[^\n]*\n[^\n]*\n   id: /);
+  assert.match(all, /GW-SPB01\n[^\n]*\n[^\n]*\n {3}id: /);
   // Поиск находит устройство по слову из расположения и по подразделению
   assert.match(text(await tools.list({ query: "серверная" }, caller, context)), /Found 1 /);
   assert.match(text(await tools.list({ query: "хабаровский филиал" }, caller, context)), /Found 1 /);

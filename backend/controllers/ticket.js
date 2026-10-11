@@ -273,10 +273,6 @@ exports.getAllOpened = async (req, res, next) => {
 exports.getUsersTickets = async (req, res, next) => {
   const contextLogger = await logger.addContext(req);
   try {
-    const authedUser = req.auth?.legacy ?? null;
-
-    const { isAdmin, userId } = authedUser;
-
     let tickets = [];
 
     contextLogger.log("info", "Fetching user's tickets");
@@ -471,7 +467,7 @@ exports.getTechnicalLog = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const { isEndUser, isAdmin } = req.auth;
+    const { isEndUser } = req.auth;
     const ticketNum = req.params.ticketNum;
 
     const ticket = await Ticket.findOne({ num: ticketNum })
@@ -2600,9 +2596,6 @@ exports.getAllOpenedTg = async (req, res, next) => {
         ),
       );
     }
-
-    const user = actor.user;
-    const userId = user._id;
 
     const allTickets = await Ticket.find({
       isClosed: false,

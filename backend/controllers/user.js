@@ -1,6 +1,4 @@
 const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 const storage = require("../services/storage");
 const logger = require("../utils/logger");
 const { runWorkStatusAuto } = require("../services/workStatusAuto");
@@ -45,7 +43,8 @@ const Subdivision = require("../models/subdivision");
 const TicketCategory = require("../models/ticketCategory");
 const Prefs = require("../models/preferences");
 const Location = require("../models/inventory/location");
-const CompanyLog = require("../models/companyLog");
+// Модель нужна ради регистрации в mongoose.
+require("../models/companyLog");
 const Notification = require("../models/notification");
 const {
   permissionFilter,
@@ -1033,7 +1032,7 @@ exports.add = async (req, res, next) => {
 
       await workplace.save();
     } catch (workplaceError) {
-      next(new AppError(`Failed to add workplace for user`, 500, true, error));
+      return next(new AppError(`Failed to add workplace for user`, 500, true, workplaceError));
     }
 
     res.status(201).json({
@@ -1101,7 +1100,6 @@ exports.update = async (req, res, next) => {
     const newSubdivision = req.body.subdivision
       ? await Subdivision.findById(req.body.subdivision)
       : null;
-    const prefs = await Prefs.findOne({});
 
     // email, banned и isEndUser разобраны выше, в accountPlan
     const {
@@ -1399,12 +1397,12 @@ exports.update = async (req, res, next) => {
         await workplace.save();
       }
     } catch (workplaceError) {
-      next(
+      return next(
         new AppError(
           `Failed to update user ${req.params.id} workplace `,
           500,
           true,
-          error,
+          workplaceError,
         ),
       );
     }

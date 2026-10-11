@@ -386,44 +386,6 @@ const resolveSchedule = (plan, company) =>
   plan.companyWorkSchedule ? company?.workSchedule : plan.customProvisionSchedule;
 
 /**
- * Состояние графика обслуживания — чтобы карточка не рисовала сетку вслепую.
- *
- * В базе встречается вырожденный график: все семь дней «рабочие» с 00:00 до
- * 00:00. Это НЕ круглосуточно и НЕ выходные — окно нулевое, и по формуле всё
- * время работ уходит в переработку и оплачивается сверх тарифа. Сетка из
- * нулей это скрывает, поэтому такое состояние называется словами.
- *
- * У почасового тарифа график в расчёте не участвует вовсе (доп. оплаты нет) —
- * показывать его сеткой значит врать о том, что от него что-то зависит.
- */
-const describeSchedule = (plan, company) => {
-  const source = plan.companyWorkSchedule ? "company" : "plan";
-  const schedule = resolveSchedule(plan, company);
-  const tariff = normalizePlan(plan);
-
-  if (tariff.type === "hourly") {
-    return { state: "notApplicable", source, days: null };
-  }
-
-  const working = DAYS_OF_WEEK.map((key) => schedule?.[key]).filter(
-    (day) => day && day.isWorking,
-  );
-
-  if (working.length === 0) {
-    return { state: "empty", source, days: null };
-  }
-  if (working.every((day) => day.is24hours)) {
-    return { state: "always", source, days: null };
-  }
-  // Все рабочие дни с нулевым окном — график заведён, но не заполнен
-  if (working.every((day) => !day.start || !day.end || day.start === day.end)) {
-    return { state: "degenerate", source, days: null };
-  }
-
-  return { state: "ok", source, days: schedule };
-};
-
-/**
  * Расчёт одной пары «компания × услуга» за набор работ.
  * Возвращает и разбивку на рабочее/нерабочее время — карточка отчёта показывает
  * работы одним списком с фасетом, и обе группы ей нужны отсюда, а не из

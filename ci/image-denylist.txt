@@ -1,0 +1,16 @@
+(^|/)\.env
+(^|/)\.git(/|$)
+(^|/)\.claude(/|$)
+(^|/)\.superpowers(/|$)
+(^|/)\.husky(/|$)
+(^|/)docs(/|$)
+(^|/)ops(/|$)
+(^|/)ci(/|$)
+(^|/)scripts/dev(/|$)
+\.test\.(js|ts|mjs|jsx|tsx)$
+\.map$
+\.err$
+(^|/)(package-lock\.json|yarn\.lock)$
+(^|/)eslint\.config\.
+(^|/)Dockerfile
+(^|/)sync-dev-db

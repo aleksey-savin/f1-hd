@@ -88,7 +88,9 @@ const Footer = () => {
         </span>
         <span aria-hidden>·</span>
         <span className="whitespace-nowrap">
-          Версия {import.meta.env.VITE_VERSION}
+          {/* В подвале — только версия: VITE_VERSION имеет вид «версия+коммит»
+              (в разработке — "dev"), коммит читателю не нужен */}
+          Версия {String(import.meta.env.VITE_VERSION ?? "").split("+")[0]}
         </span>
         {/* Только когда читателю есть что открыть (prefs.hasHelp из /api/me) */}
         {hasHelp && (

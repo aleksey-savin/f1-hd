@@ -28,6 +28,15 @@ COPY src ./src
 # The SQLite file lives in a volume; its mount point must belong to the user
 # that runs the process, or the first write fails with EACCES.
 RUN mkdir -p data && chown -R node:node /app
+COPY --from=root LICENSE /LICENSE
+# Last layer on purpose: the identity changes with every commit, the layers
+# above it do not. The file is written by root after the chown and is
+# world-readable, which is all the process needs.
+ARG APP_VERSION=dev
+ARG APP_COMMIT=dev
+LABEL org.opencontainers.image.version=$APP_VERSION \
+      org.opencontainers.image.revision=$APP_COMMIT
+RUN printf '{"version":"%s","commit":"%s"}\n' "$APP_VERSION" "$APP_COMMIT" > build-info.json
 USER node
 # A real check: the old bot's healthcheck was `process.exit(0)`, i.e. always green.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \

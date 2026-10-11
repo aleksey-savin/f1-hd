@@ -195,7 +195,7 @@ const CLIENT_KINDS = new Set([
 const feedForClient = (events = []) =>
   events
     .filter((event) => CLIENT_KINDS.has(event.kind))
-    .map(({ technical, ...event }) => event);
+    .map(({ technical: _technical, ...event }) => event);
 
 module.exports = {
   KINDS,

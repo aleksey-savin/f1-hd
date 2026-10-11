@@ -81,6 +81,7 @@ const RISKY = [
 ];
 
 const NAME = /^[a-z0-9][a-z0-9.-]*$/;
+// eslint-disable-next-line no-control-regex -- запрещаем управляющие символы в значениях команд
 const CONTROL = /[\x00-\x1f\x7f]/;
 // Только простые объекты: Date, Map и экземпляры классов — не набор полей
 const isPlainObject = (v) => {

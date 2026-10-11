@@ -75,6 +75,7 @@ const FROM_LIKE_RE = /^[\s\0]*from[\s\0]*:/i;
 // Складка заголовка: «\r\n» и пробел или табуляция. Одиночные «\r» и «\n» и прочие
 // управляющие знаки в строке — разные серверы делят и обрезают их по-разному
 const FOLD_RE = /\r\n(?=[ \t])/g;
+// eslint-disable-next-line no-control-regex -- намеренно ловим управляющие символы (кроме \t) в строке
 const CONTROL_RE = /[\u0000-\u0008\u000a-\u001f\u007f]/;
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -108,6 +109,7 @@ const lowersToAscii = (text) => {
 const comparable = (address) => {
   const at = address.lastIndexOf("@");
   let domain = address.slice(at + 1).toLowerCase();
+  // eslint-disable-next-line no-control-regex -- проверяем, что домен целиком в ASCII (включая управляющие)
   if (/^[\u0000-\u007f]*$/.test(domain) && /(?:^|\.)xn--/.test(domain)) {
     domain = domainToUnicode(domain) || domain;
   }

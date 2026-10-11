@@ -137,7 +137,7 @@ const DIRECTORY_SCHEMAS = {
   users: fromJsonSchema({
     type: "object",
     properties: {
-      query: NAME("Part of the name or position, e.g. «Пухова» or «бухгалтер»."),
+      query: NAME("Part of the name or position, e.g. «Иванова» or «бухгалтер»."),
       company: NAME("Company name (alias or full title)."),
       kind: STATUS(["client", "staff", "any"], "client (people of client companies), staff (helpdesk employees) or any (default)."),
       status: STATUS(["active", "blocked", "any"], "active (default), blocked or any."),

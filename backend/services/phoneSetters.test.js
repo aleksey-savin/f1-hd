@@ -27,12 +27,12 @@ test("every stored phone path keeps canonical digits", () => {
   assert.equal(new ChannelIdentity({ phone: RAW }).phone, CANON);
 
   const company = new Company({
-    phones: [RAW, "8 (423) 222-29-99"],
+    phones: [RAW, "8 (900) 000-00-01"],
     users: [{ phone: RAW }],
     responsibles: [{ phone: RAW }],
     clientsSideResponsibles: [{ phone: RAW }],
   });
-  assert.deepEqual([...company.phones], [CANON, "74232222999"]);
+  assert.deepEqual([...company.phones], [CANON, "79000000001"]);
   assert.equal(company.users[0].phone, CANON);
   assert.equal(company.responsibles[0].phone, CANON);
   assert.equal(company.clientsSideResponsibles[0].phone, CANON);
@@ -87,9 +87,9 @@ test("array updates are normalized too", () => {
   const push = Company.updateOne({}, { $push: { phones: RAW } });
   assert.deepEqual(push._castUpdate(push._update), { $push: { phones: CANON } });
 
-  const pushEach = Company.updateOne({}, { $push: { phones: { $each: [RAW, "8 (423) 222-29-99"] } } });
+  const pushEach = Company.updateOne({}, { $push: { phones: { $each: [RAW, "8 (900) 000-00-01"] } } });
   assert.deepEqual(pushEach._castUpdate(pushEach._update), {
-    $push: { phones: { $each: [CANON, "74232222999"] } },
+    $push: { phones: { $each: [CANON, "79000000001"] } },
   });
 
   const addToSet = Company.updateOne({}, { $addToSet: { phones: RAW } });

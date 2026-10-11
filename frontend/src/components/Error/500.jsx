@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 import ErrorScreen from "./ErrorScreen";
 
-const InternalServerError = ({ status }) => (
+const InternalServerError = () => (
   <ErrorScreen
     code={["5", "0"]}
     title="У нас что-то сломалось"

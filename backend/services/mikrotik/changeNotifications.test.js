@@ -680,6 +680,7 @@ test("minors: NEL and information separators are collapsed like other line break
     commands: [{ action: "add", text: "/ip dns static add name=a address=10.0.0.1", risk: "normal" }],
   };
   const { text } = build(change, { deviceName: "GW", companyName: "Co", requesterName: "Имя Фамилия", agentName: "Agent" });
+  // eslint-disable-next-line no-control-regex -- проверяем отсутствие разделителей \u001c-\u001f и NEL
   assert.ok(!/[\u0085\u001c-\u001f]/.test(text));
   assert.equal(text.split("\n").filter((line) => line.startsWith("Риск")).length, 1);
 });

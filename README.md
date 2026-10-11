@@ -1,5 +1,7 @@
 # HD
 
+Proprietary software — see [LICENSE](LICENSE).
+
 Helpdesk and IT-management portal: tickets, inventory, knowledge base,
 Mikrotik monitoring, work reports. One repository, three services.
 
@@ -12,15 +14,18 @@ hd/
 ├── compose.dev.yml   # development stack (bind-mounted sources)
 ├── deploy.sh         # install / update / backup / restore / migrations
 ├── .env.example      # the only configuration template
-├── scripts/          # host-side helpers (in-place MongoDB upgrade)
-├── sync-dev-db.sh    # copy the production database into the dev one
+├── check.sh          # every quality gate in a container (ci/ holds its parts)
+├── VERSION           # version of the tree; CHANGELOG.md lists the releases
+├── ops/              # internal tooling (copy production into dev) — see ops/README.md
 └── docs/             # implementation notes; docs/deployment.md for operations
 ```
 
 ## Production
 
-Any Linux host with bash, curl and openssl. Docker is installed by the script
-if missing (Debian/Ubuntu via apt, Fedora/RHEL/Alma via dnf).
+Any Linux host with bash 4.4 or newer, curl and openssl. Docker is installed by
+the script if missing (Debian/Ubuntu via apt, Fedora/RHEL/Alma via dnf); a
+Docker that is already there needs BuildKit (the default since Docker 23) and
+the Compose plugin 2.17 or newer.
 
 ```bash
 git clone <repo> hd && cd hd
@@ -64,31 +69,27 @@ backend, so cookies work same-origin like in production). Changing `.env`
 needs `docker compose up -d --force-recreate`. Backend logs are in
 `backend/logs/`.
 
+`./check.sh` runs every gate (lint, typecheck, tests, build, dependency audit) in a
+container and is what a release must pass; `./check.sh backend` runs one part,
+`./check.sh images` builds the production images and inspects their contents.
+Where containers on Docker's default network cannot resolve names, name a network
+that can: `CHECK_DOCKER_NETWORK=host ./check.sh`.
+
 Per-service scripts (`cd backend|frontend|tg-service`):
 
 ```bash
-pnpm dev          # backend: nodemon; frontend: vite; tg-service: node --watch
+pnpm dev          # backend: nodemon; frontend: vite
+pnpm start        # tg-service: node --watch
+pnpm lint         # backend, frontend
 pnpm typecheck    # all three
-pnpm test         # backend, tg-service (node --test)
-pnpm lint         # frontend
+pnpm test         # all three (node --test)
 pnpm build        # frontend
 ```
 
 ### Copy the production database
 
-```bash
-./sync-dev-db.sh
-```
-
-Runs on the machine whose database is the target: the workstation, or a test
-host installed with `deploy.sh`. The dump is read from production over SSH
-(through the jump host when production is not reachable directly) and restored
-into the local database; `mongorestore` from `mongodb-database-tools` is used
-when installed, otherwise the one inside the `mongodb` container. Production is
-never written to and the `preferences` collection is left untouched;
-`./sync-dev-db.sh --help` lists the options. The copy carries the production
-migration ledger; afterwards run `./deploy.sh migrate up` for what this code
-adds (on the dev machine: `docker compose run --rm backend node scripts/migrate.js up`).
+Internal tooling, described in `ops/README.md`: `ops/sync-dev-db.sh` fills the
+local database from another installation (masked by default).
 
 ## Conventions
 

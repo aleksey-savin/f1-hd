@@ -388,7 +388,7 @@ test("router secrets never appear in refusals", async () => {
 });
 
 test("limits hold under parallel proposals (per device and per key)", async () => {
-  const mk = (limitName) => {
+  const mk = (_limitName) => {
     let open = 0;
     let recent = 0;
     const created = [];

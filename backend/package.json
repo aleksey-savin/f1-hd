@@ -1,6 +1,7 @@
 {
   "name": "hd-backend-nodejs",
-  "version": "2.0.1",
+  "version": "0.0.0",
+  "private": true,
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -8,18 +9,15 @@
     "start:prod": "NODE_ENV=production node app.js",
     "start:test-notifications": "NODE_ENV=test_notifications node app.js",
     "dev": "nodemon app.js",
-    "prepare": "husky",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"auth/**/*.test.js\" \"services/**/*.test.js\" \"validations/**/*.test.js\" \"helpers/**/*.test.js\" \"middleware/**/*.test.js\" \"routes/**/*.test.js\" \"controllers/**/*.test.js\"",
+    "test": "node --test \"auth/**/*.test.js\" \"controllers/**/*.test.js\" \"helpers/**/*.test.js\" \"middleware/**/*.test.js\" \"models/**/*.test.js\" \"prompts/**/*.test.js\" \"routes/**/*.test.js\" \"scripts/**/*.test.js\" \"services/**/*.test.js\" \"utils/**/*.test.js\" \"validations/**/*.test.js\"",
+    "lint": "eslint .",
     "init:inventory": "node scripts/initializeInventoryData.js",
     "seed:mikrotik-models": "node scripts/seedMikrotikModels.js",
-    "repair:mikrotik-state": "node scripts/repairMikrotikMonitoringState.js",
-    "test:workplace": "node test-workplace-system.js",
-    "security": "npm audit",
-    "precommit": "npx eslint . && npm test && npm run security"
+    "repair:mikrotik-state": "node scripts/repairMikrotikMonitoringState.js"
   },
   "author": "",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1065.0",
     "@aws-sdk/s3-request-presigner": "^3.1065.0",
@@ -32,10 +30,10 @@
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
-    "express-validator": "^7.2.1",
+    "express-validator": "^7.3.2",
     "helmet": "^8.3.0",
     "imap-simple": "^5.1.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.18.1",
     "mailparser": "^3.9.33",
     "mammoth": "^1.12.0",
     "mime-types": "^3.0.1",
@@ -51,7 +49,7 @@
     "routeros-node": "^0.1.0",
     "ssh2": "^1.17.0",
     "urldecode": "^1.0.1",
-    "validator": "^13.15.0",
+    "validator": "^13.15.35",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0"
   },
@@ -59,15 +57,21 @@
     "@eslint/js": "^9.26.0",
     "@types/node": "^22.19.19",
     "eslint": "^9.26.0",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^7.2.1",
-    "eslint-plugin-security": "^3.0.1",
     "globals": "^16.0.0",
-    "husky": "^9.1.7",
     "nodemon": "^3.1.10",
     "sift": "17.1.3",
     "typescript": "^6.0.3"
+  },
+  "pnpm": {
+    "//": "Транзитивные зависимости с закрытыми уязвимостями уровня high/critical (pnpm audit): родитель допускает исправленную версию, но lock держал старую; у utf7 диапазон semver ~5.3.0 исправленную не допускает. Запись убирается, когда родитель сам требует исправленную версию.",
+    "overrides": {
+      "proxy-addr@<2.0.8": "^2.0.8",
+      "path-to-regexp@>=8.0.0 <8.4.0": "^8.4.0",
+      "minimatch@<3.1.4": "^3.1.4",
+      "brace-expansion@<1.1.20": "^1.1.20",
+      "@xmldom/xmldom@<0.8.15": "^0.8.15",
+      "semver@<5.7.2": "^5.7.2"
+    }
   },
   "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39",
   "_moduleAliases": {

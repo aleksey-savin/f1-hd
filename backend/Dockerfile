@@ -5,8 +5,9 @@
 # Node 24 executes the .ts files by stripping types, so there is no build step.
 # `corepack install` reads the pnpm version pinned in package.json
 # (`packageManager`), so the image and the developers use the same pnpm.
-# `--ignore-scripts` skips the repo's own `prepare` (husky) — no dependency
-# here needs a build script (bcryptjs is pure JS; ssh2's native helper is optional).
+# `--ignore-scripts` is kept on purpose: no dependency here needs a build
+# script (bcryptjs is pure JS; ssh2's native helper is optional), so skipping
+# lifecycle scripts only closes a supply-chain hole.
 FROM node:24-alpine AS base
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
@@ -30,6 +31,14 @@ COPY --chown=node:node . .
 # uploads/ and storage/ are volumes in compose; the mount point must belong to
 # the user that writes there, or the first upload fails with EACCES.
 RUN mkdir -p uploads storage && chown node:node uploads storage
+COPY --from=root LICENSE /LICENSE
+# Last layer on purpose: the identity changes with every commit, the layers
+# above it do not.
+ARG APP_VERSION=dev
+ARG APP_COMMIT=dev
+LABEL org.opencontainers.image.version=$APP_VERSION \
+      org.opencontainers.image.revision=$APP_COMMIT
+RUN printf '{"version":"%s","commit":"%s"}\n' "$APP_VERSION" "$APP_COMMIT" > build-info.json
 USER node
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \

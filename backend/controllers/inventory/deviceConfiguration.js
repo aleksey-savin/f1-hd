@@ -67,7 +67,7 @@ exports.add = async (req, res, next) => {
     }
 
     // Check for duplicate configuration with same values
-    const existingConfig = await DeviceConfiguration.findOne({
+    await DeviceConfiguration.findOne({
       deviceModelId,
       deletedAt: null,
     });

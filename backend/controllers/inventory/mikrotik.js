@@ -1127,7 +1127,7 @@ exports.syncInventory = async (req, res, next) => {
 
     logger.log("info", "Mikrotik inventory sync applied", {
       actor: req.userId,
-      clientDeviceId,
+      clientDeviceId: device._id,
       fields: Object.keys(updates),
       ip: req.ip,
     });

@@ -60,7 +60,7 @@ const assertCompanyVisible = (authedUser, companyId) => {
 const withoutApiKeyValues = (company) => {
   const plain = company.toJSON();
   plain.apiKeys = (plain.apiKeys || []).map(
-    ({ key, keyHash, ...rest }) => rest,
+    ({ key: _key, keyHash: _keyHash, ...rest }) => rest,
   );
   return plain;
 };
@@ -111,9 +111,9 @@ exports.getAll = async (req, res, next) => {
     const companies = filteredCompanies.map(
       ({
         users,
-        employees,
-        apiKeys,
-        clientsSideResponsibles,
+        employees: _employees,
+        apiKeys: _apiKeys,
+        clientsSideResponsibles: _clientsSideResponsibles,
         servicePlans,
         ...company
       }) => ({

@@ -8,7 +8,7 @@ const {
   mailboxLogin,
 } = require("./transport");
 const { connectMailbox } = require("./imapConnect");
-const { MAILBOX, SMTP, recordOk, recordError } = require("./health");
+const { MAILBOX, SMTP, recordOk } = require("./health");
 const logger = require("../../utils/logger");
 const {
   MAIL_OFF_FAILURE,

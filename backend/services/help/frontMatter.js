@@ -11,7 +11,7 @@ const strip = (value) => {
 
 const parseFrontMatter = (text) => {
   const lines = String(text || "")
-    .replace(/^﻿/, "")
+    .replace(/^\uFEFF/, "")
     .split(/\r?\n/);
   if (lines[0]?.trim() !== "---") return null;
 

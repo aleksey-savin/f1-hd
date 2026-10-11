@@ -23,6 +23,7 @@ const HARD_LIMIT = 4000;
 // Чужой текст (агент, роутер, человек) — в одну строку и с потолком: иначе перевод строки подделывает чужие строки сообщения.
 const oneLine = (text, max) => {
   // \s не знает NEL и разделителей U+001C–U+001F — для подписи это тоже переводы строки
+  // eslint-disable-next-line no-control-regex -- вычищаем разделители \u001c-\u001f и NEL: JS не считает их пробелами
   const t = String(text ?? "").replace(/[\s\u0085\u001c-\u001f]+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 };
@@ -137,6 +138,7 @@ function commandLines(change, index) {
   const command = change.commands[index];
   // Текст команды показывается как сохранён: пробелы внутри значений — часть того, что уйдёт на роутер.
   // Переводов строки в нём нет (значения проверены при приёме); на случай иного — они заменяются пробелом
+  // eslint-disable-next-line no-control-regex -- заменяем переводы строк и разделители \u001c-\u001f пробелом
   const text = String(command.text ?? "").replace(/[\r\n\t\v\f\u0085\u2028\u2029\u001c-\u001f]/g, " ").trim();
   let whole = text.length <= COMMAND_MAX;
   const lines = [`${index + 1}. ${whole ? text : oneLine(text, COMMAND_MAX)}`];

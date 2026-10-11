@@ -3,7 +3,6 @@ const storage = require("../services/storage");
 const Comment = require("../models/comment");
 const TicketLog = require("../models/ticketLog");
 const { Ticket } = require("../models/ticket");
-const Preferences = require("../models/preferences");
 
 const { AppError } = require("../middleware/errorHandling");
 const {
@@ -51,7 +50,6 @@ exports.add = async (req, res, next) => {
 
   try {
     const authData = req.auth?.legacy ?? null;
-    const prefs = await Preferences.findOne({});
 
     const { ticketId, content } = req.body;
 
@@ -192,7 +190,6 @@ exports.add = async (req, res, next) => {
 exports.addMultiple = async (req, res, next) => {
   try {
     const authData = req.auth?.legacy ?? null;
-    const prefs = await Preferences.findOne({});
 
     const { ids, content } = req.body;
     const commented = [];

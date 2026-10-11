@@ -28,14 +28,14 @@ test("parse: whatshere[point] wins over the map centre", () => {
 test("parse: ll= centre is the fallback", () => {
   assert.deepEqual(
     parseMapLinkCoords(
-      "https://yandex.ru/maps/75/vladivostok/house/shilkinskaya_ulitsa_32a/ZUoHaA5jSEQGXEJuYGJwcHtqYgw=/?ll=131.931110%2C43.117964&z=17.19&utm_source=share",
+      "https://yandex.ru/maps/75/moscow/house/tverskaya_ulitsa_1/ZUoHaA5jSEQGXEJuYGJwcHtqYgw=/?ll=37.610000%2C55.750000&z=17.19&utm_source=share",
     ),
-    { lat: 43.117964, lon: 131.93111 },
+    { lat: 55.75, lon: 37.61 },
   );
 });
 
 test("parse: no coordinates, garbage or empty → null", () => {
-  assert.equal(parseMapLinkCoords("https://yandex.ru/maps/-/CTdJv0Z5"), null);
+  assert.equal(parseMapLinkCoords("https://yandex.ru/maps/-/AbCd1234"), null);
   assert.equal(parseMapLinkCoords("https://go.2gis.com/IOex4"), null);
   assert.equal(parseMapLinkCoords("not a url"), null);
   assert.equal(parseMapLinkCoords(""), null);
@@ -46,28 +46,28 @@ test("parse: no coordinates, garbage or empty → null", () => {
 test("parse: 2GIS address-bar link — the object point in the path wins over the map centre", () => {
   assert.deepEqual(
     parseMapLinkCoords(
-      "https://2gis.ru/vladivostok/geo/3519072864050171/131.931110,43.117964?m=131.90%2C43.10%2F16",
+      "https://2gis.ru/moscow/geo/3519072864050171/37.610000,55.750000?m=37.60%2C55.74%2F16",
     ),
-    { lat: 43.117964, lon: 131.93111 },
+    { lat: 55.75, lon: 37.61 },
   );
   assert.deepEqual(
     parseMapLinkCoords(
-      "https://2gis.ru/vladivostok/firm/70000001030877797/131.885,43.115",
+      "https://2gis.ru/moscow/firm/70000001030877797/37.610,55.750",
     ),
-    { lat: 43.115, lon: 131.885 },
+    { lat: 55.75, lon: 37.61 },
   );
 });
 
 test("parse: 2GIS map centre m=lon,lat/zoom is the fallback", () => {
   assert.deepEqual(
-    parseMapLinkCoords("https://2gis.ru/vladivostok?m=131.885%2C43.115%2F16"),
-    { lat: 43.115, lon: 131.885 },
+    parseMapLinkCoords("https://2gis.ru/moscow?m=37.610%2C55.750%2F16"),
+    { lat: 55.75, lon: 37.61 },
   );
 });
 
 test("parse: a lon,lat-looking segment on a foreign host is ignored", () => {
   assert.equal(
-    parseMapLinkCoords("https://example.com/path/131.885,43.115"),
+    parseMapLinkCoords("https://example.com/path/37.610,55.750"),
     null,
   );
 });
@@ -75,15 +75,15 @@ test("parse: a lon,lat-looking segment on a foreign host is ignored", () => {
 test("short link: 2GIS share links go.2gis.com/<code> count too", () => {
   assert.equal(isShortMapLink("https://go.2gis.com/IOex4"), true);
   assert.equal(isShortMapLink("https://go.2gis.com/"), false);
-  assert.equal(isShortMapLink("https://2gis.ru/vladivostok/firm/1"), false);
+  assert.equal(isShortMapLink("https://2gis.ru/moscow/firm/1"), false);
   assert.equal(isShortMapLink("https://go.2gis.com.evil.net/IOex4"), false);
 });
 
 test("short link: Yandex Maps share links count", () => {
-  assert.equal(isShortMapLink("https://yandex.ru/maps/-/CTdJv0Z5"), true);
-  assert.equal(isShortMapLink("https://yandex.com/maps/-/CTdJv0Z5"), true);
-  assert.equal(isShortMapLink("https://maps.yandex.ru/-/CTdJv0Z5"), true);
-  assert.equal(isShortMapLink("https://YANDEX.RU/maps/-/CTdJv0Z5"), true);
+  assert.equal(isShortMapLink("https://yandex.ru/maps/-/AbCd1234"), true);
+  assert.equal(isShortMapLink("https://yandex.com/maps/-/AbCd1234"), true);
+  assert.equal(isShortMapLink("https://maps.yandex.ru/-/AbCd1234"), true);
+  assert.equal(isShortMapLink("https://YANDEX.RU/maps/-/AbCd1234"), true);
   assert.equal(isShortMapLink("https://yandex.ru/maps/?pt=1,2"), false);
   assert.equal(isShortMapLink("https://evil.example/maps/-/x"), false);
   assert.equal(isShortMapLink(""), false);
@@ -134,14 +134,14 @@ test("resolve: a long link with coordinates needs no network", async () => {
 
 test("resolve: a short link follows the redirect and reads the final URL", async () => {
   const fetchImpl = redirectingFetch(
-    "/maps/75/vladivostok/house/shilkinskaya_ulitsa_32a/ZUoHaA5jSEQGXEJuYGJwcHtqYgw=/?ll=131.931110%2C43.117964&z=17.19&utm_source=share",
+    "/maps/75/moscow/house/tverskaya_ulitsa_1/ZUoHaA5jSEQGXEJuYGJwcHtqYgw=/?ll=37.610000%2C55.750000&z=17.19&utm_source=share",
   );
-  const result = await resolveMapLink("https://yandex.ru/maps/-/CTdJv0Z5", {
+  const result = await resolveMapLink("https://yandex.ru/maps/-/AbCd1234", {
     fetchImpl,
   });
-  assert.deepEqual(result, { lat: 43.117964, lon: 131.93111 });
+  assert.deepEqual(result, { lat: 55.75, lon: 37.61 });
   assert.equal(fetchImpl.calls.length, 1);
-  assert.equal(fetchImpl.calls[0].url, "https://yandex.ru/maps/-/CTdJv0Z5");
+  assert.equal(fetchImpl.calls[0].url, "https://yandex.ru/maps/-/AbCd1234");
   assert.equal(fetchImpl.calls[0].options.redirect, "manual");
 });
 
@@ -171,12 +171,12 @@ test("resolve: redirect without coordinates or a network error → null", async 
 
 test("resolve: a 2GIS short link is fetched like a browser and read from the redirect", async () => {
   const fetchImpl = redirectingFetch(
-    "https://2gis.ru/vladivostok/firm/70000001030877797/131.885,43.115?m=131.885%2C43.115%2F16",
+    "https://2gis.ru/moscow/firm/70000001030877797/37.610,55.750?m=37.610%2C55.750%2F16",
   );
   const result = await resolveMapLink("https://go.2gis.com/IOex4", {
     fetchImpl,
   });
-  assert.deepEqual(result, { lat: 43.115, lon: 131.885 });
+  assert.deepEqual(result, { lat: 55.75, lon: 37.61 });
   assert.equal(fetchImpl.calls.length, 1);
   const { options } = fetchImpl.calls[0];
   assert.equal(options.redirect, "manual");
@@ -187,7 +187,7 @@ test("resolve: a 2GIS short link is fetched like a browser and read from the red
 
 test("resolve: the 2GIS bot wall (museum) yields no point and no further fetch", async () => {
   const fetchImpl = redirectingFetch(
-    "https://2gis.ru/museum?return_url=https%3A%2F%2F2gis.ru%2Fvladivostok%2Ffirm%2F1",
+    "https://2gis.ru/museum?return_url=https%3A%2F%2F2gis.ru%2Fmoscow%2Ffirm%2F1",
   );
   const result = await resolveMapLink("https://go.2gis.com/6orni", {
     fetchImpl,

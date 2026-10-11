@@ -16,8 +16,8 @@ test("parseServiceTables: таблицы услуг, в том числе с о�
     "",
     "| Домен | Регистратор | Продление |",
     "|---|:---:|---:|",
-    "| bsb.ru | REG.RU | 15.03.2027 |",
-    "| syndicate-portcafe.online | Timeweb | 2027-01-09 |",
+    "| romashka.example | REG.RU | 15.03.2027 |",
+    "| vasilek.example | Timeweb | 2027-01-09 |",
     "",
     "Текст между таблицами",
     "",
@@ -27,8 +27,8 @@ test("parseServiceTables: таблицы услуг, в том числе с о�
   ].join("\n");
 
   assert.deepEqual(parseServiceTables(note), [
-    { service: "bsb.ru", registrar: "REG.RU", expiresAt: new Date("2027-03-15T00:00:00.000Z") },
-    { service: "syndicate-portcafe.online", registrar: "Timeweb", expiresAt: new Date("2027-01-09T00:00:00.000Z") },
+    { service: "romashka.example", registrar: "REG.RU", expiresAt: new Date("2027-03-15T00:00:00.000Z") },
+    { service: "vasilek.example", registrar: "Timeweb", expiresAt: new Date("2027-01-09T00:00:00.000Z") },
     { service: "example.com", registrar: "", expiresAt: new Date("2028-02-01T00:00:00.000Z") },
   ]);
 });

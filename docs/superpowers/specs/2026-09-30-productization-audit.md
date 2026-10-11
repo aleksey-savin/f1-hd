@@ -612,6 +612,19 @@ customers can delegate them.
 
 ### 3.1 Distribution and releases
 
+> **Status 2026-10-11 — W3a implemented (not yet deployed).** O2 is closed: `VERSION` 2.1.0,
+> a proprietary `LICENSE`, `UNLICENSED` in the package manifests. O1 is partly closed: build
+> identity (version and commit) is baked into the three images and reported by the backend's
+> `/health` (inside the compose network) and by `./deploy.sh status`; `deploy.sh` builds from
+> source or pulls images by `IMAGE_REGISTRY` and `IMAGE_TAG`; `CHANGELOG.md` exists. The
+> registry itself and the release pipeline remain for W3b. O12 is partly closed: one gate
+> command, `./check.sh` (with `./check.sh images`), runs lint, typecheck and tests — it is what
+> a release must pass — and the husky hooks are removed; the CI pipeline, coverage and the
+> large files remain. H7 is closed. L3 is closed for the product repository, with a limit:
+> `ops/sync-dev-db.sh` masks structured identity fields and credentials, including device
+> secrets, by default (`--raw` opts out); free text is not masked, and the first real masked
+> sync has not been run. Nothing here was verified in a browser or on production.
+
 **O1 Install means `git clone` and a build on the host.** High · P0
 - **What ships:** every host gets the full source, the full history, `docs/superpowers`
   (2.1 MB of internal plans) and the tests.
@@ -938,7 +951,7 @@ Each workstream becomes its own spec, then plan, then implementation.
 |---|---|---|---|
 | **0 · Now** | **W1 Security hot-fixes** — S1–S6 and S10–S12 in code; rotate the credentials from S14; multer and mailparser upgrades; the S7/S8 path allow-list (cheap now); O6 key carry-over and 422; O7 leases, drain and dedup; the C2 spec correction | S1–S8, S10–S12, S14, S15 (part), O6, O7, C2 | mostly S, a few M |
 | **1 · First customer (pilot, vendor-hosted)** | **W2 De-F1lab and white-label** — no mail sink, opt-in Sentry, brand settings, AI company name, neutral roles, counter default | H1–H8 | M |
-| | **W3 Release engineering** — CI, versioned images in a registry, release notes, a customer bundle without source, licence/EULA, repo hygiene | O1, O2, O12, H7, L3 | M–L |
+| | **W3 Release engineering** (W3a done, W3b after GitLab) — CI, versioned images in a registry, release notes, a customer bundle without source, licence/EULA, repo hygiene | O1, O2, O12, H7, L3 | M–L |
 | | **W4 Instance lifecycle** — a provisioning CLI (instance id, country, timezone, currency, https, proxy mode, forced password change), key canary and rotation, migration floor, backups/DR, resource limits, a least-privilege Mongo user | O3–O6, O10, S21, S26, C4 | L |
 | | **W5 Auth and hosted-security hardening** — cookies only (drop bearer), hashed tokens, the SSRF guard, Origin/CSRF, authorized uploads, the remaining authorization gaps, rate limiting behind the proxy, the 2FA policy | S9, S13, S16–S20, S22–S25, S27–S30 | M–L |
 | | **W6 Privacy minimum** — impersonation audit and notice, a security audit log, privacy/terms links, AI data-flow disclosure, a residency statement | L4–L7 | M |

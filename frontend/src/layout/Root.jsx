@@ -112,11 +112,11 @@ const RootLayout = () => {
   useNavWait(navigation.state !== "idle");
 
 
-  // Версия фронта вшита в бандл из frontend/package.json (vite.config.js),
-  // бэкенд отдаёт свою из своего package.json — расхождение значит, что на
-  // сервере уже новая сборка. Пустое значение с любой стороны — не повод для
-  // баннера: пока версию фронта задавали руками в .env, она отставала, и
-  // баннер висел всегда.
+  // Идентификатор сборки сервера приходит с пульсом и из /api/app-version,
+  // идентификатор клиента вшит в бандл при сборке (VITE_VERSION,
+  // vite.config.js). Оба имеют вид «версия+коммит», в разработке оба равны
+  // "dev". Расхождение значит, что на сервере уже новая сборка. Пустое
+  // значение с любой стороны — не повод для баннера.
   const frontendVersion = import.meta.env.VITE_VERSION;
   const versionMismatch =
     !!appVersion && !!frontendVersion && appVersion !== frontendVersion;

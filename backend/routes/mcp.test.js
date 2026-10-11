@@ -171,9 +171,9 @@ const buildApp = ({
 
   const directory = createDirectoryTools({
     source: {
-      loadCompanies: async () => ({ companies: [{ _id: "c1", alias: "Автогарант", fullTitle: "ООО «Автогарант»", isActive: true }], subdivisions: [] }),
+      loadCompanies: async () => ({ companies: [{ _id: "c1", alias: "Василёк", fullTitle: "ООО «Василёк»", isActive: true }], subdivisions: [] }),
       loadUsers: async () => [
-        { _id: "u1", firstName: "Анна", lastName: "Пухова", position: "Бухгалтер", isEndUser: true, isSystem: false, companyId: "c1", subdivisionId: null, isBlocked: false, telegramLinked: false },
+        { _id: "u1", firstName: "Анна", lastName: "Иванова", position: "Бухгалтер", isEndUser: true, isSystem: false, companyId: "c1", subdivisionId: null, isBlocked: false, telegramLinked: false },
       ],
     },
     log,
@@ -276,7 +276,7 @@ test("GET is refused with 405 and Allow: POST", async () => {
 
 test("POST without a key gets 401 before anything else runs", async () => {
   await withServer(buildApp({ modules: { ...MODULES_ON, knowledgeBase: false } }), async (base) => {
-    const { Authorization, ...noKey } = MCP_HEADERS;
+    const { Authorization: _Authorization, ...noKey } = MCP_HEADERS;
     const { status } = await rpc(base, "initialize", INITIALIZE, noKey);
     assert.equal(status, 401);
   });
@@ -305,6 +305,7 @@ test("tools follow the key's permissions and the modules", async () => {
     "compare_mikrotik_exports",
     "get_mikrotik_config",
     "get_mikrotik_device",
+    "get_mikrotik_events",
     "get_mikrotik_log",
     "get_mikrotik_state",
     "list_mikrotik_devices",
@@ -332,8 +333,8 @@ test("directory tools: each list needs its own scope; the call answers without c
     const init = await rpc(base, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } });
     assert.match(init.message.result.instructions, /list_users/);
     assert.ok(!init.message.result.instructions.includes("list_companies"));
-    const call = await rpc(base, "tools/call", { name: "list_users", arguments: { query: "пухова", company: "Автогарант" } });
-    assert.match(call.message.result.content[0].text, /Пухова Анна · company: Автогарант · position: Бухгалтер · client · active · Telegram linked: no/);
+    const call = await rpc(base, "tools/call", { name: "list_users", arguments: { query: "иванова", company: "Василёк" } });
+    assert.match(call.message.result.content[0].text, /Иванова Анна · company: Василёк · position: Бухгалтер · client · active · Telegram linked: no/);
     const denied = await rpc(base, "tools/call", { name: "list_companies", arguments: {} });
     assert.ok(denied.message.error || denied.message.result.isError, "без доступа «Компании» инструмента нет");
   });

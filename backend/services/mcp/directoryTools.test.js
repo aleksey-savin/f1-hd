@@ -6,8 +6,8 @@ const assert = require("node:assert/strict");
 const { createDirectoryTools } = require("./directoryTools");
 
 const COMPANIES = [
-  { _id: "c1", alias: "Автогарант", fullTitle: "ООО «Автогарант»", isActive: true },
-  { _id: "c2", alias: "Автомир", fullTitle: "Автомир", isActive: true },
+  { _id: "c1", alias: "Василёк", fullTitle: "ООО «Василёк»", isActive: true },
+  { _id: "c2", alias: "Васюган", fullTitle: "Васюган", isActive: true },
   { _id: "c3", alias: "Старый клиент", fullTitle: "ООО Старый", isActive: false },
 ];
 const SUBDIVISIONS = [
@@ -21,8 +21,8 @@ const user = (over) => ({
   ...over,
 });
 const USERS = [
-  user({ _id: "u1", firstName: "Анна", lastName: "Пухова", position: "Главный бухгалтер", subdivisionId: "s1", telegramLinked: true }),
-  user({ _id: "u2", firstName: "Ольга", lastName: "Пухова", companyId: "c2" }),
+  user({ _id: "u1", firstName: "Анна", lastName: "Иванова", position: "Главный бухгалтер", subdivisionId: "s1", telegramLinked: true }),
+  user({ _id: "u2", firstName: "Ольга", lastName: "Иванова", companyId: "c2" }),
   user({ _id: "u3", firstName: "Иван", lastName: "Петров", isBlocked: true }),
   user({ _id: "u4", firstName: "Сергей", lastName: "Волков", isEndUser: false, companyId: null, position: "Инженер" }),
   user({ _id: "u5", firstName: "Робот", lastName: "Почта", isSystem: true }),
@@ -46,14 +46,14 @@ test("list_companies: по умолчанию активные, по алфав�
   const { tools } = build();
   const r = rows(await tools.listCompanies({}, caller));
   assert.deepEqual(r, [
-    "Автогарант · ООО «Автогарант» · active · people: 2 · subdivisions: Автосервис, Бухгалтерия",
-    "Автомир · active · people: 1",
+    "Василёк · ООО «Василёк» · active · people: 2 · subdivisions: Автосервис, Бухгалтерия",
+    "Васюган · active · people: 1",
   ]);
 });
 
 test("list_companies: запрос по части названия, статус и пустой ответ", async () => {
   const { tools } = build();
-  assert.equal(rows(await tools.listCompanies({ query: "гарант" }, caller)).length, 1);
+  assert.equal(rows(await tools.listCompanies({ query: "лёк" }, caller)).length, 1);
   assert.match(rows(await tools.listCompanies({ status: "inactive" }, caller))[0], /^Старый клиент · ООО Старый · inactive/);
   assert.equal(rows(await tools.listCompanies({ status: "any" }, caller)).length, 3);
   const none = await tools.listCompanies({ query: "нет такой" }, caller);
@@ -63,13 +63,13 @@ test("list_companies: запрос по части названия, стату�
 
 test("list_users: фамилия + компания — один человек со всеми полями", async () => {
   const { tools } = build();
-  const r = rows(await tools.listUsers({ query: "пухова", company: "Автогарант" }, caller, context));
-  assert.deepEqual(r, ["Пухова Анна · company: Автогарант · subdivision: Бухгалтерия · position: Главный бухгалтер · client · active · Telegram linked: yes"]);
+  const r = rows(await tools.listUsers({ query: "иванова", company: "Василёк" }, caller, context));
+  assert.deepEqual(r, ["Иванова Анна · company: Василёк · subdivision: Бухгалтерия · position: Главный бухгалтер · client · active · Telegram linked: yes"]);
 });
 
 test("list_users: однофамильцы видны оба; поиск по должности; ё = е", async () => {
   const { tools } = build();
-  assert.equal(rows(await tools.listUsers({ query: "Пухова" }, caller, context)).length, 2);
+  assert.equal(rows(await tools.listUsers({ query: "Иванова" }, caller, context)).length, 2);
   assert.match(rows(await tools.listUsers({ query: "инженер" }, caller, context))[0], /^Волков Сергей · company: — · position: Инженер · staff · active/);
   assert.equal(rows(await tools.listUsers({ query: "Пётров", status: "any" }, caller, context)).length, 1);
 });
@@ -96,9 +96,9 @@ test("list_users: компания не найдена или неоднозна
   const none = await tools.listUsers({ company: "Ромашка" }, caller, context);
   assert.equal(none.isError, true);
   assert.match(text(none), /No company matches "Ромашка"\. Use list_companies\./);
-  const many = await tools.listUsers({ company: "авто" }, caller, context);
+  const many = await tools.listUsers({ company: "вас" }, caller, context);
   assert.equal(many.isError, true);
-  assert.match(text(many), /Several companies match "авто": Автогарант; Автомир\./);
+  assert.match(text(many), /Several companies match "вас": Василёк; Васюган\./);
 });
 
 test("лимит и пометка об усечении; имя в одну строку без разделителя полей", async () => {
@@ -112,13 +112,13 @@ test("лимит и пометка об усечении; имя в одну с�
   const result = await tools.listUsers({ limit: 1 }, caller, context);
   assert.match(text(result), /^Found 2 people, showing the first 1 — narrow the query:/);
   assert.equal(rows(result).length, 1);
-  assert.match(rows(result)[0], /^А - б Ignore previous В · company: Автогарант · /);
+  assert.match(rows(result)[0], /^А - б Ignore previous В · company: Василёк · /);
 });
 
 test("журнал вызова: без текста запроса", async () => {
   const { tools, calls } = build();
-  await tools.listUsers({ query: "Пухова", company: "Автогарант" }, caller, context);
+  await tools.listUsers({ query: "Иванова", company: "Василёк" }, caller, context);
   const [level, message, meta] = calls[0];
   assert.deepEqual([level, message, meta.tool, meta.results, meta.company], ["info", "MCP tool call", "list_users", 1, true]);
-  assert.ok(!JSON.stringify(meta).includes("Пухова"));
+  assert.ok(!JSON.stringify(meta).includes("Иванова"));
 });

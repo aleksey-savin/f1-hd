@@ -5,7 +5,7 @@ const { AppError } = require("@/middleware/errorHandling");
 const { bus } = require("@/services/pulse");
 const { canAccessTicket } = require("@/services/ticketAccess");
 const { summaryFor } = require("@/controllers/notification");
-const packageJson = require("../package.json");
+const { buildInfo } = require("../utils/buildInfo");
 
 /**
  * GET /pulse?cursor=<epoch>:<rev>&ticket=<id>[,<id>…]
@@ -59,7 +59,7 @@ exports.pulse = async (req, res, next) => {
       epoch: bus.epoch,
       rev,
       pollMs: POLL_MS,
-      appVersion: packageJson.version,
+      appVersion: buildInfo.id,
       topics,
       tickets,
     };

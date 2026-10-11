@@ -1,5 +1,5 @@
 # Development stack: bind-mounted sources, dev targets, MongoDB published on
-# 27017 for local tools (sync-dev-db.sh, Compass).
+# 27017 for local tools (ops/sync-dev-db.sh, Compass).
 #
 # Put `COMPOSE_FILE=compose.dev.yml` into the dev machine's .env and plain
 # `docker compose up` uses this file. Changing .env needs
@@ -10,7 +10,7 @@ services:
   mongodb:
     # The dev volume was written by 8.2 (an untagged `mongo` pulled in 2025-11)
     # and 8.0 refuses those files. Production pins mongo:8.0; to converge, drop
-    # the hd_data volume and re-sync with ./sync-dev-db.sh, then pin 8.0 here.
+    # the hd_data volume and re-sync with ops/sync-dev-db.sh, then pin 8.0 here.
     image: mongo:8
     restart: unless-stopped
     environment:

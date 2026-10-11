@@ -109,10 +109,14 @@ const dropHandle = (handle) => {
   openHandles.delete(handle);
   try {
     handle.shell?.close();
-  } catch {}
+  } catch {
+    // Канал уже закрыт — закрывать нечего.
+  }
   try {
     handle.session.close();
-  } catch {}
+  } catch {
+    // Сессия уже закрыта — закрывать нечего.
+  }
 };
 const openProbeShell = async (shellParams) => {
   assertNotAborting();
@@ -488,7 +492,9 @@ const run = async () => {
     printResult();
     try {
       await mongoose.disconnect();
-    } catch {}
+    } catch {
+      // Отключение при выходе: ошибка здесь ничего не меняет.
+    }
   }
 
   return preflightOk && !leftover && !aborting ? 0 : 1;

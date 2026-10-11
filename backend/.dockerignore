@@ -10,14 +10,14 @@ build
 .gitignore
 .env*
 *.log
-*.test.js
-*.test.ts
-__tests__
+**/*.test.js
+**/*.test.ts
+**/__tests__
 .eslintrc*
 .prettierrc*
 Dockerfile*
 .dockerignore
-README.md
+**/README.md
 .vscode
 .idea
 .DS_Store
@@ -28,3 +28,14 @@ scripts/mikrotikUpgradeProbe.js
 # never part of the product image
 scripts/seedDemoConversations.js
 scripts/spikeSafeMode.js
+.claude
+.pnpm-store
+.husky
+eslint.config.mjs
+package-lock.json
+build-info.json
+# Help articles are product content; every other Markdown file is a note
+**/*.md
+!help/**
+# Developer-only scripts: data masking for a production copy and the like
+scripts/dev

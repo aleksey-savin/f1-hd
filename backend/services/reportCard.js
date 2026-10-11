@@ -360,9 +360,9 @@ const restrictCard = (card, rawParts, viewer) => {
     };
     // Доля работы в тарифе — те же деньги договора, только помельче
     card.worktimeWorks = (card.worktimeWorks || []).map(
-      ({ cost, ...rest }) => rest,
+      ({ cost: _cost, ...rest }) => rest,
     );
-    card.parts = (card.parts || []).map(({ price, ...rest }) => rest);
+    card.parts = (card.parts || []).map(({ price: _price, ...rest }) => rest);
     card.terms = {
       type: card.terms?.type,
       tariffingPeriod: card.terms?.tariffingPeriod,

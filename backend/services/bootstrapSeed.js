@@ -1,6 +1,5 @@
 const crypto = require("crypto");
 const fs = require("fs");
-const path = require("path");
 const mongoose = require("mongoose");
 
 const User = require("@/models/user");

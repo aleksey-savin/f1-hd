@@ -137,7 +137,6 @@ const buildSearchConditions = (raw) => {
 // Список заметок, доступных пользователю. Поиск (?search=) — на сервере.
 exports.getAll = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
     const kbConfig = await getKbConfig();
 
     // По умолчанию — активные заметки (не в архиве). archived=true → архивные;
@@ -208,7 +207,6 @@ const matchesTicketContext = (note, { company, category, user }) => {
 // списка), ранжирование по релевантности — на клиенте.
 exports.getRelated = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
     const kbConfig = await getKbConfig();
     const { company, category, user } = req.query;
 
@@ -246,7 +244,6 @@ exports.getRelated = async (req, res, next) => {
 // Полная заметка (с content) — с проверкой видимости
 exports.getOne = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
     const kbConfig = await getKbConfig();
     const note = await KnowledgeNote.findById(req.params.id)
       .populate(ACTOR_PATHS)

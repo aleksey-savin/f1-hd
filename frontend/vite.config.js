@@ -1,18 +1,15 @@
-import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// Версия фронта — единственным источником из package.json. Раньше её задавали
-// через VITE_VERSION в .env: в dev значение приходило из .env.dev, годами
-// отставало от package.json, и баннер «Доступна новая версия» висел всегда
-// (сгенерированный в образе .env в dev не виден — его перекрывает bind-mount
-// ./frontend:/app). define перекрывает и .env-файлы, и process.env — и в dev,
-// и в сборке.
-const appVersion = JSON.parse(
-  readFileSync(new URL("./package.json", import.meta.url), "utf8"),
-).version;
+// Идентификатор сборки. В образе его задают аргументы сборки APP_VERSION и
+// APP_COMMIT (frontend/Dockerfile), в dev их нет — и сервер, и клиент называют
+// себя "dev", поэтому баннер «Доступна новая версия» в dev не появляется.
+// define перекрывает и .env-файлы, и process.env.
+const version = process.env.APP_VERSION || "dev";
+const commit = process.env.APP_COMMIT || "dev";
+const appVersion = version === "dev" ? "dev" : `${version}+${commit}`;
 
 export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],

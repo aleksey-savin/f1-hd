@@ -32,7 +32,7 @@ const deviceConfigurationRecommendationSchema = new Schema(
 
 const DeviceConfigurationRecommendation = mongoose.model(
   "DeviceConfigurationRecommendation",
-  deviceAttributeSchema,
+  deviceConfigurationRecommendationSchema,
 );
 
 module.exports = DeviceConfigurationRecommendation;

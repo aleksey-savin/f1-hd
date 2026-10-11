@@ -97,7 +97,7 @@ const FormWrapper = ({
                   });
                   return;
                 }
-                fetcher.submit(json!() as Record<string, unknown>, {
+                fetcher.submit(json!() as Parameters<typeof fetcher.submit>[0], {
                   method: "post",
                   action: action || ".",
                   encType: "application/json",

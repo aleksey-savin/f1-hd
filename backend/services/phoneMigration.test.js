@@ -21,7 +21,7 @@ test("each stored shape gets its status", () => {
     ["+7", "", "emptied"],
     ["телефон", "", "emptied"],
     // фигурные тире, без кода города — как в двух подразделениях копии прода
-    ["222‒29‒99", "2222999", "invalid"],
+    ["234‒56‒78", "2345678", "invalid"],
     ["+7 (914) 555-01-4", "7914555014", "invalid"],
     // те же цифры после первого прогона: 7 повторно не дописывается
     ["7914555014", "7914555014", "invalid"],
@@ -36,14 +36,14 @@ test("each stored shape gets its status", () => {
 test("a company: phones de-duplicated, snapshots written by position", () => {
   const plan = planDocument(specOf("companies"), {
     _id: "c1",
-    phones: ["+7 (423) 222-29-99", "+7", "8 423 222 29 99", "74232222998"],
+    phones: ["+7 (900) 000-00-01", "+7", "8 900 000 00 01", "79000000002"],
     users: [],
     responsibles: [{ phone: "+7 (914) 555-01-42" }, { phone: "" }, {}],
     clientsSideResponsibles: [{ phone: "79140000000" }],
   });
   assert.deepEqual(plan.set, {
     "responsibles.0.phone": "79145550142",
-    phones: ["74232222999", "74232222998"],
+    phones: ["79000000001", "79000000002"],
   });
   assert.deepEqual(
     plan.findings.map((item) => `${item.path} ${item.status}`),
@@ -63,7 +63,7 @@ test("a second run changes nothing", () => {
   const spec = specOf("tickets");
   const first = planDocument(spec, {
     applicant: { phone: "8 (914) 555-01-42" },
-    responsibles: [{ phone: "+7 (423) 222-29-99" }],
+    responsibles: [{ phone: "+7 (900) 000-00-01" }],
   });
   const migrated = {
     applicant: { phone: first.set["applicant.phone"] },
@@ -82,17 +82,17 @@ test("a second run invents nothing", () => {
 
 test("an invalid local number is not listed as foreign", () => {
   // семь цифр без кода города: негодный номер, а не номер другой страны
-  const plan = planDocument(specOf("subdivisions"), { phone: "222‒29‒99" });
+  const plan = planDocument(specOf("subdivisions"), { phone: "234‒56‒78" });
   assert.deepEqual(plan.findings.map((item) => item.status), ["invalid"]);
 });
 
 test("a snapshot is written by its position and guarded by the value that was read", () => {
   const plan = planDocument(specOf("tickets"), {
-    responsibles: [{ phone: "79145550142" }, {}, { phone: "+7 (423) 222-29-99" }],
+    responsibles: [{ phone: "79145550142" }, {}, { phone: "+7 (900) 000-00-01" }],
   });
-  assert.deepEqual(plan.set, { "responsibles.2.phone": "74232222999" });
+  assert.deepEqual(plan.set, { "responsibles.2.phone": "79000000001" });
   // запись пройдёт, только если по этой позиции всё ещё лежит прочитанное
-  assert.deepEqual(plan.expect, { "responsibles.2.phone": "+7 (423) 222-29-99" });
+  assert.deepEqual(plan.expect, { "responsibles.2.phone": "+7 (900) 000-00-01" });
 });
 
 test("a position survives a non-document element", () => {
@@ -104,9 +104,9 @@ test("a position survives a non-document element", () => {
 });
 
 test("a changed phone list is guarded by the original array", () => {
-  const plan = planDocument(specOf("companies"), { phones: ["+7 (423) 222-29-99", "+7"] });
-  assert.deepEqual(plan.set, { phones: ["74232222999"] });
-  assert.deepEqual(plan.expect, { phones: ["+7 (423) 222-29-99", "+7"] });
+  const plan = planDocument(specOf("companies"), { phones: ["+7 (900) 000-00-01", "+7"] });
+  assert.deepEqual(plan.set, { phones: ["79000000001"] });
+  assert.deepEqual(plan.expect, { phones: ["+7 (900) 000-00-01", "+7"] });
 });
 
 test("a plus-8 conversion is listed", () => {
@@ -120,7 +120,7 @@ test("a plus-8 conversion is listed", () => {
 
 test("a shape hides letters as well as digits", () => {
   // имя из свободного текста не должно попасть в лог развёртывания
-  const plan = planDocument(specOf("users"), { phone: "звонить Ивану 222-29-99" });
+  const plan = planDocument(specOf("users"), { phone: "звонить Ивану 234-56-78" });
   const invalid = plan.findings.find((item) => item.status === "invalid");
   assert.equal(invalid.shape, "aaaaaaa aaaaa 999-99-99");
   assert.doesNotMatch(invalid.shape, /\p{Script=Cyrillic}/u);

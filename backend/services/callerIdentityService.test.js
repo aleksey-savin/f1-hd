@@ -20,13 +20,13 @@ test("the «Кто звонил» number is the only candidate when present", ()
   assert.deepEqual(
     extractCallerPhones({
       description:
-        "Номер линии: 8 (423) 222-29-99\nКто звонил: +7 914 555-01-42\nВремя звонка: 30-09-2026 12:00:00",
+        "Номер линии: 8 (900) 000-00-01\nКто звонил: +7 914 555-01-42\nВремя звонка: 30-09-2026 12:00:00",
     }),
     ["79145550142"],
   );
   assert.deepEqual(
     extractCallerPhones({
-      name: "Входящий звонок 8 (423) 222-29-99",
+      name: "Входящий звонок 8 (900) 000-00-01",
       description: "Кто звонил: +7 914 555-01-42\nС кем говорил: Иванов",
     }),
     ["79145550142"],
@@ -36,10 +36,10 @@ test("the «Кто звонил» number is the only candidate when present", ()
 test("without the marker: the subject, then the body", () => {
   assert.deepEqual(
     extractCallerPhones({
-      name: "Входящий звонок 8 (423) 222-29-99",
+      name: "Входящий звонок 8 (900) 000-00-01",
       description: "тел. 8 (914) 555-01-42",
     }),
-    ["74232222999", "79145550142"],
+    ["79000000001", "79145550142"],
   );
 });
 
@@ -48,21 +48,21 @@ test("a withheld caller ID matches nobody", () => {
   // не он: без запасных номеров скрытый звонок не достаётся их владельцам
   assert.deepEqual(
     extractCallerPhones({
-      name: "Входящий звонок 8 (423) 222-29-99",
+      name: "Входящий звонок 8 (900) 000-00-01",
       description: "Кто звонил: Аноним\nНомер линии: 8 (423) 200-00-00",
     }),
     [],
   );
   assert.deepEqual(
     extractCallerPhones({
-      name: "Входящий звонок 8 (423) 222-29-99",
+      name: "Входящий звонок 8 (900) 000-00-01",
       description: "Кто звонил: скрыт\nтел. 8 (914) 555-01-42",
     }),
     [],
   );
   assert.deepEqual(
     extractCallerPhones({
-      name: "Входящий звонок 8 (423) 222-29-99",
+      name: "Входящий звонок 8 (900) 000-00-01",
       description: "Кто звонил:\nС кем говорил: Иванов",
     }),
     [],
@@ -70,7 +70,7 @@ test("a withheld caller ID matches nobody", () => {
   // Обрывок, не дотягивающий до полного номера, — тоже не звонящий
   assert.deepEqual(
     extractCallerPhones({
-      name: "Входящий звонок 8 (423) 222-29-99",
+      name: "Входящий звонок 8 (900) 000-00-01",
       description: "Кто звонил: 123456\nтел. 8 (914) 555-01-42",
     }),
     [],
@@ -78,7 +78,7 @@ test("a withheld caller ID matches nobody", () => {
   // То же для письма, у которого есть только HTML-часть
   assert.deepEqual(
     extractCallerPhones({
-      name: "Входящий звонок 8 (423) 222-29-99",
+      name: "Входящий звонок 8 (900) 000-00-01",
       htmlDescription: "<p>Кто звонил: Аноним</p>\n<p>Номер линии: 8 (423) 200-00-00</p>",
     }),
     [],
@@ -99,7 +99,7 @@ test("the first «Кто звонил» line decides", () => {
 
 test("landlines are recognised now, not only mobiles", () => {
   assert.deepEqual(extractCallerPhones({ name: "Звонок +7 (812) 123-45-67" }), ["78121234567"]);
-  assert.deepEqual(extractCallerPhones({ description: "тел. 8 (423) 222-29-99" }), ["74232222999"]);
+  assert.deepEqual(extractCallerPhones({ description: "тел. 8 (900) 000-00-01" }), ["79000000001"]);
 });
 
 test("an INN in a signature does not hide the real number", () => {
@@ -132,8 +132,8 @@ test("the same number in the subject and the body is listed once", () => {
 
 test("numbers on consecutive lines stay separate", () => {
   assert.deepEqual(
-    extractCallerPhones({ description: "тел. 8 (423) 222-29-99\n8 (914) 555-01-42" }),
-    ["74232222999", "79145550142"],
+    extractCallerPhones({ description: "тел. 8 (900) 000-00-01\n8 (914) 555-01-42" }),
+    ["79000000001", "79145550142"],
   );
   // Дата на следующей строке не приклеивается к номеру и не ломает его
   assert.deepEqual(
@@ -148,7 +148,7 @@ test("a non-breaking space inside a number does not split it", () => {
     extractCallerPhones({ description: "Кто звонил: +7\xa0914\xa0555-01-42" }),
     ["79145550142"],
   );
-  assert.deepEqual(extractCallerPhones({ name: "Звонок 8\xa0(423)\xa0222-29-99" }), ["74232222999"]);
+  assert.deepEqual(extractCallerPhones({ name: "Звонок 8\xa0(900)\xa0000-00-01" }), ["79000000001"]);
 });
 
 test("the label behind &nbsp; is still found in an HTML-only mail", () => {
@@ -286,7 +286,7 @@ test("extractCallerPhones: тег в HTML-теле заменяется проб
   // тег пустотой, метка слиплась бы («Ктозвонил»), и ответом стал бы номер из темы
   assert.deepEqual(
     extractCallerPhones({
-      name: "Входящий звонок 8 (423) 222-29-99",
+      name: "Входящий звонок 8 (900) 000-00-01",
       htmlDescription: "<p>Кто<b>звонил</b>: Аноним</p>",
     }),
     [],

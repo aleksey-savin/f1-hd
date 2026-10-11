@@ -27,7 +27,7 @@ test("an empty phone clears the field, a missing one is left alone", async () =>
 });
 
 test("incomplete numbers and numbers without an area code are refused", async () => {
-  for (const sent of ["+7 (914) 555-0", "222-29-99", "+37529", "тел 12"]) {
+  for (const sent of ["+7 (914) 555-0", "234-56-78", "+37529", "тел 12"]) {
     assert.deepEqual((await run(phoneBody("phone"), { phone: sent })).errors, [PHONE_MESSAGE], sent);
   }
 });
@@ -40,14 +40,14 @@ test("nested paths work (settings contacts)", async () => {
 
 test("company phones: normalized, emptied rows and repeats dropped", async () => {
   const { body, errors } = await run(phoneListBody("phones"), {
-    phones: ["+7 (423) 222-29-99", "", "+7", "8 423 222 29 99", "+375 29 123-45-67"],
+    phones: ["+7 (900) 000-00-01", "", "+7", "8 900 000 00 01", "+375 29 123-45-67"],
   });
   assert.deepEqual(errors, []);
-  assert.deepEqual(body.phones, ["74232222999", "375291234567"]);
+  assert.deepEqual(body.phones, ["79000000001", "375291234567"]);
 });
 
 test("company phones: the legacy single string still works, a bad item is refused", async () => {
-  assert.deepEqual((await run(phoneListBody("phones"), { phones: "+7 (423) 222-29-99" })).body.phones, ["74232222999"]);
-  assert.deepEqual((await run(phoneListBody("phones"), { phones: ["+7 (423) 222-29-99", 42] })).errors, [PHONE_MESSAGE]);
+  assert.deepEqual((await run(phoneListBody("phones"), { phones: "+7 (900) 000-00-01" })).body.phones, ["79000000001"]);
+  assert.deepEqual((await run(phoneListBody("phones"), { phones: ["+7 (900) 000-00-01", 42] })).errors, [PHONE_MESSAGE]);
   assert.deepEqual((await run(phoneListBody("phones"), { phones: ["+7 (423) 222-2"] })).errors, [PHONE_MESSAGE]);
 });

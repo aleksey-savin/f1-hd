@@ -33,9 +33,7 @@ const SKIPPED = [
  * Файлы, где прежнее название оставлено намеренно. Каждая запись — путь от
  * корня репозитория и причина в одну строку.
  */
-const ALLOWED = [
-  ["sync-dev-db.sh", "internal, leaves the repo in W3: копирование базы прода прежнего владельца, адреса его хостов"],
-];
+const ALLOWED = [];
 
 const allowedPaths = new Set(ALLOWED.map(([file]) => file));
 

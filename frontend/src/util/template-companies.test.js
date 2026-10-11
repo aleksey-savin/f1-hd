@@ -4,22 +4,22 @@ import assert from "node:assert/strict";
 
 import { templateCompanies, templateHasCompany } from "./template-companies.ts";
 
-const autogarant = { _id: "62d0c0ed5a3314d41cc43ef3", alias: "Автогарант" };
-const uspeh = { _id: "62eb2e2e123d238ba1661dea", alias: "Успех" };
+const romashka = { _id: "000000000000000000000001", alias: "Ромашка" };
+const vasilek = { _id: "000000000000000000000002", alias: "Василёк" };
 
 test("a template filed for a company counts even when shared with nobody", () => {
-  const template = { company: autogarant, sharedCompanies: [] };
-  assert.deepEqual(templateCompanies(template), [autogarant]);
-  assert.equal(templateHasCompany(template, [autogarant._id]), true);
+  const template = { company: romashka, sharedCompanies: [] };
+  assert.deepEqual(templateCompanies(template), [romashka]);
+  assert.equal(templateHasCompany(template, [romashka._id]), true);
 });
 
 test("the own company and the shared ones are listed once each", () => {
-  const template = { company: uspeh, sharedCompanies: [uspeh, autogarant] };
-  assert.deepEqual(templateCompanies(template), [uspeh, autogarant]);
+  const template = { company: vasilek, sharedCompanies: [vasilek, romashka] };
+  assert.deepEqual(templateCompanies(template), [vasilek, romashka]);
 });
 
 test("a template without companies matches no company filter", () => {
   assert.deepEqual(templateCompanies({}), []);
   assert.deepEqual(templateCompanies({ company: null }), []);
-  assert.equal(templateHasCompany({}, [uspeh._id]), false);
+  assert.equal(templateHasCompany({}, [vasilek._id]), false);
 });

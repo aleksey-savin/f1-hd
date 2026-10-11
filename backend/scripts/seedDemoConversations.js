@@ -227,7 +227,7 @@ const seed = async (m) => {
       telegramBot: { isActive: false, chatId: `${EXT}${key}` },
     });
   const marina = await client("Марина", "Соколова", "Бухгалтер", "marina");
-  const oleg = await client("Олег", "Смирнов", "Директор", "oleg");
+  await client("Олег", "Смирнов", "Директор", "oleg");
 
   const ticket = await m.Ticket.create({
     title: `${TAG} Не печатает принтер в бухгалтерии`,
@@ -302,8 +302,8 @@ const seed = async (m) => {
   await say(telegram, groupChat, { id: "g2", direction: "in", sender: kostya, text: "Кабель я проверял, он целый" }, 30);
 
   // 6. Форма сайта — должна просто показываться (карточка формы — этап P5)
-  const formPerson = { id: `${EXT}form-1`, name: "Кравцова Елена" };
-  await say(site, { id: `${EXT}form-1`, kind: "form", title: "Кравцова Елена", peer: formPerson }, {
+  const formPerson = { id: `${EXT}form-1`, name: "Петрова Елена" };
+  await say(site, { id: `${EXT}form-1`, kind: "form", title: "Петрова Елена", peer: formPerson }, {
     id: "f1",
     direction: "in",
     origin: "form",
@@ -311,7 +311,7 @@ const seed = async (m) => {
     sender: formPerson,
     form: {
       fields: [
-        { label: "Имя", value: "Кравцова Елена" },
+        { label: "Имя", value: "Петрова Елена" },
         { label: "Компания", value: "ООО «Северный порт»" },
         { label: "Сообщение", value: "Нужна абонентская поддержка для 12 компьютеров и сервера 1С." },
       ],

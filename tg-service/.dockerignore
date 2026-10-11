@@ -5,3 +5,7 @@ logs
 *.log
 Dockerfile
 .dockerignore
+.claude
+**/*.md
+build-info.json
+src/**/*.test.ts

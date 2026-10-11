@@ -87,7 +87,6 @@ exports.canSeeTemplate = canSeeTemplate;
 exports.getAll = async (req, res, next) => {
   try {
     const { _id: userId, company, isEndUser } = req.auth.legacy;
-    const authedUser = await User.findById(userId);
 
     let templates = [];
 

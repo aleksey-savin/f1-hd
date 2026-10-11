@@ -10,7 +10,7 @@ const { toCanonicalPhone } = require("../services/phone");
  * Секреты — шифртексты secretBox (services/crypto/secretBox.js); наружу их
  * расшифрованными получает только шлюз (controllers/gateway.js). Сессии
  * мессенджеров здесь НЕ хранятся: они живут в томе шлюза, иначе копия базы на
- * деве (sync-dev-db.sh) унесла бы живую сессию прода.
+ * деве (ops/sync-dev-db.sh) унесла бы живую сессию прода.
  */
 const channelSchema = new Schema(
   {

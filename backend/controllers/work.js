@@ -200,7 +200,6 @@ exports.getAdditionalData = async (req, res, next) => {
  */
 exports.preview = async (req, res, next) => {
   try {
-    const authData = req.auth?.legacy ?? null;
     const { tickets, startedAt, finishedAt } = req.body;
 
     const result = await previewWork({

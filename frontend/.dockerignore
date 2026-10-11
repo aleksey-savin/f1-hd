@@ -7,3 +7,8 @@ Dockerfile
 .vscode
 .idea
 .DS_Store
+.claude
+**/*.md
+**/*.test.js
+**/*.err
+eslint.config.mjs

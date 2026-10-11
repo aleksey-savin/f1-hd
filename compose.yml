@@ -1,6 +1,7 @@
 # Production stack — the default compose file.
 #
-#   ./deploy.sh            builds, migrates and starts everything (see README)
+#   ./deploy.sh            builds or pulls images, migrates and starts
+#                          everything (see README)
 #   docker compose ps      status
 #
 # One published port: HTTP_PORT → the frontend nginx, which proxies /api and
@@ -35,7 +36,7 @@ services:
       - hd_data:/data/db
       - hd_mongodb_config:/data/configdb
     ports:
-      # Loopback only by default: mongosh and sync-dev-db.sh on this host.
+      # Loopback only by default: mongosh and ops/sync-dev-db.sh on this host.
       # MONGO_PORT=<lan-ip>:27017 in .env publishes it for Compass and remote
       # tools on the LAN (never a public interface: Docker bypasses ufw).
       - "${MONGO_PORT:-127.0.0.1:27017}:27017"
@@ -48,9 +49,18 @@ services:
     logging: *logging
 
   backend:
+    # deploy.sh derives IMAGE_PREFIX: "hd-" when images are built here (the
+    # name is then hd-backend:latest, as before), "<IMAGE_REGISTRY>/" when they
+    # are pulled. See docs/deployment.md, "Images".
+    image: ${IMAGE_PREFIX:-hd-}backend:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       target: prod
+      additional_contexts:
+        root: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        APP_COMMIT: ${APP_COMMIT:-dev}
     restart: unless-stopped
     init: true
     # SIGTERM makes the backend stop its crons, give running jobs up to 50 s to
@@ -72,9 +82,18 @@ services:
     logging: *logging
 
   frontend:
+    # deploy.sh derives IMAGE_PREFIX: "hd-" when images are built here (the
+    # name is then hd-frontend:latest, as before), "<IMAGE_REGISTRY>/" when they
+    # are pulled. See docs/deployment.md, "Images".
+    image: ${IMAGE_PREFIX:-hd-}frontend:${IMAGE_TAG:-latest}
     build:
       context: ./frontend
       target: prod
+      additional_contexts:
+        root: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        APP_COMMIT: ${APP_COMMIT:-dev}
     restart: unless-stopped
     environment:
       # Origin of the error-tracking service for the CSP connect-src; deploy.sh
@@ -93,9 +112,18 @@ services:
   # COMPOSE_PROFILES=telegram in .env when TG_TOKEN is filled in. It talks to
   # the backend over the API with a shared secret and never sees the database.
   tg-service:
+    # deploy.sh derives IMAGE_PREFIX: "hd-" when images are built here (the
+    # name is then hd-tg-service:latest, as before), "<IMAGE_REGISTRY>/" when they
+    # are pulled. See docs/deployment.md, "Images".
+    image: ${IMAGE_PREFIX:-hd-}tg-service:${IMAGE_TAG:-latest}
     build:
       context: ./tg-service
       target: prod
+      additional_contexts:
+        root: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        APP_COMMIT: ${APP_COMMIT:-dev}
     profiles: [telegram]
     restart: unless-stopped
     init: true

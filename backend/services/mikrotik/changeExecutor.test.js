@@ -64,7 +64,6 @@ const fakeHold = ({ reads = [PROMPT, TAKEN, RELEASED], drains = [], throwWrite =
 // openHold в harness (не флаг теста), а after сверяет число проверенных открытых с числом вызовов openHold.
 // Не гарантируется: оболочка, собранная в обход fakeHold, или openHold, написанный в тесте вручную.
 const registry = [];
-let checked = 0;
 let checkedOpened = 0;
 let openCalls = 0;
 afterEach(() => {
@@ -75,7 +74,6 @@ afterEach(() => {
       assert.equal(hold.closed, 1, "hold must be closed exactly once");
       checkedOpened += 1;
     }
-    checked += 1;
   }
 });
 after(() => {
