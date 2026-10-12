@@ -32,7 +32,7 @@ const Category = require("../models/ticketCategory");
 const TicketLog = require("../models/ticketLog");
 const Work = require("../models/work");
 const Comment = require("../models/comment");
-const CompanyLog = require("../models/companyLog");
+const { lastComputerLogin } = require("@/services/companyLogComputers");
 
 const Connection = require("../models/pro32Connect/connection");
 
@@ -547,15 +547,13 @@ exports.getOne = async (req, res, next) => {
     });
 
     // Если инициатор связан с Active Directory, подтягиваем его последний ПК
-    // из логов активности компании (последняя запись входа с именем компьютера).
+    // из логов активности компании (последний вход на необщий компьютер:
+    // терминальный сервер рабочую станцию не перебивает).
     if (ticket.applicant?.activeDirectoryObjectGUID) {
-      const lastLog = await CompanyLog.findOne({
+      const lastLog = await lastComputerLogin({
+        companyId: ticket.company?._id,
         activeDirectoryObjectGUID: ticket.applicant.activeDirectoryObjectGUID,
-        computerName: { $nin: [null, ""] },
-      })
-        .sort({ createdAt: -1 })
-        .select("computerName activeDirectoryLogin createdAt")
-        .lean();
+      });
 
       if (lastLog) {
         ticket.applicant.computer = {

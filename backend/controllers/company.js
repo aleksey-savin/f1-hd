@@ -15,6 +15,9 @@ const {
   apiKeyTail,
 } = require("../utils/apiKeyGenerator");
 const CompanyLog = require("../models/companyLog");
+const {
+  personalComputersByAccount,
+} = require("@/services/companyLogComputers");
 const logger = require("../utils/logger");
 const storage = require("../services/storage");
 const companyStatsService = require("../services/companyStatsService");
@@ -1561,19 +1564,26 @@ exports.getCompanyLogAccounts = async (req, res, next) => {
       .lean();
     const userById = new Map(users.map((user) => [user._id.toString(), user]));
 
+    // Терминальный сервер рабочую станцию не перебивает: учётке, у которой
+    // есть вход на необщий компьютер, показываются он и время входа на него
+    const personalByAccount = await personalComputersByAccount(companyId);
+
     res.status(200).json({
-      accounts: accounts.map((account) => ({
-        activeDirectoryObjectGUID: account._id,
-        activeDirectoryLogin: account.activeDirectoryLogin,
-        firstName: account.firstName || null,
-        lastName: account.lastName || null,
-        computerName: account.computerName || null,
-        lastSeenAt: account.lastSeenAt,
-        count: account.count,
-        user: account.userId
-          ? userById.get(account.userId.toString()) || null
-          : null,
-      })),
+      accounts: accounts.map((account) => {
+        const personal = personalByAccount.get(account._id);
+        return {
+          activeDirectoryObjectGUID: account._id,
+          activeDirectoryLogin: account.activeDirectoryLogin,
+          firstName: account.firstName || null,
+          lastName: account.lastName || null,
+          computerName: personal?.computerName || account.computerName || null,
+          lastSeenAt: personal?.lastSeenAt || account.lastSeenAt,
+          count: account.count,
+          user: account.userId
+            ? userById.get(account.userId.toString()) || null
+            : null,
+        };
+      }),
     });
   } catch (error) {
     next(
