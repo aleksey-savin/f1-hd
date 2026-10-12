@@ -287,6 +287,10 @@ export const resultLine = (
 
 /* ── Шаги утверждения ── */
 
+/** Шаг «любой сотрудник с правом»: у устройства нет ответственного, человека нет до решения. */
+export const isPoolStep = (step: { role?: string; user?: unknown }): boolean =>
+  step.role === "approver" && !step.user;
+
 export type StepState = "done" | "rejected" | "current" | "pending";
 
 const OPEN: ChangeStatus[] = ["awaiting_requester", "awaiting_responsible"];
@@ -329,11 +333,19 @@ export const decisionNote = (
 
 /** Подпись шага, который ещё не решён. */
 export const pendingNote = (
-  step: Pick<ChangeStep, "role">,
+  step: Pick<ChangeStep, "role"> & { user?: unknown },
   state: StepState,
   status?: string,
   stepCount: number = 2,
 ): string => {
+  if (isPoolStep(step)) {
+    if (state === "current") {
+      return "Ждёт решения · у устройства нет ответственного";
+    }
+    return OPEN.includes(status as ChangeStatus)
+      ? "Получат запрос после подтверждения заявителя"
+      : "Решения не было";
+  }
   if (state === "current") {
     return step.role === "requester" && stepCount > 1
       ? "Подтверждает, что просил это изменение"
@@ -347,6 +359,17 @@ export const pendingNote = (
 export const ROLE_LABEL: Record<string, string> = {
   requester: "заявитель",
   responsible: "ответственный",
+};
+
+/** «Ирина Соколова, ответственный»; шаг без человека — «Любой сотрудник с правом утверждать». */
+export const stepTitle = (step: {
+  role?: string;
+  user?: { name?: string } | null;
+}): string => {
+  if (isPoolStep(step)) return "Любой сотрудник с правом утверждать";
+  const name = step.user?.name || "Не назначен";
+  const role = ROLE_LABEL[step.role ?? ""];
+  return role ? `${name}, ${role}` : name;
 };
 
 /* ── Список запросов устройства ── */

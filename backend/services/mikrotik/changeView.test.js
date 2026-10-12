@@ -226,3 +226,16 @@ test("wireguard: клиент без интерфейса (пустые масс
   const v = view(change({ wireguard: { client: { allowedIps: [], dns: [] } } }), viewer("req"));
   assert.equal(v.wireguard, null);
 });
+
+test("общий шаг («любой с правом»): approve у каждого с правом, без права шага нет; человек шага пуст", () => {
+  const c = change({ responsible: null, status: "awaiting_responsible", steps: [
+    { role: "requester", user: person("req", "Иван", "Петров"), decision: "approve" },
+    { role: "approver", user: null, decision: null },
+  ] });
+  const holder = view(c, viewer("anyone", { canApprove: true }));
+  assert.deepEqual([holder.my.step, holder.my.action], [true, "approve"]);
+  assert.deepEqual(holder.steps[1], { role: "approver", user: null, decision: null, channel: undefined, comment: undefined, decidedAt: undefined });
+  // Заявитель без права видит запрос, но решать второй шаг не может
+  const requester = view(c, viewer("req"));
+  assert.deepEqual([requester.my.step, requester.my.action], [false, null]);
+});

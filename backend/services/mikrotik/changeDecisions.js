@@ -101,6 +101,8 @@ const mongoStore = {
       {
         $set: {
           status,
+          // Общий шаг («любой с правом») получает человека вместе с решением
+          ...(step.user === undefined ? {} : { [`${at}.user`]: step.user }),
           [`${at}.decision`]: step.decision,
           [`${at}.channel`]: step.channel,
           ...(step.comment === undefined ? {} : { [`${at}.comment`]: step.comment }),

@@ -695,6 +695,59 @@ exports.getResponsibleCandidates = async (req, res, next) => {
   }
 };
 
+// Назначить, сменить или снять ответственного — отдельно от параметров подключения:
+// ни пароль роутера, ни проверка связи для этого не нужны. Тело: { responsibleId } (null — снять).
+exports.updateResponsible = async (req, res, next) => {
+  try {
+    if (!Object.hasOwn(req.body || {}, "responsibleId")) {
+      return next(new AppError("Не указан ответственный", 400));
+    }
+    const existing = await Mikrotik.findById(req.params.recordId);
+    if (!existing) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    const responsible = await parseResponsible(req.body, existing.responsibleId);
+    if (!responsible.change) {
+      return res.status(200).json({
+        message: "Ответственный не изменился",
+        ...(await responsibleView(existing)),
+      });
+    }
+
+    const record = await Mikrotik.findByIdAndUpdate(
+      req.params.recordId,
+      responsible.id
+        ? { $set: { responsibleId: responsible.id } }
+        : { $unset: { responsibleId: "" } },
+      { new: true },
+    );
+
+    // Ответственный решает, кто может утверждать изменения роутера: смена пишется в журнал
+    logger.log("info", "Mikrotik record responsible changed", {
+      actor: req.userId,
+      recordId: req.params.recordId,
+      ip: req.ip,
+      responsibleFrom: existing.responsibleId ? String(existing.responsibleId) : null,
+      responsibleTo: responsible.id,
+    });
+    const changes = parameterChanges(parameterSnapshot(existing), parameterSnapshot(record));
+    if (changes.any) {
+      await journal(req, req.params.recordId, "parametersChanged", {
+        data: { fields: changes.fields, ...(changes.responsible ? { responsible: changes.responsible } : {}) },
+      });
+    }
+
+    res.status(200).json({
+      message: responsible.id ? "Ответственный назначен" : "Ответственный снят",
+      ...(await responsibleView(record)),
+    });
+  } catch (error) {
+    if (error instanceof AppError) return next(error);
+    next(new AppError("Failed to change the responsible person", 500, true, error));
+  }
+};
+
 // Окно, внутри которого отметки offlineSince считаются ОДНИМ проходом опроса.
 const ONE_POLL_WINDOW_MS = 5 * 60 * 1000;
 // Пояс организации — в нём заданы окна планового отключения.

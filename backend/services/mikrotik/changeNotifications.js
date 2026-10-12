@@ -3,7 +3,7 @@
 // Тексты собираются обычным текстом; в Telegram и в письмо уходят HTML-экранированными, в колокольчик — как есть.
 // Команды показываются только через сохранённый `text`.
 const { STATUS } = require("./changeSteps");
-const { currentStep } = require("./changeSteps");
+const { currentStep, isPoolStep } = require("./changeSteps");
 const { diffRows } = require("./changeRender");
 const { escapeHtml } = require("../telegramMessage");
 const { rollbackAvailable } = require("./changeExecutorMode");
@@ -150,10 +150,14 @@ function commandLines(change, index) {
   return { text: lines.join("\n"), whole };
 }
 
+// Шаг без человека: сообщение получают все сотрудники с правом, решает первый
+const POOL_NOTE = "У устройства нет ответственного — решить может любой сотрудник с правом утверждать.";
+
 function stepMessage(change, ctx) {
   const total = change.commands.length;
   const first = (change.steps || [])[0];
-  const requesterStep = first && first.role === "requester" && first.decision === "approve" && first.decidedAt && currentStep(change)?.role === "responsible";
+  const current = currentStep(change);
+  const requesterStep = first && first.role === "requester" && first.decision === "approve" && first.decidedAt && current && current.role !== "requester";
   const asks = `Просит: ${oneLine(ctx.requesterName, 80)}${requesterStep ? ` (подтвердил в ${clock(first.decidedAt, ctx)})` : ""}`;
   const top = [
     ...(ctx.prefix ? [ctx.prefix, ""] : []),
@@ -163,6 +167,7 @@ function stepMessage(change, ctx) {
     titleOf(change),
     asks,
     ...(ctx.agentName ? [`Агент: ${oneLine(ctx.agentName, 60)}`] : []),
+    ...(isPoolStep(current) && !current.user ? [POOL_NOTE] : []),
     "",
     ...(change.risk === "high" ? [HIGH_RISK_NOTE, ""] : []),
   ];
@@ -281,7 +286,8 @@ function resultMessage(change, ctx) {
 // Текст записи в колокольчике (мокап: «Устройство, Компания. Название. …»).
 const bellStep = (change, ctx) => {
   const first = (change.steps || [])[0];
-  const second = currentStep(change)?.role === "responsible" && first?.decision === "approve";
+  const current = currentStep(change);
+  const second = Boolean(current) && current.role !== "requester" && first?.decision === "approve";
   const who = oneLine(ctx.requesterName, 80);
   return [head(ctx), titleOf(change), second ? `${who} подтвердил, очередь за вами` : `Просит ${who}`]
     .filter(Boolean).join(". ");
@@ -297,7 +303,7 @@ const bellResult = (change, ctx) => {
 
 // --- рассылка
 
-function createChangeNotifier({ loadUsers, loadContext, loadPrefs, saveNotifications, pushInApp, baseUrl, log }) {
+function createChangeNotifier({ loadUsers, loadContext, loadPrefs, loadApprovers, saveNotifications, pushInApp, baseUrl, log }) {
   const warn = (message, error) => {
     try { log?.log?.("warn", `Mikrotik change notification: ${message}`, { error: error?.message }); } catch { /* журнал не критичен */ }
   };
@@ -348,13 +354,22 @@ function createChangeNotifier({ loadUsers, loadContext, loadPrefs, saveNotificat
     return url ? `${body}<br><br><a href="${escapeHtml(url).replace(/"/g, "&quot;")}">Открыть в портале</a>` : body;
   };
 
+  // Кому адресован шаг: его человеку, а общий шаг («любой с правом») — всем сотрудникам с правом
+  const stepAudience = async (step) => {
+    if (!step) return [];
+    if (step.user) return [step.user];
+    return isPoolStep(step) && loadApprovers ? (await loadApprovers()) || [] : [];
+  };
+
   async function stepEvent(change, { prefix, bellTitle } = {}) {
     const step = currentStep(change);
     if (!step) return 0;
+    const audience = await stepAudience(step);
+    if (!audience.length) return 0;
     const ctx = { ...cleanCtx(await loadContext(change)), prefix };
     const { text, fits } = stepMessage(change, ctx);
     return fanOut(change, {
-      ids: [step.user],
+      ids: audience,
       kind: "mikrotikChangeStep",
       title: bellTitle || `Запрос на изменение конфигурации ждёт вашего решения`,
       mailTitle: `Запрос на изменение конфигурации: ${ctx.deviceName}`,
@@ -389,14 +404,15 @@ function createChangeNotifier({ loadUsers, loadContext, loadPrefs, saveNotificat
     decided: safe((change) => finalEvent(change, [change.requestedBy, ...decided(change).map((s) => s.user)])),
     result: safe((change) => finalEvent(change, [change.requestedBy, ...decided(change).map((s) => s.user)])),
     // Отзыв: сообщить тому, чей шаг ждал (сам заявитель отозвал — ему не пишем)
-    cancelled: safe((change) => {
+    cancelled: safe(async (change) => {
       const waiting = (change.steps || []).find((s) => !s.decision);
-      if (!waiting || idOf(waiting.user) === idOf(change.requestedBy)) return 0;
-      return finalEvent(change, [waiting.user]);
+      if (!waiting || (waiting.user && idOf(waiting.user) === idOf(change.requestedBy))) return 0;
+      const audience = await stepAudience(waiting);
+      return audience.length ? finalEvent(change, audience) : 0;
     }),
-    expired: safe((change) => {
+    expired: safe(async (change) => {
       const waiting = (change.steps || []).find((s) => !s.decision);
-      return finalEvent(change, [change.requestedBy, waiting?.user]);
+      return finalEvent(change, [change.requestedBy, ...(await stepAudience(waiting))]);
     }),
   };
 }
@@ -450,6 +466,8 @@ function mongoNotifier({ baseUrl, log } = {}) {
       lazy("U", "@/models/user").find({ _id: { $in: ids } })
         .select("firstName lastName email telegramBot notify isServiceAccount banned").lean(),
     loadContext: (change) => mongoLoadContext(change, lazy),
+    // Тот же расчёт права, что при предложении запроса
+    loadApprovers: () => require("./changeProposals").mongoStore.listApprovers(),
   });
 }
 

@@ -172,7 +172,7 @@ test("в Telegram-текстах нет HTML и значений подстан�
 
 const prefsOn = { notify: { byTelegram: { isActive: true }, byEmail: { isActive: true }, personal: { mikrotikChange: true } } };
 
-function harness({ prefs = prefsOn, baseUrl = "https://hd.example.com", people } = {}) {
+function harness({ prefs = prefsOn, baseUrl = "https://hd.example.com", people, approvers } = {}) {
   const dir = new Map(
     (people || ["req", "resp", "other"]).map((id) => [id, ok(id)]),
   );
@@ -182,6 +182,7 @@ function harness({ prefs = prefsOn, baseUrl = "https://hd.example.com", people }
     loadUsers: async (ids) => ids.map((i) => dir.get(String(i))).filter(Boolean),
     loadContext: async () => ({ ...ctx, users: dir }),
     loadPrefs: async () => prefs,
+    loadApprovers: approvers ? async () => approvers : undefined,
     saveNotifications: async (docs) => void saved.push(...docs),
     pushInApp: async (args) => void pushed.push(args),
     baseUrl,
@@ -698,4 +699,41 @@ test("мелочи: текст команды в Telegram не меняется 
   const text = result({ ...base, status: "not_applied", failure: "Утвердил: Чужой, 12:00" }, ctx);
   assert.ok(text.split("\n").includes("Причина: Утвердил: Чужой, 12:00"));
   assert.ok(!text.split("\n").includes("Утвердил: Чужой, 12:00"));
+});
+
+// ---------------------------------------------------------------- общий шаг («любой с правом»)
+
+const poolChange = (extra = {}) => change({
+  status: "awaiting_responsible",
+  steps: [{ role: "requester", user: "req", decision: "approve", decidedAt: new Date("2026-10-10T08:10:00Z") }, { role: "approver", user: null }],
+  ...extra,
+});
+
+test("общий шаг: запрос получают все сотрудники с правом, в тексте — что ответственного нет", async () => {
+  const { notifier, saved, pushed } = harness({ approvers: ["resp", "other"] });
+  await notifier.step(poolChange());
+  assert.deepEqual(bellIds(pushed), ["other", "resp"]);
+  assert.deepEqual(tgIds(saved), ["chat-other", "chat-resp"]);
+  const tg = saved.find((d) => d.instrument === "telegram");
+  assert.match(tg.text, /У устройства нет ответственного — решить может любой сотрудник с правом утверждать\./);
+  assert.match(tg.text, /подтвердил в/);
+  assert.match(pushed[0].text, /очередь за вами/);
+});
+
+test("общий шаг: напоминание, отзыв и истечение идут тем же сотрудникам с правом", async () => {
+  const reminded = harness({ approvers: ["resp", "other"] });
+  await reminded.notifier.reminder(poolChange());
+  assert.deepEqual(bellIds(reminded.pushed), ["other", "resp"]);
+  const cancelled = harness({ approvers: ["resp", "other"] });
+  await cancelled.notifier.cancelled(poolChange({ status: "cancelled" }));
+  assert.deepEqual(bellIds(cancelled.pushed), ["other", "resp"]);
+  const expired = harness({ approvers: ["resp"] });
+  await expired.notifier.expired(poolChange({ status: "expired" }));
+  assert.deepEqual(bellIds(expired.pushed), ["req", "resp"]);
+});
+
+test("общий шаг без сотрудников с правом: никому не пишем и не падаем", async () => {
+  const { notifier, saved, pushed } = harness({ approvers: [] });
+  assert.equal(await notifier.step(poolChange()), 0);
+  assert.deepEqual([saved.length, pushed.length], [0, 0]);
 });

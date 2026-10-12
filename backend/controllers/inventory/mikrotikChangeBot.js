@@ -9,10 +9,11 @@ const rateLimit = require("express-rate-limit");
 
 const { AppError } = require("../../middleware/errorHandling");
 const { MESSAGES } = require("../../services/mikrotik/changeDecisions");
-const { STATUS, STATUS_LABELS, currentStep } = require("../../services/mikrotik/changeSteps");
+const { STATUS, STATUS_LABELS, currentStep, isPoolStep } = require("../../services/mikrotik/changeSteps");
 const { stepMessage, stepKeyboard, confirmText, confirmFull, confirmKeyboard } = require("../../services/mikrotik/changeNotifications");
 
 const NOT_FITS = "Команды не помещаются в сообщение";
+const POOL_NEXT = "Дальше решает любой сотрудник с правом утверждать.";
 const idOf = (v) => (v && typeof v === "object" && "_id" in v ? String(v._id) : v == null ? "" : String(v));
 const nameOf = (user) => [user?.firstName, user?.lastName].filter(Boolean).join(" ").replace(/\s+/g, " ").trim().slice(0, 80);
 
@@ -22,18 +23,30 @@ const refuse = (res, code, message) => res.status(200).json({ ok: false, code, m
 // Тот же порядок проверок, что в changeSteps.decide: закрыт → истёк → не ваш шаг.
 // Свой уже решённый шаг идёт первым: человек должен узнать, прошло ли его решение (ответ мог потеряться).
 // Не участнику запроса состояние не сообщаем вовсе: для него любой запрос «не за вами».
-function gate(change, userId, now) {
+// Запрос с общим шагом («любой с правом») касается каждого, у кого право есть: сообщение с кнопками
+// получили все, и нажавшему вторым надо сказать, что запрос уже решён, а не что он чужой.
+function gate(change, userId, now, { canApprove = false } = {}) {
   if (!change) return "not_found";
   const steps = change.steps || [];
-  if (!steps.some((s) => idOf(s.user) === String(userId))) return "not_yours";
+  const inPool = canApprove && steps.some(isPoolStep);
+  if (!inPool && !steps.some((s) => idOf(s.user) === String(userId))) return "not_yours";
   const mine = steps.some((s) => idOf(s.user) === String(userId) && s.decision);
   if (mine) return "already_yours";
   const step = currentStep(change);
   if (!step) return "closed";
   const expiresAt = change.expiresAt ? new Date(change.expiresAt).getTime() : NaN;
   if (!(now.getTime() < expiresAt)) return "expired";
-  if (idOf(step.user) !== String(userId)) return "not_yours";
+  if (isPoolStep(step) && !step.user ? !canApprove : idOf(step.user) !== String(userId)) return "not_yours";
   return null;
+}
+
+// «Запрос уже утверждён: Ольга Лебедева.» — общий шаг решил другой сотрудник
+function poolOutcome(change, users) {
+  const step = (change.steps || []).find((s) => isPoolStep(s) && s.decision);
+  if (!step) return null;
+  const who = nameOf(users?.get?.(idOf(step.user)));
+  const word = step.decision === "reject" ? "отклонён" : "утверждён";
+  return `Запрос уже ${word}${who ? `: ${who}` : ""}.`;
 }
 
 // «Вы уже утвердили запрос № 7. Запрос применяется.» — свой исход и состояние сейчас
@@ -45,7 +58,7 @@ function ownOutcome(change, userId, users) {
   if (change.status === STATUS.awaitingRequester || change.status === STATUS.awaitingResponsible) {
     const next = currentStep(change);
     const who = next && nameOf(users?.get?.(idOf(next.user)));
-    state = who ? `Дальше решает ${who}.` : "Запрос ждёт решения.";
+    state = who ? `Дальше решает ${who}.` : next && isPoolStep(next) ? POOL_NEXT : "Запрос ждёт решения.";
   } else if (change.status === STATUS.queued || change.status === STATUS.applying) state = "Запрос применяется.";
   else if (change.status === STATUS.applied) state = "Запрос применён.";
   else if (change.status === STATUS.rejected) state = "Запрос отклонён.";
@@ -75,7 +88,15 @@ function createBotHandlers({ load, loadContext, decisions, baseUrl = "", now = (
   };
   const find = async (id) => (mongoose.isValidObjectId(id) ? load(id) : null);
 
+  const canApproveOf = (req) => Boolean(req.auth?.can?.({ mikrotik: ["approveChanges"] }));
+
   async function refuseGate(res, change, req, code) {
+    if (code === "closed") {
+      // Общий шаг решил другой: назвать, кто (без имени — общая фраза)
+      let outcome = null;
+      try { outcome = poolOutcome(change, (await loadContext(change)).users); } catch { /* общая фраза */ }
+      return refuse(res, code, outcome || undefined);
+    }
     if (code !== "already_yours") return refuse(res, code);
     let users;
     try { users = (await loadContext(change)).users; } catch { /* без имени — общая фраза */ }
@@ -99,7 +120,7 @@ function createBotHandlers({ load, loadContext, decisions, baseUrl = "", now = (
 
   const message = wrap("show mikrotik change", async (req, res) => {
     const change = await find(req.params.id);
-    const code = gate(change, req.userId, now());
+    const code = gate(change, req.userId, now(), { canApprove: canApproveOf(req) });
     if (code) return refuseGate(res, change, req, code);
     const { shows: _shows, ...view } = present(change, await loadContext(change));
     res.status(200).json({ ok: true, ...view });
@@ -110,7 +131,7 @@ function createBotHandlers({ load, loadContext, decisions, baseUrl = "", now = (
     if (kind !== "approve" && kind !== "reject") throw new AppError("decision must be approve or reject", 400);
 
     const change = await find(req.params.id);
-    const code = gate(change, req.userId, now());
+    const code = gate(change, req.userId, now(), { canApprove: canApproveOf(req) });
     if (code) return refuseGate(res, change, req, code);
 
     let ctx = null;
@@ -125,7 +146,7 @@ function createBotHandlers({ load, loadContext, decisions, baseUrl = "", now = (
       decision: kind,
       comment: undefined,
       channel: "telegram",
-      canApprove: Boolean(req.auth?.can?.({ mikrotik: ["approveChanges"] })),
+      canApprove: canApproveOf(req),
     });
     if (!result.ok) return refuse(res, result.code, result.message);
 
@@ -139,7 +160,7 @@ function createBotHandlers({ load, loadContext, decisions, baseUrl = "", now = (
         } else {
           const next = currentStep(result.change);
           const who = next && nameOf(ctx.users?.get(idOf(next.user)));
-          text = `Вы подтвердили запрос.${who ? ` Дальше решает ${who}.` : ""}`;
+          text = `Вы подтвердили запрос.${who ? ` Дальше решает ${who}.` : next && isPoolStep(next) ? ` ${POOL_NEXT}` : ""}`;
         }
       }
     } catch (error) {

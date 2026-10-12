@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const { AppError } = require("../../middleware/errorHandling");
 const { MESSAGES, liveDecisions } = require("../../services/mikrotik/changeDecisions");
 const { toView, isRecipient, isInvolved, wireguardFileName } = require("../../services/mikrotik/changeView");
-const { STATUS, currentStep, isOpen } = require("../../services/mikrotik/changeSteps");
+const { STATUS, currentStep, isOpen, isPoolStep } = require("../../services/mikrotik/changeSteps");
 
 const COMMENT_MAX = 300;
 const QR_LOG_WINDOW_MS = 10 * 60 * 1000;
@@ -77,11 +77,13 @@ function createController({ decisions, repo, buildClientConfig, decryptSecret, n
   const awaitingMe = wrap("list awaiting mikrotik changes", async (req, res) => {
     const viewer = viewerOf(req);
     const at = now().getTime();
-    const list = (await repo.listAwaiting(viewer.userId)).filter((change) => {
+    const list = (await repo.listAwaiting(viewer.userId, { pool: viewer.canApprove })).filter((change) => {
       // Без срока или с битой датой запрос считается истёкшим — как в сервисе решений
       if (!isOpen(change.status) || !(at < (change.expiresAt ? new Date(change.expiresAt).getTime() : NaN))) return false;
       const step = currentStep(change);
-      return Boolean(step) && idOf(step.user) === viewer.userId;
+      if (!step) return false;
+      // Общий шаг («любой с правом») ждёт каждого, у кого право есть
+      return isPoolStep(step) && !step.user ? viewer.canApprove : idOf(step.user) === viewer.userId;
     });
     res.status(200).json(list.map((change) => toView(change, viewer, now())));
   });
@@ -229,8 +231,12 @@ function realDeps() {
       async recordExists(id) {
         return Boolean(await Mikrotik.exists({ _id: id }));
       },
-      listAwaiting(userId) {
-        return MikrotikChange.find({ status: { $in: [STATUS.awaitingRequester, STATUS.awaitingResponsible] }, "steps.user": userId, expiresAt: { $gt: new Date() } })
+      listAwaiting(userId, { pool = false } = {}) {
+        // pool — смотрящий держит право: ему видны и запросы, ждущие «любого с правом» (шаг без человека)
+        const mine = pool
+          ? { $or: [{ "steps.user": userId }, { status: STATUS.awaitingResponsible, steps: { $elemMatch: { role: "approver", user: null } } }] }
+          : { "steps.user": userId };
+        return MikrotikChange.find({ status: { $in: [STATUS.awaitingRequester, STATUS.awaitingResponsible] }, ...mine, expiresAt: { $gt: new Date() } })
           .sort({ createdAt: -1 })
           .limit(100)
           .populate(POPULATE)

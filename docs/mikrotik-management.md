@@ -166,8 +166,9 @@ upgradeRights { ok, missing[], checkedAt, source: "save"|"upgrade" }
                              // account; ABSENT = never checked (no default).
                              // See _Firmware upgrades_ → Rights check.
 responsibleId                → ObjectId ref User, OPTIONAL — the second approver of
-                               configuration changes proposed by AI agents. Set in the
-                               create/update parameters handlers (`mikrotik.manage`);
+                               configuration changes proposed by AI agents. Set by
+                               `PUT …/records/:recordId/responsible` (`mikrotik.manage`,
+                               no connection check; the parameters handlers still accept it);
                                only a current employee holding `mikrotik.approveChanges`
                                is accepted (422 otherwise); `null` clears it. A change
                                is audit-logged (`responsibleFrom` / `responsibleTo`).

@@ -154,6 +154,8 @@ function createProposals({ store, readMenus, now = () => new Date() }) {
       responsibleId,
       requesterCanApprove: await store.canApprove(requester._id),
       responsibleCanApprove: responsibleId ? await store.canApprove(responsibleId) : false,
+      // Без ответственного решает любой сотрудник с правом — если такие есть
+      approversExist: responsibleId || !store.listApprovers ? true : (await store.listApprovers()).length > 0,
     });
     if (!plan.ok) return refuse(plan.reason);
 
@@ -340,6 +342,18 @@ const mongoStore = {
     const user = await User.findById(userId).lean();
     if (!user || user.isEndUser !== false || user.isServiceAccount === true || isBanned(user)) return false;
     return Boolean((await canFor(user))({ mikrotik: ["approveChanges"] }));
+  },
+  // Все действующие сотрудники с правом утверждать: им достаётся запрос по устройству без ответственного
+  async listApprovers() {
+    const User = require("@/models/user");
+    const { isBanned } = require("@/services/authBan");
+    const { canFor } = require("@/services/permissions");
+    const staff = await User.find({ isEndUser: false, isServiceAccount: { $ne: true } }).lean();
+    const ids = [];
+    for (const user of staff) {
+      if (!isBanned(user) && (await canFor(user))({ mikrotik: ["approveChanges"] })) ids.push(String(user._id));
+    }
+    return ids;
   },
   async countOpen(deviceId) {
     const MikrotikChange = require("@/models/mikrotikChange");

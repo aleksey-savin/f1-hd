@@ -17,7 +17,7 @@ const STATUS = {
 
 const STATUS_LABELS = {
   [STATUS.awaitingRequester]: "Ждёт заявителя",
-  [STATUS.awaitingResponsible]: "Ждёт ответственного",
+  [STATUS.awaitingResponsible]: "Ждёт утверждения",
   [STATUS.queued]: "Применяется",
   [STATUS.applying]: "Применяется",
   [STATUS.applied]: "Применён",
@@ -45,18 +45,30 @@ const isFinal = (status) => FINAL.has(status);
 
 const same = (a, b) => a != null && b != null && String(a) === String(b);
 
+// Шаг «любой сотрудник с правом»: у устройства нет ответственного, человека на шаге нет до решения.
+const isPoolStep = (step) => Boolean(step) && step.role === "approver";
+
 // Кто решает — по таблице спеки «Роли и права».
-function planSteps({ requesterId, responsibleId, requesterCanApprove, responsibleCanApprove }) {
+// approversExist — есть ли вообще сотрудники с правом (по умолчанию считаем, что есть).
+function planSteps({ requesterId, responsibleId, requesterCanApprove, responsibleCanApprove, approversExist = true }) {
   if (requesterId == null) return { ok: false, reason: "The request names no requester." };
   if (responsibleId == null) {
-    if (!requesterCanApprove) {
+    if (requesterCanApprove) return { ok: true, steps: [{ role: "requester", user: requesterId }] };
+    if (!approversExist) {
       return {
         ok: false,
         reason:
-          "The requester lacks the mikrotik.approveChanges right and the device has no responsible person, so nobody can approve this request. Ask an administrator to assign a responsible person for the device.",
+          "The device has no responsible person and no employee holds the mikrotik.approveChanges right, so nobody can approve this request. Ask an administrator to grant the right or to assign a responsible person for the device.",
       };
     }
-    return { ok: true, steps: [{ role: "requester", user: requesterId }] };
+    // Заявитель подтверждает, что просил; утверждает любой сотрудник с правом — кто первый
+    return {
+      ok: true,
+      steps: [
+        { role: "requester", user: requesterId },
+        { role: "approver", user: null },
+      ],
+    };
   }
   if (!responsibleCanApprove) {
     return {
@@ -88,7 +100,7 @@ function currentStep(change) {
   const i = currentIndex(change);
   if (i === null) return null;
   const { role, user } = change.steps[i];
-  return { role, user };
+  return { role, user: user ?? null };
 }
 
 function decide(change, { userId, decision, channel, comment, canApprove, now }) {
@@ -101,10 +113,12 @@ function decide(change, { userId, decision, channel, comment, canApprove, now })
   const expiresAt = change.expiresAt ? new Date(change.expiresAt).getTime() : NaN;
   if (!(now.getTime() < expiresAt)) return { ok: false, code: "expired" };
   const step = change.steps[index];
-  if (!same(step.user, userId)) return { ok: false, code: "not_yours" };
+  // Общий шаг решает любой сотрудник с правом; без права человек к запросу не причастен
+  const pool = isPoolStep(step) && step.user == null;
+  if (pool ? !canApprove : !same(step.user, userId)) return { ok: false, code: "not_yours" };
 
   // Право нужно на шаге ответственного и на шаге, после которого запрос уходит в очередь.
-  const needsRight = step.role === "responsible" || index === change.steps.length - 1;
+  const needsRight = step.role !== "requester" || index === change.steps.length - 1;
   if (decision === "approve" && needsRight && !canApprove) {
     return { ok: false, code: "no_right" };
   }
@@ -114,11 +128,13 @@ function decide(change, { userId, decision, channel, comment, canApprove, now })
   else {
     const next = change.steps[index + 1];
     if (!next) status = STATUS.queued;
-    else status = next.role === "responsible" ? STATUS.awaitingResponsible : STATUS.awaitingRequester;
+    else status = next.role === "requester" ? STATUS.awaitingRequester : STATUS.awaitingResponsible;
   }
   const decided = { index, decision, channel, decidedAt: now };
+  // Общий шаг получает человека в момент решения
+  if (pool) decided.user = userId;
   if (comment !== undefined) decided.comment = comment;
   return { ok: true, patch: { status, step: decided } };
 }
 
-module.exports = { STATUS, STATUS_LABELS, planSteps, currentStep, decide, isOpen, isFinal };
+module.exports = { STATUS, STATUS_LABELS, planSteps, currentStep, decide, isOpen, isFinal, isPoolStep };

@@ -107,8 +107,15 @@ test("requester refused when the store finds nobody (client, banned, Telegram in
   await refused({}, { store: { findUserByTelegram: async () => null } }, "no employee with this Telegram id");
 });
 
-test("no responsible person and requester without the right", async () => {
-  await refused({}, { store: { findDevice: async () => ({ device: { _id: "d1", name: "GW", responsibleId: null } }) } }, "no responsible person");
+test("no responsible person and requester without the right: any holder of the right approves", async () => {
+  const noResponsible = { findDevice: async () => ({ device: { _id: "d1", name: "GW", responsibleId: null } }) };
+  const { proposals, caller } = setup({ store: { ...noResponsible, listApprovers: async () => ["a1", "a2"] } });
+  const res = await proposals.propose(base(), caller);
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.change.steps.map((s) => [s.role, s.user]), [["requester", res.change.requestedBy], ["approver", null]]);
+  assert.equal(res.change.status, "awaiting_requester");
+  // Права нет ни у кого — запрос некому утвердить
+  await refused({}, { store: { ...noResponsible, listApprovers: async () => [] } }, "no responsible person");
 });
 
 test("no responsible but requester holds the right: one requester step", async () => {

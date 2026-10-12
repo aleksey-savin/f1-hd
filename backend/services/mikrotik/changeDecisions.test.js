@@ -239,3 +239,20 @@ test("decisions and a cancel leave a trace in the device journal", async () => {
   await createDecisions({ store: other, events: { record: async (recordId, kind) => cancelled.push(kind) }, now: () => NOW }).cancel({ changeId: "c1", userId: "req" });
   assert.deepEqual(cancelled, ["changeCancelled"]);
 });
+
+test("общий шаг («любой с правом»): решает первый сотрудник с правом, его имя уходит в запись шага", async () => {
+  const store = fakeStore(baseChange({
+    status: "awaiting_responsible",
+    steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "approver", user: null, decision: null }],
+  }));
+  const decisions = createDecisions({ store, notifier: {}, now: () => NOW });
+  const outsider = await decisions.decide({ changeId: "c1", userId: "resp", decision: "approve", channel: "portal", canApprove: false });
+  assert.deepEqual([outsider.ok, outsider.code], [false, "not_yours"]);
+  const first = await decisions.decide({ changeId: "c1", userId: "resp", decision: "approve", channel: "portal", canApprove: true });
+  assert.equal(first.ok, true);
+  assert.equal(store.state.calls.at(-1).patch.step.user, "resp");
+  assert.equal(store.state.doc.status, "queued");
+  // Второй сотрудник с правом опоздал
+  const second = await decisions.decide({ changeId: "c1", userId: "other", decision: "approve", channel: "telegram", canApprove: true });
+  assert.deepEqual([second.ok, second.code], [false, "closed"]);
+});

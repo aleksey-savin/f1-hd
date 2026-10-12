@@ -1,7 +1,7 @@
 // Что портал отдаёт о запросе ИИ-агента. Белый список полей: всё, чего здесь нет (ключи WireGuard, Telegram-данные,
 // where/params команд, контакты людей), наружу не уходит, как бы документ ни был загружен.
 // Чистый модуль: без моделей и логгера.
-const { STATUS_LABELS, isOpen, currentStep } = require("./changeSteps");
+const { STATUS_LABELS, isOpen, currentStep, isPoolStep } = require("./changeSteps");
 const { diffRows } = require("./changeRender");
 const { rollbackAvailable } = require("./changeExecutorMode");
 
@@ -126,7 +126,8 @@ function toView(change, viewer, now = new Date()) {
 
   const open = isOpen(change.status) && !(change.expiresAt && nowMs >= time(change.expiresAt));
   const step = open ? currentStep(change) : null;
-  const mine = Boolean(step) && idOf(step.user) === me;
+  // Общий шаг («любой с правом») — шаг каждого, у кого право есть
+  const mine = Boolean(step) && (isPoolStep(step) && !step.user ? Boolean(viewer.canApprove) : idOf(step.user) === me);
   let action = null;
   if (mine) {
     const confirm = step.role === "requester" && change.steps.length > 1;

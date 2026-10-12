@@ -1,4 +1,4 @@
-const { STATUS, currentStep, isOpen } = require("../mikrotik/changeSteps");
+const { STATUS, currentStep, isOpen, isPoolStep } = require("../mikrotik/changeSteps");
 const { iso } = require("./text");
 const { safeLine } = require("./mikrotikFormat");
 const { errorResult, textResult, resolveDevice } = require("./mikrotikTools");
@@ -18,9 +18,12 @@ const MAX_LIMIT = 20;
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 const NUMBER = /^\d{1,9}$/;
 
+// Шаг без человека: у устройства нет ответственного, решает первый сотрудник с правом
+const ANY_APPROVER = "any employee holding the approval right";
+
 const STATUS_TEXT = {
   [STATUS.awaitingRequester]: "waiting for the requester to confirm",
-  [STATUS.awaitingResponsible]: "waiting for the responsible person to approve",
+  [STATUS.awaitingResponsible]: "waiting for approval",
   [STATUS.queued]: "approved, queued to be applied",
   [STATUS.applying]: "being applied",
   [STATUS.applied]: "applied",
@@ -67,7 +70,8 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, events, baseUrl
 
   const waitingFor = (change, names) => {
     const step = isOpen(change.status) ? currentStep(change) : null;
-    return step ? names.get(String(step.user)) || "—" : null;
+    if (!step) return null;
+    return isPoolStep(step) && !step.user ? ANY_APPROVER : names.get(String(step.user)) || "—";
   };
   // Имена вводят люди: одна строка, без «секретов», не длиннее 80
   const peopleOf = async (changes) => {
@@ -164,7 +168,7 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, events, baseUrl
     const open = isOpen(change.status);
     const firstOpen = (change.steps || []).findIndex((s) => !s.decision);
     const steps = (change.steps || []).map((s, i) => {
-      const who = `${s.role} ${names.get(String(s.user)) || "—"}`;
+      const who = `${s.role} ${isPoolStep(s) && !s.user ? `(${ANY_APPROVER})` : names.get(String(s.user)) || "—"}`;
       if (s.decision) return `- ${who}: ${s.decision === "approve" ? "approved" : "rejected"} at ${iso(s.decidedAt)} via ${CHANNELS[s.channel] || oneLine(s.channel) || "unknown channel"}`;
       return `- ${who}: ${open && i === firstOpen ? "waiting" : "not reached"}`;
     });

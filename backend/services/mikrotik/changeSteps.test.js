@@ -10,8 +10,31 @@ test("steps follow the responsible/requester table", () => {
   assert.deepEqual(planSteps({ requesterId: Q, responsibleId: R, requesterCanApprove: false, responsibleCanApprove: true }).steps.map((s) => s.role), ["requester", "responsible"]);
   assert.deepEqual(planSteps({ requesterId: Q, responsibleId: Q, requesterCanApprove: true, responsibleCanApprove: true }).steps.map((s) => s.role), ["responsible"]);
   assert.deepEqual(planSteps({ requesterId: Q, responsibleId: null, requesterCanApprove: true }).steps.map((s) => s.role), ["requester"]);
-  assert.equal(planSteps({ requesterId: Q, responsibleId: null, requesterCanApprove: false }).ok, false);
+  // Без ответственного и без права у заявителя: решает любой сотрудник с правом (шаг без человека)
+  assert.deepEqual(planSteps({ requesterId: Q, responsibleId: null, requesterCanApprove: false }).steps, [{ role: "requester", user: Q }, { role: "approver", user: null }]);
+  assert.equal(planSteps({ requesterId: Q, responsibleId: null, requesterCanApprove: false, approversExist: false }).ok, false);
   assert.equal(planSteps({ requesterId: Q, responsibleId: R, requesterCanApprove: true, responsibleCanApprove: false }).ok, false);
+});
+
+test("a shared step is decided by the first holder of the right and records who decided", () => {
+  const now = new Date(1_000);
+  const open = { status: STATUS.awaitingRequester, expiresAt: new Date(2_000), steps: [{ role: "requester", user: Q, decision: null }, { role: "approver", user: null, decision: null }] };
+  // Заявитель подтверждает без права — запрос уходит на утверждение
+  const first = decide(open, { userId: Q, decision: "approve", channel: "telegram", canApprove: false, now });
+  assert.equal(first.patch.status, STATUS.awaitingResponsible);
+  assert.equal(first.patch.step.user, undefined);
+
+  const waiting = { ...open, status: STATUS.awaitingResponsible, steps: [{ role: "requester", user: Q, decision: "approve" }, { role: "approver", user: null, decision: null }] };
+  assert.deepEqual(currentStep(waiting), { role: "approver", user: null });
+  // Без права человек к запросу не причастен — ни утвердить, ни отклонить
+  assert.equal(decide(waiting, { userId: "x", decision: "approve", channel: "portal", canApprove: false, now }).code, "not_yours");
+  assert.equal(decide(waiting, { userId: "x", decision: "reject", channel: "portal", canApprove: false, now }).code, "not_yours");
+  const approved = decide(waiting, { userId: "a1", decision: "approve", channel: "portal", canApprove: true, now });
+  assert.equal(approved.patch.status, STATUS.queued);
+  assert.equal(approved.patch.step.user, "a1");
+  const rejected = decide(waiting, { userId: "a2", decision: "reject", channel: "telegram", canApprove: true, now });
+  assert.equal(rejected.patch.status, STATUS.rejected);
+  assert.equal(rejected.patch.step.user, "a2");
 });
 
 const change = (over = {}) => ({
@@ -96,7 +119,7 @@ test("ids compare as strings and not-yours wins over no_right", () => {
 });
 
 test("planSteps reasons are English sentences", () => {
-  assert.match(planSteps({ requesterId: Q, responsibleId: null, requesterCanApprove: false }).reason, /^[A-Z].*\.$/);
+  assert.match(planSteps({ requesterId: Q, responsibleId: null, requesterCanApprove: false, approversExist: false }).reason, /^[A-Z].*\.$/);
   assert.match(planSteps({ requesterId: Q, responsibleId: R, requesterCanApprove: true, responsibleCanApprove: false }).reason, /^[A-Z].*\.$/);
 });
 

@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import useToastStore from "@/store/toast-store";
 
 import ConfirmDialog from "../../components/Mikrotik/ConfirmDialog";
+import ResponsiblePicker from "../../components/Mikrotik/ResponsiblePicker";
 import FoldRow from "../../components/Mikrotik/FoldRow";
 import ActivitySection from "../../components/Mikrotik/ActivitySection";
 import AvailabilitySection from "../../components/Mikrotik/AvailabilitySection";
@@ -625,19 +626,37 @@ const MikrotikRecordPage = () => {
                 <PropRow
                   icon={<RiUserStarLine size={17} />}
                   label="Ответственный"
+                  action={
+                    canManage && (
+                      <ResponsiblePicker
+                        recordId={row.recordId}
+                        responsible={row.responsible}
+                        lostRight={row.responsibleCanApprove === false}
+                        onChanged={() => revalidator.revalidate()}
+                      />
+                    )
+                  }
                 >
                   {row.responsible ? (
-                    <>
-                      {row.responsible.name || "Сотрудник"}
-                      {row.responsibleCanApprove === false && (
-                        <span className="block text-sm text-warning">
-                          У сотрудника больше нет права утверждать запросы
-                          ИИ-агентов. Выберите другого ответственного.
-                        </span>
-                      )}
-                    </>
+                    row.responsible.name || "Сотрудник"
                   ) : (
-                    <span className="text-muted-foreground">не назначен</span>
+                    <span className="font-normal text-muted-foreground">
+                      не назначен
+                    </span>
+                  )}
+                  {!row.responsible ? (
+                    <span className="block text-xs font-normal whitespace-normal text-faint">
+                      Запросы утверждает любой сотрудник с этим правом
+                    </span>
+                  ) : row.responsibleCanApprove === false ? (
+                    <span className="block text-xs font-normal whitespace-normal text-warning">
+                      Больше нет права утверждать изменения. Выберите другого
+                      сотрудника.
+                    </span>
+                  ) : (
+                    <span className="block text-xs font-normal whitespace-normal text-faint">
+                      Утверждает изменения конфигурации
+                    </span>
                   )}
                 </PropRow>
               </div>

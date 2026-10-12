@@ -1409,7 +1409,7 @@ devices.
 | `list_mikrotik_changes` | `device?`, `status?` (one of the status values), `limit?` (1-20, default 10) | Newest first: id, title, status, device, created, waiting for |
 
 Status words in answers (`STATUS_TEXT`): waiting for the requester to confirm /
-waiting for the responsible person to approve / approved, queued to be applied /
+waiting for approval / approved, queued to be applied /
 being applied / applied / rolled back / not applied / rejected / expired /
 cancelled / needs checking by a person.
 

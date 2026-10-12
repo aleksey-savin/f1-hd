@@ -5,12 +5,12 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import { cn } from "@/lib/utils";
 import { displayTimeZone } from "@/util/format-date";
 import {
-  ROLE_LABEL,
   actionLabel,
   approveHint,
   decisionNote,
   pendingNote,
   stepState,
+  stepTitle,
 } from "@/util/mikrotik-changes";
 
 const DOT = {
@@ -61,8 +61,7 @@ const ChangeSteps = ({ change, onAct, onReject }) => {
                   </span>
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-sm wrap-anywhere">
-                      {step.user?.name || "Не назначен"}
-                      {ROLE_LABEL[step.role] && `, ${ROLE_LABEL[step.role]}`}
+                      {stepTitle(step)}
                     </span>
                     <span className="text-xs text-faint">
                       {decided

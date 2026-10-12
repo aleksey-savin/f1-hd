@@ -327,6 +327,28 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       body: JSON.stringify(body),
     });
   },
+  // Ответственный за устройство: кандидаты (сотрудники с правом утверждать
+  // изменения) и сохранение — отдельно от параметров, без проверки связи.
+  fetchResponsibleCandidates: async () => {
+    try {
+      const response = await fetch(`${API}/responsible-candidates`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+  // userId === null — снять ответственного.
+  saveResponsible: async (recordId, userId) => {
+    return fetch(`${API}/records/${recordId}/responsible`, {
+      method: "PUT",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ responsibleId: userId || null }),
+    });
+  },
   // Связать запись с карточкой инвентаря (шаг после проверки).
   linkInventory: async (recordId, clientDeviceId) => {
     return fetch(`${API}/records/${recordId}/link-inventory`, {

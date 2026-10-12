@@ -49,6 +49,7 @@ import {
   atPhrase,
   expiresPhrase,
   firstRisky,
+  isPoolStep,
   stampLabel,
   statusTone,
 } from "@/util/mikrotik-changes";
@@ -115,8 +116,10 @@ const MikrotikChangePage = () => {
       ? [{ label: device.name, to: canRead ? deviceTo : undefined }]
       : [];
 
-  const nextApprover = steps.find((step) => step.role === "responsible")?.user
-    ?.name;
+  // Без ответственного второй шаг — общий: решает любой сотрудник с правом
+  const nextApprover = steps.some(isPoolStep)
+    ? "любому сотруднику с правом утверждать"
+    : steps.find((step) => step.role === "responsible")?.user?.name;
   const apply = applyDialog({
     count: change.commands?.length || 0,
     device: device?.name || "устройстве",

@@ -288,3 +288,39 @@ test("посторонний сотрудник (не участник запр�
   const noExpiry = await call(harness(baseDoc({ expiresAt: undefined })).handlers.message, { userId: "req" });
   assert.equal(noExpiry.body.code, "expired");
 });
+
+const poolDoc = (extra = {}) => baseDoc({
+  status: "awaiting_responsible",
+  steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "approver", user: null, decision: null }],
+  ...extra,
+});
+
+test("общий шаг: сотрудник с правом видит кнопки и утверждает; без права — «не за вами»", async () => {
+  const { handlers, state } = harness(poolDoc());
+  const outsider = await call(handlers.message, { userId: "resp" });
+  assert.equal(outsider.body.code, "not_yours");
+  const shown = await call(handlers.message, { userId: "resp", can: ["mikrotik.approveChanges"] });
+  assert.equal(shown.body.ok, true);
+  assert.match(shown.body.text, /решить может любой сотрудник с правом утверждать/);
+  const denied = await call(handlers.decision, { userId: "resp", body: { decision: "approve" } });
+  assert.equal(denied.body.code, "not_yours");
+  assert.equal(state.decideCalls.length, 0);
+  const done = await call(handlers.decision, { userId: "resp", can: ["mikrotik.approveChanges"], body: { decision: "approve" } });
+  assert.equal(done.body.ok, true);
+  assert.equal(state.doc.status, "queued");
+});
+
+test("общий шаг уже решён другим: сотруднику с правом — кто решил, постороннему — «не за вами»", async () => {
+  const decided = poolDoc({ status: "queued", steps: [{ role: "requester", user: "req", decision: "approve" }, { role: "approver", user: "resp", decision: "approve" }] });
+  const { handlers } = harness(decided);
+  const late = await call(handlers.message, { userId: "other", can: ["mikrotik.approveChanges"] });
+  assert.deepEqual([late.body.code, late.body.message], ["closed", "Запрос уже утверждён: Анна Смирнова."]);
+  const outsider = await call(handlers.message, { userId: "other" });
+  assert.equal(outsider.body.code, "not_yours");
+});
+
+test("общий шаг: заявителю после подтверждения — «дальше решает любой сотрудник с правом»", async () => {
+  const { handlers } = harness(baseDoc({ steps: [{ role: "requester", user: "req", decision: null }, { role: "approver", user: null, decision: null }] }));
+  const out = await call(handlers.decision, { userId: "req", body: { decision: "approve" } });
+  assert.equal(out.body.text, "Вы подтвердили запрос. Дальше решает любой сотрудник с правом утверждать.");
+});

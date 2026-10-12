@@ -107,8 +107,14 @@ test("propose: high risk and the responsible step are reported", async () => {
   const { tools } = build({ proposeResult: { ok: true, change: change({ risk: "high", status: STATUS.awaitingResponsible, steps: [{ role: "responsible", user: USER_RESP, decision: null }] }) } });
   const t = text(await tools.propose(INPUT, caller));
   assert.match(t, /risk: high — may cut the device off/);
-  assert.match(t, /waiting for the responsible person to approve/);
+  assert.match(t, /waiting for approval/);
   assert.match(t, /waiting for: Сергей Волков/);
+});
+
+test("propose: a request without a responsible person waits for any holder of the right", async () => {
+  const steps = [{ role: "requester", user: USER_REQ, decision: "approve" }, { role: "approver", user: null, decision: null }];
+  const { tools } = build({ proposeResult: { ok: true, change: change({ status: STATUS.awaitingResponsible, steps }) } });
+  assert.match(text(await tools.propose(INPUT, caller)), /waiting for: any employee holding the approval right/);
 });
 
 test("propose: a refusal is an error with one reason per line", async () => {

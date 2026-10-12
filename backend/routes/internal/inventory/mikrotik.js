@@ -251,6 +251,13 @@ router.get(
   canManageMikrotik,
   mikrotikController.getResponsibleCandidates,
 );
+// Ответственный назначается отдельно от параметров: без пароля и проверки связи
+router.put(
+  "/mikrotik-devices/records/:recordId/responsible",
+  isAuth,
+  canManageMikrotik,
+  mikrotikController.updateResponsible,
+);
 // До «/:id», иначе «awaiting-me» прочтётся как id
 router.get(
   "/mikrotik-changes/awaiting-me",

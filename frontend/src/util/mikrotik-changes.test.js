@@ -475,3 +475,15 @@ test("метка подстановки: узнаётся и нынешняя, �
   assert.equal(hasCommandMarker("/ip address add address=10.0.0.1/24"), false);
   assert.equal(hasCommandMarker(undefined), false);
 });
+
+test("общий шаг («любой с правом»): подпись шага и пояснения", async () => {
+  const { isPoolStep, pendingNote, stepTitle } = await import("./mikrotik-changes.ts");
+  const pool = { role: "approver", user: null };
+  assert.equal(isPoolStep(pool), true);
+  assert.equal(isPoolStep({ role: "approver", user: { name: "Ольга Лебедева" } }), false);
+  assert.equal(stepTitle(pool), "Любой сотрудник с правом утверждать");
+  assert.equal(stepTitle({ role: "approver", user: { name: "Ольга Лебедева" } }), "Ольга Лебедева");
+  assert.equal(stepTitle({ role: "responsible", user: { name: "Анна Смирнова" } }), "Анна Смирнова, ответственный");
+  assert.equal(pendingNote(pool, "current", "awaiting_responsible"), "Ждёт решения · у устройства нет ответственного");
+  assert.equal(pendingNote(pool, "pending", "awaiting_requester"), "Получат запрос после подтверждения заявителя");
+});

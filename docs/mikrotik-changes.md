@@ -67,8 +67,12 @@ HD takes the agent's word about *who asked*, so naming a person grants
 nothing: every decision is made by a person who signed in to HD, or who tapped
 a button in their own private Telegram chat.
 
-**Responsible person.** `Mikrotik.responsibleId` (optional). Set in the record
-create/update handlers (routes guarded by `mikrotik.manage`); `parseResponsible`
+**Responsible person.** `Mikrotik.responsibleId` (optional). Set by
+`PUT /mikrotik-devices/records/:recordId/responsible` (guarded by
+`mikrotik.manage`; added 2026-10-12): body `{ responsibleId }`, `null` clears,
+`400` when the field is absent. The route does not touch the connection
+parameters, so it needs neither the router password nor a reachable router.
+The record create/update handlers still accept the field. `parseResponsible`
 validates a changed value with `services/mikrotik/responsible.js`: the user must
 be a current employee (not end user, not service account, not banned) holding
 `mikrotik.approveChanges`; otherwise `422`. A value equal to the stored one is
@@ -79,8 +83,8 @@ eligible people. `describe()` returns the name and whether the right is still
 held.
 
 **Right.** `mikrotik.approveChanges` (dictionary `auth/access.js`, staff
-audience). It is required to *approve* on a single-step request and on the
-responsible person's step; it is not required for the requester's confirmation
+audience). It is required to *approve* on a single-step request, on the
+responsible person's step and on the shared step; it is not required for the requester's confirmation
 step of a two-step request. The right is evaluated from the session (portal) or
 from `req.auth` of the Telegram actor (bot), never from the request body. See
 «Operations» for the one-off grant.
@@ -92,10 +96,21 @@ from `req.auth` of the Telegram actor (bot), never from the request body. See
 | set, a different person | right not needed | 1) requester confirms «I asked for this»; 2) responsible approves |
 | set, the same person | needs the right | one step (role `responsible`) |
 | not set | has the right | one step (role `requester`) |
-| not set | no right | refused: nobody can approve |
+| not set | no right | 1) requester confirms; 2) **shared step**: any employee holding the right approves (first decision wins) |
+| not set | no right, and no employee holds the right | refused: nobody can approve |
 | set, but he or she lost the right | any | refused: ask an administrator to assign another person |
 
-The request for the responsible person is created and notified only after the
+**Shared step** (added 2026-10-12). A step with role `approver` and no `user`
+(`isPoolStep`). It is the turn of every current employee holding
+`mikrotik.approveChanges`: all of them are notified, each sees the decision
+buttons, and the first decision (approve or reject) is recorded together with
+the person (`steps.N.user` is set in the same conditional update). Someone
+without the right gets `not_yours`. The status while it waits is
+`awaiting_responsible` (label «Ждёт утверждения»). Holders are listed by
+`changeProposals.mongoStore.listApprovers` at proposal time (to refuse when
+there are none) and again at every notification.
+
+The request for the second step is created and notified only after the
 requester's confirmation. Either person can reject at their step; a rejection
 is final. The requester can cancel (`cancel`) while the request is still open
 (`awaiting_*`) and not expired. `responsible` on the record is a snapshot of
@@ -122,7 +137,7 @@ Status values (`STATUS` in `changeSteps.js`):
 | Status | Meaning | Final |
 |---|---|---|
 | `awaiting_requester` | the requester has to confirm (two-step request) or approve (single step, role `requester`) | no |
-| `awaiting_responsible` | waiting for the responsible person | no |
+| `awaiting_responsible` | waiting for the responsible person, or for any holder of the right (shared step) | no |
 | `queued` | approved; waiting for the apply worker | no |
 | `applying` | claimed by the worker | no |
 | `applied` | all commands are on the router | yes |
@@ -553,7 +568,7 @@ Category `mikrotikChange` (one key for both kinds of events, see
 | Event | Method | Called by | Recipients |
 |---|---|---|---|
 | New request | `step` | the MCP tool `propose_mikrotik_change` right after the request is created (`notifier` injected in `routes/mcp.js`) | the person whose step is current |
-| Requester confirmed | `step` | `changeDecisions.decide` | the responsible person |
+| Requester confirmed | `step` | `changeDecisions.decide` | the responsible person; on a shared step every holder of the right (the text says the device has no responsible person) |
 | Rejected | `decided` | `changeDecisions.decide` | requester and everyone who decided |
 | Applied, rolled back, not applied, needs attention | `result` | the worker | requester and everyone who decided |
 | Expiring in 2 hours | `reminder` | the sweep | the person whose step is current (text prefixed «Запрос истекает через 2 часа») |
@@ -681,7 +696,8 @@ computed per request by the controllers (`viewerOf` reads the session).
 |---|---|---|
 | `GET /mikrotik-devices/records/:recordId/changes` | `isAuth`, `canReadMikrotik` | 50 newest requests of the device, each as `toView` for the viewer |
 | `GET /mikrotik-devices/responsible-candidates` | `isAuth`, `canManageMikrotik` | people eligible as responsible |
-| `GET /mikrotik-changes/awaiting-me` | `isAuth` | open, unexpired requests whose current step is the viewer's (up to 100) |
+| `PUT /mikrotik-devices/records/:recordId/responsible` | `isAuth`, `canManageMikrotik` | assign, change or clear the responsible person; no connection check; audit log and journal entry |
+| `GET /mikrotik-changes/awaiting-me` | `isAuth` | open, unexpired requests whose current step is the viewer's, including shared steps when the viewer holds the right (up to 100) |
 | `GET /mikrotik-changes/:id` | `isAuth` | full or reduced view, `404` for an uninvolved staff member without Mikrotik rights |
 | `POST /mikrotik-changes/:id/decision` | `isAuth` | body `{ decision: "approve"\|"reject", comment? }`, comment one line ≤ 300 chars; `403` `not_yours`/`no_right`, `409` closed, `410` expired (a request without a valid expiry time counts as expired), `404` unknown id or an uninvolved staff member without Mikrotik rights, `400` bad body |
 | `POST /mikrotik-changes/:id/cancel` | `isAuth` | requester only, open requests |
@@ -739,7 +755,7 @@ and `createMikrotikChangeTools`; the live instances get `eventLog()`.
 - `risk`, `status`, `expiresAt`, `remindedAt`, `applyingSince`, `queuedSince`,
   `failure`, `executor` (`safe-mode` or `api`, what actually ran),
   `backupArtifact` (→ `MikrotikArtifact`, trigger `pre-change`);
-- `steps[]` — `role` (`requester` or `responsible`), `user`, `decision`
+- `steps[]` — `role` (`requester`, `responsible` or `approver`), `user` (empty on a shared step until it is decided), `decision`
   (`approve`/`reject`/null), `channel` (`portal`/`telegram`), `comment`,
   `decidedAt`;
 - `wireguard` — `publicKey`, `privateKey` and `presharedKey` (encrypted,
