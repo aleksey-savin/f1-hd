@@ -88,6 +88,17 @@ const dayMonth = (value: string | Date, timeZone?: string) =>
     month: "2-digit",
   });
 
+/**
+ * Срок на исходе — подпись уже считает часы и минуты. В списке только такой
+ * срок берёт предупреждающий тон: далёкий — справка, а не сигнал.
+ */
+export const expiresSoon = (
+  expiresAt: string | undefined,
+  { now = new Date() }: TimeOptions = {},
+): boolean =>
+  !!expiresAt &&
+  new Date(expiresAt).getTime() - now.getTime() < COUNTDOWN_LIMIT;
+
 /** «до завтра, 12:38» / «осталось 3 ч» / «осталось 25 мин» / «срок вышел». */
 export const expiryLabel = (
   expiresAt: string | undefined,

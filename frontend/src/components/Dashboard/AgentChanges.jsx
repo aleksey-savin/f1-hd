@@ -1,6 +1,8 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { Link } from "react-router";
 
+import { RiAlertLine } from "react-icons/ri";
+
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import { DeviceStatusText } from "@/components/app/device-status";
 import { Eyebrow, Panel } from "@/components/app/Panel";
@@ -9,10 +11,10 @@ import { fetchAwaitingMe } from "@/store/mikrotik-changes";
 import useInitialPrefsStore from "@/store/prefs";
 import { AuthedUserContext } from "@/store/authed-user-context";
 import {
-  STATUS_TEXT_TONE,
+  RISK_HEADLINE,
   commandsCount,
+  expiresSoon,
   expiryLabel,
-  statusTone,
 } from "@/util/mikrotik-changes";
 import { displayTimeZone } from "@/util/format-date";
 
@@ -24,6 +26,12 @@ import { displayTimeZone } from "@/util/format-date";
  * главной держится на этом: см. комментарий в pages/Dashboard.jsx). Модуль
  * Mikrotik выключен или аккаунт клиентский — запроса нет вовсе. Обновляется по
  * теме пульса `mikrotikChanges` (docs/live-updates.md), своих таймеров нет.
+ *
+ * Строка — три разных факта тремя строками: что просят (тема, не длиннее двух
+ * строк), где и кто (мета), чем грозит (риск со значком). Одним предложением
+ * через точку они сливались, а жирный риск рвался переносом посреди фразы.
+ * Срок приглушён, пока далеко: оранжевым он спорил с риском, хотя «до завтра»
+ * ничего не требует. Тон берёт только срок на исходе (`expiresSoon`).
  */
 const AgentChanges = () => {
   const fromState = useCrumbFrom("Главная");
@@ -63,47 +71,59 @@ const AgentChanges = () => {
         <div className="-mx-4 -my-4 md:-mx-5 md:-my-5">
           {items.map((change) => {
             const meta = [
-              [change.device?.name, change.device?.company]
-                .filter(Boolean)
-                .join(", "),
+              change.device?.company,
               change.requestedBy?.name
-                ? `Просит ${change.requestedBy.name}`
+                ? `просит ${change.requestedBy.name}`
                 : null,
               change.commands?.length
                 ? commandsCount(change.commands.length)
                 : null,
-            ]
-              .filter(Boolean)
-              .join(". ");
+            ].filter(Boolean);
+            const deadline = expiryLabel(change.expiresAt, { timeZone });
             return (
               <Link
                 key={change._id}
                 to={`/devices/mikrotik/changes/${change._id}`}
                 state={fromState}
-                className="flex items-start gap-3 border-b border-border-soft px-4 py-2.5 text-foreground no-underline transition-colors last:border-b-0 hover:bg-accent/60 hover:text-foreground md:px-5"
+                className="grid grid-cols-1 gap-x-4 gap-y-0.5 border-b border-border-soft px-4 py-3 text-foreground no-underline transition-colors last:border-b-0 hover:bg-accent/60 hover:text-foreground md:grid-cols-[minmax(0,1fr)_auto] md:px-5"
               >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">
-                    {change.title}
-                  </span>
-                  <span className="block text-sm text-muted-foreground">
-                    {meta}
-                    {change.risk === "high" && (
-                      <>
-                        {meta ? ". " : ""}
-                        <span className="font-semibold text-warning-text">
-                          Может оборвать связь с устройством
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </span>
-                <DeviceStatusText
-                  tone={STATUS_TEXT_TONE[statusTone(change.status)]}
-                  className="mt-0.5 text-sm font-normal tabular-nums"
+                <span
+                  title={change.title}
+                  className="line-clamp-3 min-w-0 text-sm font-medium text-pretty md:line-clamp-2"
                 >
-                  {expiryLabel(change.expiresAt, { timeZone })}
-                </DeviceStatusText>
+                  {change.title}
+                </span>
+                {/* телефон: срок строкой над темой, как номер у строки заявки */}
+                {deadline &&
+                  (expiresSoon(change.expiresAt) ? (
+                    <DeviceStatusText
+                      tone="warn"
+                      className="tabular-nums max-md:order-first md:text-sm md:font-normal"
+                    >
+                      {deadline}
+                    </DeviceStatusText>
+                  ) : (
+                    <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums max-md:order-first md:text-sm">
+                      {deadline}
+                    </span>
+                  ))}
+                {(change.device?.name || meta.length > 0) && (
+                  <span className="min-w-0 text-sm text-muted-foreground md:col-start-1 md:truncate">
+                    {change.device?.name && (
+                      <span className="text-foreground">
+                        {change.device.name}
+                      </span>
+                    )}
+                    {change.device?.name && meta.length > 0 && " · "}
+                    {meta.join(" · ")}
+                  </span>
+                )}
+                {change.risk === "high" && (
+                  <span className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-warning-text md:col-start-1">
+                    <RiAlertLine aria-hidden className="flex-none" />
+                    {RISK_HEADLINE}
+                  </span>
+                )}
               </Link>
             );
           })}

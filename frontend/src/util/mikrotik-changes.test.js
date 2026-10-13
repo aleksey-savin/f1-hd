@@ -11,6 +11,7 @@ import {
   commandsCount,
   decisionNote,
   expiresPhrase,
+  expiresSoon,
   expiryLabel,
   firstRisky,
   hasCommandMarker,
@@ -74,6 +75,14 @@ test("срок: через сутки — «до завтра, 12:38», часы
   assert.equal(expiryLabel("2026-10-13T09:38:00Z", at()), "до 13.10, 12:38");
   assert.equal(expiryLabel("2026-10-10T08:59:00Z", at()), "срок вышел");
   assert.equal(expiryLabel(undefined, at()), "");
+});
+
+test("срок на исходе — там же, где подпись переходит на часы и минуты", () => {
+  assert.equal(expiresSoon("2026-10-11T09:38:00Z", at()), false);
+  assert.equal(expiresSoon("2026-10-10T16:00:00Z", at()), false);
+  assert.equal(expiresSoon("2026-10-10T12:00:00Z", at()), true);
+  assert.equal(expiresSoon("2026-10-10T08:59:00Z", at()), true);
+  assert.equal(expiresSoon(undefined, at()), false);
 });
 
 test("срок в шапке: «истекает завтра в 12:38»", () => {
@@ -462,13 +471,19 @@ test("метка подстановки: узнаётся и нынешняя, �
   const current = " interface=wg1 public-key=‹создаст система›";
   const previous = " interface=wg1 public-key=‹создаст HD›";
   for (const text of [current, previous]) {
-    assert.deepEqual(splitByMarker(text), [" interface=wg1 public-key=", ""], text);
+    assert.deepEqual(
+      splitByMarker(text),
+      [" interface=wg1 public-key=", ""],
+      text,
+    );
     assert.equal(hasCommandMarker(text), true, text);
     // Показ собирается из кусков и нынешней метки — прежняя на экран не выходит
     assert.equal(splitByMarker(text).join(COMMAND_MARKER), current);
   }
   assert.deepEqual(
-    splitByMarker(" public-key=‹создаст HD› preshared-key=‹создаст система› comment=a"),
+    splitByMarker(
+      " public-key=‹создаст HD› preshared-key=‹создаст система› comment=a",
+    ),
     [" public-key=", " preshared-key=", " comment=a"],
   );
   assert.deepEqual(splitByMarker(" comment=office"), [" comment=office"]);
@@ -477,13 +492,30 @@ test("метка подстановки: узнаётся и нынешняя, �
 });
 
 test("общий шаг («любой с правом»): подпись шага и пояснения", async () => {
-  const { isPoolStep, pendingNote, stepTitle } = await import("./mikrotik-changes.ts");
+  const { isPoolStep, pendingNote, stepTitle } = await import(
+    "./mikrotik-changes.ts"
+  );
   const pool = { role: "approver", user: null };
   assert.equal(isPoolStep(pool), true);
-  assert.equal(isPoolStep({ role: "approver", user: { name: "Ольга Лебедева" } }), false);
+  assert.equal(
+    isPoolStep({ role: "approver", user: { name: "Ольга Лебедева" } }),
+    false,
+  );
   assert.equal(stepTitle(pool), "Любой сотрудник с правом утверждать");
-  assert.equal(stepTitle({ role: "approver", user: { name: "Ольга Лебедева" } }), "Ольга Лебедева");
-  assert.equal(stepTitle({ role: "responsible", user: { name: "Анна Смирнова" } }), "Анна Смирнова, ответственный");
-  assert.equal(pendingNote(pool, "current", "awaiting_responsible"), "Ждёт решения · у устройства нет ответственного");
-  assert.equal(pendingNote(pool, "pending", "awaiting_requester"), "Получат запрос после подтверждения заявителя");
+  assert.equal(
+    stepTitle({ role: "approver", user: { name: "Ольга Лебедева" } }),
+    "Ольга Лебедева",
+  );
+  assert.equal(
+    stepTitle({ role: "responsible", user: { name: "Анна Смирнова" } }),
+    "Анна Смирнова, ответственный",
+  );
+  assert.equal(
+    pendingNote(pool, "current", "awaiting_responsible"),
+    "Ждёт решения · у устройства нет ответственного",
+  );
+  assert.equal(
+    pendingNote(pool, "pending", "awaiting_requester"),
+    "Получат запрос после подтверждения заявителя",
+  );
 });
