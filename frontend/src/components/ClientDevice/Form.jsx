@@ -98,7 +98,7 @@ const optionsOf = (items, label = (item) => item.name) =>
 const ClientDeviceForm = ({ title }) => {
   // Справочники приезжают лоадером из кэша (store/form-data), поэтому форма
   // открывается готовой: собственного ожидания у неё нет.
-  const { device: data, formData } = useLoaderData();
+  const { device: data, formData, presetCompanyId } = useLoaderData();
   const isEdit = Boolean(data?._id);
 
   const fetcher = useFetcher();
@@ -106,7 +106,7 @@ const ClientDeviceForm = ({ title }) => {
   const can = useCan();
 
   const [form, setForm] = useState({
-    companyId: refId(data?.companyId),
+    companyId: refId(data?.companyId) || presetCompanyId || "",
     locationId: refId(data?.locationId),
     userId: refId(data?.userId),
     deviceTypeId:
@@ -159,13 +159,22 @@ const ClientDeviceForm = ({ title }) => {
   const setField = (name, value) =>
     setForm((previous) => ({ ...previous, [name]: value }));
 
+  // Общедоступное расположение чужой компании правил выдачи не задаёт: его
+  // подразделения и сотрудники — не той компании, что устройство. Тогда
+  // кандидаты — пользователи компании устройства.
+  const selectedLocation = locations.find(
+    (location) => location._id === form.locationId,
+  );
+  const isForeignLocation =
+    Boolean(selectedLocation) &&
+    refId(selectedLocation.company) !== form.companyId;
   const { users: assignableUsers, defaultUserId } = useAssignableUsers(
-    form.locationId,
+    isForeignLocation ? "" : form.locationId,
     form.companyId,
   );
 
-  // Расположения выбранной компании — полным путём (одноимённых комнат у
-  // клиента столько же, сколько зданий).
+  // Расположения выбранной компании и общедоступные расположения других
+  // компаний (`includePublic`).
   useEffect(() => {
     if (!form.companyId) {
       setLocations([]);
@@ -173,7 +182,7 @@ const ClientDeviceForm = ({ title }) => {
     }
     let cancelled = false;
     fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/inventory/companies-locations?companyIds=${form.companyId}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/inventory/companies-locations?companyIds=${form.companyId}&includePublic=1`,
       {},
     )
       .then((response) => (response.ok ? response.json() : []))
@@ -249,14 +258,39 @@ const ClientDeviceForm = ({ title }) => {
     );
 
   // --- опции полей ---
-  const locationOptions = useMemo(
-    () =>
-      locations.map((location) => ({
-        value: location._id,
-        label: location.fullPath || location.name,
-      })),
-    [locations],
-  );
+  // Порядок блоков: свои расположения (без заголовка), общедоступные чужие,
+  // рабочие места — отдельным блоком в самом низу.
+  const locationOptions = useMemo(() => {
+    const blockOf = (location) =>
+      refId(location.company) !== form.companyId
+        ? 1
+        : location.type === "workplace"
+          ? 2
+          : 0;
+    const personName = (user) =>
+      user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "";
+    return [...locations]
+      .sort((a, b) => blockOf(a) - blockOf(b))
+      .map((location) => {
+        const block = blockOf(location);
+        return {
+          value: location._id,
+          label: location.fullPath || location.name,
+          group:
+            block === 1
+              ? "Общедоступные"
+              : block === 2
+                ? "Рабочие места"
+                : undefined,
+          hint:
+            block === 1
+              ? location.company?.alias || location.company?.fullTitle
+              : block === 2
+                ? personName(location.assignedUser) || location.parent?.name
+                : undefined,
+        };
+      });
+  }, [locations, form.companyId]);
   const modelOptions = useMemo(
     () =>
       optionsOf(

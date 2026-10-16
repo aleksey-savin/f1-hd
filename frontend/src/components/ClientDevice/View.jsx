@@ -609,7 +609,7 @@ const ViewClientDevice = ({ device = {} }) => {
               <Panel>
                 <PropRow
                   icon={<RiTerminalBoxLine size={17} />}
-                  label="Имя в сети"
+                  label="Имя устройства"
                 >
                   {device.hostname ? (
                     <span className="font-mono">{device.hostname}</span>

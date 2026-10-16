@@ -428,7 +428,7 @@ const buildListMatch = async (query, authedUser) => {
  */
 const DUPLICATE_FIELDS = {
   inventoryNumber: "инвентарным номером",
-  hostname: "именем в сети",
+  hostname: "именем устройства",
   machineId: "идентификатором машины",
 };
 

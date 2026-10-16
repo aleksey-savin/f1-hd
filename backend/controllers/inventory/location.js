@@ -214,6 +214,13 @@ exports.getAllCompanies = async (req, res, next) => {
       companyFilter = { company: authedUser.company?._id };
     }
 
+    // `includePublic=1` — плюс общедоступные расположения других компаний
+    // (`isPublic`: туда можно ставить чужую технику; выбор в мастере
+    // устройства). Только сотрудникам: клиенту чужие расположения не видны.
+    if (req.query.includePublic === "1" && !scope) {
+      companyFilter = { $or: [companyFilter, { isPublic: true }] };
+    }
+
     const locations = await Location.find(companyFilter)
       .populate("company", "alias fullTitle")
       .populate({

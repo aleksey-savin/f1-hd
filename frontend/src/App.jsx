@@ -699,6 +699,15 @@ function App() {
                   action: addCompanyServicePlanAction,
                   element: <AddCompanyServicePlanPage />,
                 },
+                {
+                  // «Новое устройство» из секции «Техника»: тот же мастер, что в
+                  // «Устройствах», с предустановленной компанией карточки
+                  path: "client-devices/add",
+                  handle: { can: { device: ["manage"] }, ...SHEET_LG },
+                  loader: addClientDeviceLoader,
+                  action: addClientDeviceAction,
+                  element: <AddClientDevicePage />,
+                },
               ],
             },
             // Users

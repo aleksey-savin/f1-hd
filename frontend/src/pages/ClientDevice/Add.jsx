@@ -11,10 +11,16 @@ export default AddClientDevicePage;
 // Справочники — из кэша (store/form-data): их пять, и форма ждала их сама,
 // показывая спиннер в уже открытой шторке. Шторка обязана открываться по
 // готовности, а ожидание — жить на линии под баром оболочки.
-export async function loader() {
+// С карточки компании (`/companies/:id/client-devices/add`) компания
+// предустановлена — та, с чьей страницы заводят устройство.
+export async function loader({ params }) {
   setDocTitle("Новое устройство");
 
-  return { device: null, formData: await loadFormData() };
+  return {
+    device: null,
+    formData: await loadFormData(),
+    presetCompanyId: params.id || "",
+  };
 }
 
 // Каждая ручка отдаёт массив, но форма и раньше страховалась: пришедший не

@@ -66,6 +66,9 @@ const MIGRATIONS = [
   // заданы LEGACY_BRAND_NAME / LEGACY_BRAND_SIGNATURE; без них ничего не пишет
   // (и всё равно отмечается применённой). См. seedBrand.js
   { id: "2026-10-11-seedBrand", script: "seedBrand.js", apply: true },
+  // Устаревший уникальный индекс серийника → обычный: без серийника не
+  // сохранялось второе устройство. См. dropUniqueSerialIndex.js
+  { id: "2026-10-16-dropUniqueSerialIndex", script: "dropUniqueSerialIndex.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

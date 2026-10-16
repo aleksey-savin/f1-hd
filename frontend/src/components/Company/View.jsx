@@ -398,6 +398,9 @@ const ViewCompany = ({
               id="company-tech"
               companyId={company._id}
               from={company.alias}
+              addLink={
+                can({ device: ["manage"] }) ? "client-devices/add" : undefined
+              }
             />
           )}
 

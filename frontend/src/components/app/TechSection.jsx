@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import {
+  RiAddLine,
   RiArrowRightSLine,
   RiCloseLine,
   RiExternalLinkLine,
@@ -223,6 +224,9 @@ const TechSection = ({
   // объясняет, где техника появляется; на лендинге секций много, и плакат
   // «Техники пока нет» отжимал бы вниз то, ради чего страницу открыли.
   hideWhenEmpty = false,
+  // Адрес «Нового устройства» (шторка хозяина); без него кнопки нет — право
+  // проверяет хозяин.
+  addLink,
 }) => {
   const { token } = getLocalStorageData();
   const { isLoading, error, sendRequest } = useHttp();
@@ -388,6 +392,15 @@ const TechSection = ({
     />
   );
 
+  const addButton = (className) =>
+    addLink && (
+      <Button asChild size="sm" variant="outline" className={className}>
+        <Link to={addLink}>
+          <RiAddLine /> Новое устройство
+        </Link>
+      </Button>
+    );
+
   // Пока данных нет, решить «пусто ли» нельзя — на лендинге молчим до ответа,
   // иначе секция мигает заголовком и исчезает.
   if (hideWhenEmpty && (!data || total === 0)) return null;
@@ -403,7 +416,10 @@ const TechSection = ({
         // остаётся один список.
         action={
           self ? undefined : (
-            <span className="max-md:hidden">{segmented()}</span>
+            <span className="flex items-center gap-2">
+              {addButton()}
+              <span className="max-md:hidden">{segmented()}</span>
+            </span>
           )
         }
       >
@@ -436,9 +452,12 @@ const TechSection = ({
             </div>
             <p className="mx-auto mt-1.5 mb-0 max-w-md text-sm text-muted-foreground">
               {companyId
-                ? "У компании нет устройств в учёте техники — они появятся здесь после добавления в разделе «Устройства»."
+                ? addLink
+                  ? "У компании нет устройств в учёте техники."
+                  : "У компании нет устройств в учёте техники — они появятся здесь после добавления в разделе «Устройства»."
                 : "За пользователем не закреплено устройств, а его рабочее место пусто."}
             </p>
+            {addButton("mt-3")}
           </div>
         </div>
       ) : (

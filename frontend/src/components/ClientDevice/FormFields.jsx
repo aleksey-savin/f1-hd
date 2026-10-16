@@ -266,7 +266,7 @@ export const PlacementFields = ({
     <CatalogField
       id="device-location"
       label="Расположение"
-      hint="Список — расположения выбранной компании, полным путём."
+      hint="Расположения выбранной компании; ниже — общедоступные других компаний и рабочие места."
       value={values.locationId}
       options={options.locations}
       onChange={(next) => onChange("locationId", next)}
@@ -395,19 +395,19 @@ export const TechFields = ({ values, onChange, mikrotikMode }) => (
   <>
     <div className="grid gap-x-3 md:grid-cols-2">
       <Field
-        label="Имя в сети"
+        label="Имя устройства"
         htmlFor="device-hostname"
         hint={
           mikrotikMode
             ? "Остальное заполнится с устройства при подключении к мониторингу."
-            : "Сетевое имя ПК или identity устройства."
+            : undefined
         }
       >
         <Input
           id="device-hostname"
           value={values.hostname}
           onChange={(event) => onChange("hostname", event.target.value)}
-          placeholder="AG-WS001"
+          placeholder="PC-01"
           className="font-mono"
         />
       </Field>
