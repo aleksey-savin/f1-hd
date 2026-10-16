@@ -1,9 +1,10 @@
 const { body } = require("express-validator");
 
 const deviceAttributeValidation = [
+  // Код необязателен: форма его не спрашивает, при создании он выводится из
+  // наименования (services/attributeCode), при правке остаётся прежним.
   body("code")
-    .notEmpty()
-    .withMessage("Code is required")
+    .optional({ values: "falsy" })
     .isString()
     .withMessage("Code must be a string")
     .trim()

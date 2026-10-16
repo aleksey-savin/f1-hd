@@ -2,6 +2,7 @@ const DeviceAttribute = require("@/models/inventory/deviceAttribute");
 const DeviceType = require("@/models/inventory/deviceType");
 const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
 const { AppError } = require("@/middleware/errorHandling");
+const { uniqueAttributeCode } = require("@/services/attributeCode");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -45,19 +46,19 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { code, name, valueType, unit, options, isActive } = req.body;
+    const { name, valueType, unit, options, isActive } = req.body;
 
-    const deviceAttributeExists = await DeviceAttribute.findOne({
-      $or: [{ name }, { code }],
-    });
-    if (deviceAttributeExists) {
+    // Наименование уникально и по смыслу, и по устаревшему индексу name_1 на
+    // старых базах; код занятым быть не может — подбирается свободный.
+    if (await DeviceAttribute.exists({ name })) {
       return next(
-        new AppError(
-          `Device attribute with name "${name}" or code "${code}" already exists`,
-          409,
-        ),
+        new AppError(`Атрибут «${name}» уже есть`, 409),
       );
     }
+    const code =
+      req.body.code && !(await DeviceAttribute.exists({ code: req.body.code }))
+        ? req.body.code
+        : await uniqueAttributeCode(DeviceAttribute, name);
 
     const deviceAttribute = new DeviceAttribute({
       code,
@@ -88,7 +89,7 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { code, name, valueType, unit, options, isActive } = req.body;
+    const { name, valueType, unit, options, isActive } = req.body;
 
     const deviceAttribute = await DeviceAttribute.findById(req.params.id);
     if (!deviceAttribute) {
@@ -100,7 +101,9 @@ exports.update = async (req, res, next) => {
       );
     }
 
-    // Check if name is being changed and if new name already exists
+    // Форма кода не шлёт — тогда он прежний; явный код (API) меняет его
+    const code = req.body.code || deviceAttribute.code;
+
     // Check if name or code is being changed and if new name/code already exists
     if (name !== deviceAttribute.name || code !== deviceAttribute.code) {
       const duplicateExists = await DeviceAttribute.findOne({

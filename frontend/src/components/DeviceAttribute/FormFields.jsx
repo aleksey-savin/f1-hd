@@ -13,7 +13,10 @@ import { VALUE_TYPES } from "./value-types";
 // onChange (для инлайн-модалки в форме типа устройства, которая шлёт fetch
 // напрямую) — общий компонент, мини-форм-двойников не заводим.
 const DeviceAttributeFormFields = ({ attribute, onChange }) => {
-  const [code, setCode] = useState(attribute?.code || "");
+  // Код — служебный идентификатор: в форме его нет, при создании бэкенд
+  // выводит его из наименования (services/attributeCode), при правке он
+  // прежний. Состояние остаётся только для onChange инлайн-модалки.
+  const code = attribute?.code || "";
   const [name, setName] = useState(attribute?.name || "");
   const [valueType, setValueType] = useState(attribute?.valueType || "string");
   const [unit, setUnit] = useState(attribute?.unit || "");
@@ -28,12 +31,6 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
     if (onChange) {
       onChange(data);
     }
-  };
-
-  const codeChangeHandler = (event) => {
-    const newCode = event.target.value;
-    setCode(newCode);
-    notifyChange({ code: newCode, name, valueType, unit, options, isActive });
   };
 
   const nameChangeHandler = (event) => {
@@ -94,30 +91,15 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
     <>
       <div className="grid gap-x-4 md:grid-cols-2">
         <Field
-          label="Код"
-          htmlFor="code"
-          required
-          hint="Латиница, без пробелов, camelCase"
-        >
-          <Input
-            required
-            autoFocus
-            id="code"
-            name="code"
-            type="text"
-            value={code}
-            onChange={codeChangeHandler}
-            placeholder="ram, processor, screenSize"
-          />
-        </Field>
-        <Field
           label="Наименование"
           htmlFor="name"
           required
           hint="Отображаемое название на русском"
+          className="md:col-span-2"
         >
           <Input
             required
+            autoFocus
             id="name"
             name="name"
             type="text"
