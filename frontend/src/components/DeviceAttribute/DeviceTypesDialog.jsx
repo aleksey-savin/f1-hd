@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import useDeviceTypeFilterStore from "@/store/lists/deviceTypes";
 
 import { typesOfAttribute } from "./device-type-links";
+import { invalidate } from "@/store/form-data";
 
 // Привязка атрибута к типам устройств набором — обратная сторона «Добавить
 // атрибут» на карточке типа, где связки правятся по одной. Отмеченные типы —
@@ -92,6 +93,7 @@ const DeviceTypesDialog = ({ attribute, open, onOpenChange }) => {
           body: { deviceTypeIds: selected },
         },
       );
+      invalidate("/api/inventory/");
       // Колонку типов в строке считает каталог типов — обновляем его, иначе
       // список показывал бы прежнюю привязку до следующей навигации.
       await fetchDeviceTypes();

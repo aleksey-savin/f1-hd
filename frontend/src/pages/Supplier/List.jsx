@@ -13,6 +13,7 @@ import useSupplierFilterStore, {
 } from "../../store/lists/suppliers";
 import { companyOptions, yearOptions } from "../../store/lists/supplier-scope";
 import useToastStore from "../../store/toast-store";
+import { invalidate } from "@/store/form-data";
 
 // Справочник поставщиков: у кого закупаем технику. Строка отвечает на «сколько
 // у него куплено в выбранном году и когда в последний раз» — ради этого список
@@ -109,6 +110,8 @@ export async function loader() {
 }
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
   const id = data.get("id");
 

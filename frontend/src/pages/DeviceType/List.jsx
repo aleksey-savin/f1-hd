@@ -7,6 +7,7 @@ import useDeviceTypeFilterStore from "../../store/lists/deviceTypes";
 import List from "../../components/DeviceType/List";
 import DeviceTypeFilter from "../../components/DeviceType/Filter";
 import { kindLabel } from "../../components/DeviceType/kinds";
+import { invalidate } from "@/store/form-data";
 
 
 const DeviceTypeListPage = () => {
@@ -72,6 +73,8 @@ const DeviceTypeListPage = () => {
 export default DeviceTypeListPage;
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
   const id = data.get("id");
 

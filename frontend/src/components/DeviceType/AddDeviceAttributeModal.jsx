@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
 
 import DeviceAttributeFormFields from "../DeviceAttribute/FormFields";
+import { invalidate } from "@/store/form-data";
 
 // Инлайн-создание атрибута из формы типа устройства: общий
 // DeviceAttributeFormFields (onChange-контракт), fetch напрямую —
@@ -88,6 +89,7 @@ const AddDeviceAttributeModal = ({ show, onHide, onAttributeCreated }) => {
       if (response.ok) {
         const result = await response.json();
         const newAttribute = result.deviceAttribute;
+        invalidate("/api/inventory/");
 
         // Notify parent component with simplified attribute
         onAttributeCreated({

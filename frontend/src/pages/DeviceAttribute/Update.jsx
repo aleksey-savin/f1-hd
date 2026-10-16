@@ -2,6 +2,7 @@ import { setDocTitle } from "@/hooks/use-doc-title";
 import DeviceAttributeForm from "../../components/DeviceAttribute/Form";
 
 import { api } from "@/lib/api";
+import { invalidate } from "@/store/form-data";
 
 const UpdateDeviceAttributePage = () => {
 
@@ -17,6 +18,8 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
 
   const options = data.get("options");

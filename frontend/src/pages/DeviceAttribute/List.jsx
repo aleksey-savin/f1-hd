@@ -11,6 +11,7 @@ import DeviceAttributeFilter from "../../components/DeviceAttribute/Filter";
 
 import { valueTypeLabel } from "../../components/DeviceAttribute/value-types";
 import { attributeIdsOfType } from "../../components/DeviceAttribute/device-type-links";
+import { invalidate } from "@/store/form-data";
 
 const DeviceAttributeListPage = () => {
   const location = useLocation();
@@ -114,6 +115,8 @@ const DeviceAttributeListPage = () => {
 export default DeviceAttributeListPage;
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
   const id = data.get("id");
 

@@ -2,6 +2,7 @@ import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/Supplier/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { useCan } from "@/store/authed-user";
+import { invalidate } from "@/store/form-data";
 
 const AddSupplierPage = () => {
   const can = useCan();
@@ -45,6 +46,8 @@ const bodyFrom = (data) => ({
 });
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
 
   const response = await fetch(

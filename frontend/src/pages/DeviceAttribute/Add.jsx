@@ -1,5 +1,6 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/DeviceAttribute/Form";
+import { invalidate } from "@/store/form-data";
 
 const AddDeviceAttributePage = () => {
   return <Form title="Новый атрибут устройства" />;
@@ -13,6 +14,8 @@ export async function loader() {
 }
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
 
   const options = data.get("options");

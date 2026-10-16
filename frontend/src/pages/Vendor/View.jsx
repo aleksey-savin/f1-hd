@@ -2,6 +2,7 @@ import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 
 import ViewVendor from "../../components/Vendor/View";
+import { invalidate } from "@/store/form-data";
 
 const ViewVendorPage = () => {
   const { vendor, models } = useLoaderData();
@@ -40,6 +41,8 @@ export async function loader({ params }) {
 }
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const headers = {
     "Content-Type": "application/json",
   };

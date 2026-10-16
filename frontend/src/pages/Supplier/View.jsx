@@ -4,6 +4,7 @@ import { redirect, useLoaderData } from "react-router";
 import ViewSupplier from "../../components/Supplier/View";
 import Forbidden from "../../components/Error/403";
 import { useCan } from "@/store/authed-user";
+import { invalidate } from "@/store/form-data";
 
 const ViewSupplierPage = () => {
   const can = useCan();
@@ -31,6 +32,8 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
 
   if (data.get("intent") === "delete") {

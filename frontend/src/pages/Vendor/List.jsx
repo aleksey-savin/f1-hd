@@ -7,6 +7,7 @@ import List from "../../components/Vendor/List";
 import VendorFilter from "../../components/Vendor/Filter";
 
 import ListWrapper from "@/components/app/ListWrapper";
+import { invalidate } from "@/store/form-data";
 
 
 const VendorListPage = () => {
@@ -59,6 +60,8 @@ const VendorListPage = () => {
 export default VendorListPage;
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
   const id = data.get("id");
 

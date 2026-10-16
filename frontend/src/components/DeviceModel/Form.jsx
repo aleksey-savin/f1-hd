@@ -34,6 +34,7 @@ const DeviceModelForm = ({
         deviceTypes={loaderData?.deviceTypes || []}
         vendors={loaderData?.vendors || []}
         deviceModels={loaderData?.deviceModels || []}
+        lockDeviceType={Boolean(presetDeviceTypeId)}
       />
     </FormWrapper>
   );

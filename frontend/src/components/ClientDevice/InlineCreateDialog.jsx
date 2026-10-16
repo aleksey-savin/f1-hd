@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
-import { load } from "@/store/form-data";
+import { invalidate, load } from "@/store/form-data";
 import { useNavWait } from "@/components/app/nav-wait";
 import { phoneInputError } from "@/util/phone";
 
@@ -308,6 +308,8 @@ const InlineCreateDialog = ({
       }
 
       const created = data[config.respKey];
+      // Справочник пополнился — кэш форм больше не полный
+      invalidate("/api/inventory/");
       if (config.afterCreate) await config.afterCreate(created, state);
 
       onCreated(created);

@@ -16,6 +16,8 @@ const DeviceModelFormFields = ({
   vendors = [],
   deviceModels = [],
   onChange,
+  // Модель заводят с карточки типа: тип задан ею и в форме не меняется
+  lockDeviceType = false,
 }) => {
   const [name, setName] = useState(deviceModel?.name || "");
   const [deviceTypeId, setDeviceTypeId] = useState(
@@ -68,8 +70,9 @@ const DeviceModelFormFields = ({
               label: (option) => option.name,
             })}
             placeholder="Выберите тип устройства…"
-            clearable
+            clearable={!lockDeviceType}
             clearLabel="Не выбран"
+            disabled={lockDeviceType}
           />
         </Field>
 

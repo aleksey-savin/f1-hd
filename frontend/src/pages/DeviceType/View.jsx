@@ -2,6 +2,7 @@ import { setDocTitle } from "@/hooks/use-doc-title";
 import { useLoaderData, redirect } from "react-router";
 
 import ViewDeviceType from "../../components/DeviceType/View";
+import { invalidate } from "@/store/form-data";
 
 const ViewDeviceTypePage = () => {
   const { deviceType, models } = useLoaderData();
@@ -39,6 +40,8 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const headers = {
     "Content-Type": "application/json",
   };

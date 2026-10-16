@@ -7,6 +7,7 @@ import ListWrapper from "@/components/app/ListWrapper";
 import useDeviceModelFilterStore from "../../store/lists/deviceModels";
 import List from "../../components/DeviceModel/List";
 import DeviceModelFilter from "../../components/DeviceModel/Filter";
+import { invalidate } from "@/store/form-data";
 
 
 const DeviceModelListPage = () => {
@@ -98,6 +99,8 @@ const DeviceModelListPage = () => {
 export default DeviceModelListPage;
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
   const id = data.get("id");
 

@@ -1,5 +1,6 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/Vendor/Form";
+import { invalidate } from "@/store/form-data";
 
 const AddVendorPage = () => {
   return (
@@ -21,6 +22,8 @@ export async function loader() {
 }
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
 
   const vendorData = {

@@ -1,5 +1,5 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
-import { load } from "@/store/form-data";
+import { load, invalidate } from "@/store/form-data";
 import Form from "../../components/DeviceType/Form";
 
 const AddDeviceTypePage = () => {
@@ -29,6 +29,8 @@ export async function loader() {
 }
 
 export async function action({ request }) {
+  // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
+  invalidate("/api/inventory/");
   const data = await request.formData();
 
   const deviceTypeData = {
