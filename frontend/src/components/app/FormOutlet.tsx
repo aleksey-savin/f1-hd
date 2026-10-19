@@ -90,7 +90,7 @@ export function useSheetHandle(): SheetHandle | undefined {
 /** Открыта ли сейчас шторка формы — для пауз фонового обновления и т. п. */
 export const useSheetOpen = () => useSheetHandle() !== undefined;
 
-type CloseOptions = Pick<NavigateOptions, "replace">;
+type CloseOptions = Pick<NavigateOptions, "replace" | "state">;
 
 type FormSheetApi = {
   close: (to?: To, options?: CloseOptions) => void;

@@ -21,11 +21,13 @@ const FormWrapper = ({
   header,
   action,
   successTo,
+  successState,
   onSuccess,
   json,
   formData,
   submitLabel = "Сохранить",
   submitDisabled = false,
+  actionsNote,
   children,
 }: {
   title: ReactNode;
@@ -37,6 +39,11 @@ const FormWrapper = ({
   header?: ReactNode;
   action?: string;
   successTo?: string | ((data: unknown) => string | undefined);
+  /**
+   * `state` перехода на successTo — например `from` крошек (`useCrumbFrom`):
+   * созданное с карточки-хозяина возвращает крошкой к ней, а не в свой раздел.
+   */
+  successState?: unknown;
   /** Убрать за собой после успешной отправки — до перехода со шторки. */
   onSuccess?: (data: unknown) => void;
   /**
@@ -57,6 +64,12 @@ const FormWrapper = ({
   formData?: () => FormData | null;
   submitLabel?: string;
   submitDisabled?: boolean;
+  /**
+   * Тихая строка слева от кнопок — пояснение к сабмиту («что будет после»).
+   * Только на десктопе: на телефоне ряду кнопок нужна вся ширина, и форма
+   * сама повторяет пояснение под полями.
+   */
+  actionsNote?: ReactNode;
   children: ReactNode;
 }) => {
   const data = useActionData() as
@@ -72,7 +85,7 @@ const FormWrapper = ({
       onSuccess?.(fetcher.data);
       const to =
         typeof successTo === "function" ? successTo(fetcher.data) : successTo;
-      close(to ?? "..", { replace: true });
+      close(to ?? "..", { replace: true, state: successState });
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -122,6 +135,11 @@ const FormWrapper = ({
         )}
         {children}
         <FormActions className="justify-end">
+          {actionsNote && (
+            <div className="hidden min-w-0 flex-1 text-xs leading-snug text-faint sm:block">
+              {actionsNote}
+            </div>
+          )}
           <Button type="button" variant="ghost" onClick={() => close()}>
             Отмена
           </Button>

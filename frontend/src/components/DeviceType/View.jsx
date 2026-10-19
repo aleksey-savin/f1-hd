@@ -216,6 +216,20 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
   const [items, setItems] = useState(ordered);
   useEffect(() => setItems(ordered), [ordered]);
 
+  // Только что добавленные (шторка «Добавить атрибуты») подсвечиваются
+  // row-appear: новые id в свежих данных лоадера против прошлых. Анимация
+  // однократная — класс можно не снимать.
+  const knownIds = useRef(null);
+  const [freshIds, setFreshIds] = useState(() => new Set());
+  useEffect(() => {
+    const ids = ordered.map((it) => String(it._id));
+    if (knownIds.current) {
+      const added = ids.filter((id) => !knownIds.current.has(id));
+      if (added.length) setFreshIds(new Set(added));
+    }
+    knownIds.current = new Set(ids);
+  }, [ordered]);
+
   const submitOrder = (nextItems) => {
     setItems(nextItems);
     reorderFetcher.submit(
@@ -482,7 +496,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
         {canManage && (
           <Button asChild size="sm">
             <Link to="attributes/add">
-              <RiAddFill /> Добавить атрибут
+              <RiAddFill /> Добавить атрибуты
             </Link>
           </Button>
         )}
@@ -504,7 +518,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
             {canManage && (
               <Button asChild className="mt-2">
                 <Link to="attributes/add">
-                  <RiAddFill /> Добавить атрибут
+                  <RiAddFill /> Добавить атрибуты
                 </Link>
               </Button>
             )}
@@ -533,6 +547,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
                 onDrop={onDrop(index)}
                 className={cn(
                   "relative flex items-center gap-3 border-b border-border-soft py-3 last:border-b-0",
+                  freshIds.has(String(link._id)) && "row-appear",
                   draggingId === link._id && "opacity-50",
                   // индикатор места вставки — акцентная линия по верху строки
                   overId === link._id &&

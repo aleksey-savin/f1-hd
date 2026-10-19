@@ -9,6 +9,7 @@ const DeviceModelForm = ({
   presetDeviceTypeId,
   presetVendorId,
   successTo,
+  successState,
 }) => {
   const loaderData = useLoaderData();
 
@@ -28,7 +29,11 @@ const DeviceModelForm = ({
       : undefined);
 
   return (
-    <FormWrapper title={title} successTo={successTo}>
+    <FormWrapper
+      title={title}
+      successTo={successTo}
+      successState={successState}
+    >
       <DeviceModelFormFields
         deviceModel={deviceModel}
         deviceTypes={loaderData?.deviceTypes || []}

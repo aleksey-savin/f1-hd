@@ -1,6 +1,6 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { load, invalidate } from "@/store/form-data";
-import { useParams } from "react-router";
+import { useLoaderData, useParams, useResolvedPath } from "react-router";
 
 import Form from "../../components/DeviceModel/Form";
 
@@ -10,6 +10,17 @@ const AddDeviceModelPage = ({ presetFrom }) => {
   // кто родитель, говорит проп маршрута. На списке (device-models/add)
   // params пуст, пресета нет.
   const { id } = useParams();
+  const { deviceTypes, vendors } = useLoaderData();
+  // Крошка созданной модели ведёт назад на карточку типа/вендора, откуда её
+  // завели (как у ссылок на модели с этих карточек), а не в «Модели».
+  // `..` — родительский маршрут, то есть сама карточка.
+  const ownerPath = useResolvedPath("..").pathname;
+  const owner =
+    presetFrom === "deviceType"
+      ? deviceTypes?.find((type) => type._id === id)
+      : presetFrom === "vendor"
+        ? vendors?.find((vendor) => vendor._id === id)
+        : null;
 
   return (
     <Form
@@ -20,6 +31,11 @@ const AddDeviceModelPage = ({ presetFrom }) => {
       successTo={(data) =>
         data?.deviceModel?._id
           ? `/inventory/device-models/${data.deviceModel._id}`
+          : undefined
+      }
+      successState={
+        owner?.name
+          ? { from: { label: owner.name, to: ownerPath } }
           : undefined
       }
     />

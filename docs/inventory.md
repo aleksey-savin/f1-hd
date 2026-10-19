@@ -296,7 +296,7 @@ query, never in the browser:
 | Base path | Entity | Delete | Extra |
 |---|---|---|---|
 | `/device-types` | DeviceType | hard (+ cascades `DeviceTypeAttribute`) | `add`/`update` accept `attributes[]` (rewrites the join rows); `getOne` returns attached attributes |
-| `/device-type-attributes` | DeviceTypeAttribute | hard | `GET /type/:id` lists a type's rows; **`PUT /reorder`** persists the order in one call |
+| `/device-type-attributes` | DeviceTypeAttribute | hard | `GET /type/:id` lists a type's rows; **`POST /add`** takes a batch `items[]` (`{attributeId}` or `{attribute}` to create in the catalog first), appends in batch order, validates everything before writing and rolls back created rows by `_id` on a mid-write failure; **`PUT /reorder`** persists the order in one call |
 | `/device-models` | DeviceModel | **soft** | uniqueness on `name` among non-deleted; `POST /:id/photos`, `DELETE /:id/photos/:photoId` |
 | `/device-attributes` | DeviceAttribute | hard | uniqueness on `name` *and* `code` |
 | `/device-configurations` | DeviceConfiguration | **soft** | no bare `GET /` — the list is `GET /device-configurations/model/:id`; values populated |

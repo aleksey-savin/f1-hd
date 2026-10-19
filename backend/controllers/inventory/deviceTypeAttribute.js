@@ -1,10 +1,17 @@
+const mongoose = require("mongoose");
+
 const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
 const DeviceType = require("@/models/inventory/deviceType");
 const DeviceAttribute = require("@/models/inventory/deviceAttribute");
 const { AppError } = require("@/middleware/errorHandling");
+const { uniqueAttributeCode } = require("@/services/attributeCode");
 
 // Поля каталожного атрибута, нужные карточке и форме конфигурации.
 const ATTRIBUTE_FIELDS = "code name valueType unit options isActive";
+
+const VALUE_TYPES = DeviceAttribute.schema.path("valueType").enumValues;
+const SELECT_TYPES = ["select", "multiselect"];
+const MAX_ITEMS = 100;
 
 // GET /device-type-attributes/type/:id — связки атрибутов типа (для ревалидации
 // карточки). Тот же populate+sort, что и в deviceType.getOne.
@@ -52,67 +59,202 @@ exports.getOne = async (req, res, next) => {
   }
 };
 
-// POST /device-type-attributes/add — привязать атрибут к типу (в конец списка).
-exports.add = async (req, res, next) => {
-  try {
-    const { deviceTypeId, attributeId, required, extendable } = req.body;
+// Разбор пачки «Добавить атрибуты»: элемент — либо готовый атрибут каталога
+// `{ attributeId }`, либо новый `{ attribute: { name, valueType, unit,
+// options, isActive } }`. Порядок сохраняется (в нём атрибуты встанут в тип);
+// битые элементы и дубли внутри пачки отсекаются до любой записи в базу.
+exports.parseAddItems = (items) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { error: "Отметьте хотя бы один атрибут" };
+  }
+  if (items.length > MAX_ITEMS) {
+    return { error: `За раз можно добавить не больше ${MAX_ITEMS} атрибутов` };
+  }
 
-    if (!deviceTypeId || !attributeId) {
-      return next(new AppError("deviceTypeId и attributeId обязательны", 400));
+  const seenIds = new Set();
+  const seenNames = new Set();
+  const entries = [];
+  for (const item of items) {
+    if (item?.attributeId) {
+      const id = String(item.attributeId);
+      if (!mongoose.isValidObjectId(id)) {
+        return { error: "Неверный идентификатор атрибута" };
+      }
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        entries.push({ attributeId: id });
+      }
+      continue;
     }
 
-    const deviceType = await DeviceType.findById(deviceTypeId);
-    if (!deviceType) {
+    const attr = item?.attribute;
+    const name = typeof attr?.name === "string" ? attr.name.trim() : "";
+    if (!name) return { error: "У нового атрибута нет наименования" };
+    const key = name.toLocaleLowerCase("ru");
+    if (seenNames.has(key)) {
+      return { error: `Атрибут «${name}» создаётся дважды` };
+    }
+    seenNames.add(key);
+
+    if (!VALUE_TYPES.includes(attr.valueType)) {
+      return { error: `У атрибута «${name}» неверный тип данных` };
+    }
+    const withOptions = SELECT_TYPES.includes(attr.valueType);
+    const options = withOptions ? normalizeOptions(attr.options) : [];
+    if (withOptions && options.length === 0) {
+      return { error: `У атрибута «${name}» нет вариантов выбора` };
+    }
+
+    entries.push({
+      attribute: {
+        name,
+        valueType: attr.valueType,
+        unit: typeof attr.unit === "string" ? attr.unit.trim() : "",
+        options,
+        isActive: attr.isActive !== false,
+      },
+    });
+  }
+  return { entries };
+};
+
+// Варианты выбора: строки или `{ value, label }`; пустые и повторы убираем.
+const normalizeOptions = (options) => {
+  if (!Array.isArray(options)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const option of options) {
+    const value = String(
+      typeof option === "object" && option ? (option.value ?? "") : (option ?? ""),
+    ).trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    const label =
+      typeof option === "object" && option?.label
+        ? String(option.label).trim()
+        : value;
+    result.push({ value, label: label || value });
+  }
+  return result;
+};
+
+// POST /device-type-attributes/add — добавить к типу пачку атрибутов (в конец
+// списка, в порядке пачки); новые сперва создаются в каталоге. Все проверки —
+// до первой записи; транзакций нет (одиночный mongod), поэтому сбой посреди
+// записи откатывается удалением созданного по списку _id.
+exports.add = async (req, res, next) => {
+  try {
+    const { deviceTypeId } = req.body;
+    if (!deviceTypeId || !mongoose.isValidObjectId(deviceTypeId)) {
+      return next(new AppError("deviceTypeId обязателен", 400));
+    }
+
+    const parsed = exports.parseAddItems(req.body.items);
+    if (parsed.error) return next(new AppError(parsed.error, 400));
+    const { entries } = parsed;
+
+    if (!(await DeviceType.exists({ _id: deviceTypeId }))) {
       return next(
         new AppError(`Device type with id ${deviceTypeId} not found`, 404),
       );
     }
 
-    const attribute = await DeviceAttribute.findById(attributeId);
-    if (!attribute) {
-      return next(
-        new AppError(`Device attribute with id ${attributeId} not found`, 404),
-      );
+    const ids = entries.filter((e) => e.attributeId).map((e) => e.attributeId);
+    if (ids.length) {
+      const found = await DeviceAttribute.countDocuments({ _id: { $in: ids } });
+      if (found !== ids.length) {
+        return next(
+          new AppError(
+            "Часть атрибутов не найдена в каталоге. Обновите страницу.",
+            404,
+          ),
+        );
+      }
+      // Один атрибут — одна связка с типом
+      const linked = await DeviceTypeAttribute.find({
+        deviceTypeId,
+        attributeId: { $in: ids },
+      })
+        .populate("attributeId", "name")
+        .lean();
+      if (linked.length) {
+        const names = linked.map((l) => `«${l.attributeId?.name}»`).join(", ");
+        return next(new AppError(`Уже добавлены к типу: ${names}`, 409));
+      }
     }
 
-    // Один атрибут — одна связка с типом
-    const exists = await DeviceTypeAttribute.findOne({
-      deviceTypeId,
-      attributeId,
-    });
-    if (exists) {
-      return next(
-        new AppError(`Атрибут «${attribute.name}» уже добавлен к типу`, 409),
-      );
+    // Наименование уникально без учёта регистра (и по устаревшему индексу
+    // name_1 на старых базах) — готовый атрибут отмечают, а не создают заново
+    const freshNames = entries
+      .filter((e) => e.attribute)
+      .map((e) => e.attribute.name);
+    if (freshNames.length) {
+      const taken = await DeviceAttribute.find({ name: { $in: freshNames } })
+        .collation({ locale: "ru", strength: 2 })
+        .select("name")
+        .lean();
+      if (taken.length) {
+        const names = taken.map((a) => `«${a.name}»`).join(", ");
+        return next(
+          new AppError(
+            `Уже есть в каталоге: ${names}. Отметьте в списке.`,
+            409,
+          ),
+        );
+      }
     }
 
     // Порядок — следом за последним
-    const last = await DeviceTypeAttribute.findOne({ deviceTypeId }).sort({
-      order: -1,
-    });
-    const order = last ? (last.order || 0) + 1 : 0;
+    const last = await DeviceTypeAttribute.findOne({ deviceTypeId })
+      .sort({ order: -1 })
+      .select("order")
+      .lean();
+    let order = last ? (last.order || 0) + 1 : 0;
 
-    const created = new DeviceTypeAttribute({
-      deviceTypeId,
-      attributeId,
-      required: !!required,
-      extendable: !!extendable,
-      order,
-      createdBy: req.userId,
-    });
-    await created.save();
+    const createdAttributeIds = [];
+    const createdLinkIds = [];
+    try {
+      for (const entry of entries) {
+        let attributeId = entry.attributeId;
+        if (!attributeId) {
+          const code = await uniqueAttributeCode(
+            DeviceAttribute,
+            entry.attribute.name,
+          );
+          const attribute = await DeviceAttribute.create({
+            ...entry.attribute,
+            code,
+            createdBy: req.userId,
+          });
+          createdAttributeIds.push(attribute._id);
+          attributeId = attribute._id;
+        }
+        const link = await DeviceTypeAttribute.create({
+          deviceTypeId,
+          attributeId,
+          order: order++,
+          createdBy: req.userId,
+        });
+        createdLinkIds.push(link._id);
+      }
+    } catch (error) {
+      await DeviceTypeAttribute.deleteMany({ _id: { $in: createdLinkIds } });
+      await DeviceAttribute.deleteMany({ _id: { $in: createdAttributeIds } });
+      throw error;
+    }
 
-    const populated = await DeviceTypeAttribute.findById(created._id).populate(
-      "attributeId",
-      ATTRIBUTE_FIELDS,
-    );
+    const created = await DeviceTypeAttribute.find({
+      _id: { $in: createdLinkIds },
+    })
+      .populate("attributeId", ATTRIBUTE_FIELDS)
+      .sort({ order: 1 });
 
     res.status(201).json({
-      message: "Атрибут добавлен к типу",
-      deviceTypeAttribute: populated,
+      message: "Атрибуты добавлены к типу",
+      deviceTypeAttributes: created,
     });
   } catch (error) {
-    next(new AppError("Failed to add device type attribute", 500, true, error));
+    next(new AppError("Failed to add device type attributes", 500, true, error));
   }
 };
 

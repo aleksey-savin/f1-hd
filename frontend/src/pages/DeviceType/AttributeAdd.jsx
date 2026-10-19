@@ -2,17 +2,14 @@ import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load, invalidate } from "@/store/form-data";
 
-import AttributeForm from "../../components/DeviceType/AttributeForm";
+import AttributesAddForm from "../../components/DeviceType/AttributesAddForm";
 
-const AttributeAddPage = () => {
-
-  return <AttributeForm title="Добавить атрибут" />;
-};
+const AttributeAddPage = () => <AttributesAddForm />;
 
 export default AttributeAddPage;
 
 export async function loader({ params }) {
-  setDocTitle("Добавить атрибут типа");
+  setDocTitle("Добавить атрибуты типа");
 
   // Тип — свежий (по нему считаем занятые атрибуты); каталог — из кэша
   const [deviceType, catalog] = await Promise.all([
@@ -32,17 +29,12 @@ export async function loader({ params }) {
   };
 }
 
+// Пачка из шторки (JSON): { items: [{ attributeId } | { attribute }] } —
+// новые атрибуты бэкенд создаёт в каталоге и добавляет к типу одним запросом
 export async function action({ request, params }) {
   // Справочники учёта в кэше форм устарели — следующая форма возьмёт свежие
   invalidate("/api/inventory/");
-  const data = await request.formData();
-
-  const body = {
-    deviceTypeId: params.id,
-    attributeId: data.get("attributeId"),
-    required: data.get("required") === "true",
-    extendable: data.get("extendable") === "true",
-  };
+  const { items } = await request.json();
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-type-attributes/add`,
@@ -51,16 +43,16 @@ export async function action({ request, params }) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ deviceTypeId: params.id, items }),
     },
   );
 
   // Дубль/битые данные — остаёмся в форме с сообщением (FormWrapper покажет).
-  if (response.status === 409 || response.status === 400) {
+  if ([400, 404, 409].includes(response.status)) {
     const payload = await response.json().catch(() => ({}));
     return {
       error: true,
-      message: payload.message || "Не удалось добавить атрибут.",
+      message: payload.message || "Не удалось добавить атрибуты.",
     };
   }
   if (!response.ok) {

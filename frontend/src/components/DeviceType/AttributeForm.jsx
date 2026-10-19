@@ -1,19 +1,16 @@
 import { useState } from "react";
 import { useLoaderData } from "react-router";
 
-import { RiAddLine } from "react-icons/ri";
-
 import FormWrapper from "@/components/app/FormWrapper";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
-import AddDeviceAttributeModal from "./AddDeviceAttributeModal";
 import { valueTypeLabel } from "../DeviceAttribute/value-types";
 
-// Форма атрибута типа — отдельная шторка с карточки типа (добавить/изменить).
-// Выбор атрибута из общего каталога + флаги «Обязательный» / «Расширяемый»
-// (последний — только для «выбора из списка»). Сабмит идёт скрытыми полями
+// Форма атрибута типа — шторка «Изменить» с карточки типа (добавляют пачкой —
+// AttributesAddForm). Выбор атрибута из общего каталога + флаги
+// «Обязательный» / «Расширяемый» (последний — только для «выбора из списка»). Сабмит идёт скрытыми полями
 // меню Select рисуется инлайн.
 const AttributeForm = ({ title }) => {
   const loaderData = useLoaderData();
@@ -21,9 +18,7 @@ const AttributeForm = ({ title }) => {
   const link = loaderData?.link; // режим правки: связка с populated attributeId
   const usedAttributeIds = loaderData?.usedAttributeIds || [];
 
-  const [availableAttributes, setAvailableAttributes] = useState(
-    loaderData?.availableAttributes || [],
-  );
+  const availableAttributes = loaderData?.availableAttributes || [];
   const currentId = link
     ? String(link.attributeId?._id || link.attributeId || "")
     : "";
@@ -32,7 +27,6 @@ const AttributeForm = ({ title }) => {
   const [extendable, setExtendable] = useState(
     link ? !!link.extendable : false,
   );
-  const [showModal, setShowModal] = useState(false);
 
   // Оставляем только нужное для подписи и логики: у каталожного атрибута есть
   // собственное поле `options` (значения select-типа), и тащить его в список
@@ -55,11 +49,6 @@ const AttributeForm = ({ title }) => {
       a._id === currentId ||
       !usedAttributeIds.includes(a._id),
   );
-
-  const handleAttributeCreated = (newAttribute) => {
-    setAvailableAttributes((prev) => [...prev, newAttribute]);
-    setAttributeId(newAttribute._id);
-  };
 
   return (
     <FormWrapper
@@ -103,14 +92,6 @@ const AttributeForm = ({ title }) => {
         />
       </Field>
 
-      <button
-        type="button"
-        onClick={() => setShowModal(true)}
-        className="-mt-1.5 mb-2 inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-semibold text-accent-text hover:underline"
-      >
-        <RiAddLine size={15} /> Новый атрибут
-      </button>
-
       <SwitchField
         id="required"
         checked={required}
@@ -130,12 +111,6 @@ const AttributeForm = ({ title }) => {
           divider
         />
       )}
-
-      <AddDeviceAttributeModal
-        show={showModal}
-        onHide={() => setShowModal(false)}
-        onAttributeCreated={handleAttributeCreated}
-      />
     </FormWrapper>
   );
 };
