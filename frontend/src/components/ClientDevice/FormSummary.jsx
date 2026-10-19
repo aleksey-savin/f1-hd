@@ -1,4 +1,5 @@
 import { DEVICE_STATUS_META } from "@/components/app/device-status";
+import { partsCountLabel } from "./device-parts";
 
 // Строка сводки: пока шаг не пройден — приглушённая подсказка, где это спросят.
 const Row = ({ label, value, pending }) => (
@@ -17,9 +18,18 @@ const Row = ({ label, value, pending }) => (
 /**
  * Живая сводка мастера: что именно заводим — видно на каждом шаге, а не только
  * в конце. Незаполненное показывается тем, где его спросят («шаг 2»), — так
- * видно и то, что уже собрано, и то, что осталось.
+ * видно и то, что уже собрано, и то, что осталось. Номер шага — по ключу
+ * (`stepOf`): шаг «Комплектующие» сдвигает остальные. `partsCount` — число
+ * деталей нового ПК своей сборки, null — шага нет.
  */
-const FormSummary = ({ form, deviceKind, labels }) => {
+const FormSummary = ({
+  form,
+  deviceKind,
+  labels,
+  stepOf,
+  partsCount = null,
+}) => {
+  const pendingAt = (key) => `шаг ${stepOf(key)}`;
   const identity =
     deviceKind === "custom"
       ? labels.deviceType || null
@@ -32,25 +42,48 @@ const FormSummary = ({ form, deviceKind, labels }) => {
       <div className="mb-2.5 text-xs font-bold tracking-wider text-faint uppercase">
         Устройство
       </div>
-      <Row label="Что заводим" value={identity} pending="шаг 1" />
+      <Row label="Что заводим" value={identity} pending={pendingAt("device")} />
       {deviceKind === "branded" && (
         <Row label="Конфигурация" value={labels.configuration} pending="—" />
       )}
-      <Row label="Серийный номер" value={form.serialNumber} pending="не указан" />
+      {partsCount !== null && (
+        <Row
+          label="Детали"
+          value={partsCount ? partsCountLabel(partsCount) : null}
+          pending={pendingAt("parts")}
+        />
+      )}
+      <Row
+        label="Серийный номер"
+        value={form.serialNumber}
+        pending="не указан"
+      />
       <Row
         label="Инв. номер"
         value={form.inventoryNumber}
         pending="присвоится автоматически"
       />
-      <Row label="Компания" value={labels.company} pending="шаг 2" />
-      <Row label="Размещение" value={labels.location} pending="шаг 2" />
+      <Row
+        label="Компания"
+        value={labels.company}
+        pending={pendingAt("placement")}
+      />
+      <Row
+        label="Размещение"
+        value={labels.location}
+        pending={pendingAt("placement")}
+      />
       <Row
         label="Статус"
         value={DEVICE_STATUS_META[form.status]?.label}
-        pending="шаг 2"
+        pending={pendingAt("placement")}
       />
       {form.status === "deployed" && (
-        <Row label="Кому" value={labels.user} pending="шаг 2" />
+        <Row
+          label="Кому"
+          value={labels.user}
+          pending={pendingAt("placement")}
+        />
       )}
       <Row
         label="Закупка"
@@ -66,7 +99,7 @@ const FormSummary = ({ form, deviceKind, labels }) => {
                 .join(" · ")
             : null
         }
-        pending="шаг 3"
+        pending={pendingAt("purchase")}
       />
     </div>
   );

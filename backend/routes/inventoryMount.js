@@ -76,6 +76,8 @@ const mountInventory = (router, gates, routers) => {
         "/device-models",
         "/device-attributes",
         "/device-type-attributes",
+        "/attribute-groups",
+        "/device-builds",
         "/device-configurations",
         "/vendors",
       ],

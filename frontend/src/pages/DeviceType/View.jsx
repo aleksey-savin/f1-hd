@@ -5,10 +5,11 @@ import ViewDeviceType from "../../components/DeviceType/View";
 import { invalidate } from "@/store/form-data";
 
 const ViewDeviceTypePage = () => {
-  const { deviceType, models } = useLoaderData();
+  const { deviceType, models, builds } = useLoaderData();
 
-
-  return <ViewDeviceType deviceType={deviceType} models={models} />;
+  return (
+    <ViewDeviceType deviceType={deviceType} models={models} builds={builds} />
+  );
 };
 
 export default ViewDeviceTypePage;
@@ -30,13 +31,21 @@ export async function loader({ params }) {
   // Отдельного «модели по типу» эндпоинта нет — берём общий список моделей и
   // фильтруем по типу. getAll уже populate'ит deviceTypeId/vendorId и кладёт
   // configurationsCount + photos — ровно то, что нужно строкам секции «Модели».
-  const modelsResponse = await fetch(`${base}/device-models`, { headers });
+  // Сборки — только у типа со «Своей сборкой» (секция «Сборки» карточки)
+  const [modelsResponse, buildsResponse] = await Promise.all([
+    fetch(`${base}/device-models`, { headers }),
+    deviceType.assembly?.enabled
+      ? fetch(`${base}/device-builds?deviceTypeId=${params.id}`, { headers })
+      : null,
+  ]);
   const allModels = modelsResponse.ok ? await modelsResponse.json() : [];
   const models = (Array.isArray(allModels) ? allModels : []).filter(
     (model) => String(model.deviceTypeId?._id) === String(params.id),
   );
+  const allBuilds = buildsResponse?.ok ? await buildsResponse.json() : [];
+  const builds = Array.isArray(allBuilds) ? allBuilds : [];
 
-  return { deviceType, models };
+  return { deviceType, models, builds };
 }
 
 export async function action({ request, params }) {

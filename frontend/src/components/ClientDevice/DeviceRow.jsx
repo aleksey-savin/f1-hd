@@ -91,7 +91,16 @@ const DeviceRow = ({ device }) => {
   const Icon = deviceIcon(device.typeName);
   const status = DEVICE_STATUS_META[device.status];
   const mikro = mikrotikStatus(device);
-  const meta = [device.typeName, device.vendorName].filter(Boolean).join(" · ");
+  // ПК своей сборки: вместо «тип · производитель» — ключевые характеристики
+  // (процессор · память · диск), их собирает сервер; компания — в своей
+  // колонке и в подстроке узкого экрана, как у всех строк
+  const meta = device.keySpecs ? (
+    <b className="font-medium text-foreground" title={device.keySpecs}>
+      {device.keySpecs}
+    </b>
+  ) : (
+    [device.typeName, device.vendorName].filter(Boolean).join(" · ")
+  );
 
   const createdAgo = device.createdAt
     ? Date.now() - Date.parse(device.createdAt)

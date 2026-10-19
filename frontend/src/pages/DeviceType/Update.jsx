@@ -40,6 +40,8 @@ export async function action({ request, params }) {
     isPeripheral: data.get("isPeripheral") === "true",
     inventoryPrefix: data.get("inventoryPrefix"),
     attachableToTypeIds: data.getAll("attachableToTypeIds"),
+    // Настоящий boolean: иное сервер молча пропускает
+    assemblyEnabled: data.get("assemblyEnabled") === "true",
   };
 
   const response = await fetch(
@@ -53,8 +55,14 @@ export async function action({ request, params }) {
     },
   );
 
+  // Конфликт (имя занято; «Своя сборка» не выключается, пока есть сборки) —
+  // остаёмся в форме с сообщением сервера (FormWrapper покажет)
   if ([409].includes(response.status)) {
-    return response;
+    const payload = await response.json().catch(() => ({}));
+    return {
+      error: true,
+      message: payload.message || "Не удалось сохранить тип устройства.",
+    };
   }
 
   if (!response.ok) {

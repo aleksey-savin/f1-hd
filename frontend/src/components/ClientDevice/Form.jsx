@@ -23,6 +23,10 @@ import {
   FormSections,
 } from "@/components/app/FormLayout";
 import WizardStepper from "@/components/app/WizardStepper";
+import { liveAssembly } from "@/components/app/assembly-specs";
+import { toDayKey } from "@/components/app/date-value";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 import { useFormSheet } from "@/components/app/FormOutlet";
 import {
@@ -32,6 +36,18 @@ import {
   TechFields,
 } from "./FormFields";
 import FormSummary from "./FormSummary";
+import PartsStep from "./PartsStep";
+import {
+  buildSummary,
+  manualUnits,
+  partsBody,
+  unitsFromBuild,
+} from "./device-parts";
+import { slotGaps } from "../DeviceBuild/part-models";
+import {
+  useModelConfigurations,
+  useModelIndex,
+} from "../DeviceBuild/part-pickers";
 import InlineCreateDialog from "./InlineCreateDialog";
 import useAssignableUsers, { userOptionLabel } from "./useAssignableUsers";
 import { useCan } from "@/store/authed-user";
@@ -42,7 +58,13 @@ const STEPS = [
   { key: "purchase", label: "Закупка" },
   { key: "tech", label: "Сеть и система" },
 ];
-const LAST_STEP = STEPS.length - 1;
+// Шаг «Комплектующие» — вторым, только при создании ПК своей сборки типа с
+// комплектующими (при правке детали правятся с карточки ПК)
+const PARTS_STEP = { key: "parts", label: "Комплектующие" };
+const STEPS_WITH_PARTS = [STEPS[0], PARTS_STEP, ...STEPS.slice(1)];
+
+// Значение поля «Сборка» «Без сборки — детали вручную»
+const MANUAL_BUILD = "manual";
 
 // Поля, уходящие на сервер. Вендор — только навигация (нужен, чтобы выбрать
 // модель); тип уходит лишь у самосборки, у заводской он берётся из модели.
@@ -85,13 +107,15 @@ const optionsOf = (items, label = (item) => item.name) =>
  * Формы устройства: одно поле — одно место правки, две подачи.
  *
  * **Создание — мастер** (шторка lg): шаги «Устройство → Размещение → Закупка →
- * Сеть и система» + живая сводка справа. **Правка — плоская форма** (шторка xl):
+ * Сеть и система» + живая сводка справа; у своей сборки типа с комплектующими
+ * вторым встаёт шаг «Комплектующие». **Правка — плоская форма** (шторка xl):
  * те же поля секциями с рейлом, без степпера; ярлык «Изменить» в метке секции
  * карточки открывает её хешем (`update#purchase`).
  *
- * Комплектующих здесь нет намеренно: комплектующее — отдельная единица учёта, и
- * заводить его пачкой внутри чужой формы значило бы сохранять отдельными
- * запросами после сохранения хозяина. Состав ведётся на карточке сборки.
+ * Комплектующие заводятся вместе с новым ПК своей сборки (поле «Сборка» и шаг
+ * «Комплектующие»): ПК и все его детали сервер создаёт одним запросом
+ * (`buildId`, `parts`), каждая деталь — отдельным устройством в составе ПК.
+ * При правке шага нет и `buildId` не уходит: состав ведётся на карточке ПК.
  *
  * Тело уходит JSON-ом (гайд: вложенные данные не собираются из FormData).
  */
@@ -146,8 +170,10 @@ const ClientDeviceForm = ({ title }) => {
   const [configurations, setConfigurations] = useState([]);
   const [suppliers, setSuppliers] = useState(formData.suppliers);
 
-  const [step, setStep] = useState(0);
-  const [maxReached, setMaxReached] = useState(0);
+  // Текущий шаг и пройденные — КЛЮЧАМИ: список шагов меняется («Комплектующие»
+  // появляются и пропадают), и номер сместился бы хотя бы на кадр
+  const [currentKey, setCurrentKey] = useState("device");
+  const [reachedKeys, setReachedKeys] = useState(["device"]);
   const [attempted, setAttempted] = useState(false);
   const [inlineKind, setInlineKind] = useState(null);
   const [headHeight, setHeadHeight] = useState(0);
@@ -155,6 +181,16 @@ const ClientDeviceForm = ({ title }) => {
   const [serialMatches, setSerialMatches] = useState([]);
   // id созданного устройства, которому предложено подключение к мониторингу
   const [connectOffer, setConnectOffer] = useState(null);
+
+  // ── Сборка и комплектующие (только создание своей сборки) ──
+  // Комплектующие типа (слоты, ключевые характеристики) и его сборки
+  const [assemblyData, setAssemblyData] = useState(null);
+  const [assemblyStatus, setAssemblyStatus] = useState("idle");
+  const [assemblyReload, setAssemblyReload] = useState(0);
+  // "" — не выбрана, MANUAL_BUILD — детали вручную, иначе id сборки
+  const [buildId, setBuildId] = useState("");
+  // Строки шага «Комплектующие» — по одной на физическую деталь
+  const [units, setUnits] = useState([]);
 
   const setField = (name, value) =>
     setForm((previous) => ({ ...previous, [name]: value }));
@@ -219,6 +255,51 @@ const ClientDeviceForm = ({ title }) => {
       cancelled = true;
     };
   }, [form.deviceModelId]);
+
+  // Слоты типа своей сборки и его сборки. Свежими, не из кэша: тип только
+  // что могли перевести на комплектующие, сборку — завести. Смена типа (или
+  // вида) сбрасывает выбор сборки и строки деталей.
+  const assemblyTypeId =
+    !isEdit && deviceKind === "custom" ? form.deviceTypeId : "";
+  useEffect(() => {
+    setAssemblyData(null);
+    setBuildId("");
+    setUnits([]);
+    if (!assemblyTypeId) {
+      setAssemblyStatus("idle");
+      return undefined;
+    }
+    let cancelled = false;
+    setAssemblyStatus("loading");
+    (async () => {
+      const type = await api(`/api/inventory/device-types/${assemblyTypeId}`);
+      const assembly = liveAssembly(type?.assembly);
+      const builds = assembly.enabled
+        ? await api(
+            `/api/inventory/device-builds?deviceTypeId=${assemblyTypeId}`,
+          )
+        : [];
+      return { assembly, builds };
+    })()
+      .then(({ assembly, builds }) => {
+        if (cancelled) return;
+        setAssemblyData({
+          typeId: assemblyTypeId,
+          enabled: Boolean(assembly.enabled),
+          slots: assembly.slots,
+          keySpecs: assembly.keySpecs,
+          builds: Array.isArray(builds) ? builds : [],
+        });
+        setUnits(manualUnits(assembly.slots));
+        setAssemblyStatus("idle");
+      })
+      .catch(() => {
+        if (!cancelled) setAssemblyStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assemblyTypeId, assemblyReload]);
 
   // Пользователь по умолчанию: у рабочего места это его сотрудник.
   useEffect(() => {
@@ -338,6 +419,115 @@ const ClientDeviceForm = ({ title }) => {
     ),
   };
 
+  // --- сборка и комплектующие ---
+  const assembly =
+    assemblyTypeId && assemblyData?.typeId === assemblyTypeId
+      ? assemblyData
+      : null;
+  const partsEnabled = Boolean(assembly?.enabled && assembly.slots.length > 0);
+  // Пока комплектующие типа грузятся, поле «Сборка» показываем по флагу из
+  // списка типов
+  const listAssemblyEnabled = Boolean(
+    deviceTypes.find((type) => type._id === form.deviceTypeId)?.assembly
+      ?.enabled,
+  );
+  // Не загрузилось — поле с ошибкой и «Повторить» в любом случае: флаг из
+  // списка мог устареть, молча пропустить комплектующие нельзя
+  const showBuildField =
+    Boolean(assemblyTypeId) &&
+    (assembly
+      ? partsEnabled
+      : listAssemblyEnabled || assemblyStatus === "error");
+  const selectedBuild =
+    (assembly?.builds || []).find((build) => build._id === buildId) || null;
+
+  const steps = partsEnabled ? STEPS_WITH_PARTS : STEPS;
+  const lastStep = steps.length - 1;
+  // Шаг пропал (тип сменили на шаге «Комплектующие») — первый шаг
+  const step = Math.max(
+    0,
+    steps.findIndex((item) => item.key === currentKey),
+  );
+  const stepKey = steps[step].key;
+  // Достигнутые — непрерывный префикс пройденных: появившийся шаг, где ещё
+  // не были, недостижим по степперу (только через «Далее»)
+  let maxReached = 0;
+  while (
+    maxReached < lastStep &&
+    reachedKeys.includes(steps[maxReached + 1].key)
+  ) {
+    maxReached += 1;
+  }
+
+  // Шаг «Комплектующие» появился или пропал (выбран тип, догрузились его
+  // комплектующие) — остаёмся на том же шаге по смыслу; вперёд по степперу —
+  // только заново через «Далее». Правка состояния прямо в рендере: без
+  // промежуточного кадра со старыми шагами
+  const stepsSignature = steps.map((item) => item.key).join("|");
+  const [seenSignature, setSeenSignature] = useState(stepsSignature);
+  if (seenSignature !== stepsSignature) {
+    setSeenSignature(stepsSignature);
+    setCurrentKey(stepKey);
+    setReachedKeys((previous) =>
+      steps
+        .slice(0, step + 1)
+        .map((item) => item.key)
+        .filter((key) => key === stepKey || previous.includes(key)),
+    );
+  }
+
+  const modelIndex = useModelIndex(deviceModels);
+  const configsByModel = useModelConfigurations(units, modelIndex.byId);
+  // Модели выбранной сборки — подписи для строк, если в кэше каталога их нет
+  const knownModels = useMemo(
+    () =>
+      new Map(
+        (selectedBuild?.parts || [])
+          .map((part) => part.deviceModelId)
+          .filter((model) => model && !model.deletedAt)
+          .map((model) => [model._id, model]),
+      ),
+    [selectedBuild],
+  );
+  const partsGaps = partsEnabled
+    ? slotGaps(assembly.slots, units, modelIndex.byId)
+    : [];
+
+  const handleBuildChange = (next) => {
+    setBuildId(next);
+    const build = assembly?.builds.find((item) => item._id === next);
+    // Сборка подставляет детали заново; вручную — пустая строка на слот
+    setUnits(
+      build
+        ? unitsFromBuild(assembly.slots, build.parts || [])
+        : manualUnits(assembly?.slots || []),
+    );
+  };
+
+  const buildField = showBuildField
+    ? {
+        value: buildId,
+        options: [
+          ...(assembly?.builds || []).map((build) => ({
+            value: build._id,
+            label: build.name,
+          })),
+          { value: MANUAL_BUILD, label: "Без сборки — детали вручную" },
+        ],
+        onChange: handleBuildChange,
+        loading: assemblyStatus === "loading",
+        error: assemblyStatus === "error",
+        onRetry: () => setAssemblyReload((count) => count + 1),
+        summary:
+          selectedBuild && assembly
+            ? buildSummary(assembly, selectedBuild.parts || [])
+            : null,
+      }
+    : null;
+
+  // Номер шага по ключу — для подсказок сводки «шаг 3»
+  const stepOf = (key) => steps.findIndex((item) => item.key === key) + 1;
+
   const labelOf = (list, value) =>
     list.find((option) => option.value === value)?.label || null;
   const summaryLabels = {
@@ -351,16 +541,26 @@ const ClientDeviceForm = ({ title }) => {
   };
 
   // --- валидация: причина стоит у поля ---
-  const errorsFor = (index) => {
+  const errorsFor = (key) => {
     const errors = {};
-    if (index === 0) {
+    if (key === "device") {
       if (!form.deviceTypeId) errors.deviceTypeId = "Выберите тип устройства";
       if (deviceKind === "branded") {
         if (!form.vendorId) errors.vendorId = "Выберите производителя";
         if (!form.deviceModelId) errors.deviceModelId = "Выберите модель";
       }
+      // Комплектующие типа ещё не загружены — иначе ПК ушёл бы без деталей
+      if (showBuildField && !assembly) {
+        errors.buildId =
+          assemblyStatus === "error"
+            ? "Не удалось загрузить сборки типа."
+            : "Загружаем сборки типа — секунду.";
+      }
     }
-    if (index === 1) {
+    if (key === "parts" && partsEnabled && partsGaps.length) {
+      errors.parts = partsGaps;
+    }
+    if (key === "placement") {
       if (!form.companyId) errors.companyId = "Выберите компанию";
       if (form.status === "deployed" && !form.userId && !isEdit) {
         errors.userId = "Статус «В эксплуатации» требует сотрудника";
@@ -368,24 +568,25 @@ const ClientDeviceForm = ({ title }) => {
     }
     return errors;
   };
-  const stepErrors = attempted ? errorsFor(step) : {};
-  const allErrors = { ...errorsFor(0), ...errorsFor(1) };
-  const stepValid = (index) => Object.keys(errorsFor(index)).length === 0;
+  const stepErrors = attempted ? errorsFor(stepKey) : {};
+  const stepValid = (key) => Object.keys(errorsFor(key)).length === 0;
 
   // --- переходы ---
   const goToStep = (index) => {
     setAttempted(false);
-    setStep(index);
+    setCurrentKey(steps[index].key);
   };
   const handleNext = () => {
-    if (!stepValid(step)) {
+    if (!stepValid(stepKey)) {
       setAttempted(true);
       return;
     }
-    const next = Math.min(step + 1, LAST_STEP);
+    const nextKey = steps[Math.min(step + 1, lastStep)].key;
     setAttempted(false);
-    setStep(next);
-    setMaxReached((previous) => Math.max(previous, next));
+    setCurrentKey(nextKey);
+    setReachedKeys((previous) =>
+      previous.includes(nextKey) ? previous : [...previous, nextKey],
+    );
   };
   const handleClose = () => close();
 
@@ -449,9 +650,11 @@ const ClientDeviceForm = ({ title }) => {
   const saving = fetcher.state !== "idle";
 
   const handleSubmit = () => {
-    if (Object.keys(allErrors).length) {
+    // Первый по порядку шаг с ошибкой
+    const invalid = steps.findIndex((item) => !stepValid(item.key));
+    if (invalid >= 0) {
       setAttempted(true);
-      setStep(Object.keys(errorsFor(0)).length ? 0 : 1);
+      setCurrentKey(steps[invalid].key);
       return;
     }
     // Нормализуем ветку: у самосборки нет модели, у заводской тип берётся из
@@ -466,6 +669,15 @@ const ClientDeviceForm = ({ title }) => {
     const body = Object.fromEntries(
       SUBMIT_FIELDS.map((field) => [field, payload[field] ?? ""]),
     );
+    // Новый ПК своей сборки — вместе с деталями, одним запросом. При правке
+    // `buildId` не уходит вовсе: сервер сохраняет прежний
+    if (partsEnabled) {
+      if (buildId && buildId !== MANUAL_BUILD) body.buildId = buildId;
+      body.parts = partsBody(units, {
+        pcPurchasedAt: form.purchasedAt,
+        today: toDayKey(new Date()),
+      });
+    }
     fetcher.submit(body, { method: "post", encType: "application/json" });
   };
 
@@ -509,6 +721,22 @@ const ClientDeviceForm = ({ title }) => {
       onKindChange={handleKindChange}
       errors={stepErrors}
       serialMatches={serialMatches}
+      build={buildField && { ...buildField, issue: stepErrors.buildId }}
+    />
+  );
+  const partsStep = partsEnabled && (
+    <PartsStep
+      slots={assembly.slots}
+      units={units}
+      onUnitsChange={setUnits}
+      modelIndex={modelIndex}
+      knownModels={knownModels}
+      configsByModel={configsByModel}
+      supplierOptions={options.suppliers}
+      pcPurchasedAt={form.purchasedAt}
+      today={toDayKey(new Date())}
+      attempted={attempted && stepKey === "parts"}
+      gaps={partsGaps}
     />
   );
   const placementStep = (
@@ -574,7 +802,7 @@ const ClientDeviceForm = ({ title }) => {
       </h1>
 
       <WizardStepper
-        steps={STEPS}
+        steps={steps}
         current={step}
         maxReached={maxReached}
         onStepClick={goToStep}
@@ -582,16 +810,21 @@ const ClientDeviceForm = ({ title }) => {
 
       <div className="mt-6 flex flex-col gap-6 md:flex-row">
         <div className="min-w-0 flex-1">
-          {step === 0 && deviceStep}
-          {step === 1 && placementStep}
-          {step === 2 && purchaseStep}
-          {step === 3 && techStep}
+          {stepKey === "device" && deviceStep}
+          {stepKey === "parts" && partsStep}
+          {stepKey === "placement" && placementStep}
+          {stepKey === "purchase" && purchaseStep}
+          {stepKey === "tech" && techStep}
         </div>
         <div className="md:w-72 md:flex-none">
           <FormSummary
             form={form}
             deviceKind={deviceKind}
             labels={summaryLabels}
+            stepOf={stepOf}
+            partsCount={
+              partsEnabled ? units.filter((unit) => unit.modelId).length : null
+            }
           />
         </div>
       </div>
@@ -602,6 +835,20 @@ const ClientDeviceForm = ({ title }) => {
         <Button variant="ghost" onClick={handleClose} disabled={saving}>
           Отмена
         </Button>
+        {/* Пояснение шага «Комплектующие»; на телефоне скрыто (ошибка
+            повторяется под строками) */}
+        {stepKey === "parts" && (
+          <div
+            className={cn(
+              "hidden min-w-0 flex-1 text-xs leading-snug sm:block",
+              stepErrors.parts ? "text-destructive" : "text-faint",
+            )}
+          >
+            {stepErrors.parts
+              ? `Не заполнено: ${stepErrors.parts.join(", ")}`
+              : "Серийник можно оставить пустым и дописать позже."}
+          </div>
+        )}
         <div className="ms-auto flex gap-2">
           {step > 0 && (
             <Button
@@ -612,7 +859,7 @@ const ClientDeviceForm = ({ title }) => {
               <RiArrowLeftLine /> Назад
             </Button>
           )}
-          {step < LAST_STEP ? (
+          {step < lastStep ? (
             <Button onClick={handleNext}>
               Далее <RiArrowRightLine />
             </Button>

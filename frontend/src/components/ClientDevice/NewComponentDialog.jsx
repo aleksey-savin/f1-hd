@@ -16,12 +16,22 @@ import AlertMessage from "@/components/app/AlertMessage";
 import Combobox from "@/components/app/Combobox";
 import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
+import { load } from "@/store/form-data";
+import {
+  configEmptyText,
+  needsConfiguration,
+} from "@/components/DeviceBuild/part-models";
+import {
+  useModelConfigurations,
+  useModelIndex,
+} from "@/components/DeviceBuild/part-pickers";
 
 const refId = (value) => value?._id || value || "";
 
 /**
  * Новая комплектующая сборки — короткая форма в диалоге: тип · производитель ·
- * модель · серийник · гарантия · количество. Полный мастер здесь не нужен —
+ * модель · конфигурация · серийник · гарантия · количество. Конфигурацию
+ * выбирают, только если у модели их несколько; единственная подставляется. Полный мастер здесь не нужен —
  * компания, расположение, пользователь и статус наследуются от хозяина, а
  * закупка и сеть у планки памяти не спрашиваются.
  *
@@ -38,6 +48,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
     deviceTypeId: "",
     vendorId: "",
     deviceModelId: "",
+    configurationId: "",
     serialNumber: "",
     warrantyExpirationDate: "",
     quantity: "1",
@@ -51,6 +62,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
       deviceTypeId: "",
       vendorId: "",
       deviceModelId: "",
+      configurationId: "",
       serialNumber: "",
       warrantyExpirationDate: "",
       quantity: "1",
@@ -119,18 +131,75 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
     [catalog.deviceModels, form.deviceTypeId, form.vendorId],
   );
 
+  // Конфигурации модели — те же помощники, что у шага «Комплектующие»:
+  // список грузится, только если у модели их больше одной
+  const { byId: modelById } = useModelIndex(catalog.deviceModels);
+  const selectedModel = form.deviceModelId
+    ? modelById.get(form.deviceModelId)
+    : null;
+  const showConfigs = needsConfiguration(selectedModel);
+  const configRows = useMemo(
+    () => [{ modelId: form.deviceModelId || null }],
+    [form.deviceModelId],
+  );
+  const configsByModel = useModelConfigurations(configRows, modelById);
+  // undefined — грузится, null — не загрузилось
+  const configOptions = showConfigs
+    ? configsByModel[form.deviceModelId]
+    : undefined;
+
+  // Единственная конфигурация модели подставляется сама
+  const singleConfigModelId =
+    selectedModel?.configurationsCount === 1 ? selectedModel._id : null;
+  // Модель, для которой подстановка завершилась (удачно или нет): пока она
+  // не та, что выбрана, «Создать» ждёт — иначе деталь уйдёт без конфигурации
+  const [autoConfigDoneFor, setAutoConfigDoneFor] = useState(null);
+  const autoConfigPending =
+    !!singleConfigModelId && autoConfigDoneFor !== singleConfigModelId;
+  useEffect(() => {
+    if (!singleConfigModelId) return undefined;
+    let cancelled = false;
+    setAutoConfigDoneFor(null);
+    load(`/api/inventory/device-configurations/model/${singleConfigModelId}`)
+      .then((configs) => {
+        const only = Array.isArray(configs) ? configs[0] : null;
+        if (cancelled || !only) return;
+        setForm((previous) =>
+          previous.deviceModelId === singleConfigModelId
+            ? { ...previous, configurationId: only._id }
+            : previous,
+        );
+      })
+      // Не загрузилась — деталь создастся без конфигурации, как раньше
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setAutoConfigDoneFor(singleConfigModelId);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [singleConfigModelId]);
+
   const setField = (field, value) =>
     setForm((previous) => {
       const next = { ...previous, [field]: value };
       if (field === "deviceTypeId" || field === "vendorId")
         next.deviceModelId = "";
+      // Другая модель — конфигурация прежней к ней не относится
+      if (next.deviceModelId !== previous.deviceModelId)
+        next.configurationId = "";
       return next;
     });
 
   const submit = async (event) => {
     event.preventDefault();
+    if (autoConfigPending) return;
     if (!form.deviceTypeId) {
       setError("Выберите тип комплектующего");
+      return;
+    }
+    if (showConfigs && !form.configurationId) {
+      setError("Выберите конфигурацию модели");
       return;
     }
     setSaving(true);
@@ -153,6 +222,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
             status: host.status || "readyForDeployment",
             deviceModelId: form.deviceModelId || "",
             deviceTypeId: form.deviceModelId ? "" : form.deviceTypeId,
+            configurationId: form.deviceModelId ? form.configurationId : "",
             serialNumber: form.serialNumber,
             warrantyExpirationDate: form.warrantyExpirationDate,
             quantity: Number(form.quantity) || 1,
@@ -229,6 +299,25 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
               </Field>
             </div>
 
+            {showConfigs && (
+              <Field
+                label="Конфигурация"
+                htmlFor="component-configuration"
+                required
+              >
+                <Combobox
+                  id="component-configuration"
+                  value={form.configurationId || null}
+                  options={configOptions || []}
+                  loading={configOptions === undefined}
+                  onChange={(value) => setField("configurationId", value || "")}
+                  placeholder="Выберите конфигурацию"
+                  searchPlaceholder="Найти конфигурацию…"
+                  emptyText={configEmptyText(configOptions)}
+                />
+              </Field>
+            )}
+
             <div className="grid gap-x-3 sm:grid-cols-2">
               <Field label="Серийный номер" htmlFor="component-serial">
                 <Input
@@ -271,7 +360,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
             >
               Отмена
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || autoConfigPending}>
               <RiAddLine /> {saving ? "Создаём…" : "Создать"}
             </Button>
           </DialogFooter>

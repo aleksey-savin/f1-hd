@@ -4,10 +4,11 @@
 #
 #   ./deploy.sh                 install or update: Docker if missing, .env with
 #                               generated secrets, build or pull images,
-#                               backup, migrate, start
+#                               backup, migrate, seed, start
 #   ./deploy.sh backup          mongodump + uploads → backups/<timestamp>/
 #   ./deploy.sh restore DIR     load a backup into this installation
 #   ./deploy.sh migrate ARGS    status | up | baseline <id> | mark <id>
+#   ./deploy.sh seed ARGS       status | up | mark <id>
 #   ./deploy.sh status          build, containers and health
 #   ./deploy.sh logs [service]  follow logs
 #   ./deploy.sh env             only create/repair .env
@@ -22,7 +23,7 @@ log() { printf '\n== %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 dc()  { docker compose -f compose.yml "$@"; }
 
-usage() { sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'; }
 
 # --- prerequisites ----------------------------------------------------------
 
@@ -479,6 +480,11 @@ migrate() {
   dc run --rm backend node scripts/migrate.js "$@"
 }
 
+seed() {
+  ensure_docker
+  dc run --rm backend node scripts/seed.js "$@"
+}
+
 deploy() {
   need_tools; ensure_docker; ensure_env; require_subject_prefix; load_env
   # Pulled images are never rebuilt by `up`, even if a source tree is here.
@@ -520,6 +526,12 @@ deploy() {
          || die "a migration failed — fix the cause and run ./deploy.sh again (it resumes there), or skip it with ./deploy.sh migrate mark <id>" ;;
     *) die "migrations cannot run (see above): ./deploy.sh migrate status" ;;
   esac
+  # Catalogue seeds run on every deploy, a fresh install included: they only
+  # add, so the running application is not stopped, and with nothing pending
+  # the step does nothing.
+  log "Applying catalogue seeds"
+  dc run --rm backend node scripts/seed.js up \
+    || die "a seed failed — fix the cause and run ./deploy.sh again (it resumes there), or skip it with ./deploy.sh seed mark <id>"
   log "Starting services"
   dc up -d --wait --remove-orphans "${up_flags[@]}" mongodb backend frontend
   smoke_test
@@ -556,6 +568,7 @@ case "${1:-deploy}" in
   backup)   ensure_docker; backup ;;
   restore)  shift; restore "$@" ;;
   migrate)  shift; migrate "$@" ;;
+  seed)     shift; seed "$@" ;;
   status)   echo "build: $(running_build_label "$(running_build)")"; dc ps ;;
   logs)     shift; dc logs -f --tail=100 "$@" ;;
   help|-h|--help) usage ;;

@@ -24,6 +24,8 @@ export interface IInstalledSoftware {
 export interface IClientDevice {
   configurationId?: Types.ObjectId;
   deviceModelId?: Types.ObjectId;
+  // Сборка-шаблон «своего» ПК; только при deviceTypeId без модели.
+  buildId?: Types.ObjectId | null;
   companyId?: Types.ObjectId;
   comment?: string;
   userId?: Types.ObjectId;

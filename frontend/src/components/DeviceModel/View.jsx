@@ -30,6 +30,8 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import { cn } from "@/lib/utils";
 
 import PhotoGallery, { photoUrl } from "@/components/app/PhotoGallery";
+import SpecSheet from "@/components/app/SpecSheet";
+import { buildSpecGroups, specSummary } from "@/components/app/spec-sheet";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import useToastStore from "../../store/toast-store";
@@ -40,22 +42,6 @@ const dash = <span className="text-faint">—</span>;
 const fmtDate = (value) => (value ? formatShortDate(value) : null);
 const userName = (u) =>
   u ? [u.firstName, u.lastName].filter(Boolean).join(" ") : null;
-
-// Человекочитаемое значение атрибута по его типу.
-const formatAttrValue = (meta, value) => {
-  if (value === undefined || value === null || value === "") return null;
-  if (!meta) return String(value);
-  switch (meta.valueType) {
-    case "boolean":
-      return value === true || value === "true" ? "Да" : "Нет";
-    case "select":
-      return (
-        meta.options?.find((o) => o.value === value)?.label || String(value)
-      );
-    default:
-      return String(value);
-  }
-};
 
 // Строка «микро-подпись + значение» в панели «Основное».
 const Detail = ({ label, children, className }) => (
@@ -79,7 +65,7 @@ const ConfigActions = ({ config, label }) => {
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             aria-label="Действия"
             title="Действия"
             className="flex-none text-faint"
@@ -134,6 +120,8 @@ const ViewDeviceModel = ({
   const can = useCan();
   const canManage = can({ inventoryCatalog: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // Выбранная чипом конфигурация; удалённая (после revalidate) → первая.
+  const [selectedId, setSelectedId] = useState(null);
 
   // Карточку всегда открываем от начала: иначе hero прячется под фиксированным
   // баром при переходе из проскроленного списка (Root сбрасывает лишь мобильный
@@ -161,56 +149,20 @@ const ViewDeviceModel = ({
   const compatible = deviceModel.compatibleWithModelIds || [];
   const configCount = configurations.length;
 
-  // Атрибуты типа в заданном порядке — канонический каркас «спецификации».
-  const orderedAttributes = [...attributes].sort(
-    (a, b) => (a.order ?? 0) - (b.order ?? 0),
+  // Связки типа (с группами) — каркас «спецификации» конфигураций.
+  const noTypeAttributes = attributes.length === 0;
+  // Подпись конфигурации — в чипе и в шапке панели одна и та же.
+  const labelOf = (config, index) =>
+    specSummary(attributes, config.values || []) || `Конфигурация ${index + 1}`;
+  const selectedIndex = Math.max(
+    0,
+    configurations.findIndex((c) => c._id === selectedId),
   );
-  const noTypeAttributes = orderedAttributes.length === 0;
-
-  // Строки одной конфигурации: значения по порядку атрибутов типа + legacy-хвост.
-  const buildRows = (config) => {
-    const byAttr = new Map(
-      (config.values || []).map((v) => [
-        typeof v.attributeId === "object" ? v.attributeId._id : v.attributeId,
-        v,
-      ]),
-    );
-    const rows = [];
-    const seen = new Set();
-
-    orderedAttributes.forEach((a) => {
-      const meta = typeof a.attributeId === "object" ? a.attributeId : null;
-      const attrId = meta?._id || a.attributeId;
-      const entry = byAttr.get(attrId);
-      if (!entry) return;
-      const text = formatAttrValue(meta, entry.value);
-      if (text === null) return;
-      seen.add(attrId);
-      rows.push({
-        id: attrId,
-        name: meta?.name || "Атрибут",
-        unit: meta?.unit,
-        value: text,
-      });
-    });
-
-    (config.values || []).forEach((v) => {
-      const meta = typeof v.attributeId === "object" ? v.attributeId : null;
-      const attrId = meta?._id || v.attributeId;
-      if (seen.has(attrId)) return;
-      const text = formatAttrValue(meta, v.value);
-      if (text === null) return;
-      rows.push({ id: attrId, name: meta?.name || "Атрибут", value: text });
-    });
-
-    return rows;
-  };
-
-  const summaryOf = (rows) =>
-    rows
-      .slice(0, 3)
-      .map((r) => (r.unit ? `${r.value} ${r.unit}` : r.value))
-      .join(" / ");
+  const selected = configurations[selectedIndex];
+  const selectedLabel = selected ? labelOf(selected, selectedIndex) : "";
+  const selectedGroups = selected
+    ? buildSpecGroups(attributes, selected.values || [])
+    : [];
 
   const updaterName = userName(deviceModel.updatedBy);
   const metaBits = [
@@ -439,48 +391,62 @@ const ViewDeviceModel = ({
           )}
         </EmptyConfigs>
       ) : (
-        <div className="grid gap-3.5 sm:grid-cols-2">
-          {configurations.map((config, index) => {
-            const rows = buildRows(config);
-            const label = summaryOf(rows) || `Конфигурация ${index + 1}`;
-            return (
-              <section
-                key={config._id}
-                className="overflow-hidden rounded-xl border border-border bg-card"
-              >
-                <div className="flex items-center justify-between gap-2 border-b border-border-soft px-4 py-2.5">
-                  <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold">
-                    <RiCpuLine className="flex-none text-accent-text" />
-                    <span className="truncate">{label}</span>
-                  </span>
-                  {canManage && <ConfigActions config={config} label={label} />}
-                </div>
-                <div className="px-4 py-1">
-                  {rows.length === 0 ? (
-                    <div className="py-2 text-sm text-muted-foreground">
-                      Без характеристик
-                    </div>
-                  ) : (
-                    rows.map((r) => (
-                      <div
-                        key={r.id}
-                        className="flex items-center justify-between gap-4 border-b border-border-soft py-2 text-sm last:border-b-0"
-                      >
-                        <span className="text-muted-foreground">
-                          {r.name}
-                          {r.unit ? `, ${r.unit}` : ""}
-                        </span>
-                        <span className="ms-auto text-right font-mono font-semibold tabular-nums">
-                          {r.value}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+        <>
+          {/* Переключатель конфигураций: чипы, первая выбрана; при одной —
+              без чипов */}
+          {configCount > 1 && (
+            <div
+              role="group"
+              aria-label="Конфигурации"
+              className="mb-2.5 flex flex-wrap gap-1.5"
+            >
+              {configurations.map((config, index) => {
+                const pressed = index === selectedIndex;
+                return (
+                  <button
+                    key={config._id}
+                    type="button"
+                    aria-pressed={pressed}
+                    onClick={() => setSelectedId(config._id)}
+                    className={cn(
+                      "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.25 text-sm font-medium text-muted-foreground tabular-nums transition-colors outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
+                      pressed &&
+                        "border-primary text-foreground inset-ring inset-ring-primary",
+                    )}
+                  >
+                    <span className="truncate">{labelOf(config, index)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <Panel>
+            {/* Шапка выбранной конфигурации — до краёв панели */}
+            <div className="-mx-4 -mt-4 mb-4 flex items-center gap-2.5 border-b border-border-soft px-4 py-3 md:-mx-5 md:-mt-5 md:mb-5">
+              <RiCpuLine
+                aria-hidden
+                className="size-4 flex-none text-accent-text"
+              />
+              <div className="min-w-0 flex-1 text-sm font-semibold break-words tabular-nums">
+                {selectedLabel}
+              </div>
+              {canManage && (
+                <ConfigActions
+                  key={selected._id}
+                  config={selected}
+                  label={selectedLabel}
+                />
+              )}
+            </div>
+            {selectedGroups.length === 0 ? (
+              <p className="my-0 text-sm text-muted-foreground">
+                Без характеристик
+              </p>
+            ) : (
+              <SpecSheet groups={selectedGroups} />
+            )}
+          </Panel>
+        </>
       )}
 
       {/* Мета-подвал: создано/обновлено (бывшая панель «Служебное») */}

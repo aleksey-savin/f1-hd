@@ -9,6 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 
 import Combobox from "@/components/app/Combobox";
+import FilterChip from "@/components/app/FilterChip";
+import {
+  groupLinks,
+  parseMultiValue,
+  serializeMultiValue,
+} from "@/components/app/spec-sheet";
 
 // Форма конфигурации модели: динамические поля по атрибутам типа устройства.
 // Сабмит идёт скрытым `values` (JSON), поэтому контролы неуправляемы через
@@ -51,7 +57,7 @@ const DeviceConfigurationForm = ({ title }) => {
     switch (attrData.valueType) {
       case "boolean":
         return (
-          <div className="flex h-10 items-center gap-2.5">
+          <div className="flex h-9 items-center gap-2.5">
             <Switch
               id={inputId}
               checked={value === true || value === "true"}
@@ -87,6 +93,56 @@ const DeviceConfigurationForm = ({ title }) => {
           />
         );
 
+      case "multiselect": {
+        const options = attrData.options || [];
+        const selected = parseMultiValue(String(value ?? ""));
+        // Старое текстовое значение вне вариантов не теряем: показываем
+        // его выбранным вариантом, иначе сохранение молча его сотрёт
+        const extra = selected
+          .filter((item) => !options.some((o) => o.value === item))
+          .map((item) => ({ value: item, label: item }));
+        return (
+          <div
+            id={inputId}
+            role="group"
+            aria-label={attrData.name}
+            className="flex flex-wrap gap-1.5"
+          >
+            {[...options, ...extra].map((option) => {
+              const active = selected.includes(option.value);
+              return (
+                <FilterChip
+                  key={option.value}
+                  size="sm"
+                  dot="none"
+                  active={active}
+                  className={
+                    active
+                      ? "border-primary bg-primary/10 text-foreground hover:bg-primary/15"
+                      : "font-normal"
+                  }
+                  onClick={() => {
+                    const next = active
+                      ? selected.filter((item) => item !== option.value)
+                      : [...selected, option.value];
+                    // Порядок — как у вариантов, независимо от порядка нажатий
+                    const ordered = [...options, ...extra]
+                      .map((o) => o.value)
+                      .filter((v) => next.includes(v));
+                    handleValueChange(
+                      attrId,
+                      ordered.length ? serializeMultiValue(ordered) : "",
+                    );
+                  }}
+                >
+                  {option.label}
+                </FilterChip>
+              );
+            })}
+          </div>
+        );
+      }
+
       case "text":
         return (
           <Textarea
@@ -110,6 +166,10 @@ const DeviceConfigurationForm = ({ title }) => {
         );
     }
   };
+
+  // Без единой группы заголовки не нужны — и «Прочее» тоже
+  const groups = groupLinks(attributes, "Прочее");
+  const hasGroups = groups.some((g) => g.key !== "other");
 
   const subtitle =
     [deviceModel?.vendorId?.name, deviceModel?.name]
@@ -146,34 +206,57 @@ const DeviceConfigurationForm = ({ title }) => {
           message="У типа устройства нет характеристик. Сначала добавьте атрибуты к типу устройства, затем создавайте конфигурации."
         />
       ) : (
-        <div className="grid gap-x-4 sm:grid-cols-2">
-          {attributes.map((attr) => {
-            const attrData =
-              typeof attr.attributeId === "object" ? attr.attributeId : null;
-            const attrId = attrData?._id || attr.attributeId;
-            if (!attrData) return null;
+        <div>
+          {groups.map((group, index) => (
+            <section
+              key={group.key}
+              className={
+                index === 0
+                  ? "pt-1.5"
+                  : "mt-1.5 border-t border-border-soft pt-3.5"
+              }
+            >
+              {hasGroups && (
+                <h5 className="mt-0 mb-2.5 text-xs font-bold uppercase tracking-wider text-faint">
+                  {group.name}
+                </h5>
+              )}
+              <div className="grid gap-x-4 sm:grid-cols-2">
+                {group.links.map((attr) => {
+                  const attrData =
+                    typeof attr.attributeId === "object"
+                      ? attr.attributeId
+                      : null;
+                  if (!attrData) return null;
+                  const attrId = attrData._id;
+                  // Мультивыбор шире колонки: варианты — фразы столбиком
+                  const wide = attrData.valueType === "multiselect";
 
-            return (
-              <Field
-                key={attrId}
-                htmlFor={`attr-${attrId}`}
-                required={attr.required}
-                label={
-                  <>
-                    {attrData.name || "Атрибут"}
-                    {attrData.unit && (
-                      <span className="font-normal text-faint">
-                        {" "}
-                        ({attrData.unit})
-                      </span>
-                    )}
-                  </>
-                }
-              >
-                {renderAttributeInput(attrId, attrData)}
-              </Field>
-            );
-          })}
+                  return (
+                    <Field
+                      key={attrId}
+                      className={wide ? "sm:col-span-2" : undefined}
+                      htmlFor={`attr-${attrId}`}
+                      required={attr.required}
+                      label={
+                        <>
+                          {attrData.name || "Атрибут"}
+                          {attrData.unit && (
+                            <span className="font-normal text-faint">
+                              {" "}
+                              ({attrData.unit})
+                            </span>
+                          )}
+                        </>
+                      }
+                    >
+                      {renderAttributeInput(attrId, attrData)}
+                    </Field>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </div>
       )}
     </FormWrapper>

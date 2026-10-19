@@ -11,6 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import FormWrapper from "@/components/app/FormWrapper";
+import Field from "@/components/app/Field";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import { FormHeader } from "@/components/app/FormLayout";
 import { cn } from "@/lib/utils";
 
@@ -18,13 +20,15 @@ import DeviceAttributeFormFields from "../DeviceAttribute/FormFields";
 import { valueTypeLabel } from "../DeviceAttribute/value-types";
 import { plural } from "../../util/plural";
 import useToastStore from "../../store/toast-store";
+import { createGroupLabel, useAttributeGroups } from "./attribute-groups";
 
 // Шторка «Добавить атрибуты» с карточки типа (макет согласован 19.10):
 // отметить несколько атрибутов каталога и создать недостающие прямо из поиска.
 // Цифра в отметке — очередь: в этом порядке атрибуты встанут в конец списка
 // типа. Новые попадают в каталог только по «Добавить» — одним запросом вместе
 // с привязкой. Флаги «Обязательный»/«Расширяемый» здесь не задаются: всё
-// добавляется с выключенными, правка — ⋯ → Изменить (AttributeForm).
+// добавляется с выключенными, правка — ⋯ → Изменить (AttributeForm). Группа —
+// одна на всю пачку, у каждого потом меняется там же.
 
 const SELECT_TYPES = ["select", "multiselect"];
 const sameName = (name) => String(name || "").trim().toLocaleLowerCase("ru");
@@ -149,6 +153,13 @@ const AttributesAddForm = () => {
   const [fresh, setFresh] = useState([]); // новые: { _id: "new-N", isNew, ... }
   const [draft, setDraft] = useState(null); // { attribute, editId, key }
   const [draftError, setDraftError] = useState("");
+  const [groupId, setGroupId] = useState("");
+  const { groups, loading: groupsLoading, createGroup } = useAttributeGroups();
+
+  const onCreateGroup = async (name) => {
+    const group = await createGroup(name);
+    if (group) setGroupId(String(group._id));
+  };
 
   const all = useMemo(() => [...catalog, ...fresh], [catalog, fresh]);
   const q = sameName(query);
@@ -287,6 +298,7 @@ const AttributesAddForm = () => {
       const { name, valueType, unit, options, isActive } = attr;
       return { attribute: { name, valueType, unit, options, isActive } };
     }),
+    groupId: groupId || null,
   });
 
   // Enter в поиске не отправляет форму: создаёт атрибут, если его нет
@@ -353,6 +365,29 @@ const AttributesAddForm = () => {
       }
       successTo={`/inventory/device-types/${deviceType?._id}`}
     >
+      <Field
+        label="Группа"
+        htmlFor="groupId"
+        hint="Для всех отмеченных. Потом можно поменять у каждого."
+      >
+        <Combobox
+          id="groupId"
+          value={groupId || null}
+          onChange={(id) => setGroupId(id || "")}
+          options={toOptions(groups, {
+            value: (group) => String(group._id),
+            label: (group) => group.name,
+          })}
+          placeholder="Без группы"
+          searchPlaceholder="Найти или создать группу"
+          clearable
+          clearLabel="Без группы"
+          loading={groupsLoading}
+          onCreate={onCreateGroup}
+          createLabel={createGroupLabel}
+        />
+      </Field>
+
       {draft && (
         <div className="my-2.5 rounded-xl border border-border p-4 pb-3 ring-3 ring-primary/10">
           <div className="mb-2.5 text-sm font-semibold text-muted-foreground">

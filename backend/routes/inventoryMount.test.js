@@ -57,6 +57,8 @@ const buildApp = (calls) => {
     subRouter("/device-models"),
     subRouter("/device-types"),
     subRouter("/device-type-attributes/:id"),
+    subRouter("/attribute-groups/reorder"),
+    subRouter("/device-builds/:id"),
     subRouter("/locations"),
     subRouter("/mikrotik-devices"),
     subRouter("/mikrotik-changes/:id"),
@@ -103,6 +105,8 @@ test("у каждого префикса свой набор гейтов", asyn
     ["/api/inventory/locations", [inventory, "canReadDevices"]],
     ["/api/inventory/suppliers", [inventory, "canReadSuppliers"]],
     ["/api/inventory/device-types", [inventory, "isNotClient"]],
+    ["/api/inventory/attribute-groups/reorder", [inventory, "isNotClient"]],
+    ["/api/inventory/device-builds/abc", [inventory, "isNotClient"]],
     // Mikrotik — без модуля «Учёт техники»: у мониторинга свой модуль.
     ["/api/inventory/mikrotik-devices", ["mikrotikIsActive", "canReadMikrotik"]],
     // Запросы ИИ-агентов: рубильник модуля и «не клиент»; кто что видит, решают ручки

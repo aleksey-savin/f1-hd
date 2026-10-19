@@ -5,6 +5,7 @@ import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
 import { MultiCombobox, toOptions } from "@/components/app/Combobox";
+import { plural } from "../../util/plural";
 
 // Поля типа устройства. Рендерят `name`-атрибуты для сабмита со страницы
 // (react-router action) и сообщают агрегированное состояние через onChange для
@@ -36,6 +37,22 @@ const DeviceTypeFormFields = ({
   const [attachableToTypeIds, setAttachableToTypeIds] = useState(
     deviceType?.attachableToTypeIds || [],
   );
+  // «Своя сборка» — только в правке (создание флаг не принимает). Выключить
+  // нельзя, пока у типа есть сборки: переключатель остаётся включённым, а
+  // подсказка объясняет почему (сервер ответит тем же 409 — страховка).
+  const [assemblyEnabled, setAssemblyEnabled] = useState(
+    !!deviceType?.assembly?.enabled,
+  );
+  const [assemblyLocked, setAssemblyLocked] = useState(false);
+  const buildsCount = deviceType?.buildsCount || 0;
+  const toggleAssembly = (checked) => {
+    if (!checked && deviceType?.assembly?.enabled && buildsCount > 0) {
+      setAssemblyLocked(true);
+      return;
+    }
+    setAssemblyLocked(false);
+    setAssemblyEnabled(checked);
+  };
 
   // Сообщаем состояние наверх (для модалки). На странице onChange игнорируется —
   // сабмит идёт через `name`-атрибуты.
@@ -153,6 +170,28 @@ const DeviceTypeFormFields = ({
             placeholder="Выберите типы устройств..."
           />
         </Field>
+      )}
+
+      {deviceType && (
+        <SwitchField
+          id="assemblyEnabled"
+          name="assemblyEnabled"
+          checked={assemblyEnabled}
+          onCheckedChange={toggleAssembly}
+          label="Своя сборка — из комплектующих"
+          hint={
+            assemblyLocked ? (
+              <span className="text-warning-text">
+                Нельзя выключить: у типа {buildsCount}{" "}
+                {plural(buildsCount, "сборка", "сборки", "сборок")}. Сначала
+                удалите их.
+              </span>
+            ) : (
+              "Устройства «Своя сборка» этого типа описываются деталями по слотам, а не атрибутами. Брендовые модели не меняются."
+            )
+          }
+          divider
+        />
       )}
 
       <p className="mt-3 flex items-start gap-2 rounded-lg bg-accent px-3.5 py-2.5 text-sm text-muted-foreground">

@@ -5,19 +5,32 @@ const Company = require("../../models/company");
 const User = require("../../models/user");
 const DeviceModel = require("../../models/inventory/deviceModel");
 const DeviceType = require("../../models/inventory/deviceType");
+const DeviceTypeAttribute = require("../../models/inventory/deviceTypeAttribute");
+require("../../models/inventory/attributeGroup");
 const Vendor = require("../../models/inventory/vendor");
 const Location = require("../../models/inventory/location");
 const Counter = require("../../models/inventory/counter");
+const DeviceBuild = require("../../models/inventory/deviceBuild");
 const Mikrotik = require("../../models/mikrotik");
 const { Ticket } = require("../../models/ticket");
 
 const { createPhotoHandlers, deleteAllPhotos } = require("./photoHandlers");
+const { ASSEMBLY_POPULATE } = require("./deviceType");
+const {
+  PARTS_POPULATE,
+  loadAssemblyType,
+  loadPartLinks,
+  parseBuildParts,
+  resolveParts,
+} = require("./deviceBuild");
 const { AppError } = require("../../middleware/errorHandling");
+const logger = require("../../utils/logger");
 const {
   buildMikrotikStatusMap,
   mikrotikOverlay,
 } = require("../../helpers/mikrotikOverlay");
 const { mikrotikEnabled } = require("../../services/mikrotik/enabled");
+const { loadKeySpecs } = require("../../services/inventory/assemblyKeySpecs");
 const { ticketListFilter } = require("../../services/ticketScope");
 const {
   attachableCompanyId,
@@ -51,7 +64,10 @@ const devicePopulate = ({ withModelPhotos = false } = {}) => [
   {
     path: "configurationId",
     select: "name values",
-    populate: { path: "values.attributeId", select: "code name unit" },
+    populate: {
+      path: "values.attributeId",
+      select: "code name unit valueType options",
+    },
   },
   { path: "companyId", select: "alias fullTitle" },
   { path: "locationId", select: "name fullPath" },
@@ -62,6 +78,31 @@ const devicePopulate = ({ withModelPhotos = false } = {}) => [
 ];
 
 const DEVICE_POPULATE = devicePopulate();
+
+// Детали ПК своей сборки на карточке: только то, что нужно «Конфигурации» и
+// характеристикам (модель, конфигурация со значениями, серийник, гарантия,
+// закупка) — карточку открывают и клиенты.
+const ASSEMBLY_COMPONENT_SELECT =
+  "deviceModelId configurationId deviceTypeId serialNumber warrantyExpirationDate purchasedAt inventoryNumber quantity";
+const ASSEMBLY_COMPONENT_POPULATE = [
+  {
+    path: "deviceModelId",
+    select: "name vendorId deviceTypeId deletedAt",
+    populate: [
+      { path: "vendorId", select: "name" },
+      { path: "deviceTypeId", select: "name" },
+    ],
+  },
+  {
+    path: "configurationId",
+    select: "name values deletedAt",
+    populate: {
+      path: "values.attributeId",
+      select: "code name unit valueType options",
+    },
+  },
+  { path: "deviceTypeId", select: "name" },
+];
 
 // Mongoose can't cast "" to ObjectId / Number / Date — turn blanks into
 // undefined so empty optional fields are stored as unset rather than throwing.
@@ -76,6 +117,7 @@ const buildDevicePayload = (body) => ({
   deviceModelId: clean(body.deviceModelId),
   configurationId: clean(body.configurationId),
   deviceTypeId: clean(body.deviceTypeId),
+  buildId: clean(body.buildId),
   parentDeviceId: clean(body.parentDeviceId),
   quantity: clean(body.quantity),
   // clean(): пустой серийник сохраняем как unset (не ""), иначе пустые строки
@@ -111,6 +153,257 @@ const generateInventoryNumber = async (deviceTypeId) => {
   }
   const seq = await Counter.getNextSequence(`clientDevice:${prefix}`);
   return `${prefix}-${String(seq).padStart(6, "0")}`;
+};
+
+// ─── ПК своей сборки: детали при создании ─────────────────────────────────
+//
+// Деталь — отдельный ClientDevice внутри ПК, одна запись на единицу (у каждой
+// свой серийник). Правила слотов — те же, что у сборки-шаблона
+// (parseBuildParts): единица идёт туда с quantity 1, и второй экземпляр в
+// слоте без «несколько» отсекается так же, как вторая строка сборки.
+
+const PART_DATE_FIELDS = ["warrantyExpirationDate", "purchasedAt"];
+
+const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
+
+// Разбор деталей нового ПК. Чистая функция: slots — как у loadAssemblyType.
+// Пустой список законен (ПК без деталей) — обязательные слоты тогда не
+// проверяются. Порядок результата — порядок слотов, внутри слота — как прислано.
+function planDeviceParts(parts, slots) {
+  if (parts == null || (Array.isArray(parts) && parts.length === 0)) {
+    return { parts: [] };
+  }
+  if (!Array.isArray(parts)) {
+    return { error: "parts должен быть массивом" };
+  }
+
+  const parsed = parseBuildParts(
+    parts.map((item) => ({
+      typeId: item?.typeId,
+      deviceModelId: item?.deviceModelId,
+      configurationId: clean(item?.configurationId),
+      quantity: 1,
+    })),
+    slots,
+  );
+  if (parsed.error) return parsed;
+
+  // parseBuildParts упорядочил по слотам, сохранив порядок внутри слота, —
+  // тот же стабильный порядок у исходных строк, чтобы сопоставить их по номеру.
+  const slotIndex = new Map(slots.map((s, i) => [String(s.typeId), i]));
+  const typeName = new Map(slots.map((s) => [String(s.typeId), s.typeName]));
+  const ordered = [...parts].sort(
+    (a, b) =>
+      slotIndex.get(String(a.typeId)) - slotIndex.get(String(b.typeId)),
+  );
+
+  const result = [];
+  for (const [i, item] of ordered.entries()) {
+    const unit = parsed.parts[i];
+    const name = typeName.get(unit.typeId);
+    const part = {
+      typeId: unit.typeId,
+      deviceModelId: unit.deviceModelId,
+      configurationId: unit.configurationId,
+    };
+    // Предел — как у серийника устройства (validations/inventory/clientDevice)
+    const serialNumber = String(item.serialNumber ?? "").trim();
+    if (serialNumber.length > 100) {
+      return { error: `Серийный номер детали «${name}» длиннее 100 символов` };
+    }
+    if (serialNumber) part.serialNumber = serialNumber;
+    for (const field of PART_DATE_FIELDS) {
+      const value = clean(item[field]);
+      if (value == null) continue;
+      if (!isValidDate(value)) {
+        return { error: `Неверная дата в детали «${name}»` };
+      }
+      part[field] = value;
+    }
+    const supplierId = clean(item.supplierId);
+    if (supplierId != null) {
+      if (!mongoose.isValidObjectId(supplierId)) {
+        return { error: `Неверный поставщик в детали «${name}»` };
+      }
+      part.supplierId = String(supplierId);
+    }
+    result.push(part);
+  }
+  return { parts: result };
+}
+
+exports.planDeviceParts = planDeviceParts;
+
+// Документ детали: следует за ПК (компания, место, пользователь, статус — как
+// при прикреплении). «Закупка как у ПК»: своя дата или свой поставщик заданы —
+// закупка детали своя целиком, иначе дата и поставщик берутся у ПК.
+const partPayload = (part, host) => {
+  const ownPurchase = part.purchasedAt != null || part.supplierId != null;
+  return buildDevicePayload({
+    deviceModelId: part.deviceModelId,
+    configurationId: part.configurationId,
+    serialNumber: part.serialNumber,
+    warrantyExpirationDate: part.warrantyExpirationDate,
+    purchasedAt: ownPurchase ? part.purchasedAt : host.purchasedAt,
+    supplierId: ownPurchase ? part.supplierId : host.supplierId,
+    parentDeviceId: host._id,
+    companyId: host.companyId,
+    locationId: host.locationId,
+    userId: host.userId,
+    status: host.status,
+    quantity: 1,
+  });
+};
+
+/**
+ * Проверки нового устройства до записи: занятые инвентарный номер и имя в
+ * сети, наследование от хозяина, компания, пользователь, модель или тип.
+ * Возвращает { payload, deviceTypeId } | { error: AppError }.
+ */
+const validateNewDevice = async (payload) => {
+  if (payload.inventoryNumber) {
+    const invExists = await ClientDevice.findOne({
+      inventoryNumber: payload.inventoryNumber,
+    });
+    if (invExists) {
+      return {
+        error: new AppError(
+          `Устройство с инвентарным номером ${payload.inventoryNumber} уже существует`,
+          409,
+        ),
+      };
+    }
+  }
+
+  // Компонент наследует компанию/расположение/пользователя от родителя.
+  if (payload.parentDeviceId) {
+    const parent = await ClientDevice.findById(payload.parentDeviceId);
+    if (!parent) {
+      return { error: new AppError("Invalid parent device ID", 400) };
+    }
+    payload.companyId = payload.companyId || parent.companyId;
+    payload.locationId = payload.locationId || parent.locationId;
+    payload.userId = payload.userId || parent.userId;
+  }
+
+  const company = await Company.findById(payload.companyId);
+  if (!company) {
+    return { error: new AppError("Invalid company ID", 400) };
+  }
+
+  // Hostname опционален и уникален в пределах компании — проверяем дубль,
+  // только если задан (companyId здесь уже разрешён, в т.ч. от родителя).
+  if (payload.hostname) {
+    const hostExists = await ClientDevice.findOne({
+      companyId: payload.companyId,
+      hostname: payload.hostname,
+    });
+    if (hostExists) {
+      return {
+        error: new AppError(
+          `Устройство с именем "${payload.hostname}" уже есть в этой компании`,
+          409,
+        ),
+      };
+    }
+  }
+
+  // Назначенный пользователь должен быть из компании устройства (company у
+  // User — вложенный объект { _id, alias }; сравниваем по _id).
+  if (payload.userId) {
+    const user = await User.findById(payload.userId);
+    const userCompanyId = user?.company?._id || user?.company;
+    if (!user || userCompanyId?.toString() !== payload.companyId?.toString()) {
+      return {
+        error: new AppError(
+          "Assigned user must belong to the same company",
+          400,
+        ),
+      };
+    }
+  }
+
+  // Устройство задаётся либо моделью (заводская сборка), либо напрямую типом
+  // (самосборное). Тип нужен и для префикса инвентарного номера.
+  if (payload.deviceModelId) {
+    const deviceModel = await DeviceModel.findById(payload.deviceModelId);
+    if (!deviceModel) {
+      return { error: new AppError("Invalid device model ID", 400) };
+    }
+    return { payload, deviceTypeId: deviceModel.deviceTypeId };
+  }
+  if (payload.deviceTypeId) {
+    const deviceType = await DeviceType.findById(payload.deviceTypeId);
+    if (!deviceType) {
+      return { error: new AppError("Invalid device type ID", 400) };
+    }
+    return { payload, deviceTypeId: payload.deviceTypeId };
+  }
+  return { error: new AppError("Укажите модель или тип устройства", 400) };
+};
+
+// Сборка-шаблон устройства: только у «Своей сборки» собираемого типа, своего
+// типа и не удалённая. Возвращает { slots } | { error: AppError }.
+const validateAssembly = async (payload) => {
+  if (payload.deviceModelId) {
+    return {
+      error: new AppError(
+        "Сборка и комплектующие — только у своей сборки, не у заводского устройства",
+        400,
+      ),
+    };
+  }
+  if (payload.parentDeviceId) {
+    return {
+      error: new AppError(
+        "Деталь сборки сама из комплектующих не собирается",
+        400,
+      ),
+    };
+  }
+  const loaded = await loadAssemblyType(payload.deviceTypeId);
+  if (loaded.error) return { error: loaded.error };
+  if (payload.buildId) {
+    const build = mongoose.isValidObjectId(payload.buildId)
+      ? await DeviceBuild.exists({
+          _id: payload.buildId,
+          deviceTypeId: payload.deviceTypeId,
+          deletedAt: null,
+        })
+      : null;
+    if (!build) {
+      return {
+        error: new AppError("Сборка не найдена или другого типа", 400),
+      };
+    }
+  }
+  return { slots: loaded.slots };
+};
+
+// Детали нового ПК: слоты, обязательные, «несколько», модели и конфигурации —
+// всё до первой записи. Возвращает { parts } | { error: AppError }.
+const prepareParts = async (rawParts, slots) => {
+  const planned = planDeviceParts(rawParts, slots);
+  if (planned.error) return { error: new AppError(planned.error, 400) };
+  if (planned.parts.length === 0) return { parts: [] };
+  return resolveParts(planned.parts);
+};
+
+// Откат создания: удаление строго по списку созданных _id — сначала детали,
+// затем ПК. Сбой отката не заслоняет исходную ошибку.
+const rollbackCreated = async (host, parts) => {
+  try {
+    if (parts.length) {
+      await ClientDevice.deleteMany({ _id: { $in: parts.map((p) => p._id) } });
+    }
+    if (host) await ClientDevice.deleteOne({ _id: host._id });
+  } catch (rollbackError) {
+    logger.log("error", "Client device create rollback failed", {
+      hostId: host?._id ? String(host._id) : null,
+      partIds: parts.map((p) => String(p._id)),
+      error: rollbackError.message,
+    });
+  }
 };
 
 // Эффективный тип устройства: у заводской сборки берём из модели, у самосборной —
@@ -202,7 +495,10 @@ const toValueList = (value) =>
 // Строка списка — тот же принцип, что у toEnvDevice окружения: DTO собирает
 // сервер, строка на клиенте ничего не вычисляет. Имя — из модели или прямого
 // типа (самосборные), тип — эффективный (модельный приоритетнее).
-const toListDevice = (device, { componentCount = 0, mikro = null } = {}) => {
+const toListDevice = (
+  device,
+  { componentCount = 0, mikro = null, keySpecs = "" } = {},
+) => {
   const model = device.deviceModelId;
   const type = model?.deviceTypeId || device.deviceTypeId;
   const user = device.userId;
@@ -235,6 +531,9 @@ const toListDevice = (device, { componentCount = 0, mikro = null } = {}) => {
         }
       : null,
     componentCount,
+    // Ключевые характеристики ПК своей сборки (процессор · память · диск):
+    // только у сборки собираемого типа и только когда есть что показать.
+    ...(keySpecs ? { keySpecs } : {}),
     // Комплектующее: своей строкой в списке оно бывает только по запросу
     // (поиск или свитч фильтра), и тогда обязано назвать хозяина.
     parent: device.parentDeviceId
@@ -571,12 +870,27 @@ exports.getAll = async (req, res, next) => {
     // Условие счётчика идёт в aggregate, поэтому скоуп в нём — ObjectId.
     const viewer = deviceViewer(req.auth);
     const ids = rows.map((row) => row._id);
-    const [componentCounts, mikroMap] = await Promise.all([
+    const [componentCounts, mikroMap, keySpecsMap] = await Promise.all([
       ClientDevice.aggregate([
         { $match: deviceComponentsFilter(viewer, { $in: ids }) },
         { $group: { _id: "$parentDeviceId", n: { $sum: 1 } } },
       ]),
       buildMikrotikStatusMap(ids),
+      // Пачкой на страницу; видимость деталей та же, что у счётчика.
+      loadKeySpecs(rows, {
+        ClientDevice,
+        DeviceType,
+        assemblyPopulate: ASSEMBLY_POPULATE,
+        componentPopulate: ASSEMBLY_COMPONENT_POPULATE,
+        componentSelect: `${ASSEMBLY_COMPONENT_SELECT} parentDeviceId`,
+        componentsFilter: (hostIds) => deviceComponentsFilter(viewer, hostIds),
+      }).catch((error) => {
+        // Сводка — украшение строки: её сбой не роняет список.
+        logger.log("warn", "Не удалось собрать ключевые характеристики сборок", {
+          error: error.message,
+        });
+        return new Map();
+      }),
     ]);
     const componentMap = new Map(
       componentCounts.map((entry) => [String(entry._id), entry.n]),
@@ -595,6 +909,7 @@ exports.getAll = async (req, res, next) => {
           {
             componentCount: componentMap.get(String(row._id)) || 0,
             mikro: mikroMap.get(String(row._id)) || null,
+            keySpecs: keySpecsMap.get(String(row._id)) || "",
           },
         ),
       ),
@@ -826,14 +1141,67 @@ exports.getOne = async (req, res, next) => {
       );
     }
 
+    // ПК своей сборки собираемого типа: карточка строит «Конфигурацию» и
+    // характеристики из фактических деталей и сравнивает их со сборкой.
+    const assemblyType =
+      !device.deviceModelId && device.deviceTypeId
+        ? await DeviceType.findById(device.deviceTypeId._id)
+            .select("assembly")
+            .populate(ASSEMBLY_POPULATE)
+            .lean()
+        : null;
+    const assembly = assemblyType?.assembly?.enabled
+      ? assemblyType.assembly
+      : null;
+
     // Комплектующие сборки (если есть) — для отображения/редактирования состава.
     // Состав бывает смешанным (хозяина перевели в другую компанию, а детали
     // остались), и клиенту детали чужой компании не отдаются — как и сама карточка.
-    const components = await ClientDevice.find(
+    const componentsQuery = ClientDevice.find(
       deviceComponentsFilter(viewer, device._id),
-    ).populate(DEVICE_POPULATE);
+    );
+    const components = assembly
+      ? await componentsQuery
+          .select(ASSEMBLY_COMPONENT_SELECT)
+          .populate(ASSEMBLY_COMPONENT_POPULATE)
+          .lean()
+      : await componentsQuery.populate(DEVICE_POPULATE);
+
+    // Сборка-шаблон (удалённая — уже не с чем сравнивать) и связки типов
+    // деталей с группами — для характеристик из конфигураций деталей.
+    const assemblyData = assembly
+      ? {
+          assembly,
+          build: device.buildId
+            ? await DeviceBuild.findOne({
+                _id: device.buildId,
+                deletedAt: null,
+              })
+                .select("name parts")
+                .populate(PARTS_POPULATE)
+                .lean()
+            : null,
+          partLinks: await loadPartLinks(components.map(populatedTypeId)),
+        }
+      : {};
 
     const locationPath = await buildLocationPath(device.locationId?._id);
+
+    // Связки эффективного типа (тип модели, иначе прямой) с группами — по ним
+    // карточка раскладывает значения конфигурации; без конфигурации не нужны.
+    const typeId = populatedTypeId(device);
+    const specLinks =
+      device.configurationId && typeId
+        ? await DeviceTypeAttribute.find({ deviceTypeId: typeId })
+            .populate(
+              "attributeId",
+              "code name valueType unit options isActive",
+            )
+            .populate("groupId", "name order")
+            .select("attributeId groupId order createdAt")
+            .sort({ order: 1, createdAt: 1 })
+            .lean()
+        : [];
 
     // Mikrotik management overlay: connectivity + a link target for the panel,
     // present only when the device has a management record and the Mikrotik
@@ -860,7 +1228,14 @@ exports.getOne = async (req, res, next) => {
       body.parentDeviceId = visibleHost(viewer, body.parentDeviceId);
     }
 
-    res.status(200).json({ ...body, components, mikrotik, locationPath });
+    res.status(200).json({
+      ...body,
+      components,
+      ...assemblyData,
+      mikrotik,
+      locationPath,
+      specLinks,
+    });
   } catch (error) {
     next(
       new AppError(`Failed to fetch device ${req.params.id}`, 500, true, error),
@@ -930,102 +1305,61 @@ exports.getTickets = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const payload = buildDevicePayload(req.body);
+    const checked = await validateNewDevice(buildDevicePayload(req.body));
+    if (checked.error) return next(checked.error);
+    const { payload, deviceTypeId } = checked;
 
-    if (payload.inventoryNumber) {
-      const invExists = await ClientDevice.findOne({
-        inventoryNumber: payload.inventoryNumber,
+    // ПК своей сборки собираемого типа может прийти со сборкой-шаблоном и
+    // деталями. Без них — обычное устройство, как раньше.
+    const rawParts = req.body.parts;
+    const withParts = Array.isArray(rawParts)
+      ? rawParts.length > 0
+      : rawParts != null;
+    let parts = [];
+    if (payload.buildId || withParts) {
+      const assembly = await validateAssembly(payload);
+      if (assembly.error) return next(assembly.error);
+      const prepared = await prepareParts(rawParts, assembly.slots);
+      if (prepared.error) return next(prepared.error);
+      parts = prepared.parts;
+    }
+
+    // Записи — только после всех проверок. Транзакций нет: сбой посреди
+    // записи откатывается удалением созданного по списку _id.
+    let host = null;
+    const components = [];
+    try {
+      // Инвентарный номер — первичный идентификатор актива: если не задан
+      // вручную, генерируем автоматически по префиксу типа.
+      if (!payload.inventoryNumber) {
+        payload.inventoryNumber = await generateInventoryNumber(deviceTypeId);
+      }
+      const clientDevice = new ClientDevice({
+        ...payload,
+        createdBy: req.userId,
       });
-      if (invExists) {
-        return next(
-          new AppError(
-            `Устройство с инвентарным номером ${payload.inventoryNumber} уже существует`,
-            409,
-          ),
-        );
+      await clientDevice.save();
+      host = clientDevice;
+
+      // Номер детали — по префиксу её типа.
+      for (const part of parts) {
+        const component = new ClientDevice({
+          ...partPayload(part, host),
+          inventoryNumber: await generateInventoryNumber(part.typeId),
+          createdBy: req.userId,
+        });
+        await component.save();
+        components.push(component);
       }
+    } catch (error) {
+      await rollbackCreated(host, components);
+      throw error;
     }
-
-    // Компонент наследует компанию/расположение/пользователя от родителя.
-    if (payload.parentDeviceId) {
-      const parent = await ClientDevice.findById(payload.parentDeviceId);
-      if (!parent) {
-        return next(new AppError("Invalid parent device ID", 400));
-      }
-      payload.companyId = payload.companyId || parent.companyId;
-      payload.locationId = payload.locationId || parent.locationId;
-      payload.userId = payload.userId || parent.userId;
-    }
-
-    const company = await Company.findById(payload.companyId);
-    if (!company) {
-      return next(new AppError("Invalid company ID", 400));
-    }
-
-    // Hostname опционален и уникален в пределах компании — проверяем дубль,
-    // только если задан (companyId здесь уже разрешён, в т.ч. от родителя).
-    if (payload.hostname) {
-      const hostExists = await ClientDevice.findOne({
-        companyId: payload.companyId,
-        hostname: payload.hostname,
-      });
-      if (hostExists) {
-        return next(
-          new AppError(
-            `Устройство с именем "${payload.hostname}" уже есть в этой компании`,
-            409,
-          ),
-        );
-      }
-    }
-
-    // Назначенный пользователь должен быть из компании устройства (company у
-    // User — вложенный объект { _id, alias }; сравниваем по _id).
-    if (payload.userId) {
-      const user = await User.findById(payload.userId);
-      const userCompanyId = user?.company?._id || user?.company;
-      if (!user || userCompanyId?.toString() !== payload.companyId?.toString()) {
-        return next(
-          new AppError("Assigned user must belong to the same company", 400),
-        );
-      }
-    }
-
-    // Устройство задаётся либо моделью (заводская сборка), либо напрямую типом
-    // (самосборное). Тип нужен и для префикса инвентарного номера.
-    let deviceTypeId;
-    if (payload.deviceModelId) {
-      const deviceModel = await DeviceModel.findById(payload.deviceModelId);
-      if (!deviceModel) {
-        return next(new AppError("Invalid device model ID", 400));
-      }
-      deviceTypeId = deviceModel.deviceTypeId;
-    } else if (payload.deviceTypeId) {
-      const deviceType = await DeviceType.findById(payload.deviceTypeId);
-      if (!deviceType) {
-        return next(new AppError("Invalid device type ID", 400));
-      }
-      deviceTypeId = payload.deviceTypeId;
-    } else {
-      return next(new AppError("Укажите модель или тип устройства", 400));
-    }
-
-    // Инвентарный номер — первичный идентификатор актива: если не задан вручную,
-    // генерируем автоматически по префиксу типа.
-    if (!payload.inventoryNumber) {
-      payload.inventoryNumber = await generateInventoryNumber(deviceTypeId);
-    }
-
-    const clientDevice = new ClientDevice({
-      ...payload,
-      createdBy: req.userId,
-    });
-
-    await clientDevice.save();
 
     res.status(201).json({
       message: "Новое устройство успешно добавлено",
-      clientDevice,
+      clientDevice: host,
+      components,
     });
   } catch (error) {
     next(duplicateError(error) || new AppError("Failed to add device", 500, true, error));
@@ -1104,6 +1438,32 @@ exports.update = async (req, res, next) => {
       if (!deviceModel) {
         return next(new AppError("Invalid device model ID", 400));
       }
+    }
+
+    // Сборка-шаблон: присланная — проверяется как при создании; не присланная
+    // остаётся прежней (форма правки её может не знать). Заводское устройство
+    // или смена типа сборку снимают: она бывает только у своей сборки типа.
+    if (!("buildId" in req.body)) {
+      payload.buildId =
+        payload.deviceModelId ||
+        String(payload.deviceTypeId ?? "") !== String(device.deviceTypeId ?? "")
+          ? null
+          : device.buildId;
+    } else if (payload.buildId) {
+      // Прежняя сборка не перепроверяется: её могли удалить после создания ПК.
+      if (String(payload.buildId) !== String(device.buildId ?? "")) {
+        const assembly = await validateAssembly(payload);
+        if (assembly.error) return next(assembly.error);
+      }
+    } else {
+      payload.buildId = null;
+    }
+
+    // Связь с хозяином сборки: форма правки её не присылает — тогда остаётся
+    // прежней (иначе правка детали открепила бы её). Снимает связь
+    // detachComponent; явный ключ в теле применяется как есть.
+    if (!("parentDeviceId" in req.body)) {
+      payload.parentDeviceId = device.parentDeviceId;
     }
 
     Object.assign(device, payload, { updatedBy: req.userId });
@@ -1364,10 +1724,29 @@ const devicePhotos = createPhotoHandlers({
 exports.addPhotos = devicePhotos.addPhotos;
 exports.deletePhoto = devicePhotos.deletePhoto;
 
+// «1 деталь», «3 детали», «5 деталей».
+const partsWord = (n) => {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return `${n} деталь`;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return `${n} детали`;
+  return `${n} деталей`;
+};
+
 exports.delete = async (req, res, next) => {
   try {
     const device = await ClientDevice.findById(req.params.id);
     if (device) {
+      // ПК с деталями не удаляем: каскада нет, детали сперва открепляют.
+      const parts = await ClientDevice.countDocuments({
+        parentDeviceId: device._id,
+        deletedAt: null,
+      });
+      if (parts > 0) {
+        return next(
+          new AppError(`Сначала открепите детали: ${partsWord(parts)}`, 409),
+        );
+      }
       await ClientDevice.deleteOne({ _id: req.params.id });
       // Снимки живут только вместе с устройством — чистим бакет.
       await deleteAllPhotos(device);

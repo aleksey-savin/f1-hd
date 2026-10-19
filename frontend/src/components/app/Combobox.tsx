@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import {
+  RiAddLine,
   RiArrowDownSLine,
   RiCheckLine,
   RiCloseLine,
@@ -157,6 +158,9 @@ const groupOptions = (options: ComboboxOption[]) => {
   return groups;
 };
 
+// Поиск без учёта регистра — для режима с созданием, где фильтруем сами
+const norm = (text: string) => text.trim().toLocaleLowerCase("ru");
+
 /**
  * Выпадающий список с поиском — ПОЛЕ ФОРМЫ (в отличие от app/ChipCombobox,
  * который рисует чип для строки инструментов). Единственный селект приложения.
@@ -183,6 +187,8 @@ const Combobox = ({
   name,
   ariaLabel,
   leading,
+  onCreate,
+  createLabel = (query) => `Создать «${query}»`,
   className,
 }: {
   id?: string;
@@ -210,21 +216,54 @@ const Combobox = ({
    * диалог»). Список опций он не меняет.
    */
   leading?: ReactNode;
+  /**
+   * Создание значения из поиска («Новая группа «…»»): при непустом запросе без
+   * точного совпадения подписи в конце списка встаёт пункт `createLabel`.
+   * Выбор зовёт `onCreate(запрос)`; выбрать созданное — забота владельца.
+   */
+  onCreate?: (query: string) => void;
+  createLabel?: (query: string) => string;
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const inOverlay = useInOverlay(triggerRef);
   useKeepTriggerInView(open, triggerRef);
   const selected = options.find((option) => option.value === value) ?? null;
 
-  const pick = (next: string | null) => {
-    onChange(next);
-    setOpen(false);
+  // Закрытое меню забывает запрос — как раньше, когда поиск жил в cmdk
+  const toggleOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) setQuery("");
   };
 
+  const pick = (next: string | null) => {
+    onChange(next);
+    toggleOpen(false);
+  };
+
+  // С созданием фильтруем сами: cmdk переставляет найденные группы в конец
+  // списка, и пункт создания оказался бы первым. Без onCreate всё как было.
+  const q = norm(query);
+  const creating = !!onCreate;
+  const shown =
+    creating && q
+      ? options.filter((option) =>
+          norm(`${option.label} ${option.hint ?? ""}`).includes(q),
+        )
+      : options;
+  const showClear =
+    clearable && (!creating || !q || norm(clearLabel).includes(q));
+  const showCreate =
+    creating &&
+    !!q &&
+    !options.some((option) => norm(option.label) === q) &&
+    !(clearable && norm(clearLabel) === q);
+  const showEmpty = creating && !shown.length && !showClear && !showCreate;
+
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={inOverlay}>
+    <Popover open={open} onOpenChange={toggleOpen} modal={inOverlay}>
       {/* relative — якорь для скрытого спутника required */}
       <div className="relative">
         {required && (
@@ -284,11 +323,22 @@ const Combobox = ({
         collisionPadding={MENU_EDGE_GAP}
         className="w-(--radix-popover-trigger-width) p-0"
       >
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+        <Command shouldFilter={!creating}>
+          <CommandInput
+            placeholder={searchPlaceholder}
+            {...(creating ? { value: query, onValueChange: setQuery } : {})}
+          />
           <CommandList>
-            <CommandEmpty>{loading ? loadingText : emptyText}</CommandEmpty>
-            {clearable && (
+            {/* Без фильтра cmdk пустоту не считает — с созданием рисуем сами */}
+            {!creating && (
+              <CommandEmpty>{loading ? loadingText : emptyText}</CommandEmpty>
+            )}
+            {showEmpty && (
+              <div className="py-6 text-center text-sm">
+                {loading ? loadingText : emptyText}
+              </div>
+            )}
+            {showClear && (
               <CommandGroup>
                 <CommandItem value={clearLabel} onSelect={() => pick(null)}>
                   <span className="flex-1 text-muted-foreground">
@@ -298,7 +348,7 @@ const Combobox = ({
                 </CommandItem>
               </CommandGroup>
             )}
-            {groupOptions(options).map((group) => (
+            {groupOptions(shown).map((group) => (
               <CommandGroup key={group.key} heading={group.heading}>
                 {group.items.map((option) => (
                   <CommandItem
@@ -330,6 +380,23 @@ const Combobox = ({
                 ))}
               </CommandGroup>
             ))}
+            {showCreate && onCreate && (
+              <CommandGroup className="border-t border-border-soft">
+                <CommandItem
+                  value={`create:${query}`}
+                  onSelect={() => {
+                    onCreate(query.trim());
+                    toggleOpen(false);
+                  }}
+                  className="font-semibold text-accent-text data-[selected=true]:text-accent-text"
+                >
+                  <RiAddLine className="flex-none text-accent-text" size={16} />
+                  <span className="min-w-0 flex-1 truncate">
+                    {createLabel(query.trim())}
+                  </span>
+                </CommandItem>
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

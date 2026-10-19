@@ -50,6 +50,8 @@ const deviceConfigurationRoutes = require("./internal/inventory/deviceConfigurat
 const deviceModelRoutes = require("./internal/inventory/deviceModel");
 const deviceTypeRoutes = require("./internal/inventory/deviceType");
 const deviceTypeAttributeRoutes = require("./internal/inventory/deviceTypeAttribute");
+const attributeGroupRoutes = require("./internal/inventory/attributeGroup");
+const deviceBuildRoutes = require("./internal/inventory/deviceBuild");
 const locationRoutes = require("./internal/inventory/location");
 const mikrotikRoutes = require("./internal/inventory/mikrotik");
 const supplierRoutes = require("./internal/inventory/supplier");
@@ -201,6 +203,8 @@ mountInventory(
     deviceModelRoutes,
     deviceTypeRoutes,
     deviceTypeAttributeRoutes,
+    attributeGroupRoutes,
+    deviceBuildRoutes,
     locationRoutes,
     mikrotikRoutes,
     supplierRoutes,

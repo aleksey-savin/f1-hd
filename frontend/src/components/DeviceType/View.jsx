@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useActionData,
@@ -18,6 +12,7 @@ import {
   RiArrowRightSLine,
   RiArrowUpLine,
   RiComputerLine,
+  RiCpuLine,
   RiDeleteBinLine,
   RiDraggable,
   RiEdit2Line,
@@ -41,11 +36,19 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import { cn } from "@/lib/utils";
 
 import { photoUrl } from "@/components/app/PhotoGallery";
+import { groupLinks } from "@/components/app/spec-sheet";
+import { keySpecsLine, liveAssembly } from "@/components/app/assembly-specs";
 import { valueTypeLabel } from "../DeviceAttribute/value-types";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import useToastStore from "../../store/toast-store";
 import { useCan } from "@/store/authed-user";
+import {
+  dropLineClass,
+  moveItem,
+  useDragReorder,
+  useFlipRows,
+} from "@/hooks/use-drag-reorder";
 
 const dash = <span className="text-faint">—</span>;
 const fmtDate = (value) => (value ? formatShortDate(value) : null);
@@ -64,8 +67,8 @@ const Detail = ({ label, children, className }) => (
   </div>
 );
 
-// «⋯» действия атрибута: Изменить (форма-шторка) · Выше/Ниже (порядок) ·
-// Удалить. Диалог удаления — ВНЕ radix-меню (меню размонтирует содержимое при
+// «⋯» действия атрибута: Изменить (форма-шторка) · Выше/Ниже (порядок внутри
+// группы: index/count — позиция в группе) · Удалить. Диалог удаления — ВНЕ radix-меню (меню размонтирует содержимое при
 // закрытии), открывается состоянием. Ср. ConfigActions у карточки модели.
 const AttrActions = ({ link, label, index, count, onMove }) => {
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -159,7 +162,65 @@ const ModelRow = ({ model, from }) => {
   );
 };
 
-const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
+// «Своя сборка»: чип ключевой характеристики — «Тип · что[, как]». Первое
+// значение — способ по умолчанию, его не подписываем.
+const AGGREGATE_LABELS = { sum: "сумма", list: "список" };
+// Название атрибута со строчной — «объём модуля»; аббревиатуры (DDR, TDP) и
+// названия вроде «M.2 …» (второй знак — не буква) не трогаем
+const lowerFirst = (text) =>
+  text.length > 1 &&
+  /\p{L}/u.test(text[1]) &&
+  text[1] === text[1].toLocaleLowerCase("ru")
+    ? text[0].toLocaleLowerCase("ru") + text.slice(1)
+    : text;
+const keySpecWhat = (spec) => {
+  const what =
+    spec.source === "model"
+      ? "модель"
+      : spec.attributeId?.name
+        ? lowerFirst(spec.attributeId.name)
+        : "атрибут удалён";
+  const how = AGGREGATE_LABELS[spec.aggregate];
+  return how ? `${what}, ${how}` : what;
+};
+
+const Pill = ({ muted, children }) => (
+  <span
+    className={cn(
+      "flex-none rounded-full px-2 py-0.5 text-xs font-semibold",
+      muted ? "bg-accent text-muted-foreground" : "bg-primary/15 text-accent-text",
+    )}
+  >
+    {children}
+  </span>
+);
+
+// Строка сборки: название · ключевые характеристики · переход на карточку
+const BuildRow = ({ build, keySpecs, slots, from }) => {
+  const fromState = useCrumbFrom(from);
+  const line = keySpecsLine(keySpecs, build.parts || [], slots);
+  return (
+    <Link
+      to={`/inventory/device-builds/${build._id}`}
+      state={fromState}
+      className="group relative flex items-center gap-3 px-4 py-2.5 text-inherit no-underline transition-colors hover:bg-accent before:absolute before:top-0 before:right-4 before:left-4 before:h-px before:bg-border-soft first:before:hidden"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-base font-medium">
+          {build.name || "Без названия"}
+        </div>
+        {line && (
+          <div className="truncate text-sm text-muted-foreground tabular-nums">
+            {line}
+          </div>
+        )}
+      </div>
+      <RiArrowRightSLine aria-hidden className="flex-none text-faint" />
+    </Link>
+  );
+};
+
+const ViewDeviceType = ({ deviceType = {}, models = [], builds = [] }) => {
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const reorderFetcher = useFetcher();
@@ -195,7 +256,15 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
     inventoryPrefix,
     attachableToTypeIds = [],
     attributes = [],
+    assembly,
   } = deviceType;
+
+  // «Своя сборка» — секции карточки только у включённой. Слоты/характеристики
+  // с удалённым типом (populate → null) не показываем и в сводку не берём.
+  const assemblyEnabled = !!assembly?.enabled;
+  const { slots, keySpecs } = liveAssembly(assembly);
+  // Без слотов сборку не из чего собрать — «Новая сборка» не показываем
+  const canAddBuild = canManage && slots.length > 0;
 
   const kinds =
     [
@@ -216,6 +285,14 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
   const [items, setItems] = useState(ordered);
   useEffect(() => setItems(ordered), [ordered]);
 
+  // Группы в порядке показа: по order группы, «Без группы» последней. Строки
+  // внутри — по order связки, поэтому оптимистичный порядок ниже переписывает
+  // order у локальных строк. Порядок групп общий для всех типов, здесь его не
+  // меняют: перестановки — только внутри группы.
+  const groups = useMemo(() => groupLinks(items, "Без группы"), [items]);
+  // Подзаголовки — когда есть хоть одна группа; без групп список как прежде
+  const showGroupHeads = groups.some((group) => group.key !== "other");
+
   // Только что добавленные (шторка «Добавить атрибуты») подсвечиваются
   // row-appear: новые id в свежих данных лоадера против прошлых. Анимация
   // однократная — класс можно не снимать.
@@ -230,7 +307,14 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
     knownIds.current = new Set(ids);
   }, [ordered]);
 
-  const submitOrder = (nextItems) => {
+  // orderedIds — весь список в порядке показа (группа за группой); order =
+  // позиция в нём, как и на сервере
+  const submitOrder = (groupKey, groupLinksNext) => {
+    const nextItems = groups
+      .flatMap((group) =>
+        group.key === groupKey ? groupLinksNext : group.links,
+      )
+      .map((it, order) => ({ ...it, order }));
     setItems(nextItems);
     reorderFetcher.submit(
       {
@@ -241,86 +325,25 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
     );
   };
 
-  const onMove = (index, dir) => {
+  // «Выше/Ниже» из «⋯» — тач и клавиатура, где перетаскивания нет
+  const onMove = (groupKey) => (index, dir) => {
+    const links = groups.find((group) => group.key === groupKey)?.links;
+    if (!links) return;
     const target = index + dir;
-    if (target < 0 || target >= items.length) return;
-    const next = [...items];
-    [next[index], next[target]] = [next[target], next[index]];
-    submitOrder(next);
+    if (target < 0 || target >= links.length) return;
+    submitOrder(groupKey, moveItem(links, index, target));
   };
 
-  // Перетаскивание (десктоп): порядок применяется на сбросе; на тач-устройствах
-  // порядок меняют «Выше/Ниже». Плавность даёт FLIP-анимация ниже.
-  const dragIndex = useRef(null);
-  const [draggingId, setDraggingId] = useState(null);
-  const [overId, setOverId] = useState(null);
-
-  const onDragStart = (index, id) => (event) => {
-    dragIndex.current = index;
-    setDraggingId(id);
-    event.dataTransfer.effectAllowed = "move";
-    // Firefox не инициирует drag без данных в dataTransfer
-    try {
-      event.dataTransfer.setData("text/plain", id);
-    } catch {
-      /* некоторые окружения запрещают setData — не критично */
-    }
-  };
-  const clearDrag = () => {
-    dragIndex.current = null;
-    setDraggingId(null);
-    setOverId(null);
-  };
-  // Гард на dragIndex.current (ref обновляется синхронно) — не зависит от того,
-  // успел ли React перерисоваться после dragstart, и исключает саму строку.
-  const onDragEnter = (index, id) => () => {
-    if (dragIndex.current !== null && index !== dragIndex.current)
-      setOverId(id);
-  };
-  const onDrop = (index) => (event) => {
-    event.preventDefault();
-    const from = dragIndex.current;
-    clearDrag();
-    if (from === null || from === index) return;
-    const next = [...items];
-    const [moved] = next.splice(from, 1);
-    next.splice(index, 0, moved);
-    submitOrder(next);
-  };
-
-  // FLIP: строки плавно «доезжают» до новых позиций при любой смене порядка
-  // (drag-drop и «Выше/Ниже») и при удалении соседних. offsetTop берём как
-  // раскладочную позицию — она не зависит от самого transform, поэтому частые
-  // пересортировки не сбивают замер. Уважаем prefers-reduced-motion.
-  const rowRefs = useRef(new Map());
-  const prevTops = useRef(new Map());
-  const reduceMotion = useRef(false);
-  useEffect(() => {
-    reduceMotion.current =
-      typeof window !== "undefined" &&
-      !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  }, []);
-  useLayoutEffect(() => {
-    for (const [id, node] of rowRefs.current) {
-      const top = node.offsetTop;
-      const prev = prevTops.current.get(id);
-      if (prev != null && !reduceMotion.current) {
-        const dy = prev - top;
-        if (dy) {
-          node.style.transition = "none";
-          node.style.transform = `translateY(${dy}px)`;
-          node.getBoundingClientRect(); // reflow с инвертированным сдвигом
-          node.style.transition = "transform 220ms cubic-bezier(0.2, 0, 0, 1)";
-          node.style.transform = "";
-        }
-      }
-      prevTops.current.set(id, top);
-    }
-    // подчищаем исчезнувшие строки, чтобы карта не росла
-    for (const id of prevTops.current.keys()) {
-      if (!rowRefs.current.has(id)) prevTops.current.delete(id);
-    }
-  }, [items]);
+  // Перетаскивание (десктоп): порядок применяется на сбросе; корзина — группа,
+  // бросок в чужую игнорируется: группу меняют в «⋯ → Изменить». Плавность
+  // даёт FLIP (useFlipRows).
+  const drag = useDragReorder({
+    onMove: (groupKey, from, to) => {
+      const links = groups.find((group) => group.key === groupKey)?.links;
+      if (links) submitOrder(groupKey, moveItem(links, from, to));
+    },
+  });
+  const rowRef = useFlipRows(items);
 
   // Опции чипа «Производитель» — уникальные вендоры среди моделей типа
   const vendorOptions = useMemo(() => {
@@ -419,6 +442,13 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
               {plural(attrCount, "атрибут", "атрибута", "атрибутов")} {sep}{" "}
               {bold(models.length)}{" "}
               {plural(models.length, "модель", "модели", "моделей")}
+              {assemblyEnabled && (
+                <>
+                  {" "}
+                  {sep} {bold(builds.length)}{" "}
+                  {plural(builds.length, "сборка", "сборки", "сборок")}
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -525,85 +555,250 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
           </div>
         </Panel>
       ) : (
-        <Panel>
-          {items.map((link, index) => {
-            const meta =
-              typeof link.attributeId === "object" ? link.attributeId : null;
-            const selectType =
-              meta?.valueType === "select" || meta?.valueType === "multiselect";
-            const options = selectType ? meta?.options || [] : [];
-            return (
-              <div
-                key={link._id}
-                ref={(el) => {
-                  if (el) rowRefs.current.set(link._id, el);
-                  else rowRefs.current.delete(link._id);
-                }}
-                draggable={canManage}
-                onDragStart={onDragStart(index, link._id)}
-                onDragEnter={onDragEnter(index, link._id)}
-                onDragEnd={clearDrag}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={onDrop(index)}
-                className={cn(
-                  "relative flex items-center gap-3 border-b border-border-soft py-3 last:border-b-0",
-                  freshIds.has(String(link._id)) && "row-appear",
-                  draggingId === link._id && "opacity-50",
-                  // индикатор места вставки — акцентная линия по верху строки
-                  overId === link._id &&
-                    "before:absolute before:inset-x-0 before:-top-px before:z-10 before:h-0.5 before:rounded-full before:bg-primary",
-                )}
-              >
-                {canManage && (
-                  <RiDraggable
-                    aria-hidden
-                    className="flex-none cursor-grab text-faint"
-                  />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">
-                    {meta?.name || "Атрибут"}
-                    {meta?.unit && (
-                      <span className="font-normal text-faint">
-                        {" "}
-                        ({meta.unit})
+        // Одна панель, группы — подзаголовками внутри (имя · счётчик)
+        <section className="overflow-hidden rounded-xl border border-border bg-card">
+          {groups.map((group) => (
+            <div
+              key={group.key}
+              className="border-t border-border first:border-t-0"
+            >
+              {showGroupHeads && (
+                <div className="flex items-center gap-2 px-4 pt-2.5 pb-1 text-sm font-semibold text-muted-foreground">
+                  {group.name}
+                  <span className="font-medium text-faint tabular-nums">
+                    · {group.links.length}
+                  </span>
+                </div>
+              )}
+              {group.links.map((link, index) => {
+                const meta =
+                  typeof link.attributeId === "object"
+                    ? link.attributeId
+                    : null;
+                const selectType =
+                  meta?.valueType === "select" ||
+                  meta?.valueType === "multiselect";
+                const options = selectType ? meta?.options || [] : [];
+                return (
+                  <div
+                    key={link._id}
+                    ref={rowRef(link._id)}
+                    {...(canManage
+                      ? drag.rowProps(group.key, index, link._id)
+                      : {})}
+                    className={cn(
+                      "relative flex items-center gap-3 px-4 py-2.5",
+                      // разделитель — между строками группы, не под заголовком
+                      index > 0 && "border-t border-border-soft",
+                      freshIds.has(String(link._id)) && "row-appear",
+                      drag.draggingId === link._id && "opacity-50",
+                      // индикатор места вставки — акцентная линия там, куда
+                      // строка ляжет
+                      dropLineClass(drag.indicator(link._id)),
+                    )}
+                  >
+                    {canManage && (
+                      <RiDraggable
+                        aria-hidden
+                        className="flex-none cursor-grab text-faint"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">
+                        {meta?.name || "Атрибут"}
+                        {meta?.unit && (
+                          <span className="font-normal text-faint">
+                            {" "}
+                            ({meta.unit})
+                          </span>
+                        )}
+                      </div>
+                      {options.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {options.map((option) => (
+                            <span
+                              key={option.value}
+                              className="rounded-md bg-accent px-1.5 py-px text-xs text-muted-foreground"
+                            >
+                              {option.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* На телефоне тип значения прячем — как в макете */}
+                    <span className="hidden flex-none text-sm text-muted-foreground sm:inline">
+                      {valueTypeLabel(meta?.valueType)}
+                    </span>
+                    {link.required && (
+                      <span className="flex-none rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-accent-text">
+                        обязательный
                       </span>
                     )}
+                    {canManage && (
+                      <AttrActions
+                        link={link}
+                        label={meta?.name || "Атрибут"}
+                        index={index}
+                        count={group.links.length}
+                        onMove={onMove(group.key)}
+                      />
+                    )}
                   </div>
-                  {options.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {options.map((option) => (
-                        <span
-                          key={option.value}
-                          className="rounded-md bg-accent px-1.5 py-0.5 text-xs text-muted-foreground"
-                        >
-                          {option.label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className="flex-none text-sm text-muted-foreground">
-                  {valueTypeLabel(meta?.valueType)}
-                </span>
-                {link.required && (
-                  <span className="flex-none rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-accent-text">
-                    обязательный
-                  </span>
+                );
+              })}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* «Своя сборка» — из каких комплектующих собирается ПК и чем он
+          описывается в списках (макет «Своя сборка ПК», разд. 1) */}
+      {assemblyEnabled && (
+        <>
+          <Eyebrow
+            action={
+              canManage ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link to="assembly">
+                    <RiEdit2Line /> Изменить
+                  </Link>
+                </Button>
+              ) : null
+            }
+          >
+            Своя сборка
+            {slots.length > 0 && (
+              <span className="font-semibold tracking-normal tabular-nums">
+                · {slots.length}{" "}
+                {plural(
+                  slots.length,
+                  "комплектующая",
+                  "комплектующие",
+                  "комплектующих",
                 )}
+              </span>
+            )}
+          </Eyebrow>
+
+          {slots.length === 0 ? (
+            <Panel>
+              <div className="flex flex-col items-center gap-2 px-6 py-8 text-center">
+                <RiCpuLine size={40} aria-hidden className="mb-1 text-faint" />
+                <div className="text-base font-semibold">
+                  Комплектующие не заданы
+                </div>
+                <p className="my-0 max-w-md text-sm text-muted-foreground">
+                  Задайте слоты — типы комплектующих, из которых собирается
+                  устройство, и его ключевые характеристики.
+                </p>
                 {canManage && (
-                  <AttrActions
-                    link={link}
-                    label={meta?.name || "Атрибут"}
-                    index={index}
-                    count={items.length}
-                    onMove={onMove}
-                  />
+                  <Button asChild className="mt-2">
+                    <Link to="assembly">
+                      <RiEdit2Line /> Изменить
+                    </Link>
+                  </Button>
                 )}
               </div>
-            );
-          })}
-        </Panel>
+            </Panel>
+          ) : (
+            <section className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="px-4 pt-2.5 pb-1 text-sm font-semibold text-muted-foreground">
+                Комплектующие
+              </div>
+              {slots.map((slot) => (
+                <div
+                  key={slot.typeId._id}
+                  className="flex items-center gap-3 border-t border-border-soft px-4 py-2.5"
+                >
+                  <span className="min-w-0 flex-1 text-sm font-medium">
+                    {slot.typeId.name}
+                  </span>
+                  {slot.multiple && <Pill muted>несколько</Pill>}
+                  {slot.required && <Pill>обязательная</Pill>}
+                </div>
+              ))}
+              <div className="border-t border-border px-4 pt-2.5 pb-1 text-sm font-semibold text-muted-foreground">
+                Ключевые характеристики
+              </div>
+              {keySpecs.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 px-4 pt-1.5 pb-3.5">
+                  {keySpecs.map((spec, index) => (
+                    <span
+                      key={`${spec.typeId._id}:${spec.source}:${spec.attributeId?._id ?? ""}:${index}`}
+                      className="rounded-full bg-accent px-2.5 py-0.5 text-sm"
+                    >
+                      {spec.typeId.name}{" "}
+                      <span className="text-muted-foreground">
+                        · {keySpecWhat(spec)}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 pt-1.5 pb-3.5 text-sm text-muted-foreground">
+                  Не заданы.
+                </div>
+              )}
+              <div className="px-4 pb-3 text-sm text-muted-foreground">
+                Так ПК своей сборки описывается в строке списка и в шапке
+                карточки.
+              </div>
+            </section>
+          )}
+
+          {/* Сборки — шаблоны своей сборки; в строке ключевые характеристики */}
+          <Eyebrow
+            count={builds.length > 0 ? builds.length : undefined}
+            action={
+              canAddBuild ? (
+                <Button asChild size="sm">
+                  <Link to="builds/add">
+                    <RiAddFill /> Новая сборка
+                  </Link>
+                </Button>
+              ) : null
+            }
+          >
+            Сборки
+          </Eyebrow>
+
+          {builds.length === 0 ? (
+            <Panel>
+              <div className="flex flex-col items-center gap-2 px-6 py-8 text-center">
+                <RiComputerLine
+                  size={40}
+                  aria-hidden
+                  className="mb-1 text-faint"
+                />
+                <div className="text-base font-semibold">Сборок пока нет</div>
+                <p className="my-0 max-w-md text-sm text-muted-foreground">
+                  Сборка — набор комплектующих по слотам, из которого потом
+                  создаются устройства.
+                </p>
+                {canAddBuild && (
+                  <Button asChild className="mt-2">
+                    <Link to="builds/add">
+                      <RiAddFill /> Новая сборка
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            </Panel>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border bg-card py-1.5">
+              {builds.map((build) => (
+                <BuildRow
+                  key={build._id}
+                  build={build}
+                  keySpecs={keySpecs}
+                  slots={slots}
+                  from={name}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Модели устройств этого типа */}

@@ -30,6 +30,13 @@ router.put(
   deviceTypeController.update,
 );
 
+router.put(
+  "/device-types/:id/assembly",
+  isAuth,
+  canManageInventoryCatalog,
+  deviceTypeController.updateAssembly,
+);
+
 router.post(
   "/device-types/delete/:id",
   isAuth,

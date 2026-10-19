@@ -12,7 +12,6 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test \"auth/**/*.test.js\" \"controllers/**/*.test.js\" \"helpers/**/*.test.js\" \"middleware/**/*.test.js\" \"models/**/*.test.js\" \"prompts/**/*.test.js\" \"routes/**/*.test.js\" \"scripts/**/*.test.js\" \"services/**/*.test.js\" \"utils/**/*.test.js\" \"validations/**/*.test.js\"",
     "lint": "eslint .",
-    "init:inventory": "node scripts/initializeInventoryData.js",
     "seed:mikrotik-models": "node scripts/seedMikrotikModels.js",
     "repair:mikrotik-state": "node scripts/repairMikrotikMonitoringState.js"
   },

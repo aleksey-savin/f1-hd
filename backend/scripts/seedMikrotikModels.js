@@ -4,11 +4,50 @@ const DeviceType = require("../models/inventory/deviceType");
 const DeviceModel = require("../models/inventory/deviceModel");
 const DeviceConfiguration = require("../models/inventory/deviceConfiguration");
 const DeviceAttribute = require("../models/inventory/deviceAttribute");
-const {
-  initialDeviceAttributes,
-  MIKROTIK_VENDOR_NAME,
-  MANUFACTURE_YEAR_CODE,
-} = require("./initializeInventoryData");
+// Каноничное имя вендора MikroTik.
+const MIKROTIK_VENDOR_NAME = "MikroTik";
+
+// Код атрибута «Год выпуска».
+const MANUFACTURE_YEAR_CODE = "manufactureyear";
+
+// Определения нужных атрибутов — на случай, если в базе их ещё нет. Коды
+// `portspeed` и `operatingsystem` общие с каталожным сидом
+// (scripts/seeds/2026-10-19-inventoryCatalog.js), и для общих кодов главный —
+// он: здесь атрибут ищется по коду или имени, а не создаётся заново. Если
+// каталожный сид прошёл первым, `operatingsystem` — строковый атрибут, и
+// значения ("routeros") хранятся как написаны, без подписей вариантов.
+const ATTRIBUTE_DEFINITIONS = [
+  { code: MANUFACTURE_YEAR_CODE, name: "Год выпуска", valueType: "number" },
+  { code: "portcount", name: "Количество портов", valueType: "number" },
+  {
+    code: "portspeed",
+    name: "Скорость портов",
+    valueType: "select",
+    unit: "Гбит/с",
+    options: [
+      { value: "1", label: "1 Гбит/с" },
+      { value: "2.5", label: "2.5 Гбит/с" },
+      { value: "10", label: "10 Гбит/с" },
+      { value: "25", label: "25 Гбит/с" },
+      { value: "40", label: "40 Гбит/с" },
+      { value: "100", label: "100 Гбит/с" },
+    ],
+  },
+  { code: "poesupport", name: "Поддержка PoE", valueType: "boolean" },
+  {
+    code: "operatingsystem",
+    name: "Операционная система",
+    valueType: "select",
+    options: [
+      { value: "ios", label: "iOS" },
+      { value: "android", label: "Android" },
+      { value: "windows", label: "Windows" },
+      { value: "macos", label: "macOS" },
+      { value: "linux", label: "Linux" },
+      { value: "routeros", label: "RouterOS" },
+    ],
+  },
+];
 
 // Категория модели → имя типа устройства. Имена типов совпадают строкой с
 // DEVICE_KIND_PATTERNS в models/mikrotik.js — иначе авто-классификация не сойдётся.
@@ -158,19 +197,19 @@ async function ensureTypes() {
   return typeMap;
 }
 
-// findOne-or-create для нужных атрибутов. Определения берём из initializeInventoryData
-// (единый источник), чтобы не дублировать опции. Возвращает Map code → _id.
+// findOne-or-create для нужных атрибутов. Возвращает Map code → _id.
 async function ensureAttributes() {
   const attrMap = new Map();
   for (const code of NEEDED_ATTR_CODES) {
     const def =
-      initialDeviceAttributes.find((a) => a.code === code) || {
+      ATTRIBUTE_DEFINITIONS.find((a) => a.code === code) || {
         code,
         name: code,
         valueType: "string",
       };
-    // По code ИЛИ name — см. пояснение в initializeInventoryData (устаревший
-    // unique-индекс name_1 на существующих БД). Записи не модифицируем.
+    // По code ИЛИ name: на существующих БД висит устаревший unique-индекс
+    // name_1, совпадение только по коду упустило бы запись с тем же именем.
+    // Записи не модифицируем.
     let attr = await DeviceAttribute.findOne({
       $or: [{ code }, { name: def.name }],
     });

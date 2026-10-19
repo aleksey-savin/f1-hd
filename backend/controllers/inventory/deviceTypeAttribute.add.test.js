@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const mongoose = require("mongoose");
 mongoose.set("bufferCommands", false);
 
-const { parseAddItems } = require("./deviceTypeAttribute");
+const { parseAddItems, parseGroupId } = require("./deviceTypeAttribute");
 
 const ID_A = "6a28ed8f6d333b3a785274e2";
 const ID_B = "6a28ed8f6d333b3a785274e3";
@@ -81,4 +81,16 @@ test("не-списочный тип: присланные варианты от
     { attribute: { name: "Гарантия", valueType: "number", options: ["1"] } },
   ]);
   assert.deepEqual(entries[0].attribute.options, []);
+});
+
+test("parseGroupId: undefined — не менять, null и пустая строка — снять", () => {
+  assert.deepEqual(parseGroupId(undefined), { groupId: undefined });
+  assert.deepEqual(parseGroupId(null), { groupId: null });
+  assert.deepEqual(parseGroupId(""), { groupId: null });
+});
+
+test("parseGroupId: валидный id — строкой, мусор — ошибка", () => {
+  assert.deepEqual(parseGroupId(ID_A), { groupId: ID_A });
+  assert.ok(parseGroupId("nope").error);
+  assert.ok(parseGroupId(123).error);
 });

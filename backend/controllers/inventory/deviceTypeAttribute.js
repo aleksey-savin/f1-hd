@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
 const DeviceType = require("@/models/inventory/deviceType");
 const DeviceAttribute = require("@/models/inventory/deviceAttribute");
+const AttributeGroup = require("@/models/inventory/attributeGroup");
 const { AppError } = require("@/middleware/errorHandling");
 const { uniqueAttributeCode } = require("@/services/attributeCode");
 
@@ -13,6 +14,22 @@ const VALUE_TYPES = DeviceAttribute.schema.path("valueType").enumValues;
 const SELECT_TYPES = ["select", "multiselect"];
 const MAX_ITEMS = 100;
 
+// Группа на связке всегда приходит populated: имя и порядок нужны, чтобы
+// сгруппировать список без второго запроса.
+const GROUP_FIELDS = "name order";
+
+// Разбор groupId из тела: undefined — не менять, null/"" — снять группу,
+// ObjectId (строкой) — назначить; всё остальное — ошибка.
+exports.parseGroupId = (raw) => {
+  if (raw === undefined) return { groupId: undefined };
+  if (raw === null || raw === "") return { groupId: null };
+  const id = typeof raw === "string" ? raw : String(raw?._id ?? "");
+  if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+    return { error: "Неверный идентификатор группы" };
+  }
+  return { groupId: id };
+};
+
 // GET /device-type-attributes/type/:id — связки атрибутов типа (для ревалидации
 // карточки). Тот же populate+sort, что и в deviceType.getOne.
 exports.getByDeviceTypeId = async (req, res, next) => {
@@ -21,6 +38,7 @@ exports.getByDeviceTypeId = async (req, res, next) => {
       deviceTypeId: req.params.id,
     })
       .populate("attributeId", ATTRIBUTE_FIELDS)
+      .populate("groupId", GROUP_FIELDS)
       .sort({ order: 1, createdAt: 1 });
 
     res.status(200).json(attributes);
@@ -36,6 +54,7 @@ exports.getOne = async (req, res, next) => {
   try {
     const attribute = await DeviceTypeAttribute.findById(req.params.id)
       .populate("attributeId", ATTRIBUTE_FIELDS)
+      .populate("groupId", GROUP_FIELDS)
       .populate("deviceTypeId", "name");
 
     if (!attribute) {
@@ -153,9 +172,21 @@ exports.add = async (req, res, next) => {
     if (parsed.error) return next(new AppError(parsed.error, 400));
     const { entries } = parsed;
 
+    const group = exports.parseGroupId(req.body.groupId);
+    if (group.error) return next(new AppError(group.error, 400));
+
     if (!(await DeviceType.exists({ _id: deviceTypeId }))) {
       return next(
         new AppError(`Device type with id ${deviceTypeId} not found`, 404),
+      );
+    }
+
+    if (
+      group.groupId &&
+      !(await AttributeGroup.exists({ _id: group.groupId }))
+    ) {
+      return next(
+        new AppError(`Группа с id ${group.groupId} не найдена`, 404),
       );
     }
 
@@ -232,6 +263,7 @@ exports.add = async (req, res, next) => {
         const link = await DeviceTypeAttribute.create({
           deviceTypeId,
           attributeId,
+          groupId: group.groupId ?? null,
           order: order++,
           createdBy: req.userId,
         });
@@ -247,6 +279,7 @@ exports.add = async (req, res, next) => {
       _id: { $in: createdLinkIds },
     })
       .populate("attributeId", ATTRIBUTE_FIELDS)
+      .populate("groupId", GROUP_FIELDS)
       .sort({ order: 1 });
 
     res.status(201).json({
@@ -296,16 +329,27 @@ exports.update = async (req, res, next) => {
       link.attributeId = attributeId;
     }
 
+    const group = exports.parseGroupId(req.body.groupId);
+    if (group.error) return next(new AppError(group.error, 400));
+    if (
+      group.groupId &&
+      !(await AttributeGroup.exists({ _id: group.groupId }))
+    ) {
+      return next(
+        new AppError(`Группа с id ${group.groupId} не найдена`, 404),
+      );
+    }
+    if (group.groupId !== undefined) link.groupId = group.groupId;
+
     if (required !== undefined) link.required = !!required;
     if (extendable !== undefined) link.extendable = !!extendable;
     link.updatedBy = req.userId;
 
     await link.save();
 
-    const populated = await DeviceTypeAttribute.findById(link._id).populate(
-      "attributeId",
-      ATTRIBUTE_FIELDS,
-    );
+    const populated = await DeviceTypeAttribute.findById(link._id)
+      .populate("attributeId", ATTRIBUTE_FIELDS)
+      .populate("groupId", GROUP_FIELDS);
 
     res.status(200).json({
       message: "Атрибут типа обновлён",
@@ -372,6 +416,7 @@ exports.reorder = async (req, res, next) => {
 
     const attributes = await DeviceTypeAttribute.find({ deviceTypeId })
       .populate("attributeId", ATTRIBUTE_FIELDS)
+      .populate("groupId", GROUP_FIELDS)
       .sort({ order: 1, createdAt: 1 });
 
     res.status(200).json({ message: "Порядок обновлён", attributes });

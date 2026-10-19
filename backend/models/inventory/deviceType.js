@@ -42,6 +42,33 @@ const deviceTypeSchema = new Schema(
       },
     ],
     attachableToTypeIds: [{ type: Schema.Types.ObjectId, ref: "DeviceType" }],
+    // «Своя сборка» на типе: слоты (типы комплектующих) и ключевые
+    // характеристики. Действует только на устройства «Своя сборка» этого типа;
+    // порядок — порядок массивов.
+    assembly: {
+      enabled: { type: Boolean, default: false },
+      slots: [
+        {
+          _id: false,
+          typeId: { type: Schema.Types.ObjectId, ref: "DeviceType" },
+          required: { type: Boolean, default: false },
+          multiple: { type: Boolean, default: false },
+        },
+      ],
+      keySpecs: [
+        {
+          _id: false,
+          typeId: { type: Schema.Types.ObjectId, ref: "DeviceType" },
+          source: { type: String, enum: ["model", "attribute"] },
+          attributeId: {
+            type: Schema.Types.ObjectId,
+            ref: "DeviceAttribute",
+            default: null,
+          },
+          aggregate: { type: String, enum: ["first", "sum", "list"] },
+        },
+      ],
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

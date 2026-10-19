@@ -109,9 +109,67 @@ const KIND_OPTIONS = [
 ];
 
 /**
+ * «Сборка» — у своей сборки типа с комплектующими, только в создании: шаблон
+ * сборки или «Без сборки — детали вручную». Под полем — что войдёт в ПК
+ * (макет «ПК из сборки», разд. 1); детали правятся на шаге «Комплектующие».
+ */
+const BuildField = ({ build }) => {
+  const retry = build.error && (
+    <span>
+      Не удалось загрузить сборки типа.{" "}
+      <button
+        type="button"
+        onClick={build.onRetry}
+        className="cursor-pointer appearance-none border-0 bg-transparent p-0 font-semibold text-accent-text hover:underline"
+      >
+        Повторить
+      </button>
+    </span>
+  );
+  return (
+    <>
+      <Field
+        label="Сборка"
+        htmlFor="device-build"
+        // После «Далее»: пока комплектующие типа не загружены, дальше нельзя
+        error={build.issue ? retry || build.issue : undefined}
+        hint={
+          retry ? (
+            <span className="text-warning-text">{retry}</span>
+          ) : (
+            "Или «Без сборки — детали вручную». Детали можно поменять на следующем шаге."
+          )
+        }
+      >
+        <Combobox
+          id="device-build"
+          value={build.value || null}
+          options={build.options}
+          onChange={(next) => build.onChange(next || "")}
+          loading={build.loading}
+          placeholder="Выберите сборку"
+          searchPlaceholder="Найти сборку…"
+        />
+      </Field>
+      {build.summary && (
+        <div className="-mt-1 mb-4 rounded-lg border border-border bg-accent px-3 py-2.5 text-sm text-muted-foreground">
+          {build.summary.keySpecs && (
+            <b className="block font-medium text-foreground">
+              {build.summary.keySpecs}
+            </b>
+          )}
+          {build.summary.composition}
+        </div>
+      )}
+    </>
+  );
+};
+
+/**
  * «Что это»: вид сборки решает, показывать ли цепочку вендор → модель. Не
  * гасим неприменимые поля серым — убираем их совсем (гайд, «Форма
- * подстраивается под тип сущности»).
+ * подстраивается под тип сущности»). `build` — поле «Сборка» (см. BuildField),
+ * null — его нет.
  */
 export const DeviceFields = ({
   values,
@@ -122,6 +180,7 @@ export const DeviceFields = ({
   options,
   onInlineCreate,
   serialMatches,
+  build = null,
 }) => (
   <>
     <Segmented
@@ -150,6 +209,8 @@ export const DeviceFields = ({
       placeholder="Выберите тип"
       searchPlaceholder="Найти тип…"
     />
+
+    {deviceKind === "custom" && build && <BuildField build={build} />}
 
     {deviceKind === "branded" && (
       <>

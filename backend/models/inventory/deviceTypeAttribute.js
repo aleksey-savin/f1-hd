@@ -14,6 +14,12 @@ const deviceTypeAttributeSchema = new Schema(
       ref: "DeviceAttribute",
       required: true,
     },
+    // Группа атрибутов в карточке типа; null — «Без группы».
+    groupId: {
+      type: Schema.Types.ObjectId,
+      ref: "AttributeGroup",
+      default: null,
+    },
     required: {
       type: Boolean,
       default: false,

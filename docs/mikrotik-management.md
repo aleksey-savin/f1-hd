@@ -474,7 +474,8 @@ the pool of "manageable but not configured" devices no longer exists.
   Маршрутизатор; wAP/cAP/SXT/LHG/mANTBox/Groove/… → Точка доступа; CHR → Cloud
   Hosted Router). An unknown series returns `null` — guessing would be worse than
   «—». Those labels are string-identical to the DeviceType names seeded by
-  `initializeInventoryData.js` / `seedMikrotikModels.js`.
+  `seedMikrotikModels.js` (Маршрутизатор and Коммутатор also come from the
+  inventory catalogue seed `scripts/seeds/2026-10-19-inventoryCatalog.js`).
 - `uptime30d` / `uptimeDays` — 30-day availability % (`null` = not enough data)
   and its per-day buckets.
 - `license` — `services/mikrotik/license.js#licenseView`: `null` until the

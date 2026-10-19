@@ -11,10 +11,11 @@ backups, moving an installation, rollback.
 | `compose.yml` | production stack (default file): `mongodb`, `backend`, `frontend`, optional `tg-service` |
 | `compose.dev.yml` | development stack with bind-mounted sources; selected by `COMPOSE_FILE=compose.dev.yml` in the dev machine's `.env` |
 | `.env` / `.env.example` | the only configuration file; `deploy.sh` creates and fills it |
-| `deploy.sh` | install/update, backup, restore, migrations, status, logs |
+| `deploy.sh` | install/update, backup, restore, migrations, seeds, status, logs |
 | `check.sh` | every quality gate in a container: `./check.sh` (sources), `./check.sh images` (production images) |
 | `VERSION` | the version of the tree; goes into the images as their build identity |
 | `backend/scripts/migrate.js` | ordered list of one-off data migrations plus the `migrations` ledger collection |
+| `backend/scripts/seed.js` | ordered list of catalogue seeds (`backend/scripts/seeds/`) plus the `seeds` ledger collection |
 | `*/Dockerfile` | one multi-stage file per service, targets `dev` and `prod` |
 | `frontend/nginx.conf` | nginx inside the frontend image: serves the SPA, proxies `/api` and `/uploads` to the backend |
 
@@ -30,6 +31,7 @@ network. TLS and the public domain belong to an external reverse proxy.
 ./deploy.sh backup          mongodump + uploads → backups/<timestamp>/
 ./deploy.sh restore DIR     load a backup into this installation
 ./deploy.sh migrate ARGS    status | up | baseline <id> | mark <id>
+./deploy.sh seed ARGS       status | up | mark <id>
 ./deploy.sh status          running build + docker compose ps
 ./deploy.sh logs [service]  follow logs
 ```
@@ -38,7 +40,8 @@ network. TLS and the public domain belong to an external reverse proxy.
 script: apt on Debian/Ubuntu, dnf on Fedora/RHEL/Alma) → create or repair `.env`
 → tag the running images `hd-<service>:prev` → build the images, or pull them
 (see "Images") → start MongoDB → back up
-(unless the database is empty) → run pending migrations with the application stopped → start everything
+(unless the database is empty) → run pending migrations with the application stopped → apply pending
+catalogue seeds → start everything
 and wait for health checks → smoke-test `GET /api/preferences-auth` through nginx
 → print the URL and, on a fresh database, the generated administrator password.
 
@@ -273,12 +276,52 @@ installation runs that code or newer. Data older than that — a backup without 
 first, then updated to the current code.
 
 Not in the list on purpose: `eraseApiKeyValues.js` (irreversible, run by hand
-once the hashes are proven), `renameRoleKeys.js` (dev tool), the catalogue
-seeds (`initializeInventoryData.js`, `seedMikrotikModels.js`), diagnostics.
+once the hashes are proven), `renameRoleKeys.js` (dev tool), the MikroTik model
+catalogue (`seedMikrotikModels.js`, run by hand), diagnostics. The inventory
+catalogue has its own runner — see «Seeds» below.
 
 Any script can still be run by hand inside the container:
 `docker compose run --rm backend node scripts/<name>.js [--apply]`, then
 `./deploy.sh migrate mark <id>`.
+
+## Seeds
+
+Catalogue seeds are the starting data of the inventory catalogue (attribute
+groups, device types, attributes and their links, the slots of self-built
+types). Each one is a module in
+`backend/scripts/seeds/`, listed in order in `backend/scripts/seed.js`; the
+`seeds` collection records what was applied (`{_id, appliedAt, mode: run | mark}`).
+
+```
+./deploy.sh seed status        applied / pending
+./deploy.sh seed up            apply pending seeds in order (deploy does this)
+./deploy.sh seed mark ID       record a seed as applied without running it (skip it)
+```
+
+On a dev machine: `docker compose run --rm backend node scripts/seed.js <command>`.
+
+Unlike migrations, seeds run on every deploy, **a fresh install included**: a
+new installation needs the catalogue too. With nothing pending the step does
+nothing. A seed only adds: what already exists is picked up by name (attributes
+also by code), case-insensitively, and is not overwritten — except that a
+select attribute gets its missing options, a link without a group gets the
+catalogue's group, a picked-up type the catalogue lists as a component
+becomes one, and a type without slots gets the catalogue's assembly (slots and
+key characteristics of its own build). A mismatching value type is printed as a
+warning and the attribute is still picked up. Nothing is ever deleted. An applied seed never
+runs again, so whatever the owner renamed or removed afterwards stays that way.
+
+Seeds run after the migrations and before the services start; the application
+is not stopped for them. A failed seed removes what it created in that run and
+stops the deploy: fix the cause and run `./deploy.sh` again (it resumes at that
+seed), or skip it with `./deploy.sh seed mark <id>`.
+
+Seeds so far:
+
+| id | what it adds |
+| --- | --- |
+| `2026-10-19-inventoryCatalog` | attribute groups, component types (Процессор, Материнская плата, …), factory types (Ноутбук, Моноблок, Маршрутизатор, Коммутатор, МФУ) and «Системный блок» for branded models, with their attributes; see `docs/inventory.md` |
+| `2026-10-19-systemUnitAssembly` | the own build of «Системный блок»: nine component slots and six key characteristics. Pick-up only: it creates nothing (no groups, types, attributes or links) and adds nothing else (no options, link groups or component flags). Whatever it cannot find — a type or attribute the owner renamed or deleted, a missing link — is a warning, and the slots and key characteristics depending on it are dropped; if «Системный блок» itself is not found, nothing is written. On a fresh install the first seed runs just before it in the same `seed up`, so everything resolves. A type whose slots are already set is left alone; see `docs/inventory.md` §2.5 |
 
 ## Updating an installation that predates brand settings
 

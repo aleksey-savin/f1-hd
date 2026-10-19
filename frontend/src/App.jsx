@@ -259,6 +259,10 @@ import AttributeUpdatePage, {
   loader as attributeUpdateLoader,
   action as attributeUpdateAction,
 } from "./pages/DeviceType/AttributeUpdate.jsx";
+import AssemblyPage, {
+  loader as assemblyLoader,
+  action as assemblyAction,
+} from "./pages/DeviceType/Assembly.jsx";
 
 // Vendors
 import VendorListPage, {
@@ -307,6 +311,10 @@ import UpdateDeviceAttributePage, {
   loader as updateDeviceAttributeLoader,
   action as updateDeviceAttributeAction,
 } from "./pages/DeviceAttribute/Update.jsx";
+import AttributeGroupsPage, {
+  loader as attributeGroupsLoader,
+  action as attributeGroupsAction,
+} from "./pages/DeviceAttribute/Groups.jsx";
 
 // Device Models
 import DeviceModelListPage, {
@@ -324,6 +332,20 @@ import ViewDeviceModelPage, {
   loader as viewDeviceModelLoader,
   action as viewDeviceModelAction,
 } from "./pages/DeviceModel/View.jsx";
+
+// Device Builds (своя сборка)
+import ViewDeviceBuildPage, {
+  loader as viewDeviceBuildLoader,
+  action as viewDeviceBuildAction,
+} from "./pages/DeviceBuild/View.jsx";
+import AddDeviceBuildPage, {
+  loader as addDeviceBuildLoader,
+  action as addDeviceBuildAction,
+} from "./pages/DeviceBuild/Add.jsx";
+import UpdateDeviceBuildPage, {
+  loader as updateDeviceBuildLoader,
+  action as updateDeviceBuildAction,
+} from "./pages/DeviceBuild/Update.jsx";
 
 // Device Configurations
 import AddDeviceConfigurationPage, {
@@ -1140,6 +1162,23 @@ function App() {
                   loader: attributeUpdateLoader,
                   action: attributeUpdateAction,
                 },
+                // «Своя сборка» — слоты и ключевые характеристики типа
+                {
+                  path: "assembly",
+                  handle: CATALOG_FORM,
+                  element: <AssemblyPage />,
+                  loader: assemblyLoader,
+                  action: assemblyAction,
+                },
+                // Новая сборка с карточки типа — шторка здесь же; после сабмита
+                // форма сама уводит на карточку созданной сборки
+                {
+                  path: "builds/add",
+                  handle: CATALOG_FORM,
+                  element: <AddDeviceBuildPage />,
+                  loader: addDeviceBuildLoader,
+                  action: addDeviceBuildAction,
+                },
               ],
             },
 
@@ -1256,6 +1295,14 @@ function App() {
                   loader: updateDeviceAttributeLoader,
                   action: updateDeviceAttributeAction,
                 },
+                {
+                  // Справочник групп атрибутов — шторка над списком
+                  path: "groups",
+                  handle: CATALOG_FORM,
+                  element: <AttributeGroupsPage />,
+                  loader: attributeGroupsLoader,
+                  action: attributeGroupsAction,
+                },
               ],
             },
 
@@ -1313,6 +1360,25 @@ function App() {
                   element: <UpdateDeviceConfigurationPage />,
                   loader: updateDeviceConfigurationLoader,
                   action: updateDeviceConfigurationAction,
+                },
+              ],
+            },
+
+            // Сборка — шаблон своего ПК; список сборок живёт на карточке типа
+            {
+              path: "inventory/device-builds/:id",
+              handle: { can: { inventoryCatalog: ["read"] } },
+              element: <ViewDeviceBuildPage />,
+              loader: viewDeviceBuildLoader,
+              action: viewDeviceBuildAction,
+              children: [
+                // Правка сборки — в нижней шторке карточки
+                {
+                  path: "update",
+                  handle: CATALOG_FORM,
+                  element: <UpdateDeviceBuildPage />,
+                  loader: updateDeviceBuildLoader,
+                  action: updateDeviceBuildAction,
                 },
               ],
             },

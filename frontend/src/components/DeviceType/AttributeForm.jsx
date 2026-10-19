@@ -7,9 +7,11 @@ import SwitchField from "@/components/app/SwitchField";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
 import { valueTypeLabel } from "../DeviceAttribute/value-types";
+import { createGroupLabel, useAttributeGroups } from "./attribute-groups";
 
 // Форма атрибута типа — шторка «Изменить» с карточки типа (добавляют пачкой —
-// AttributesAddForm). Выбор атрибута из общего каталога + флаги
+// AttributesAddForm). Выбор атрибута из общего каталога, группа (своя у
+// каждого типа; новую можно создать из поиска) + флаги
 // «Обязательный» / «Расширяемый» (последний — только для «выбора из списка»). Сабмит идёт скрытыми полями
 // меню Select рисуется инлайн.
 const AttributeForm = ({ title }) => {
@@ -27,6 +29,16 @@ const AttributeForm = ({ title }) => {
   const [extendable, setExtendable] = useState(
     link ? !!link.extendable : false,
   );
+  // Битая ссылка (группу удалили) приходит null — значит «Без группы»
+  const [groupId, setGroupId] = useState(
+    link?.groupId?._id ? String(link.groupId._id) : "",
+  );
+  const { groups, loading: groupsLoading, createGroup } = useAttributeGroups();
+
+  const onCreateGroup = async (name) => {
+    const group = await createGroup(name);
+    if (group) setGroupId(String(group._id));
+  };
 
   // Оставляем только нужное для подписи и логики: у каталожного атрибута есть
   // собственное поле `options` (значения select-типа), и тащить его в список
@@ -67,6 +79,7 @@ const AttributeForm = ({ title }) => {
         name="extendable"
         value={extendable ? "true" : "false"}
       />
+      <input type="hidden" name="groupId" value={groupId} />
 
       {deviceType?.name && (
         <p className="-mt-2 mb-5 text-sm text-muted-foreground">
@@ -89,6 +102,29 @@ const AttributeForm = ({ title }) => {
           placeholder="Выберите из каталога атрибутов…"
           clearable
           clearLabel="Не выбран"
+        />
+      </Field>
+
+      <Field
+        label="Группа"
+        htmlFor="groupId"
+        hint="Группа задаётся для этого типа: у другого типа тот же атрибут может стоять в другой группе."
+      >
+        <Combobox
+          id="groupId"
+          value={groupId || null}
+          onChange={(id) => setGroupId(id || "")}
+          options={toOptions(groups, {
+            value: (group) => String(group._id),
+            label: (group) => group.name,
+          })}
+          placeholder="Без группы"
+          searchPlaceholder="Найти или создать группу"
+          clearable
+          clearLabel="Без группы"
+          loading={groupsLoading}
+          onCreate={onCreateGroup}
+          createLabel={createGroupLabel}
         />
       </Field>
 

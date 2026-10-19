@@ -1,6 +1,6 @@
 # Inventory / Asset Tracking (Учёт техники) — Implementation Notes
 
-_Last updated: 2026-07-29. This document covers the data model, the HTTP API and
+_Last updated: 2026-10-19. This document covers the data model, the HTTP API and
 the domain rules of the Inventory module. Interface rules live in
 `docs/ux-ui-guide.md`; the reasoning behind the current screens is in
 `docs/ux-ui-changelog.md` (entries of 2026-07-16…24). It is a snapshot, not a
@@ -31,7 +31,7 @@ Two consumer-facing surfaces sit on top:
   summarized here.
 
 All entities live under `backend/{models,controllers,routes/internal,validations}/inventory/`
-and `frontend/src/{pages,components}/{ClientDevice,DeviceModel,DeviceType,DeviceAttribute,DeviceConfiguration,Vendor,Location}/`.
+and `frontend/src/{pages,components}/{ClientDevice,DeviceModel,DeviceType,DeviceAttribute,DeviceConfiguration,DeviceBuild,Vendor,Location}/`.
 
 ## 1. Activation & permissions
 
@@ -50,7 +50,7 @@ map below; whichever prefix a request touches decides which right is asked.
 |---|---|
 | `/client-devices` | `inventoryModuleIsActive`, `canReadDevices` (`device.read`) |
 | `/locations`, `/companies-locations` | `inventoryModuleIsActive`, `canReadDevices` |
-| `/device-types`, `/device-models`, `/device-attributes`, `/device-type-attributes`, `/device-configurations`, `/vendors` | `inventoryModuleIsActive`, `isNotClient` |
+| `/device-types`, `/device-models`, `/device-attributes`, `/device-type-attributes`, `/attribute-groups`, `/device-configurations`, `/device-builds`, `/vendors` | `inventoryModuleIsActive`, `isNotClient` |
 | `/suppliers` | `inventoryModuleIsActive`, `canReadSuppliers` (`supplier.read`) |
 | `/mikrotik-devices` | `mikrotikIsActive`, `canReadMikrotik` (`mikrotik.read`) |
 
@@ -94,10 +94,18 @@ Who can do what:
                    ▼                   ▼
 DeviceAttribute   DeviceModel ───▶ DeviceType ◀── DeviceTypeAttribute ──▶ DeviceAttribute
    ▲ (values[].attributeId)  │ deviceTypeId    (join: required/order/extendable)
+   │                         │                        │ groupId
+   │                         │                        ▼
+   │                         │                 AttributeGroup (global order)
    │                         │
 DeviceConfiguration ─────────┘ (preset values per model)
    ▲ deviceConfigurationId
 DeviceConfigurationRecommendation ──▶ Company
+
+DeviceType.assembly ──slots[].typeId / keySpecs[].typeId──▶ DeviceType (components)
+                    ──keySpecs[].attributeId──────────────▶ DeviceAttribute
+DeviceBuild ──deviceTypeId──▶ DeviceType               (self-built template)
+   └─ parts[] ──typeId / deviceModelId / configurationId──▶ DeviceType / DeviceModel / DeviceConfiguration
 
 ClientDevice ──deviceModelId──▶ DeviceModel        (branded)
    │         ──deviceTypeId────▶ DeviceType         (self-built / component)
@@ -119,11 +127,13 @@ Counter (InventoryCounter)  →  generates ClientDevice.inventoryNumber
 | Entity (`models/inventory/…`) | Key fields | Notes |
 |---|---|---|
 | **Vendor** (`vendor.js`) | `name` (unique), `isActive`, `isMikrotikManagementEnabled`, audit | Manufacturer. The Mikrotik flag drives the model lookup when a monitoring record builds a card, plus the creation wizard's Mikrotik branch. |
-| **DeviceType** (`deviceType.js`) | `name` (unique), `isActive`, `isComponent`, `isConsumable`, `isPeripheral`, `inventoryPrefix`, `configurationIds[]→DeviceConfiguration`, `attachableToTypeIds[]→DeviceType` | Equipment class. The three boolean flags mark types that may be **attached** to a host device (parts / consumables / peripherals) and are therefore never root devices in their own right. `inventoryPrefix` drives auto inventory numbers. `attachableToTypeIds` restricts which hosts a component may join (empty = any). |
+| **DeviceType** (`deviceType.js`) | `name` (unique), `isActive`, `isComponent`, `isConsumable`, `isPeripheral`, `inventoryPrefix`, `configurationIds[]→DeviceConfiguration`, `attachableToTypeIds[]→DeviceType`, `assembly{enabled, slots[], keySpecs[]}` | Equipment class. The three boolean flags mark types that may be **attached** to a host device (parts / consumables / peripherals) and are therefore never root devices in their own right. `inventoryPrefix` drives auto inventory numbers. `attachableToTypeIds` restricts which hosts a component may join (empty = any). `assembly` — the type's own build: slots and key characteristics, see [§2.5](#25-self-built-types-and-builds). |
 | **DeviceAttribute** (`deviceAttribute.js`) | `code` (unique), `name`, `valueType` (`string\|number\|boolean\|select\|multiselect\|text`), `unit`, `options[{value,label}]`, `isActive` | Global spec catalog (e.g. `ram_gb`, `cpu_cores`). Only `code` is unique in the schema — the controller additionally rejects duplicate `name` (see [§7](#7-known-issues--gotchas)). |
-| **DeviceTypeAttribute** (`deviceTypeAttribute.js`) | `deviceTypeId`, `attributeId`, `required`, `extendable`, `order`, `extendableFromIds[{deviceTypeId}]` | Join table: which attributes a type exposes, in what order, whether required / extendable. |
+| **DeviceTypeAttribute** (`deviceTypeAttribute.js`) | `deviceTypeId`, `attributeId`, `groupId→AttributeGroup` (default `null`), `required`, `extendable`, `order`, `extendableFromIds[{deviceTypeId}]` | Join table: which attributes a type exposes, in what order, under which group, whether required / extendable. `order` orders rows **within** a group. |
+| **AttributeGroup** (`attributeGroup.js`) | `name` (unique case-insensitively — collation `ru`, strength 2), `order`, audit | Global catalogue of spec headings («Процессор», «Оперативная память»…). See [§2.4](#24-attribute-groups-and-the-catalogue-seed). |
 | **DeviceModel** (`deviceModel.js`) | `name`, `deviceTypeId` (req), `vendorId` (req), `compatibleWithModelIds[]→DeviceModel`, `notes`, `photos[]`, **soft-delete** (`deletedAt`/`deletedBy`) | A vendor's concrete model. Uniqueness checks respect `deletedAt: null`. |
 | **DeviceConfiguration** (`deviceConfiguration.js`) | `name`, `description`, `deviceModelId` (req), `values[{attributeId,value}]`, **soft-delete** | Reusable preset of attribute values for a model (e.g. "16 GB / 512 GB"). |
+| **DeviceBuild** (`deviceBuild.js`) | `name`, `deviceTypeId` (req), `parts[{typeId, deviceModelId, configurationId, quantity}]`, `notes`, **soft-delete**, audit | A template of a self-built device: which part models go into the type's slots. Not a catalogue model — models are factory-only. See [§2.5](#25-self-built-types-and-builds). |
 | **DeviceConfigurationRecommendation** (`deviceConfigurationRecommendation.js`) | `deviceConfigurationId` (req), `companyId`, `comment` | A company's recommended config. No UI consumes recommendations yet. |
 | **Supplier** (`supplier.js`) | `name` (unique), `isActive`, `phone`, `email`, `website`, `address`, `inn`, `kpp`, `notes`, audit | Where the equipment was bought. Everything except the name is optional — a supplier is created on the fly from the device wizard and filled in later, when a warranty case makes the contacts matter. `inn`/`kpp` are separate fields, not free text: they get checked against accounting. |
 
@@ -136,6 +146,9 @@ vendor+type, optionally `configurationId`) **or** self-built (`deviceTypeId` dir
   `parentDeviceId` is a *component* and is excluded from the root list
   (`getAll` filters `parentDeviceId: null`). Index on `parentDeviceId` for fast child
   lookup. Attaching and detaching is a first-class operation — see [§4](#4-device-creation--assembly-rules).
+- **Build:** `buildId → DeviceBuild` (default `null`) — the template a self-built
+  device was created from. Only on a device without a model whose type has
+  `assembly.enabled`; parts never carry it. See [§4](#4-device-creation--assembly-rules).
 - **Links:** `companyId`, `userId` (assignee), `locationId`, `supplierId`.
 - **Identifiers:** `inventoryNumber` is **partial-unique**
   (`partialFilterExpression: { inventoryNumber: { $type: "string" } }`) — it is
@@ -200,6 +213,126 @@ Hierarchical physical placement — the backbone of the environment views:
 - ⚠️ `fullPath` is an **async virtual** → it does **not** serialize over JSON. Build
   breadcrumbs from the populated `parent` chain instead (see [§7](#7-known-issues--gotchas)).
 
+### 2.4 Attribute groups and the catalogue seed
+
+**Groups live on the link, the order is global.** `DeviceTypeAttribute.groupId`
+puts an attribute under a heading *for that type*: the same attribute may sit in
+different groups on different types («Стандарт Wi-Fi» is «Беспроводная сеть»
+everywhere today, but nothing forces it). `AttributeGroup.order` is one order for
+every type — «Процессор» is always above «Оперативная память». A link without a
+group (`null`) is shown last: «Без группы» on the type card, «Прочее» in the
+spec view. A group referenced by any link cannot be deleted.
+
+**Spec view.** `frontend/src/components/app/SpecSheet.tsx` (+ `spec-sheet.ts`,
+pure) lays a set of values out by those groups: group order, then link `order`;
+empty values and empty groups are hidden; values are formatted by `valueType`
+(да/нет, option label, number + unit). It reads the links that come with the
+data: `GET /device-types/:id` populates `groupId`, `GET /device-type-attributes`
+does too, and the device card gets `specLinks` from `GET /client-devices/:id`
+(see [§3](#3-http-api)).
+
+**Catalogue seed.** The starting catalogue is not a migration: it is a seed run
+by `backend/scripts/seed.js` (ledger collection `seeds`, runs on every deploy and
+on a fresh install too — see `docs/deployment.md` «Seeds»). Seed modules live in
+`backend/scripts/seeds/` and write through
+`backend/services/inventory/catalogSeed.js`:
+
+- `planCatalog(catalog, existing)` is pure — what to create, what to fill in,
+  warnings; `applyCatalog(catalog, { log })` reads the database, applies the plan
+  and, on a failure, deletes what it created by `_id` (no transactions).
+- **Only adds.** Groups and types are picked up by name, attributes by `code`
+  *or* name (case-insensitively — the stale `name_1` index forbids a second
+  attribute with the same name, see [§7](#7-known-issues--gotchas)), links by the
+  (type, attribute) pair. Nothing is overwritten except: a select/multiselect
+  gets its missing options, a link without a group gets the catalogue's group, a
+  picked-up type the catalogue lists as a component gets `isComponent: true`, a
+  type without slots gets the catalogue's `assembly` (see
+  [§2.5](#25-self-built-types-and-builds)). A value-type mismatch is a warning;
+  the attribute is still picked up.
+- An applied seed never runs again, so what the owner renames or deletes
+  afterwards does not come back.
+
+The first seed, `2026-10-19-inventoryCatalog`, carries the groups, the component
+types (Процессор, Материнская плата, Оперативная память, Накопитель,
+Видеокарта, Блок питания, Корпус, Охлаждение, Wi-Fi адаптер — all
+`isComponent`), the factory types Ноутбук, Моноблок, Маршрутизатор, Коммутатор,
+МФУ and «Системный блок» (attributes for branded models: the all-in-one set
+without the screen and the webcam, plus «Форм-фактор корпуса», the PSU's
+«Мощность» instead of the adapter's, and «Глубина» next to «Ширина»/«Высота»/
+«Вес»), each attribute with a stable latin `code`.
+Shared attributes are one record across the catalogue (Сокет, Тип памяти,
+Стандарт Wi-Fi, Видеовыходы, Ширина/Высота/Глубина, Вес, Цвет, Линейка, Год
+релиза, Модель процессора…). On existing databases it picks up «Тип памяти»,
+«Сокет», «Чипсет», «Диагональ экрана», «Год релиза», «Wi-Fi», «Сетевой
+интерфейс» by name and the hand-made `ram_value` / `ram_slots` /
+`ram_max_value` / `ramformfactor` by code; `portspeed` and `operatingsystem`
+share their codes with `scripts/seedMikrotikModels.js`. The router's RAM in MB is
+a separate attribute «Объём ОЗУ». Slots and key characteristics of «Системный
+блок» are not part of it — they come with the second seed (see
+[§2.5](#25-self-built-types-and-builds)). The catalogue sanity tests are in
+`services/inventory/catalogSeed.test.js`. It replaced the old one-off
+`initializeInventoryData.js`.
+
+### 2.5 Self-built types and builds
+
+**`DeviceType.assembly`** describes how a type is put together from parts:
+
+```
+assembly: {
+  enabled,                                         // «Своя сборка — из комплектующих»
+  slots:    [{ typeId, required, multiple }],      // order = display order
+  keySpecs: [{ typeId, source: "model" | "attribute",
+               attributeId | null, aggregate: "first" | "sum" | "list" }],
+}
+```
+
+- A slot holds one component type (`isComponent`), each type at most once;
+  `required` — a build cannot omit it, `multiple` — more than one part (RAM
+  modules, drives).
+- A key characteristic summarises a slot for the device's headline: the part's
+  model name (`source: "model"`) or one of the slot type's attributes. `first`
+  takes the first part's value, `sum` adds numbers times the part's `quantity`
+  (non-numeric values are skipped; only `number` attributes may be summed),
+  `list` lists the distinct values. Computed on the client
+  (`frontend/src/components/app/assembly-specs.ts`) and, for list rows, on the
+  server (`services/inventory/assemblyKeySpecs.js` — a port that must stay in
+  step). The type of a key characteristic must be among the slots, and the
+  attribute must be linked to that type.
+- `enabled` is toggled by the type form (`assemblyEnabled` on
+  `PUT /device-types/update/:id`): it can always be switched on (the type's
+  models are untouched), and off only while the type has no builds (409). Slots
+  and key characteristics are replaced as a whole by
+  `PUT /device-types/:id/assembly` (`parseAssembly`, pure, enforces the rules
+  above).
+
+**`DeviceBuild`** is a named template of such a device: `parts[]`, ordered by
+the type's slots. On `add`/`update` (`parseBuildParts`, `resolvePartConfiguration`,
+pure) every part must fit a slot of the type, carry a model (non-deleted, of the
+slot's type) and an integer `quantity ≥ 1`; a single slot takes one part with
+quantity 1, required slots must be filled. The configuration, when sent, must be
+the model's own; when omitted, the model's only configuration is taken, and a
+model with several makes the choice mandatory. A build's type never changes, and
+it can be created only for a type with `assembly.enabled`. Delete is soft.
+
+**Second seed.** `2026-10-19-systemUnitAssembly` gives «Системный блок» its
+build: slots Процессор*, Материнская плата*, Оперативная память* (multiple),
+Накопитель* (multiple), Блок питания*, Корпус*, Видеокарта, Охлаждение, Wi-Fi
+адаптер (* — required) and key characteristics: Процессор — model; Оперативная
+память — «Объём модуля» (sum) and «Тип памяти» (first); Накопитель — «Объём
+накопителя» (sum) and «Тип накопителя» (list); Видеокарта — model. It takes the
+first seed's definitions by key (only what the build refers to) and runs
+`applyCatalog(..., { pickUpOnly: true })`: it never creates or fills in anything
+— a type, attribute or link it cannot find is a warning, and the slots and key
+characteristics that depend on it are dropped; if «Системный блок» itself is
+gone, nothing is written. So a renamed or deleted catalogue entry never comes
+back, even where the first seed ran in an earlier deploy.
+The catalogue format accepts `assembly: { slots: [{ type, required, multiple }],
+keySpecs: [{ type, source, attr?, aggregate }] }` on a type (keys instead of
+ids); the planner (`update.typeAssembly`) sets it with `enabled: true` **only
+while the type has no slots** — an assembly the owner configured is left alone,
+silently. Entries that would break the API's rules above are warnings and are
+skipped.
+
 ## 3. HTTP API
 
 All paths are prefixed `/api/inventory`. Mutations require the manage right of
@@ -216,16 +349,16 @@ or the resource directly; errors `{error, status, message}`.
 | `GET /?search=&companies=&locations=&users=&types=&vendors=&statuses=&noInventory=&withComponents=&sort=&page=&limit=` | `getAll` | **Server-side selection** — see below |
 | `GET /facets` | `getFacets` | Filter options (companies, locations + their company, users, types, vendors) present in the caller's visible fleet. Declared **before** `/:id` |
 | `GET /attachable?companyId=&excludeId=&hostTypeId=` | `getAttachable` | Candidates for attaching to an assembly — declared **before** `/:id` so the literal segment isn't captured. See [§4](#4-device-creation--assembly-rules) |
-| `GET /:id` | `getOne` | Device + `components[]` + `locationPath[]` (ancestor chain, built by walking `parent` — `fullPath` is an async virtual, see [§7](#7-known-issues--gotchas)) + populated `parentDeviceId` (an assembly part's only way "up") + the Mikrotik overlay |
+| `GET /:id` | `getOne` | Device + `components[]` + `locationPath[]` (ancestor chain, built by walking `parent` — `fullPath` is an async virtual, see [§7](#7-known-issues--gotchas)) + populated `parentDeviceId` (an assembly part's only way "up") + the Mikrotik overlay + `specLinks[]` — the links of the effective type (the model's, else the device's own) with `attributeId` (`code name valueType unit options isActive`) and `groupId` (`name order`) populated, sorted by `order`; empty when the device has no configuration. The card's «Характеристики» lays the configuration values out by them. **A self-built device of a type with `assembly.enabled`** additionally gets `assembly` (the type's, populated as in `device-types/:id`), `build` (`{_id, name, parts}` with parts populated like `device-builds`, or `null` — no `buildId` or the build is deleted) and `partLinks` (links of every part type, by type id, as in `device-builds/:id`); its `components[]` are then narrow — `deviceModelId` (+ `vendorId`, `deviceTypeId {_id, name}`), `configurationId` with values, `deviceTypeId`, `quantity`, `serialNumber`, `warrantyExpirationDate`, `purchasedAt`, `inventoryNumber` |
 | `GET /:id/tickets?limit=` | `getTickets` | Tickets referencing the device (`relatedClientDeviceId`), newest first; `isAuto` marks the ones raised by monitoring (by `source`) |
-| `POST /add` | `add` | Auto inventory number; validates serial/inventory uniqueness, company/user/model/type consistency |
-| `PUT /update/:id` | `update` | Full update |
+| `POST /add` | `add` | Auto inventory number; validates serial/inventory uniqueness, company/user/model/type consistency. A self-built device may also send `buildId` and `parts[]` — the PC and its parts in one request, see [§4](#4-device-creation--assembly-rules) |
+| `PUT /update/:id` | `update` | Full update. `buildId` is checked like on `add` when sent; when omitted it is kept, unless the device gets a model or another type — then it is cleared |
 | `POST /:id/assign-user` | `assignUser` | Assign/clear user; status side-effects: setting a user → `deployed`; clearing it from `deployed` → `readyForDeployment` |
 | `POST /:id/components` | `attachComponent` | Attach an existing device as a component (`{componentId}`) |
 | `DELETE /:id/components/:componentId` | `detachComponent` | Detach; the part returns to the root list |
 | `POST /:id/photos` | `addPhotos` | Multipart upload through `middleware/imageUpload` → S3 |
 | `DELETE /:id/photos/:photoId` | `deletePhoto` | Removes the metadata *and* the S3 object |
-| `DELETE /delete/:id` | `delete` | Hard delete |
+| `DELETE /delete/:id` | `delete` | Hard delete; **409** «Сначала открепите детали: N» while the device has non-deleted children (no cascade) |
 
 **The device list is a server-side selection** (`getAll`), like the ticket
 archive and the user list — search, facets, sorting and paging all live in the
@@ -249,7 +382,11 @@ query, never in the browser:
   strip sums to less.
   A row is the slim `toListDevice` DTO (name / typeName / vendorName /
   inventoryNumber / serialNumber / hostname / status / company / location /
-  user / componentCount / Mikrotik overlay / createdAt / updatedAt) — the same
+  user / componentCount / Mikrotik overlay / createdAt / updatedAt, plus
+  `keySpecs` — «AMD Ryzen 5 8600G · 16 ГБ DDR5 · 500 ГБ SSD», only on a
+  self-built device of a type with `assembly.enabled` and only when non-empty;
+  computed per page by `services/inventory/assemblyKeySpecs.js`, a server port of
+  `keySpecsLine` that must stay in step with `assembly-specs.ts`) — the same
   "the server assembles the row" principle as `toEnvDevice` ([§5](#5-environment--tech-server-side)).
   `createdAt`/`updatedAt` are required by the UI: the row highlights fresh
   records by them.
@@ -295,8 +432,10 @@ query, never in the browser:
 
 | Base path | Entity | Delete | Extra |
 |---|---|---|---|
-| `/device-types` | DeviceType | hard (+ cascades `DeviceTypeAttribute`) | `add`/`update` accept `attributes[]` (rewrites the join rows); `getOne` returns attached attributes |
-| `/device-type-attributes` | DeviceTypeAttribute | hard | `GET /type/:id` lists a type's rows; **`POST /add`** takes a batch `items[]` (`{attributeId}` or `{attribute}` to create in the catalog first), appends in batch order, validates everything before writing and rolls back created rows by `_id` on a mid-write failure; **`PUT /reorder`** persists the order in one call |
+| `/device-types` | DeviceType | hard (+ cascades `DeviceTypeAttribute`), **guarded**: 409 while models use the type, while another type's `assembly` refers to it («Тип используется в своей сборке «…»») or while it has builds | `add`/`update` ignore `attributes[]` (links are managed by `/device-type-attributes`); `getOne` returns attached attributes, the populated `assembly` and `buildsCount`; `update` takes `assemblyEnabled` (switching it off while the type has builds is 409); **`PUT /:id/assembly`** replaces `{slots, keySpecs}` as a whole (400 on any rule of [§2.5](#25-self-built-types-and-builds)) |
+| `/device-type-attributes` | DeviceTypeAttribute | hard | reads populate `groupId`; `groupId` on `add`/`update` (`null`/`""` clears it, an unknown id is 404); `GET /type/:id` lists a type's rows; **`POST /add`** takes a batch `items[]` (`{attributeId}` or `{attribute}` to create in the catalog first), appends in batch order, validates everything before writing and rolls back created rows by `_id` on a mid-write failure; **`PUT /reorder`** persists the order in one call |
+| `/attribute-groups` | AttributeGroup | hard, **guarded** (a group used by a link is refused) | no `GET /:id`; `getAll` sorts by `order` and adds usage counts; **`PUT /reorder`** (`{orderedIds}`, order = position), declared before `update/:id`; names are unique case-insensitively (409) |
+| `/device-builds` | DeviceBuild | **soft** | `GET /?deviceTypeId=` (sorted by name, parts populated with model + vendor, configuration + values, type); `getOne` returns `{build, deviceType, partLinks}` — the type with its populated `assembly`, and the links of every part type (`attributeId`, `groupId` populated), by type id, for laying configuration values out; `add` needs a type with `assembly.enabled`, `update` keeps the type. Rules in [§2.5](#25-self-built-types-and-builds) |
 | `/device-models` | DeviceModel | **soft** | uniqueness on `name` among non-deleted; `POST /:id/photos`, `DELETE /:id/photos/:photoId` |
 | `/device-attributes` | DeviceAttribute | hard | uniqueness on `name` *and* `code` |
 | `/device-configurations` | DeviceConfiguration | **soft** | no bare `GET /` — the list is `GET /device-configurations/model/:id`; values populated |
@@ -320,15 +459,33 @@ uploaded objects** when the request fails, so the bucket never collects orphans.
 
 ## 4. Device creation & assembly rules
 
-The creation wizard (`components/ClientDevice/Form.jsx`) is a four-step form, but the
-rules it enforces are domain rules and belong here:
+The creation wizard (`components/ClientDevice/Form.jsx`) is a four-step form — five
+when the «Комплектующие» step applies (a new self-built device of a type with
+`assembly.enabled` and live slots; the step goes second) — but the rules it enforces
+are domain rules and belong here:
 
 - **Branded vs custom.** *Branded* fills `deviceModelId` (which implies vendor and
   type) plus an optional `configurationId`; *custom* fills `deviceTypeId` directly.
   Serialization clears the other branch's fields — a device is never both.
-- **Components on creation.** A custom build carries a list of child devices (own
-  type/vendor/model, serial, quantity, purchase, warranty). On submit `syncComponents()`
-  diffs against `_orig` and creates / updates / deletes the children.
+- **A PC from a build** (self-built device of a type with `assembly.enabled`):
+  `add` takes `buildId` (a non-deleted build of the same type) and/or
+  `parts[{typeId, deviceModelId, configurationId?, serialNumber?,
+  warrantyExpirationDate?, purchasedAt?, supplierId?}]` — **one row per physical
+  part**, each becomes its own `ClientDevice` with `parentDeviceId`, `quantity: 1`
+  and its own inventory number. Slot rules are those of a build
+  (`planDeviceParts` over `parseBuildParts`; an empty list is allowed and then
+  required slots are not checked); the configuration is resolved like in a build.
+  A part follows the PC (company, location, user, status); its purchase date and
+  supplier are the PC's unless the row sends its own. Everything is validated
+  before the first write; a failure mid-write deletes what was created by `_id`.
+  A model-backed device, or a part, cannot carry `buildId`/`parts` (400).
+- **Editing keeps the links.** `update` keeps the stored `parentDeviceId` when the body
+  has no `parentDeviceId` key (editing a part through the device form does not detach
+  it; `detachComponent` is the way to break the link), and keeps `buildId` likewise;
+  a `buildId` equal to the stored one is not re-validated.
+- **Deleting a PC with parts** is refused: `delete` answers 409 «Сначала открепите
+  детали: N …» while the device has non-deleted children. There is no cascade —
+  the parts are detached first.
 - **Attaching an existing device** (`getAttachable` → `attachComponent`): candidates
   are non-deleted **root** devices of the same company whose effective type has
   `isComponent | isConsumable | isPeripheral`, minus devices that are themselves
@@ -388,9 +545,10 @@ documented in each component's own header.
   (+ `add`, `update/:id`, `delete/:id`) and `client-devices/:id` (+ `update`);
   `locations` (+ `add`, `update/:id`) and `locations/:id` (+ `update`, `add` for a
   child); `device-types` (+ forms) and `device-types/:id` (+ `update`, `models/add`,
-  `attributes/add`, `attributes/update/:attrId`); `vendors` and `vendors/:id`
+  `attributes/add`, `attributes/update/:attrId`, `assembly`, `builds/add`);
+  `device-builds/:id` (+ `update`); `vendors` and `vendors/:id`
   (+ `models/add`); `device-models` and `device-models/:id` (+ configuration
-  `add` / `update/:configId`); `device-attributes`; `suppliers` (+ `add`,
+  `add` / `update/:configId`); `device-attributes` (+ `groups`); `suppliers` (+ `add`,
   `update/:id`) and `suppliers/:id` (+ `update`). **Configurations have no
   top-level route** — they are managed from the model card.
 - **Migration state** (`MIGRATED_ROUTES` in `layout/sheet-width.js`): **the module is
@@ -416,8 +574,22 @@ documented in each component's own header.
   building parts inside the host's form meant saving them with extra requests
   *after* the host — the assembly is managed on the card (`NewComponentDialog`
   copies company/location/user/status from the host and posts a normal device with
-  `parentDeviceId`). The assignee field exists only in creation; afterwards
+  `parentDeviceId`; it asks for the model's configuration when the model has
+  several and fills in the only one). The exception is a PC of an assembled type:
+  the wizard's «Комплектующие» step (`PartsStep`, `device-parts.ts`) lists the
+  parts of the chosen build, or the slots by hand, and they go into the same
+  `add` request as `parts[]`. The assignee field exists only in creation; afterwards
   handing over is the card's operation (it also flips the status).
+- **Specs, groups, builds** — pure helpers in `components/app/`: `spec-sheet.ts`
+  (grouping and value formatting) + `SpecSheet.tsx`, `assembly-specs.ts` (key
+  characteristics, groups from parts, `diffWithBuild` against the build; its
+  `keySpecsLine` is mirrored by the backend `assemblyKeySpecs.js`) +
+  `KeySpecChips.tsx`; tests next to them (`node --test`). Per-entity:
+  `DeviceAttribute/GroupsSheet.jsx`, `DeviceType/AssemblyForm.jsx`,
+  `DeviceBuild/{View,Form}.jsx` + `part-models.ts` / `part-pickers.jsx` (part
+  pickers shared with the device wizard), `ClientDevice/{PartsStep.jsx,
+  device-parts.ts, AssemblyConfiguration.jsx}`. Drag reorder + FLIP:
+  `hooks/use-drag-reorder.js`.
 - **The card has no tabs.** Monitoring is a separate section with its own record
   page, so the card only carries a *summary* (`MonitoringPanel`: link, uptime,
   firmware, CVEs, last seen) plus a link to `/devices/mikrotik/records/:id`; the
@@ -456,8 +628,9 @@ documented in each component's own header.
 For future cleanup — these are landmines, not behaviours to rely on:
 
 1. **Inconsistent delete strategy.** Soft-delete (`deletedAt`/`deletedBy`): `DeviceModel`,
-   `DeviceConfiguration`. Hard-delete: `ClientDevice`, `Location` (guarded by
-   child/device checks), `DeviceType` (+ cascade), `DeviceAttribute`, `Vendor`, `Supplier`.
+   `DeviceConfiguration`, `DeviceBuild`. Hard-delete: `ClientDevice` (guarded by
+   children), `Location` (guarded by child/device checks), `DeviceType` (+ cascade,
+   guarded), `DeviceAttribute`, `AttributeGroup` (guarded by links), `Vendor`, `Supplier`.
    `ClientDevice`/`Location` schemas have `deletedAt` fields that the controllers don't use.
    HTTP methods are inconsistent too: catalog deletes are `POST /delete/:id`, only
    client devices use `DELETE`.
@@ -484,6 +657,9 @@ For future cleanup — these are landmines, not behaviours to rely on:
 - Controllers: `backend/controllers/inventory/*.js` (+ `photoHandlers.js`,
   `validations/inventory/*.js`)
 - Routes: `backend/routes/internal/inventory/*.js`, mounted in `backend/routes/index.js`
+- Catalogue seed: `backend/scripts/seed.js`, `backend/scripts/seeds/*.js`, `backend/services/inventory/catalogSeed.js`
+- Self-built types and builds: `backend/controllers/inventory/{deviceType,deviceBuild}.js` (`parseAssembly`, `parseBuildParts`, `resolvePartConfiguration`), `backend/models/inventory/deviceBuild.js`
+- Spec view and build summary: `frontend/src/components/app/{SpecSheet.tsx,spec-sheet.ts,assembly-specs.ts,KeySpecChips.tsx}`; server port for list rows: `backend/services/inventory/assemblyKeySpecs.js`
 - Permissions: `backend/middleware/permissions.js`; uploads: `backend/middleware/imageUpload.js`
 - Devices UI: `frontend/src/{pages,components}/ClientDevice/*` (`Form`/`FormFields`/`FormSummary`, `View`, `DeviceRow`, `InlineCreateDialog`, `useAssignableUsers`)
 - Suppliers UI: `frontend/src/{pages,components}/Supplier/*`, `frontend/src/store/lists/suppliers.js`

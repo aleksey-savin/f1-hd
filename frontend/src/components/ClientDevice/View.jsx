@@ -47,6 +47,18 @@ import {
   SectionEditLink,
 } from "@/components/app/Panel";
 import PropRow from "@/components/app/PropRow";
+import SpecSheet from "@/components/app/SpecSheet";
+import { buildSpecGroups, specSummary } from "@/components/app/spec-sheet";
+import KeySpecChips from "@/components/app/KeySpecChips";
+import {
+  buildAssemblyGroups,
+  buildKeySpecs,
+  collapseDiffRows,
+  connectedRows,
+  devicePartsToAssembly,
+  diffWithBuild,
+  liveAssembly,
+} from "@/components/app/assembly-specs";
 import {
   DEVICE_STATUS_META,
   DeviceStatusText,
@@ -58,6 +70,9 @@ import { cn } from "@/lib/utils";
 import { formatCalendarDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import PhotoGallery, { photoUrl } from "@/components/app/PhotoGallery";
+import AssemblyConfiguration, {
+  MissingRequiredAlert,
+} from "./AssemblyConfiguration";
 import AssignUserDialog from "./AssignUserDialog";
 import AttachComponentDialog from "./AttachComponentDialog";
 import MonitoringPanel from "./MonitoringPanel";
@@ -98,16 +113,6 @@ const warrantyState = (value) => {
     text: `до ${date} · ещё ${months} ${plural(months, "месяц", "месяца", "месяцев")}`,
   };
 };
-
-// Пара «подпись — значение» в две колонки (характеристики конфигурации).
-const SpecRow = ({ label, children }) => (
-  <div className="flex items-baseline gap-3 border-t border-border-soft py-2 first:border-t-0 md:[&:nth-child(2)]:border-t-0">
-    <span className="w-44 flex-none text-sm text-muted-foreground">
-      {label}
-    </span>
-    <span className="min-w-0 flex-1 font-medium">{children}</span>
-  </div>
-);
 
 /**
  * Карточка устройства — паспорт единицы техники: что это, чьё, где стоит, что
@@ -164,7 +169,51 @@ const ViewClientDevice = ({ device = {} }) => {
   const components = device.components || [];
   const parent = device.parentDeviceId;
   const configuration = device.configurationId;
-  const specs = (configuration?.values || []).filter((entry) => entry.value);
+  // Значения конфигурации по группам эффективного типа (specLinks отдаёт
+  // getOne); без групп — секции нет.
+  const specLinks = device.specLinks || [];
+  const specValues = configuration?.values || [];
+  const specGroups = buildSpecGroups(specLinks, specValues);
+  const specLabel = specSummary(specLinks, specValues);
+
+  // ПК своей сборки собираемого типа: getOne добавляет сборку типа (слоты и
+  // ключевые характеристики), сборку-шаблон и связки типов деталей. Детали в
+  // слотах — «Конфигурация» и характеристики, прочие дети — «Подключено».
+  const assembly =
+    isCustom && device.assembly ? liveAssembly(device.assembly) : null;
+  const build = assembly ? device.build || null : null;
+  const slotTypeIds = new Set(
+    (assembly?.slots || []).map((slot) => slot.typeId._id),
+  );
+  const inSlot = (component) =>
+    slotTypeIds.has(
+      component.deviceModelId?.deviceTypeId?._id || component.deviceTypeId?._id,
+    );
+  const slotParts = assembly
+    ? devicePartsToAssembly(components.filter(inSlot))
+    : [];
+  const connected = assembly
+    ? components.filter((component) => !inSlot(component))
+    : components;
+  const diff = assembly
+    ? diffWithBuild(assembly.slots, build ? build.parts || [] : null, slotParts)
+    : null;
+  const configRows = diff ? collapseDiffRows(diff.rows) : [];
+  // Пустая «Конфигурация» — только тем, кто может её наполнить (как раньше
+  // у «Состава сборки»)
+  const showConfig = configRows.length > 0 || canManage;
+  // «Подключено» — тем же видом строк, что «Конфигурация»
+  const connectedConfigRows = assembly
+    ? connectedRows(devicePartsToAssembly(connected))
+    : [];
+  // «Конфигурация · N» — штук деталей: «2 × память» — две
+  const configUnits = slotParts.reduce((sum, part) => sum + part.quantity, 0);
+  const keySpecs = assembly
+    ? buildKeySpecs(assembly.keySpecs, slotParts, assembly.slots)
+    : [];
+  const assemblyGroups = assembly
+    ? buildAssemblyGroups(slotParts, device.partLinks || {})
+    : [];
 
   const photos = device.photos || [];
   const modelPhotos = model?.photos || [];
@@ -207,6 +256,104 @@ const ViewClientDevice = ({ device = {} }) => {
     }
   };
 
+  // Строка прикреплённого устройства (прежняя строка «Состава сборки»):
+  // плитка типа, имя, «тип · номер · SN», гарантия, «открепить».
+  const componentRow = (component) => {
+    const componentType =
+      component.deviceModelId?.deviceTypeId?.name ||
+      component.deviceTypeId?.name;
+    const ComponentIcon = deviceIcon(componentType);
+    const componentWarranty = warrantyState(component.warrantyExpirationDate);
+    const name =
+      [component.deviceModelId?.vendorId?.name, component.deviceModelId?.name]
+        .filter(Boolean)
+        .join(" ") ||
+      componentType ||
+      "Устройство";
+    return (
+      <div
+        key={component._id}
+        className="flex items-center gap-3.5 border-t border-border-soft py-2.5 first:border-t-0"
+      >
+        <Link
+          to={`/inventory/client-devices/${component._id}`}
+          className="flex min-w-0 flex-1 items-center gap-3 text-foreground no-underline"
+        >
+          <span
+            aria-hidden
+            className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground"
+          >
+            <ComponentIcon size={17} />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate font-medium">
+              {name}
+              {component.quantity > 1 && (
+                <span className="font-normal text-faint">
+                  {" "}
+                  × {component.quantity}
+                </span>
+              )}
+            </span>
+            <span className="block truncate text-sm text-muted-foreground">
+              {[
+                componentType,
+                component.inventoryNumber,
+                component.serialNumber ? `SN ${component.serialNumber}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </span>
+        </Link>
+        <span className="hidden w-48 flex-none text-sm lg:block">
+          {componentWarranty ? (
+            <span
+              className={cn(
+                componentWarranty.tone === "warn"
+                  ? "text-warning"
+                  : "text-muted-foreground",
+              )}
+            >
+              Гарантия {componentWarranty.text}
+            </span>
+          ) : (
+            <span className="text-faint">Гарантия не указана</span>
+          )}
+        </span>
+        {canManage && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Открепить от сборки"
+            aria-label="Открепить от сборки"
+            disabled={detachingId === component._id}
+            onClick={() => detachComponent(component._id)}
+            className="flex-none text-faint"
+          >
+            <RiLinkUnlink />
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  // «Новая» / «Прикрепить» — у «Состава сборки» и у «Конфигурации» одни
+  const componentActions = canManage && (
+    <>
+      <Button
+        variant="outline"
+        size="xs"
+        onClick={() => setNewComponentOpen(true)}
+      >
+        <RiAddLine /> Новая
+      </Button>
+      <Button variant="outline" size="xs" onClick={() => setAttachOpen(true)}>
+        <RiLinksLine /> Прикрепить
+      </Button>
+    </>
+  );
+
   // Рейл собирается только из реально отрисованных секций.
   const railSections = useMemo(
     () =>
@@ -214,11 +361,25 @@ const ViewClientDevice = ({ device = {} }) => {
         { id: "placement", label: "Размещение" },
         { id: "environment", label: "Окружение" },
         { id: "identity", label: "Идентификация" },
-        specs.length ? { id: "specs", label: "Характеристики" } : null,
-        { id: "tech", label: "Сеть и система" },
-        components.length || canManage
-          ? { id: "components", label: "Состав сборки" }
+        specGroups.length && !assembly
+          ? { id: "specs", label: "Характеристики" }
           : null,
+        { id: "tech", label: "Сеть и система" },
+        ...(assembly
+          ? [
+              showConfig ? { id: "components", label: "Конфигурация" } : null,
+              connected.length
+                ? { id: "connected", label: "Подключено" }
+                : null,
+              assemblyGroups.length
+                ? { id: "specs", label: "Характеристики" }
+                : null,
+            ]
+          : [
+              components.length || canManage
+                ? { id: "components", label: "Состав сборки" }
+                : null,
+            ]),
         { id: "purchase", label: "Закупка и гарантия" },
         showMonitoring ? { id: "monitoring", label: "Мониторинг" } : null,
         hasTickets ? { id: "tickets", label: "Заявки" } : null,
@@ -227,8 +388,12 @@ const ViewClientDevice = ({ device = {} }) => {
           : null,
       ].filter(Boolean),
     [
-      specs.length,
+      specGroups.length,
       components.length,
+      Boolean(assembly),
+      showConfig,
+      connected.length,
+      assemblyGroups.length,
       canManage,
       showMonitoring,
       hasTickets,
@@ -263,11 +428,27 @@ const ViewClientDevice = ({ device = {} }) => {
 
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
               <span className="text-sm text-muted-foreground">
-                {isCustom
-                  ? [type?.name, "собственная сборка"]
-                      .filter(Boolean)
-                      .join(" · ")
-                  : [type?.name, vendor?.name].filter(Boolean).join(" · ")}
+                {assembly ? (
+                  <>
+                    {[type?.name, "своя сборка"].filter(Boolean).join(" · ")}
+                    {build && (
+                      <>
+                        {" · "}
+                        <Link
+                          to={`/inventory/device-builds/${build._id}`}
+                          state={fromState}
+                          className="font-medium text-accent-text no-underline hover:underline"
+                        >
+                          {build.name || "Без названия"}
+                        </Link>
+                      </>
+                    )}
+                  </>
+                ) : isCustom ? (
+                  [type?.name, "собственная сборка"].filter(Boolean).join(" · ")
+                ) : (
+                  [type?.name, vendor?.name].filter(Boolean).join(" · ")
+                )}
               </span>
               {/* Метка — тот же вход в QR, что в строке списка */}
               <button
@@ -315,6 +496,9 @@ const ViewClientDevice = ({ device = {} }) => {
                 </DeviceStatusText>
               )}
             </div>
+
+            {/* Ключевые характеристики — по фактическим деталям, как у сборки */}
+            <KeySpecChips entries={keySpecs} />
 
             {/* Комплектующее: путь наверх — в списке устройств его нет */}
             {parent && (
@@ -563,30 +747,16 @@ const ViewClientDevice = ({ device = {} }) => {
               </Panel>
             </Section>
 
-            {specs.length > 0 && (
+            {specGroups.length > 0 && !assembly && (
               <>
                 <Eyebrow id="specs">
                   Характеристики
-                  {configuration?.name ? ` · ${configuration.name}` : ""}
+                  {specLabel && (
+                    <span className="min-w-0 truncate">· {specLabel}</span>
+                  )}
                 </Eyebrow>
                 <Panel>
-                  <div className="grid gap-x-8 md:grid-cols-2">
-                    {specs.map((entry) => (
-                      <SpecRow
-                        key={entry.attributeId?._id || entry.attributeId?.code}
-                        label={
-                          entry.attributeId?.name ||
-                          entry.attributeId?.code ||
-                          "Свойство"
-                        }
-                      >
-                        {entry.value}
-                        {entry.attributeId?.unit
-                          ? ` ${entry.attributeId.unit}`
-                          : ""}
-                      </SpecRow>
-                    ))}
-                  </div>
+                  <SpecSheet groups={specGroups} />
                 </Panel>
               </>
             )}
@@ -665,135 +835,102 @@ const ViewClientDevice = ({ device = {} }) => {
               </Panel>
             </Section>
 
-            {(components.length > 0 || canManage) && (
+            {assembly ? (
               <>
-                <Eyebrow
-                  id="components"
-                  count={components.length}
-                  action={
-                    canManage && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="xs"
-                          onClick={() => setNewComponentOpen(true)}
-                        >
-                          <RiAddLine /> Новая
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="xs"
-                          onClick={() => setAttachOpen(true)}
-                        >
-                          <RiLinksLine /> Прикрепить
-                        </Button>
-                      </>
-                    )
-                  }
-                >
-                  Состав сборки
-                </Eyebrow>
-                <Panel>
-                  {detachError && (
-                    <AlertMessage variant="danger" message={detachError} />
-                  )}
-                  {components.length === 0 ? (
-                    <p className="my-1 text-sm text-muted-foreground">
-                      Комплектующие не прикреплены. «Прикрепить» добавит в
-                      сборку свободное устройство этой компании.
-                    </p>
-                  ) : (
-                    components.map((component) => {
-                      const componentType =
-                        component.deviceModelId?.deviceTypeId?.name ||
-                        component.deviceTypeId?.name;
-                      const ComponentIcon = deviceIcon(componentType);
-                      const componentWarranty = warrantyState(
-                        component.warrantyExpirationDate,
-                      );
-                      const name =
-                        [
-                          component.deviceModelId?.vendorId?.name,
-                          component.deviceModelId?.name,
-                        ]
-                          .filter(Boolean)
-                          .join(" ") ||
-                        componentType ||
-                        "Устройство";
-                      return (
-                        <div
-                          key={component._id}
-                          className="flex items-center gap-3.5 border-t border-border-soft py-2.5 first:border-t-0"
-                        >
-                          <Link
-                            to={`/inventory/client-devices/${component._id}`}
-                            className="flex min-w-0 flex-1 items-center gap-3 text-foreground no-underline"
-                          >
-                            <span
-                              aria-hidden
-                              className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground"
-                            >
-                              <ComponentIcon size={17} />
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block truncate font-medium">
-                                {name}
-                                {component.quantity > 1 && (
-                                  <span className="font-normal text-faint">
-                                    {" "}
-                                    × {component.quantity}
-                                  </span>
-                                )}
-                              </span>
-                              <span className="block truncate text-sm text-muted-foreground">
-                                {[
-                                  componentType,
-                                  component.inventoryNumber,
-                                  component.serialNumber
-                                    ? `SN ${component.serialNumber}`
-                                    : null,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </span>
-                            </span>
-                          </Link>
-                          <span className="hidden w-48 flex-none text-sm lg:block">
-                            {componentWarranty ? (
-                              <span
-                                className={cn(
-                                  componentWarranty.tone === "warn"
-                                    ? "text-warning"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                Гарантия {componentWarranty.text}
-                              </span>
-                            ) : (
-                              <span className="text-faint">
-                                Гарантия не указана
-                              </span>
-                            )}
-                          </span>
-                          {canManage && (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Открепить от сборки"
-                              aria-label="Открепить от сборки"
-                              disabled={detachingId === component._id}
-                              onClick={() => detachComponent(component._id)}
-                              className="flex-none text-faint"
-                            >
-                              <RiLinkUnlink />
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </Panel>
+                {/* ПК своей сборки: «Конфигурация» вместо «Состава сборки» —
+                    детали по слотам со сверкой со сборкой; прочие дети —
+                    «Подключено» теми же строками; характеристики — из деталей */}
+                {showConfig && (
+                  <>
+                    <Eyebrow
+                      id="components"
+                      count={configUnits}
+                      action={componentActions}
+                    >
+                      Конфигурация
+                    </Eyebrow>
+                    <MissingRequiredAlert names={diff.missingRequired} />
+                  </>
+                )}
+                {/* Над панелью: строки внутри неё — до края (гасят отступ) */}
+                {detachError && (
+                  <AlertMessage
+                    variant="danger"
+                    message={detachError}
+                    className="mt-0 mb-2.5"
+                  />
+                )}
+                {showConfig && (
+                  <Panel>
+                    {configRows.length === 0 ? (
+                      <p className="my-1 text-sm text-muted-foreground">
+                        Комплектующие не прикреплены. «Прикрепить» добавит в
+                        сборку свободное устройство этой компании.
+                      </p>
+                    ) : (
+                      <AssemblyConfiguration
+                        rows={configRows}
+                        canManage={canManage}
+                        detachingId={detachingId}
+                        onDetach={detachComponent}
+                        onNew={() => setNewComponentOpen(true)}
+                        onAttach={() => setAttachOpen(true)}
+                      />
+                    )}
+                  </Panel>
+                )}
+
+                {connectedConfigRows.length > 0 && (
+                  <>
+                    <Eyebrow id="connected" count={connectedConfigRows.length}>
+                      Подключено
+                    </Eyebrow>
+                    <Panel>
+                      <AssemblyConfiguration
+                        rows={connectedConfigRows}
+                        connected
+                        canManage={canManage}
+                        detachingId={detachingId}
+                        onDetach={detachComponent}
+                      />
+                    </Panel>
+                  </>
+                )}
+
+                {assemblyGroups.length > 0 && (
+                  <>
+                    <Eyebrow id="specs">Характеристики</Eyebrow>
+                    <Panel>
+                      <SpecSheet groups={assemblyGroups} />
+                    </Panel>
+                  </>
+                )}
               </>
+            ) : (
+              (components.length > 0 || canManage) && (
+                <>
+                  <Eyebrow
+                    id="components"
+                    count={components.length}
+                    action={componentActions}
+                  >
+                    Состав сборки
+                  </Eyebrow>
+                  <Panel>
+                    {detachError && (
+                      <AlertMessage variant="danger" message={detachError} />
+                    )}
+                    {components.length === 0 ? (
+                      <p className="my-1 text-sm text-muted-foreground">
+                        Комплектующие не прикреплены. «Прикрепить» добавит в
+                        сборку свободное устройство этой компании.
+                      </p>
+                    ) : (
+                      components.map(componentRow)
+                    )}
+                  </Panel>
+                </>
+              )
             )}
 
             <Section>

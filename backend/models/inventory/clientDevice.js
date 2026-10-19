@@ -26,6 +26,13 @@ const clientDeviceSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "ClientDevice",
     },
+    // Сборка-шаблон, из которой создан ПК. Только у «Своей сборки» (тип без
+    // модели): заводское устройство сборки не имеет. Детали её не несут.
+    buildId: {
+      type: Schema.Types.ObjectId,
+      ref: "DeviceBuild",
+      default: null,
+    },
     // Количество (для комплектующих: напр. 2×16 ГБ ОЗУ).
     quantity: {
       type: Number,

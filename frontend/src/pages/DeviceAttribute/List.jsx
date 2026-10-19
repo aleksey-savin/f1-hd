@@ -1,6 +1,8 @@
 import { useEffect } from "react";
-import { useLocation, redirect } from "react-router";
+import { Link, useLocation, redirect } from "react-router";
+import { RiFolderLine } from "react-icons/ri";
 
+import { Button } from "@/components/ui/button";
 import ChipSelect from "@/components/app/ChipSelect";
 import ListWrapper from "@/components/app/ListWrapper";
 
@@ -12,11 +14,14 @@ import DeviceAttributeFilter from "../../components/DeviceAttribute/Filter";
 import { valueTypeLabel } from "../../components/DeviceAttribute/value-types";
 import { attributeIdsOfType } from "../../components/DeviceAttribute/device-type-links";
 import { invalidate } from "@/store/form-data";
+import { useCan } from "@/store/authed-user";
 
 const DeviceAttributeListPage = () => {
   const location = useLocation();
   const filterStore = useDeviceAttributeFilterStore();
   const deviceTypeStore = useDeviceTypeFilterStore();
+  const can = useCan();
+  const canManage = can({ inventoryCatalog: ["manage"] });
 
   useEffect(() => {
     filterStore.applyFilter();
@@ -95,13 +100,23 @@ const DeviceAttributeListPage = () => {
       addRoute="/inventory/device-attributes/add"
       addLabel="Новый атрибут"
       toolbar={
-        <ChipSelect
-          placeholder="Тип устройства"
-          allLabel="Все типы"
-          value={filterStore.deviceType?._id ?? null}
-          options={deviceTypeOptions}
-          onChange={selectDeviceType}
-        />
+        <>
+          <ChipSelect
+            placeholder="Тип устройства"
+            allLabel="Все типы"
+            value={filterStore.deviceType?._id ?? null}
+            options={deviceTypeOptions}
+            onChange={selectDeviceType}
+          />
+          {/* Справочник групп — шторка-маршрут groups над списком */}
+          {canManage && (
+            <Button asChild variant="outline">
+              <Link to="groups">
+                <RiFolderLine /> Группы
+              </Link>
+            </Button>
+          )}
+        </>
       }
       filter={<DeviceAttributeFilter />}
       filterActive={activeFilters.length > 0}
