@@ -140,6 +140,7 @@ const PrefsIntegrations = ({ prefs }) => {
       <McpKeys
         scanForSecrets={Boolean(prefs.knowledgeBase?.scanForSecrets)}
         knowledgeModuleOn={Boolean(prefs.modules?.knowledgeBase?.isActive)}
+        inventoryModuleOn={Boolean(prefs.modules?.inventory?.isActive)}
         mikrotikModuleOn={Boolean(prefs.modules?.mikrotik?.isActive)}
       />
 

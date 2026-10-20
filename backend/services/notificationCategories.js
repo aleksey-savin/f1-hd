@@ -23,6 +23,8 @@ const CATEGORIES = [
   // Запросы ИИ-агента на изменение Mikrotik: «ждёт решения», итог применения
   // (services/mikrotik/changeSteps). Один ключ на оба вида событий.
   "mikrotikChange",
+  // Предложения ИИ-агента по учёту техники: ждёт решения и итог (services/inventory/changeNotifications).
+  "inventoryChange",
 ];
 
 const KNOWN = new Set(CATEGORIES);

@@ -62,6 +62,7 @@ const buildApp = (calls) => {
     subRouter("/locations"),
     subRouter("/mikrotik-devices"),
     subRouter("/mikrotik-changes/:id"),
+    subRouter("/changes/:id"),
     subRouter("/suppliers"),
     subRouter("/vendors"),
   ];
@@ -111,6 +112,8 @@ test("у каждого префикса свой набор гейтов", asyn
     ["/api/inventory/mikrotik-devices", ["mikrotikIsActive", "canReadMikrotik"]],
     // Запросы ИИ-агентов: рубильник модуля и «не клиент»; кто что видит, решают ручки
     ["/api/inventory/mikrotik-changes/abc", ["mikrotikIsActive", "isNotClient"]],
+    // Предложения ИИ-агента по инвентарю: модуль учёта и «не клиент»; кто что видит, решают ручки
+    ["/api/inventory/changes/abc", [inventory, "isNotClient"]],
   ];
 
   for (const [path, expected] of cases) {

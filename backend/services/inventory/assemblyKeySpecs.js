@@ -228,6 +228,7 @@ const loadKeySpecs = async (
 
 module.exports = {
   formatSpecValue,
+  parseMultiValue,
   liveAssembly,
   partTitle,
   buildKeySpecs,

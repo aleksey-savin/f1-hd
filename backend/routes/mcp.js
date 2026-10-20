@@ -13,11 +13,17 @@ const ticketSource = require("@/services/mcp/ticketSource");
 const { createTicketTools } = require("@/services/mcp/ticketTools");
 const directorySource = require("@/services/mcp/directorySource");
 const { createDirectoryTools } = require("@/services/mcp/directoryTools");
+const inventorySource = require("@/services/mcp/inventorySource");
+const { createInventoryTools } = require("@/services/mcp/inventoryTools");
 const mikrotikSource = require("@/services/mcp/mikrotikSource");
 const { createMikrotikTools } = require("@/services/mcp/mikrotikTools");
 const { createMikrotikChangeTools, mongoChangeStore } = require("@/services/mcp/mikrotikChangeTools");
 const { createProposals, mongoStore, liveReadMenus } = require("@/services/mikrotik/changeProposals");
 const { mongoNotifier } = require("@/services/mikrotik/changeNotifications");
+const { createInventoryChangeTools, mongoChangeStore: mongoInventoryChangeStore } = require("@/services/mcp/inventoryChangeTools");
+const { createProposals: createInventoryProposals, mongoStore: inventoryProposalStore } = require("@/services/inventory/changeProposals");
+const inventoryChangeOps = require("@/services/inventory/changeOps");
+const { mongoNotifier: mongoInventoryNotifier } = require("@/services/inventory/changeNotifications");
 const { createMikrotikDiagnostics } = require("@/services/mcp/mikrotikDiagnostics");
 const { eventLog } = require("@/services/mikrotik/events");
 const { createMikrotikEventTools, mongoEventStore } = require("@/services/mcp/mikrotikEventTools");
@@ -51,6 +57,9 @@ const loadContext = async () => {
   };
 };
 
+// Один экземпляр на процесс: замок на ключ (очередь предложений) живёт внутри
+const inventoryProposals = createInventoryProposals({ store: inventoryProposalStore, ops: inventoryChangeOps, now: () => new Date() });
+
 module.exports = buildMcpRouter({
   requireKey: createRequireMcpKey({
     findKeyByHash: (keyHash) =>
@@ -65,11 +74,20 @@ module.exports = buildMcpRouter({
       knowledgeWrite: createKnowledgeWriteTools({ source: knowledgeWriteSource, baseUrl: process.env.ADDRESS, log }),
       tickets: createTicketTools({ source: ticketSource, baseUrl: process.env.ADDRESS, log }),
       directory: createDirectoryTools({ source: directorySource, log }),
+      inventory: createInventoryTools({ source: inventorySource, baseUrl: process.env.ADDRESS, log }),
       mikrotik: {
         ...createMikrotikTools({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log, events: eventLog() }),
         ...createMikrotikEventTools({ source: mikrotikSource, store: mongoEventStore, baseUrl: process.env.ADDRESS, log }),
         ...createMikrotikDiagnostics({ source: mikrotikSource, baseUrl: process.env.ADDRESS, log, events: eventLog() }),
       },
+      // Предложения создаются один раз на модуль: замок на ключ живёт в экземпляре
+      inventoryChanges: createInventoryChangeTools({
+        proposals: inventoryProposals,
+        store: mongoInventoryChangeStore,
+        notifier: mongoInventoryNotifier({ baseUrl: process.env.APP_PUBLIC_URL || process.env.VITE_API_ADDRESS || "", log: logger }),
+        baseUrl: process.env.ADDRESS,
+        log,
+      }),
       mikrotikChanges: createMikrotikChangeTools({
         proposals: createProposals({ store: mongoStore, readMenus: liveReadMenus, now: () => new Date() }),
         store: mongoChangeStore,

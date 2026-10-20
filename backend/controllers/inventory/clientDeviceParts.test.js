@@ -351,6 +351,33 @@ test("add: детали у типа без сборки — 400", async (t) => {
   assert.equal(saved.length, 0);
 });
 
+test("add: своя сборка типа без комплектующих — 400, ничего не записано", async (t) => {
+  const { saved } = stubCatalog(t);
+  const { error } = await call(controller.add, {
+    body: pcBody({ deviceTypeId: OTHER_TYPE }),
+  });
+  assert.equal(error?.statusCode, 400);
+  assert.match(error.message, /не собирается из комплектующих/);
+  assert.equal(saved.length, 0);
+});
+
+test("add: деталь без модели (с родителем) у типа без сборки — как раньше", async (t) => {
+  const { saved } = stubCatalog(t);
+  t.mock.method(ClientDevice, "findById", () =>
+    chain({ _id: "6a28ed8f6d333b3a785274ff", companyId: COMPANY }),
+  );
+  const { res, error } = await call(controller.add, {
+    body: {
+      companyId: COMPANY,
+      deviceTypeId: OTHER_TYPE,
+      parentDeviceId: "6a28ed8f6d333b3a785274ff",
+    },
+  });
+  assert.ifError(error);
+  assert.equal(res.code, 201);
+  assert.equal(saved.length, 1);
+});
+
 test("add: пустой список деталей — ПК без деталей, как раньше", async (t) => {
   const { saved } = stubCatalog(t);
   const { res, error } = await call(controller.add, {

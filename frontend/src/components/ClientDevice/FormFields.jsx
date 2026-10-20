@@ -4,10 +4,10 @@ import { RiAddLine, RiAlertLine } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import ChoiceGroup from "@/components/app/ChoiceGroup";
 import Combobox from "@/components/app/Combobox";
 import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
-import Segmented from "@/components/app/Segmented";
 import { DEVICE_STATUS_OPTIONS } from "@/components/app/device-status";
 
 // Группы полей устройства — ОДИН набор на мастер создания и на плоскую правку.
@@ -103,14 +103,15 @@ const SerialHint = ({ matches }) => {
   );
 };
 
+// «Как описываем» — только у типа, который собирается из комплектующих
 const KIND_OPTIONS = [
-  { value: "branded", label: "Заводская сборка" },
+  { value: "branded", label: "Модель из каталога" },
   { value: "custom", label: "Своя сборка" },
 ];
 
 /**
  * «Сборка» — у своей сборки типа с комплектующими, только в создании: шаблон
- * сборки или «Без сборки — детали вручную». Под полем — что войдёт в ПК
+ * сборки или «Без сборки — комплектующие вручную». Под полем — что войдёт в ПК
  * (макет «ПК из сборки», разд. 1); детали правятся на шаге «Комплектующие».
  */
 const BuildField = ({ build }) => {
@@ -137,7 +138,7 @@ const BuildField = ({ build }) => {
           retry ? (
             <span className="text-warning-text">{retry}</span>
           ) : (
-            "Или «Без сборки — детали вручную». Детали можно поменять на следующем шаге."
+            "Или «Без сборки — комплектующие вручную». Детали можно поменять на следующем шаге."
           )
         }
       >
@@ -166,16 +167,20 @@ const BuildField = ({ build }) => {
 };
 
 /**
- * «Что это»: вид сборки решает, показывать ли цепочку вендор → модель. Не
- * гасим неприменимые поля серым — убираем их совсем (гайд, «Форма
- * подстраивается под тип сущности»). `build` — поле «Сборка» (см. BuildField),
- * null — его нет.
+ * «Что это»: сначала тип — от него зависит остальное. Выбор «Модель из
+ * каталога / Своя сборка» есть, только когда `kindChoice` (тип собирается из
+ * комплектующих; в правке — и у нынешней самосборки). Не гасим неприменимые
+ * поля серым — убираем их совсем (гайд, «Форма подстраивается под тип
+ * сущности»). `awaitingType` — создание без типа: вместо полей подсказка.
+ * `build` — поле «Сборка» (см. BuildField), null — его нет.
  */
 export const DeviceFields = ({
   values,
   onChange,
   onKindChange,
   deviceKind,
+  kindChoice = false,
+  awaitingType = false,
   errors = {},
   options,
   onInlineCreate,
@@ -183,24 +188,11 @@ export const DeviceFields = ({
   build = null,
 }) => (
   <>
-    <Segmented
-      ariaLabel="Вид сборки"
-      options={KIND_OPTIONS}
-      value={deviceKind}
-      onChange={onKindChange}
-      className="mb-4"
-    />
-
     <CatalogField
       id="device-type"
       label="Тип устройства"
       required
       error={errors.deviceTypeId}
-      hint={
-        deviceKind === "custom"
-          ? "Производитель и модель не указываются — единицу опознаёт инвентарный номер."
-          : undefined
-      }
       value={values.deviceTypeId}
       options={options.deviceTypes}
       onChange={(next) => onChange("deviceTypeId", next)}
@@ -210,91 +202,124 @@ export const DeviceFields = ({
       searchPlaceholder="Найти тип…"
     />
 
-    {deviceKind === "custom" && build && <BuildField build={build} />}
-
-    {deviceKind === "branded" && (
+    {awaitingType ? (
+      <div className="mb-4 rounded-xl border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
+        <b className="font-medium text-foreground">Выберите тип</b> — от него
+        зависит, что спросим дальше: модель из каталога или комплектующие своей
+        сборки.
+      </div>
+    ) : (
       <>
-        <div className="grid gap-x-3 md:grid-cols-2">
-          <CatalogField
-            id="device-vendor"
-            label="Производитель"
-            required
-            error={errors.vendorId}
-            value={values.vendorId}
-            options={options.vendors}
-            onChange={(next) => onChange("vendorId", next)}
-            onAdd={() => onInlineCreate("vendor")}
-            addTitle="Новый производитель"
-            placeholder="Выберите производителя"
-            searchPlaceholder="Найти производителя…"
-          />
-          <CatalogField
-            id="device-model"
-            label="Модель"
-            required
-            error={errors.deviceModelId}
-            value={values.deviceModelId}
-            options={options.deviceModels}
-            onChange={(next) => onChange("deviceModelId", next)}
-            onAdd={() => onInlineCreate("deviceModel")}
-            addTitle="Новая модель"
-            placeholder={
-              values.vendorId && values.deviceTypeId
-                ? "Выберите модель"
-                : "Сначала тип и производитель"
-            }
-            searchPlaceholder="Найти модель…"
-            emptyText="Моделей нет — заведите новую"
-            disabled={!values.deviceTypeId || !values.vendorId}
-          />
-        </div>
-
-        {/* Поле есть, только когда есть из чего выбрать: заблокированный
-            селект с подписью «конфигураций нет» — это пустое место, занявшее
-            строку формы. Заводят их на странице модели. */}
-        {values.deviceModelId && options.configurations.length > 0 && (
-          <CatalogField
-            id="device-configuration"
-            label="Конфигурация"
-            hint="Набор характеристик модели — попадёт в секцию «Характеристики» карточки."
-            value={values.configurationId}
-            options={options.configurations}
-            onChange={(next) => onChange("configurationId", next)}
-            placeholder="Выберите конфигурацию"
-            searchPlaceholder="Найти конфигурацию…"
-          />
+        {kindChoice && (
+          <Field label={<span id="device-kind-label">Как описываем</span>}>
+            <ChoiceGroup
+              ariaLabelledBy="device-kind-label"
+              options={KIND_OPTIONS}
+              columns="auto"
+              value={deviceKind}
+              onChange={onKindChange}
+            />
+          </Field>
         )}
+
+        {deviceKind === "custom" && build && <BuildField build={build} />}
+
+        {deviceKind === "branded" && (
+          <>
+            <div className="grid gap-x-3 md:grid-cols-2">
+              <CatalogField
+                id="device-vendor"
+                label="Производитель"
+                required
+                error={errors.vendorId}
+                value={values.vendorId}
+                options={options.vendors}
+                onChange={(next) => onChange("vendorId", next)}
+                onAdd={() => onInlineCreate("vendor")}
+                addTitle="Новый производитель"
+                placeholder="Выберите производителя"
+                searchPlaceholder="Найти производителя…"
+              />
+              <CatalogField
+                id="device-model"
+                label="Модель"
+                required
+                error={errors.deviceModelId}
+                value={values.deviceModelId}
+                options={options.deviceModels}
+                onChange={(next) => onChange("deviceModelId", next)}
+                onAdd={() => onInlineCreate("deviceModel")}
+                addTitle="Новая модель"
+                placeholder={
+                  values.vendorId && values.deviceTypeId
+                    ? "Выберите модель"
+                    : "Сначала тип и производитель"
+                }
+                searchPlaceholder="Найти модель…"
+                emptyText="Моделей нет — заведите новую"
+                disabled={!values.deviceTypeId || !values.vendorId}
+              />
+            </div>
+
+            {/* Поле есть, только когда есть из чего выбрать: заблокированный
+                селект с подписью «конфигураций нет» — это пустое место,
+                занявшее строку формы. Заводят их на странице модели. */}
+            {values.deviceModelId && options.configurations.length > 0 && (
+              <CatalogField
+                id="device-configuration"
+                label="Конфигурация"
+                hint="Набор характеристик модели — попадёт в секцию «Характеристики» карточки."
+                value={values.configurationId}
+                options={options.configurations}
+                onChange={(next) => onChange("configurationId", next)}
+                placeholder="Выберите конфигурацию"
+                searchPlaceholder="Найти конфигурацию…"
+              />
+            )}
+          </>
+        )}
+
+        <div className="grid gap-x-3 md:grid-cols-2">
+          <Field
+            label="Инвентарный номер"
+            htmlFor="device-inventory"
+            hint="Оставьте пустым — номер выдаст счётчик типа."
+          >
+            <Input
+              id="device-inventory"
+              value={values.inventoryNumber}
+              onChange={(event) =>
+                onChange("inventoryNumber", event.target.value)
+              }
+              placeholder="Присвоим автоматически"
+              className="font-mono"
+            />
+          </Field>
+          <Field
+            label="Серийный номер"
+            htmlFor="device-serial"
+            hint={
+              serialMatches?.length ? (
+                <SerialHint matches={serialMatches} />
+              ) : (
+                // Поле «Сборка» есть — будет и шаг «Комплектующие»
+                deviceKind === "custom" &&
+                build &&
+                "У своей сборки серийники — у деталей, на следующем шаге."
+              )
+            }
+          >
+            <Input
+              id="device-serial"
+              value={values.serialNumber}
+              onChange={(event) => onChange("serialNumber", event.target.value)}
+              placeholder="Введите, если есть"
+              className="font-mono"
+            />
+          </Field>
+        </div>
       </>
     )}
-
-    <div className="grid gap-x-3 md:grid-cols-2">
-      <Field
-        label="Инвентарный номер"
-        htmlFor="device-inventory"
-        hint="Оставьте пустым — номер выдаст счётчик типа."
-      >
-        <Input
-          id="device-inventory"
-          value={values.inventoryNumber}
-          onChange={(event) => onChange("inventoryNumber", event.target.value)}
-          placeholder="Присвоим автоматически"
-          className="font-mono"
-        />
-      </Field>
-      <Field
-        label="Серийный номер"
-        htmlFor="device-serial"
-        hint={<SerialHint matches={serialMatches} />}
-      >
-        <Input
-          id="device-serial"
-          value={values.serialNumber}
-          onChange={(event) => onChange("serialNumber", event.target.value)}
-          placeholder="Введите, если есть"
-          className="font-mono"
-        />
-      </Field>
-    </div>
   </>
 );
 

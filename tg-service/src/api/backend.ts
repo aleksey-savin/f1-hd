@@ -6,6 +6,8 @@ import type {
   CreatedTicket,
   DeliveryOutcome,
   MikrotikChangeDecisionResult,
+  InventoryChangeDecisionResult,
+  InventoryChangeView,
   MikrotikChangeView,
   OutboxBatch,
   PairingResult,
@@ -101,6 +103,22 @@ export const decideMikrotikChange = (
   decision: "approve" | "reject",
 ) =>
   api<MikrotikChangeDecisionResult>(`/api/bot/mikrotik-changes/${id}/decision`, {
+    method: "POST",
+    body: { decision },
+    actor,
+  });
+
+/** Пакет изменений инвентаря от ИИ-агента: что показать этому человеку сейчас. */
+export const fetchInventoryChangeMessage = (actor: number | string, id: string) =>
+  api<InventoryChangeView>(`/api/bot/inventory-changes/${id}/message`, { actor });
+
+/** Решение по пакету. Право и «чей шаг» проверяет бэкенд; бот лишь передаёт, кто нажал. */
+export const decideInventoryChange = (
+  actor: number | string,
+  id: string,
+  decision: "approve" | "reject",
+) =>
+  api<InventoryChangeDecisionResult>(`/api/bot/inventory-changes/${id}/decision`, {
     method: "POST",
     body: { decision },
     actor,

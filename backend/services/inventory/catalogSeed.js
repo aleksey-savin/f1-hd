@@ -285,7 +285,9 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
         warnings.push(`каталог: у типа «${type.name}» неизвестная группа ${groupKey}`);
         groupKey = null;
       }
-      const attrId = matched.attributes[item.attr];
+      const attrId = Object.hasOwn(matched.attributes, item.attr)
+        ? matched.attributes[item.attr]
+        : undefined;
       // Два ключа, подхватившие один документ, — одна связка
       const ref = attrId !== undefined ? `id:${idKey(attrId)}` : `key:${item.attr}`;
       if (seenAttrs.has(ref)) {
@@ -342,16 +344,26 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
 
 const DEFAULT_MODELS = { AttributeGroup, DeviceType, DeviceAttribute, DeviceTypeAttribute };
 
+/** Лёгкие выборки из базы, на которых строится план (см. planCatalog). */
+const loadExisting = async (models = DEFAULT_MODELS) => ({
+  groups: await models.AttributeGroup.find({}).select("name order").lean(),
+  types: await models.DeviceType.find({}).select("name isComponent assembly.slots").lean(),
+  attributes: await models.DeviceAttribute.find({}).select("code name valueType options").lean(),
+  links: await models.DeviceTypeAttribute.find({}).select("deviceTypeId attributeId groupId order").lean(),
+});
+
 /**
  * Читает базу, строит план и пишет его. Созданное копится по `_id`; при сбое
  * оно удаляется по этим спискам (транзакций нет), ошибка пробрасывается —
  * повторный прогон начнёт с чистого листа. Дописанное (варианты, группы
  * связок, флаг) не откатывается: это и так только добавление, а повтор его не
- * задвоит.
+ * задвоит. `userId` (необязателен) — автор: пишется в createdBy/updatedBy
+ * созданного и в updatedBy дописанного; без него эти поля не трогаются.
+ * Результат несёт `ids` — ключи каталога → `_id` (созданные и подхваченные).
  */
 const applyCatalog = async (
   catalog,
-  { log = () => {}, models = DEFAULT_MODELS, pickUpOnly = false } = {},
+  { log = () => {}, models = DEFAULT_MODELS, pickUpOnly = false, userId } = {},
 ) => {
   const {
     AttributeGroup: Group,
@@ -359,12 +371,9 @@ const applyCatalog = async (
     DeviceAttribute: Attr,
     DeviceTypeAttribute: Link,
   } = models;
-  const existing = {
-    groups: await Group.find({}).select("name order").lean(),
-    types: await Type.find({}).select("name isComponent assembly.slots").lean(),
-    attributes: await Attr.find({}).select("code name valueType options").lean(),
-    links: await Link.find({}).select("deviceTypeId attributeId groupId order").lean(),
-  };
+  const existing = await loadExisting(models);
+  const author = userId ? { createdBy: userId, updatedBy: userId } : {};
+  const editor = userId ? { updatedBy: userId } : {};
   const plan = planCatalog(catalog, existing, { pickUpOnly });
   for (const warning of plan.warnings) log(`warning: ${warning}`);
 
@@ -374,15 +383,16 @@ const applyCatalog = async (
     attributes: { ...plan.matched.attributes },
   };
   const created = { groups: [], types: [], attributes: [], links: [] };
+  let optionsPushed = false;
 
   try {
     for (const group of plan.create.groups) {
-      const doc = await Group.create({ name: group.name, order: group.order });
+      const doc = await Group.create({ name: group.name, order: group.order, ...author });
       created.groups.push(doc._id);
       ids.groups[group.key] = doc._id;
     }
     for (const type of plan.create.types) {
-      const doc = await Type.create({ name: type.name, ...type.flags });
+      const doc = await Type.create({ name: type.name, ...type.flags, ...author });
       created.types.push(doc._id);
       ids.types[type.key] = doc._id;
     }
@@ -392,7 +402,7 @@ const applyCatalog = async (
       if (await Attr.exists({ code: fields.code })) {
         fields.code = await uniqueAttributeCode(Attr, fields.name);
       }
-      const doc = await Attr.create(fields);
+      const doc = await Attr.create({ ...fields, ...author });
       created.attributes.push(doc._id);
       ids.attributes[key] = doc._id;
     }
@@ -403,10 +413,61 @@ const applyCatalog = async (
         groupId: link.groupKey ? ids.groups[link.groupKey] : null,
         required: link.required,
         order: link.order,
+        ...author,
       });
       created.links.push(doc._id);
     }
+    // Дописывание идёт внутри той же защиты: сбой здесь откатывает созданное по
+    // _id. Уже добавленные варианты (и группы связок, флаги, сборки) откатить
+    // нельзя — это только добавление, повтор прогона их не задвоит.
+    // optionsPushed говорит вызывающему, что часть вариантов могла дописаться.
+    for (const { _id, add } of plan.update.attributeOptions) {
+      optionsPushed = true; // с этого момента сбой мог оставить часть вариантов
+      await Attr.updateOne(
+        { _id },
+        userId
+          ? { $push: { options: { $each: add } }, $set: editor }
+          : { $push: { options: { $each: add } } },
+      );
+    }
+    for (const { _id, groupKey } of plan.update.linkGroups) {
+      // Только если группы всё ещё нет — пока шёл сид, её мог задать человек
+      await Link.updateOne(
+        { _id, groupId: null },
+        { $set: { groupId: ids.groups[groupKey], ...editor } },
+      );
+    }
+    for (const { _id, set } of plan.update.typeFlags) {
+      await Type.updateOne({ _id }, { $set: { ...set, ...editor } });
+    }
+    for (const { typeKey, assembly } of plan.update.typeAssembly) {
+      // Только пока слотов нет — пока шёл сид, сборку мог настроить человек
+      await Type.updateOne(
+        {
+          _id: ids.types[typeKey],
+          $or: [{ "assembly.slots": { $exists: false } }, { "assembly.slots": { $size: 0 } }],
+        },
+        {
+          $set: {
+            "assembly.enabled": assembly.enabled,
+            "assembly.slots": assembly.slots.map((slot) => ({
+              typeId: ids.types[slot.typeKey],
+              required: slot.required,
+              multiple: slot.multiple,
+            })),
+            "assembly.keySpecs": assembly.keySpecs.map((spec) => ({
+              typeId: ids.types[spec.typeKey],
+              source: spec.source,
+              attributeId: spec.attrKey ? ids.attributes[spec.attrKey] : null,
+              aggregate: spec.aggregate,
+            })),
+            ...editor,
+          },
+        },
+      );
+    }
   } catch (error) {
+    if (optionsPushed) error.optionsPushed = true;
     log(`rolling back: ${error.message}`);
     // Обратный порядок: связки ссылаются на типы, атрибуты и группы
     for (const [model, list] of [
@@ -429,42 +490,6 @@ const applyCatalog = async (
     throw error;
   }
 
-  for (const { _id, add } of plan.update.attributeOptions) {
-    await Attr.updateOne({ _id }, { $push: { options: { $each: add } } });
-  }
-  for (const { _id, groupKey } of plan.update.linkGroups) {
-    // Только если группы всё ещё нет — пока шёл сид, её мог задать человек
-    await Link.updateOne({ _id, groupId: null }, { $set: { groupId: ids.groups[groupKey] } });
-  }
-  for (const { _id, set } of plan.update.typeFlags) {
-    await Type.updateOne({ _id }, { $set: set });
-  }
-  for (const { typeKey, assembly } of plan.update.typeAssembly) {
-    // Только пока слотов нет — пока шёл сид, сборку мог настроить человек
-    await Type.updateOne(
-      {
-        _id: ids.types[typeKey],
-        $or: [{ "assembly.slots": { $exists: false } }, { "assembly.slots": { $size: 0 } }],
-      },
-      {
-        $set: {
-          "assembly.enabled": assembly.enabled,
-          "assembly.slots": assembly.slots.map((slot) => ({
-            typeId: ids.types[slot.typeKey],
-            required: slot.required,
-            multiple: slot.multiple,
-          })),
-          "assembly.keySpecs": assembly.keySpecs.map((spec) => ({
-            typeId: ids.types[spec.typeKey],
-            source: spec.source,
-            attributeId: spec.attrKey ? ids.attributes[spec.attrKey] : null,
-            aggregate: spec.aggregate,
-          })),
-        },
-      },
-    );
-  }
-
   const result = {
     created: {
       groups: created.groups.length,
@@ -479,6 +504,7 @@ const applyCatalog = async (
       typeAssembly: plan.update.typeAssembly.length,
     },
     warnings: plan.warnings,
+    ids,
   };
   const matchedCount = (list) => Object.keys(list).length;
   log(
@@ -499,4 +525,80 @@ const applyCatalog = async (
   return result;
 };
 
-module.exports = { planCatalog, applyCatalog };
+const VALUE_TYPE_LABELS = {
+  string: "строка",
+  number: "число",
+  boolean: "да/нет",
+  select: "выбор",
+  multiselect: "множественный выбор",
+  text: "текст",
+};
+
+/**
+ * План человеку: по строке на изменение, по-русски, без id. `catalog` — тот
+ * же, что отдан planCatalog (имена берутся из него по ключам). Предупреждения
+ * плана — в конце, «Внимание: …». Ничего не меняется — одна строка об этом.
+ */
+const describePlan = (plan, catalog) => {
+  const lines = [];
+  const typeByKey = new Map(catalog.types.map((type) => [type.key, type]));
+  const attrByKey = new Map(catalog.attributes.map((attr) => [attr.key, attr]));
+  const keyOfId = (map, id) => Object.keys(map).find((key) => idKey(map[key]) === idKey(id));
+  const typeName = (key) => typeByKey.get(key)?.name ?? key;
+  const attrName = (key) => attrByKey.get(key)?.name ?? key;
+
+  for (const group of catalog.groups) {
+    if (Object.hasOwn(plan.matched.groups, group.key)) lines.push(`Группа «${group.name}» уже есть — используется`);
+  }
+  for (const group of plan.create.groups) lines.push(`Новая группа «${group.name}»`);
+
+  for (const type of catalog.types) {
+    if (!Object.hasOwn(plan.matched.types, type.key)) continue;
+    const flagged = plan.update.typeFlags.some(
+      (item) => idKey(item._id) === idKey(plan.matched.types[type.key]),
+    );
+    lines.push(
+      flagged
+        ? `Тип «${type.name}» уже есть — станет комплектующей`
+        : `Тип «${type.name}» уже есть — используется`,
+    );
+  }
+  for (const type of plan.create.types) {
+    lines.push(`Новый тип «${type.name}» (комплектующая: ${type.flags.isComponent ? "да" : "нет"})`);
+  }
+
+  for (const attr of catalog.attributes) {
+    if (Object.hasOwn(plan.matched.attributes, attr.key)) lines.push(`Атрибут «${attr.name}» уже есть — используется`);
+  }
+  for (const attr of plan.create.attributes) {
+    const kind = VALUE_TYPE_LABELS[attr.valueType] ?? attr.valueType;
+    lines.push(`Новый атрибут «${attr.name}» (${attr.unit ? `${kind}, ${attr.unit}` : kind})`);
+  }
+  for (const { _id, add } of plan.update.attributeOptions) {
+    const key = keyOfId(plan.matched.attributes, _id);
+    lines.push(`Атрибут «${attrName(key)}»: новые варианты ${add.map((option) => option.label).join(", ")}`);
+  }
+
+  const linksByType = new Map();
+  for (const link of plan.create.links) {
+    const list = linksByType.get(link.typeKey) ?? [];
+    list.push(`${attrName(link.attrKey)}${link.required ? "*" : ""}`);
+    linksByType.set(link.typeKey, list);
+  }
+  for (const [typeKey, names] of linksByType) lines.push(`Тип «${typeName(typeKey)}»: атрибуты ${names.join(", ")}`);
+  if (plan.update.linkGroups.length) {
+    lines.push(`Связкам без группы будет назначена группа: ${plan.update.linkGroups.length}`);
+  }
+
+  for (const { typeKey, assembly } of plan.update.typeAssembly) {
+    const slots = assembly.slots.map((slot) => `${typeName(slot.typeKey)}${slot.required ? "*" : ""}`);
+    const specs = assembly.keySpecs.length ? `; ключевых характеристик: ${assembly.keySpecs.length}` : "";
+    lines.push(`Тип «${typeName(typeKey)}»: слоты ${slots.join(", ")}${specs}`);
+  }
+
+  if (!lines.length) lines.push("Каталог не меняется");
+  for (const warning of plan.warnings) lines.push(`Внимание: ${warning}`);
+  return lines;
+};
+
+module.exports = { planCatalog, applyCatalog, loadExisting, describePlan };

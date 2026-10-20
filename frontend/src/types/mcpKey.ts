@@ -3,7 +3,7 @@
 // приходит один раз — в ответе на создание; в списке его нет, как и отпечатка.
 
 /** Доступы ключа: чтение и запись по ресурсам (совпадает с backend MCP_SCOPES). */
-export type McpScope = "knowledge" | "knowledgeWrite" | "tickets" | "companies" | "users" | "mikrotik" | "mikrotikChanges";
+export type McpScope = "knowledge" | "knowledgeWrite" | "tickets" | "companies" | "users" | "inventory" | "inventoryChanges" | "mikrotik" | "mikrotikChanges";
 
 export type McpKeyRow = {
   _id: string;

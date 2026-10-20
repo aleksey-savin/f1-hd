@@ -63,7 +63,7 @@ const STEPS = [
 const PARTS_STEP = { key: "parts", label: "Комплектующие" };
 const STEPS_WITH_PARTS = [STEPS[0], PARTS_STEP, ...STEPS.slice(1)];
 
-// Значение поля «Сборка» «Без сборки — детали вручную»
+// Значение поля «Сборка» «Без сборки — комплектующие вручную»
 const MANUAL_BUILD = "manual";
 
 // Поля, уходящие на сервер. Вендор — только навигация (нужен, чтобы выбрать
@@ -187,7 +187,7 @@ const ClientDeviceForm = ({ title }) => {
   const [assemblyData, setAssemblyData] = useState(null);
   const [assemblyStatus, setAssemblyStatus] = useState("idle");
   const [assemblyReload, setAssemblyReload] = useState(0);
-  // "" — не выбрана, MANUAL_BUILD — детали вручную, иначе id сборки
+  // "" — не выбрана, MANUAL_BUILD — комплектующие вручную, иначе id сборки
   const [buildId, setBuildId] = useState("");
   // Строки шага «Комплектующие» — по одной на физическую деталь
   const [units, setUnits] = useState([]);
@@ -391,7 +391,17 @@ const ClientDeviceForm = ({ title }) => {
       [companies],
     ),
     locations: locationOptions,
-    deviceTypes: useMemo(() => optionsOf(deviceTypes), [deviceTypes]),
+    // Все типы; собираемый из комплектующих подписан — у него следом
+    // спросим «Модель из каталога / Своя сборка»
+    deviceTypes: useMemo(
+      () =>
+        deviceTypes.map((type) => ({
+          value: type._id,
+          label: type.name,
+          hint: type.assembly?.enabled ? "из комплектующих" : undefined,
+        })),
+      [deviceTypes],
+    ),
     vendors: useMemo(() => optionsOf(vendors), [vendors]),
     deviceModels: modelOptions,
     configurations: useMemo(
@@ -512,7 +522,7 @@ const ClientDeviceForm = ({ title }) => {
             value: build._id,
             label: build.name,
           })),
-          { value: MANUAL_BUILD, label: "Без сборки — детали вручную" },
+          { value: MANUAL_BUILD, label: "Без сборки — комплектующие вручную" },
         ],
         onChange: handleBuildChange,
         loading: assemblyStatus === "loading",
@@ -538,6 +548,7 @@ const ClientDeviceForm = ({ title }) => {
     company: labelOf(options.companies, form.companyId),
     location: labelOf(options.locations, form.locationId),
     user: labelOf(options.users, form.userId),
+    build: labelOf(buildField?.options || [], buildId),
   };
 
   // --- валидация: причина стоит у поля ---
@@ -590,18 +601,32 @@ const ClientDeviceForm = ({ title }) => {
   };
   const handleClose = () => close();
 
+  // Ветки не смешиваются: у самосборки нет производителя, модели и
+  // конфигурации; у заводской нет сборки (её сбросит смена assemblyTypeId).
+  const branchReset = (kind) =>
+    kind === "custom"
+      ? { vendorId: "", deviceModelId: "", configurationId: "" }
+      : {};
+
   const handleKindChange = (kind) => {
     setDeviceKind(kind);
-    // Ветки не смешиваются: у самосборки нет модели и конфигурации.
-    setForm((previous) => ({
-      ...previous,
-      ...(kind === "custom"
-        ? { vendorId: "", deviceModelId: "", configurationId: "" }
-        : {}),
-    }));
+    setForm((previous) => ({ ...previous, ...branchReset(kind) }));
   };
 
-  const handleFieldChange = (field, value) => {
+  // Вид сборки следует за типом: у типа без комплектующих выбора нет — только
+  // модель из каталога; собираемый в создании начинается со своей сборки (в
+  // правке вид остаётся прежним). `type` — для только что заведённого типа,
+  // которого ещё нет в состоянии.
+  const kindForType = (typeId, type) => {
+    const picked = type || deviceTypes.find((item) => item._id === typeId);
+    if (!picked?.assembly?.enabled) return "branded";
+    return isEdit ? deviceKind : "custom";
+  };
+
+  const handleFieldChange = (field, value, extra) => {
+    const nextKind =
+      field === "deviceTypeId" && value ? kindForType(value, extra) : null;
+    if (nextKind) setDeviceKind(nextKind);
     setForm((previous) => {
       const next = { ...previous, [field]: value };
       // Смена компании обнуляет зависимые от неё поля.
@@ -615,6 +640,7 @@ const ClientDeviceForm = ({ title }) => {
         next.deviceModelId = "";
         next.configurationId = "";
       }
+      if (nextKind) Object.assign(next, branchReset(nextKind));
       // Вне «В эксплуатации» сотрудник не привязывается.
       if (field === "status" && value !== "deployed") next.userId = "";
       return next;
@@ -626,7 +652,7 @@ const ClientDeviceForm = ({ title }) => {
     if (!created) return;
     if (kind === "deviceType") {
       setDeviceTypes((previous) => [...previous, created]);
-      handleFieldChange("deviceTypeId", created._id);
+      handleFieldChange("deviceTypeId", created._id, created);
     }
     if (kind === "vendor") {
       setVendors((previous) => [...previous, created]);
@@ -714,11 +740,23 @@ const ClientDeviceForm = ({ title }) => {
     onInlineCreate: setInlineKind,
   };
 
+  // «Модель из каталога / Своя сборка» — у собираемого типа; в правке и у
+  // нынешней самосборки на её прежнем типе (легаси: модель-less устройство
+  // типа без комплектующих сохраняет и вид, и тип)
+  const legacyCustom =
+    isEdit &&
+    !data?.deviceModelId &&
+    Boolean(data?.deviceTypeId) &&
+    form.deviceTypeId === refId(data.deviceTypeId);
+  const kindChoice = listAssemblyEnabled || legacyCustom;
+
   const deviceStep = (
     <DeviceFields
       {...fieldProps}
       deviceKind={deviceKind}
       onKindChange={handleKindChange}
+      kindChoice={kindChoice}
+      awaitingType={!isEdit && !form.deviceTypeId}
       errors={stepErrors}
       serialMatches={serialMatches}
       build={buildField && { ...buildField, issue: stepErrors.buildId }}
@@ -860,7 +898,11 @@ const ClientDeviceForm = ({ title }) => {
             </Button>
           )}
           {step < lastStep ? (
-            <Button onClick={handleNext}>
+            // Без типа первому шагу нечего проверять — дальше нельзя
+            <Button
+              onClick={handleNext}
+              disabled={stepKey === "device" && !form.deviceTypeId}
+            >
               Далее <RiArrowRightLine />
             </Button>
           ) : (

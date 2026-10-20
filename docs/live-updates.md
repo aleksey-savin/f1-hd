@@ -32,7 +32,7 @@ In-memory, no I/O. `createBus()` / singleton `bus`:
 - One global monotonic `rev`; each topic stores the `rev` of its last bump, so
   one cursor number compares against any topic.
 - Topics: `tickets`, `presence`, `team`, `mikrotik`, `approval`, `knowledge`,
-  `conversations`, `channels`, `mikrotikChanges` (the last three staff-only:
+  `conversations`, `channels`, `mikrotikChanges`, `inventoryChanges` (the last four staff-only:
   not in `CLIENT_TOPICS`, `controllers/pulse.js`).
 - Per ticket: an LRU `Map<ticketId, rev>` (5000 entries). An evicted ticket
   reports the newest evicted revision (`ticketFloor`) — conservative, never
@@ -60,6 +60,8 @@ change. Current noise:
   there (`recoverToOnline` when the device was not online or its identity
   changed, `recordFailure` on confirmation); `runMikrotikFirmwareRefresh`
   bumps once at the end. Alert stamps and operator edits are not noise.
+- InventoryChange (topic `inventoryChanges`): only `updatedAt`/`__v` are noise; every decision, status
+  and operation-result write moves the topic (the request page `/inventory/changes/<id>`).
 - MikrotikChange (topic `mikrotikChanges`): `remindedAt` is noise; decisions, status, timeline and command results
   move the topic. One `mikrotikChanges` bump serves the dashboard block, the
   device's «Изменения» list and the request page.

@@ -2,6 +2,7 @@ import type { IconType } from "react-icons";
 import {
   RiCalendarEventLine,
   RiChat3Line,
+  RiComputerLine,
   RiDiscussLine,
   RiFileTextLine,
   RiLinkUnlinkM,
@@ -29,6 +30,10 @@ const EXTRA: Record<string, Meta> = {
   // назван в тексте
   mikrotikChangeStep: { icon: RiRouterLine, tone: "warn" },
   mikrotikChangeResult: { icon: RiRouterLine, tone: "muted" },
+  // Предложение ИИ-агента по технике (backend/services/inventory/
+  // changeNotifications): ждёт решения — тон ожидания, итог — нейтральный
+  inventoryChangeProposed: { icon: RiComputerLine, tone: "warn" },
+  inventoryChangeResult: { icon: RiComputerLine, tone: "muted" },
   // «Диалоги»: сообщение ждёт ответа (backend/services/messaging/notify.js)
   conversationWaiting: { icon: RiDiscussLine, tone: "warn" },
   // Канал связи отключился — сессия, блокировка, ошибка; администраторам

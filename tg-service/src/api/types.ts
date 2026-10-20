@@ -164,3 +164,28 @@ export type MikrotikChangeView =
 export type MikrotikChangeDecisionResult =
   | { ok: true; text: string }
   | MikrotikChangeRefusal;
+
+/** Отказ ручек решения по пакету изменений инвентаря: HTTP 200, `message` — готовый текст для людей. */
+export type InventoryChangeRefusal = {
+  ok: false;
+  /** not_found | not_yours | closed | expired | too_long | no_right */
+  code?: string;
+  message: string;
+};
+
+/** Текущее состояние пакета для актора (GET /api/bot/inventory-changes/:id/message). */
+export type InventoryChangeView =
+  | {
+      ok: true;
+      text: string;
+      /** Без кнопок решения, если пакет не помещается; null — клавиатуры нет вовсе. */
+      keyboard: ReplyMarkup | null;
+      /** null — шаг подтверждения показать нельзя. */
+      confirmText: string | null;
+      confirmKeyboard: ReplyMarkup | null;
+    }
+  | InventoryChangeRefusal;
+
+export type InventoryChangeDecisionResult =
+  | { ok: true; text: string }
+  | InventoryChangeRefusal;

@@ -23,7 +23,7 @@ const mcpKeySchema = new Schema(
     lastUsedAt: { type: Date, default: null },
     // Доступы (services/mcp/keys.js#MCP_SCOPES); у старых ключей поля нет.
     scopes: {
-      type: [{ type: String, enum: ["knowledge", "knowledgeWrite", "tickets", "companies", "users", "mikrotik", "mikrotikChanges"] }],
+      type: [{ type: String, enum: ["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "inventoryChanges", "mikrotik", "mikrotikChanges"] }],
       default: ["knowledge"],
     },
   },

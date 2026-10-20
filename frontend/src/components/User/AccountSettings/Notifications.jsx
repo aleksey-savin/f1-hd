@@ -59,6 +59,15 @@ const CATEGORIES = [
     alwaysInApp: true,
   },
   {
+    name: "InventoryChange",
+    label: "Предложения ИИ-агента по технике",
+    visibilityKey: "inventoryChange",
+    hint: "Запрос на утверждение всегда приходит в Telegram. Итоги в Telegram и почту можно выключить. Колокольчик работает всегда.",
+    staffOnly: true,
+    // Колокольчик не выключается: решение за человеком, предложение не должно пропасть молча
+    alwaysInApp: true,
+  },
+  {
     name: "ConversationMessage",
     label: "Диалоги и каналы связи",
     visibilityKey: "conversationMessage",

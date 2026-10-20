@@ -11,6 +11,7 @@ export type NotificationCategory =
   | "reportApproval"
   | "reportDecision"
   | "mikrotikChange"
+  | "inventoryChange"
   | "conversationMessage";
 
 /** Вид события: каталог хроники (util/ticket-events) плюс события вне заявок */
@@ -41,6 +42,8 @@ export type NotificationKind =
   | "reportDecision"
   | "mikrotikChangeStep"
   | "mikrotikChangeResult"
+  | "inventoryChangeProposed"
+  | "inventoryChangeResult"
   | "conversationWaiting"
   | "channelState";
 

@@ -2,7 +2,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { planCatalog, applyCatalog } = require("./catalogSeed");
+const { planCatalog, applyCatalog, describePlan, loadExisting } = require("./catalogSeed");
 
 // Небольшой каталог: две группы, комплектующая и заводской тип, общие атрибуты.
 const catalog = {
@@ -736,4 +736,137 @@ test("второй сид через applyCatalog: на базе после пе
   assert.equal(result.updated.typeAssembly, 1);
   assert.equal(calls.length, 1);
   assert.equal(calls[0][1].$set["assembly.slots"].length, 9);
+});
+
+// --- userId, ids, loadExisting, describePlan ----------------------------------
+
+const modelsWith = (over = {}) => ({
+  AttributeGroup: fakeModel([]),
+  DeviceType: fakeModel([]),
+  DeviceAttribute: fakeModel([]),
+  DeviceTypeAttribute: fakeModel([]),
+  ...over,
+});
+
+test("applyCatalog: userId ставит createdBy/updatedBy, ids — созданные и подхваченные", async () => {
+  const models = modelsWith({
+    DeviceAttribute: fakeModel([
+      { _id: "a-cores", code: "cores_total", name: "Общее количество ядер", valueType: "number" },
+    ]),
+  });
+  const result = await applyCatalog(catalog, { log: () => {}, models, userId: "u1" });
+  for (const model of Object.values(models)) {
+    for (const row of model.rows.filter((r) => String(r._id).includes("#"))) {
+      assert.equal(row.createdBy, "u1");
+      assert.equal(row.updatedBy, "u1");
+    }
+  }
+  assert.equal(models.DeviceAttribute.rows.filter((r) => r.createdBy === "u1").length, 3);
+  assert.equal(result.ids.attributes.cores, "a-cores"); // подхвачен
+  assert.ok(String(result.ids.attributes.socket).startsWith("Сокет#")); // создан
+  assert.ok(result.ids.types.cpu && result.ids.types.laptop && result.ids.types.psu);
+  assert.ok(result.ids.groups.cpu && result.ids.groups.screen);
+});
+
+test("applyCatalog: без userId createdBy/updatedBy не появляются", async () => {
+  const models = modelsWith();
+  await applyCatalog(catalog, { log: () => {}, models });
+  for (const model of Object.values(models)) {
+    for (const row of model.rows) {
+      assert.equal("createdBy" in row, false);
+      assert.equal("updatedBy" in row, false);
+    }
+  }
+});
+
+test("applyCatalog: userId попадает и в дописывание (updatedBy)", async () => {
+  const calls = [];
+  const attrs = fakeModel([
+    { _id: "a-socket", code: "socket", name: "Сокет", valueType: "select", options: [{ value: "AM4", label: "AM4" }] },
+  ]);
+  attrs.updateOne = async (filter, change) => {
+    calls.push(change);
+    return {};
+  };
+  await applyCatalog(catalog, { log: () => {}, models: modelsWith({ DeviceAttribute: attrs }), userId: "u1" });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].$set.updatedBy, "u1");
+  assert.ok(calls[0].$push.options.$each.length > 0);
+});
+
+test("loadExisting: четыре выборки из моделей", async () => {
+  const models = modelsWith({ DeviceType: fakeModel([{ _id: "t1", name: "Тип" }]) });
+  const existing = await loadExisting(models);
+  assert.deepEqual(Object.keys(existing).sort(), ["attributes", "groups", "links", "types"]);
+  assert.equal(existing.types[0].name, "Тип");
+});
+
+test("describePlan: новый тип, подхваченный атрибут, новая группа", () => {
+  const existing = empty();
+  existing.attributes.push({ _id: "a1", code: "socket", name: "Сокет", valueType: "select", options: [] });
+  const lines = describePlan(planCatalog(catalog, existing), catalog);
+  assert.ok(lines.includes("Новая группа «Процессор»"));
+  assert.ok(lines.includes("Новый тип «Ноутбук» (комплектующая: нет)"));
+  assert.ok(lines.includes("Новый тип «Процессор» (комплектующая: да)"));
+  assert.ok(lines.includes("Атрибут «Сокет» уже есть — используется"));
+  assert.ok(lines.includes("Новый атрибут «Диагональ экрана» (число, \")"));
+  assert.ok(lines.some((line) => /^Тип «Ноутбук»: атрибуты Диагональ экрана, Общее количество ядер$/.test(line)));
+  for (const line of lines) assert.ok(!line.includes("\n"));
+});
+
+test("describePlan: сборка называет слоты, предупреждения — «Внимание: …»", () => {
+  const next = withAssembly({
+    slots: [{ type: "cpu", required: true }, { type: "psu" }, { type: "nope" }],
+    keySpecs: [],
+  });
+  const lines = describePlan(planCatalog(next, empty()), next);
+  assert.ok(lines.includes("Тип «Системный блок»: слоты Процессор*, Блок питания"));
+  assert.ok(lines.some((line) => line.startsWith("Внимание: каталог: сборка «Системный блок»")));
+});
+
+test("describePlan: дописывание вариантов и флага комплектующей", () => {
+  const existing = empty();
+  existing.attributes.push({
+    _id: "a1", code: "socket", name: "Сокет", valueType: "select", options: [{ value: "AM4", label: "AM4" }],
+  });
+  existing.types.push({ _id: "t1", name: "Процессор", isComponent: false });
+  const lines = describePlan(planCatalog(catalog, existing), catalog);
+  assert.ok(lines.includes("Атрибут «Сокет»: новые варианты AM5, LGA1700"));
+  assert.ok(lines.includes("Тип «Процессор» уже есть — станет комплектующей"));
+});
+
+test("planCatalog: ключи как имена из Object.prototype не принимаются за подхваченные", () => {
+  const odd = {
+    groups: [{ key: "constructor", name: "Группа", order: 0 }],
+    attributes: [{ key: "toString", code: "ts", name: "Атр", valueType: "string" }],
+    types: [{ key: "valueOf", name: "Тип", attributes: [{ attr: "toString", group: "constructor" }] }],
+  };
+  const plan = planCatalog(odd, empty());
+  assert.deepEqual(plan.warnings, []);
+  assert.equal(plan.create.links.length, 1);
+  const lines = describePlan(plan, odd);
+  assert.ok(!lines.some((line) => line.includes("уже есть")));
+  const withProto = planCatalog(
+    { groups: [], types: [], attributes: [{ key: "a", code: "c", name: "A", valueType: "string" }] },
+    empty(),
+  );
+  assert.equal(Object.hasOwn(withProto.matched.attributes, "constructor"), false);
+});
+
+test("applyCatalog: сбой в фазе дописывания откатывает созданное и помечает optionsPushed", async () => {
+  const attrs = fakeModel([
+    { _id: "a-socket", code: "socket", name: "Сокет", valueType: "select", options: [{ value: "AM4", label: "AM4" }] },
+  ]);
+  attrs.updateOne = async () => {
+    throw new Error("update failed");
+  };
+  const models = modelsWith({ DeviceAttribute: attrs });
+  await assert.rejects(
+    applyCatalog(catalog, { log: () => {}, models }),
+    (error) => error.message === "update failed" && error.optionsPushed === true,
+  );
+  assert.equal(models.DeviceType.rows.length, 0);
+  assert.equal(models.AttributeGroup.rows.length, 0);
+  assert.equal(models.DeviceTypeAttribute.rows.length, 0);
+  assert.deepEqual(models.DeviceAttribute.rows.map((r) => r._id), ["a-socket"]);
 });

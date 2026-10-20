@@ -24,6 +24,7 @@ export const MCP_RESOURCES: McpResource[] = [
   { key: "tickets", label: "Заявки", dative: "заявкам", read: "tickets" },
   { key: "companies", label: "Компании", dative: "компаниям", read: "companies" },
   { key: "users", label: "Пользователи", dative: "пользователям", read: "users" },
+  { key: "inventory", label: "Инвентарь", dative: "инвентарю", read: "inventory", write: "inventoryChanges" },
   { key: "mikrotik", label: "Mikrotik", dative: "Mikrotik", read: "mikrotik", write: "mikrotikChanges" },
 ];
 

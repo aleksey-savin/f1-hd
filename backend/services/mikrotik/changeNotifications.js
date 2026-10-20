@@ -7,6 +7,7 @@ const { currentStep, isPoolStep } = require("./changeSteps");
 const { diffRows } = require("./changeRender");
 const { escapeHtml } = require("../telegramMessage");
 const { rollbackAvailable } = require("./changeExecutorMode");
+const { createFanOut } = require("../notifications/fanOut");
 
 const CATEGORY = "mikrotikChange";
 const MAX_LENGTH = 3500;
@@ -27,7 +28,6 @@ const oneLine = (text, max) => {
   const t = String(text ?? "").replace(/[\s\u0085\u001c-\u001f]+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 };
-const usable = (user) => Boolean(user) && user.isServiceAccount !== true && user.banned !== true;
 
 const idOf = (v) => (v && typeof v === "object" && "_id" in v ? String(v._id) : v == null ? "" : String(v));
 const personName = (user) => oneLine([user?.firstName, user?.lastName].filter(Boolean).join(" "), 80);
@@ -308,34 +308,10 @@ function createChangeNotifier({ loadUsers, loadContext, loadPrefs, loadApprovers
     try { log?.log?.("warn", `Mikrotik change notification: ${message}`, { error: error?.message }); } catch { /* журнал не критичен */ }
   };
 
-  // Уникальные адресаты события в порядке перечисления.
-  const unique = (ids) => [...new Set(ids.map(idOf).filter(Boolean))];
-
-  async function fanOut(change, { ids, kind, title, mailTitle, telegram, bell, mail }) {
-    const users = ((await loadUsers(unique(ids))) || []).filter(usable);
-    const prefs = loadPrefs ? await loadPrefs() : null;
-    const tgOn = prefs?.notify?.byTelegram?.isActive && prefs?.notify?.personal?.[CATEGORY];
-    const mailOn = prefs?.notify?.byEmail?.isActive && prefs?.notify?.personal?.[CATEGORY];
-    const docs = [];
-    for (const user of users) {
-      const who = personName(user);
-      if (tgOn && user.telegramBot?.isActive && user.telegramBot.chatId && user.notify?.byTelegram?.[CATEGORY] !== false) {
-        docs.push({ instrument: "telegram", to: { chatId: user.telegramBot.chatId, applicant: who }, title, text: escapeHtml(telegram.text), replyMarkup: telegram.replyMarkup });
-      }
-      if (mailOn && user.email && user.notify?.byEmail?.[CATEGORY] !== false) {
-        docs.push({ instrument: "email", to: { email: user.email, applicant: who }, title: mailTitle, text: mail });
-      }
-    }
-    // Каналы независимы: сбой одного не отменяет другой. В журнал — только сообщение ошибки.
-    // Колокольчик — всегда (force): выключатели категории его не гасят
-    try {
-      await pushInApp({ recipients: users, category: CATEGORY, kind, title, text: bell, link: pathOf(change), prefs, force: true });
-    } catch (error) { warn(`bell #${change.number}`, error); }
-    if (docs.length) {
-      try { await saveNotifications(docs); } catch (error) { warn(`queue #${change.number}`, error); return 0; }
-    }
-    return docs.length;
-  }
+  const fanOutShared = createFanOut({
+    loadUsers, loadPrefs, saveNotifications, pushInApp, category: CATEGORY, log, logPrefix: "Mikrotik change notification",
+  });
+  const fanOut = (change, args) => fanOutShared(change, { ...args, link: pathOf(change) });
 
   // Имена попадают и в тему письма: перевод строки там — подмена заголовков.
   const cleanCtx = (ctx) => ({

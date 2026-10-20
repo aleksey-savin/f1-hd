@@ -15,7 +15,7 @@ export type NotificationFacet = {
   /** Пусто — «Все», фильтра нет */
   categories: NotificationCategory[];
   /** Фасет раздела-модуля: виден, только когда раздел человеку открыт */
-  module?: "messaging" | "mikrotik";
+  module?: "messaging" | "mikrotik" | "inventory";
 };
 
 export const NOTIFICATION_FACETS: NotificationFacet[] = [
@@ -55,21 +55,32 @@ export const NOTIFICATION_FACETS: NotificationFacet[] = [
     categories: ["mikrotikChange"],
     module: "mikrotik",
   },
+  // Предложения ИИ-агента по учёту техники: ждёт решения и итог
+  {
+    key: "inventory",
+    label: "Предложения по технике",
+    categories: ["inventoryChange"],
+    module: "inventory",
+  },
 ];
 
 /** Фасеты, которые стоит показать: без «Диалогов», если раздел закрыт. */
 export const visibleFacets = ({
   messaging,
   mikrotik = true,
+  inventory = true,
 }: {
   messaging: boolean;
   /** Модуль Mikrotik включён и человек не клиент */
   mikrotik?: boolean;
+  /** Модуль «Инвентарь» включён и человек не клиент */
+  inventory?: boolean;
 }): NotificationFacet[] =>
   NOTIFICATION_FACETS.filter(
     (facet) =>
       (facet.module !== "messaging" || messaging) &&
-      (facet.module !== "mikrotik" || mikrotik),
+      (facet.module !== "mikrotik" || mikrotik) &&
+      (facet.module !== "inventory" || inventory),
   );
 
 export const facetByKey = (key: string | null | undefined): NotificationFacet =>

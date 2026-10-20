@@ -9,7 +9,6 @@ const DeviceTypeAttribute = require("../../models/inventory/deviceTypeAttribute"
 require("../../models/inventory/attributeGroup");
 const Vendor = require("../../models/inventory/vendor");
 const Location = require("../../models/inventory/location");
-const Counter = require("../../models/inventory/counter");
 const DeviceBuild = require("../../models/inventory/deviceBuild");
 const Mikrotik = require("../../models/mikrotik");
 const { Ticket } = require("../../models/ticket");
@@ -18,10 +17,7 @@ const { createPhotoHandlers, deleteAllPhotos } = require("./photoHandlers");
 const { ASSEMBLY_POPULATE } = require("./deviceType");
 const {
   PARTS_POPULATE,
-  loadAssemblyType,
   loadPartLinks,
-  parseBuildParts,
-  resolveParts,
 } = require("./deviceBuild");
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
@@ -31,6 +27,19 @@ const {
 } = require("../../helpers/mikrotikOverlay");
 const { mikrotikEnabled } = require("../../services/mikrotik/enabled");
 const { loadKeySpecs } = require("../../services/inventory/assemblyKeySpecs");
+const {
+  assignUser,
+  attachComponent,
+  buildDevicePayload,
+  clean,
+  createDevice,
+  detachComponent,
+  duplicateError,
+  findTakenIdentity,
+  planDeviceParts,
+  validateAssembly,
+} = require("../../services/inventory/deviceOps");
+const { filterAttachable } = require("../../services/inventory/attachRules");
 const { ticketListFilter } = require("../../services/ticketScope");
 const {
   attachableCompanyId,
@@ -104,318 +113,9 @@ const ASSEMBLY_COMPONENT_POPULATE = [
   { path: "deviceTypeId", select: "name" },
 ];
 
-// Mongoose can't cast "" to ObjectId / Number / Date — turn blanks into
-// undefined so empty optional fields are stored as unset rather than throwing.
-const clean = (value) =>
-  value === "" || value === undefined ? undefined : value;
-
-// Maps the (schema-aligned) request body onto ClientDevice fields.
-const buildDevicePayload = (body) => ({
-  companyId: clean(body.companyId),
-  userId: clean(body.userId),
-  locationId: clean(body.locationId),
-  deviceModelId: clean(body.deviceModelId),
-  configurationId: clean(body.configurationId),
-  deviceTypeId: clean(body.deviceTypeId),
-  buildId: clean(body.buildId),
-  parentDeviceId: clean(body.parentDeviceId),
-  quantity: clean(body.quantity),
-  // clean(): пустой серийник сохраняем как unset (не ""), иначе пустые строки
-  // конфликтуют по партиал-уникальному индексу.
-  serialNumber: clean(body.serialNumber),
-  inventoryNumber: clean(body.inventoryNumber),
-  status: clean(body.status),
-  purchasedAt: clean(body.purchasedAt),
-  price: clean(body.price),
-  purchaseDocument: clean(body.purchaseDocument),
-  supplierId: clean(body.supplierId),
-  warrantyExpirationDate: clean(body.warrantyExpirationDate),
-  lastMaintenanceDate: clean(body.lastMaintenanceDate),
-  ipAddress: clean(body.ipAddress),
-  macAddress: clean(body.macAddress),
-  operatingSystem: clean(body.operatingSystem),
-  // Сетевое имя ПК. machineId здесь НЕ маппим намеренно: его проставляет агент
-  // отдельным путём, а update делает Object.assign(payload) — иначе правка из
-  // мастера (без machineId в теле) затёрла бы значение агента.
-  hostname: clean(body.hostname),
-  notes: clean(body.notes),
-});
-
-// Префикс инвентарного номера берём из типа устройства
-// (DeviceType.inventoryPrefix), иначе — дефолтный "INV". Формат: PREFIX-000001,
-// счётчик ведётся отдельно на каждый префикс.
-const generateInventoryNumber = async (deviceTypeId) => {
-  let prefix = "INV";
-  if (deviceTypeId) {
-    const type =
-      await DeviceType.findById(deviceTypeId).select("inventoryPrefix");
-    if (type?.inventoryPrefix) prefix = type.inventoryPrefix;
-  }
-  const seq = await Counter.getNextSequence(`clientDevice:${prefix}`);
-  return `${prefix}-${String(seq).padStart(6, "0")}`;
-};
-
-// ─── ПК своей сборки: детали при создании ─────────────────────────────────
-//
-// Деталь — отдельный ClientDevice внутри ПК, одна запись на единицу (у каждой
-// свой серийник). Правила слотов — те же, что у сборки-шаблона
-// (parseBuildParts): единица идёт туда с quantity 1, и второй экземпляр в
-// слоте без «несколько» отсекается так же, как вторая строка сборки.
-
-const PART_DATE_FIELDS = ["warrantyExpirationDate", "purchasedAt"];
-
-const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
-
-// Разбор деталей нового ПК. Чистая функция: slots — как у loadAssemblyType.
-// Пустой список законен (ПК без деталей) — обязательные слоты тогда не
-// проверяются. Порядок результата — порядок слотов, внутри слота — как прислано.
-function planDeviceParts(parts, slots) {
-  if (parts == null || (Array.isArray(parts) && parts.length === 0)) {
-    return { parts: [] };
-  }
-  if (!Array.isArray(parts)) {
-    return { error: "parts должен быть массивом" };
-  }
-
-  const parsed = parseBuildParts(
-    parts.map((item) => ({
-      typeId: item?.typeId,
-      deviceModelId: item?.deviceModelId,
-      configurationId: clean(item?.configurationId),
-      quantity: 1,
-    })),
-    slots,
-  );
-  if (parsed.error) return parsed;
-
-  // parseBuildParts упорядочил по слотам, сохранив порядок внутри слота, —
-  // тот же стабильный порядок у исходных строк, чтобы сопоставить их по номеру.
-  const slotIndex = new Map(slots.map((s, i) => [String(s.typeId), i]));
-  const typeName = new Map(slots.map((s) => [String(s.typeId), s.typeName]));
-  const ordered = [...parts].sort(
-    (a, b) =>
-      slotIndex.get(String(a.typeId)) - slotIndex.get(String(b.typeId)),
-  );
-
-  const result = [];
-  for (const [i, item] of ordered.entries()) {
-    const unit = parsed.parts[i];
-    const name = typeName.get(unit.typeId);
-    const part = {
-      typeId: unit.typeId,
-      deviceModelId: unit.deviceModelId,
-      configurationId: unit.configurationId,
-    };
-    // Предел — как у серийника устройства (validations/inventory/clientDevice)
-    const serialNumber = String(item.serialNumber ?? "").trim();
-    if (serialNumber.length > 100) {
-      return { error: `Серийный номер детали «${name}» длиннее 100 символов` };
-    }
-    if (serialNumber) part.serialNumber = serialNumber;
-    for (const field of PART_DATE_FIELDS) {
-      const value = clean(item[field]);
-      if (value == null) continue;
-      if (!isValidDate(value)) {
-        return { error: `Неверная дата в детали «${name}»` };
-      }
-      part[field] = value;
-    }
-    const supplierId = clean(item.supplierId);
-    if (supplierId != null) {
-      if (!mongoose.isValidObjectId(supplierId)) {
-        return { error: `Неверный поставщик в детали «${name}»` };
-      }
-      part.supplierId = String(supplierId);
-    }
-    result.push(part);
-  }
-  return { parts: result };
-}
-
 exports.planDeviceParts = planDeviceParts;
-
-// Документ детали: следует за ПК (компания, место, пользователь, статус — как
-// при прикреплении). «Закупка как у ПК»: своя дата или свой поставщик заданы —
-// закупка детали своя целиком, иначе дата и поставщик берутся у ПК.
-const partPayload = (part, host) => {
-  const ownPurchase = part.purchasedAt != null || part.supplierId != null;
-  return buildDevicePayload({
-    deviceModelId: part.deviceModelId,
-    configurationId: part.configurationId,
-    serialNumber: part.serialNumber,
-    warrantyExpirationDate: part.warrantyExpirationDate,
-    purchasedAt: ownPurchase ? part.purchasedAt : host.purchasedAt,
-    supplierId: ownPurchase ? part.supplierId : host.supplierId,
-    parentDeviceId: host._id,
-    companyId: host.companyId,
-    locationId: host.locationId,
-    userId: host.userId,
-    status: host.status,
-    quantity: 1,
-  });
-};
-
-/**
- * Проверки нового устройства до записи: занятые инвентарный номер и имя в
- * сети, наследование от хозяина, компания, пользователь, модель или тип.
- * Возвращает { payload, deviceTypeId } | { error: AppError }.
- */
-const validateNewDevice = async (payload) => {
-  if (payload.inventoryNumber) {
-    const invExists = await ClientDevice.findOne({
-      inventoryNumber: payload.inventoryNumber,
-    });
-    if (invExists) {
-      return {
-        error: new AppError(
-          `Устройство с инвентарным номером ${payload.inventoryNumber} уже существует`,
-          409,
-        ),
-      };
-    }
-  }
-
-  // Компонент наследует компанию/расположение/пользователя от родителя.
-  if (payload.parentDeviceId) {
-    const parent = await ClientDevice.findById(payload.parentDeviceId);
-    if (!parent) {
-      return { error: new AppError("Invalid parent device ID", 400) };
-    }
-    payload.companyId = payload.companyId || parent.companyId;
-    payload.locationId = payload.locationId || parent.locationId;
-    payload.userId = payload.userId || parent.userId;
-  }
-
-  const company = await Company.findById(payload.companyId);
-  if (!company) {
-    return { error: new AppError("Invalid company ID", 400) };
-  }
-
-  // Hostname опционален и уникален в пределах компании — проверяем дубль,
-  // только если задан (companyId здесь уже разрешён, в т.ч. от родителя).
-  if (payload.hostname) {
-    const hostExists = await ClientDevice.findOne({
-      companyId: payload.companyId,
-      hostname: payload.hostname,
-    });
-    if (hostExists) {
-      return {
-        error: new AppError(
-          `Устройство с именем "${payload.hostname}" уже есть в этой компании`,
-          409,
-        ),
-      };
-    }
-  }
-
-  // Назначенный пользователь должен быть из компании устройства (company у
-  // User — вложенный объект { _id, alias }; сравниваем по _id).
-  if (payload.userId) {
-    const user = await User.findById(payload.userId);
-    const userCompanyId = user?.company?._id || user?.company;
-    if (!user || userCompanyId?.toString() !== payload.companyId?.toString()) {
-      return {
-        error: new AppError(
-          "Assigned user must belong to the same company",
-          400,
-        ),
-      };
-    }
-  }
-
-  // Устройство задаётся либо моделью (заводская сборка), либо напрямую типом
-  // (самосборное). Тип нужен и для префикса инвентарного номера.
-  if (payload.deviceModelId) {
-    const deviceModel = await DeviceModel.findById(payload.deviceModelId);
-    if (!deviceModel) {
-      return { error: new AppError("Invalid device model ID", 400) };
-    }
-    return { payload, deviceTypeId: deviceModel.deviceTypeId };
-  }
-  if (payload.deviceTypeId) {
-    const deviceType = await DeviceType.findById(payload.deviceTypeId);
-    if (!deviceType) {
-      return { error: new AppError("Invalid device type ID", 400) };
-    }
-    return { payload, deviceTypeId: payload.deviceTypeId };
-  }
-  return { error: new AppError("Укажите модель или тип устройства", 400) };
-};
-
-// Сборка-шаблон устройства: только у «Своей сборки» собираемого типа, своего
-// типа и не удалённая. Возвращает { slots } | { error: AppError }.
-const validateAssembly = async (payload) => {
-  if (payload.deviceModelId) {
-    return {
-      error: new AppError(
-        "Сборка и комплектующие — только у своей сборки, не у заводского устройства",
-        400,
-      ),
-    };
-  }
-  if (payload.parentDeviceId) {
-    return {
-      error: new AppError(
-        "Деталь сборки сама из комплектующих не собирается",
-        400,
-      ),
-    };
-  }
-  const loaded = await loadAssemblyType(payload.deviceTypeId);
-  if (loaded.error) return { error: loaded.error };
-  if (payload.buildId) {
-    const build = mongoose.isValidObjectId(payload.buildId)
-      ? await DeviceBuild.exists({
-          _id: payload.buildId,
-          deviceTypeId: payload.deviceTypeId,
-          deletedAt: null,
-        })
-      : null;
-    if (!build) {
-      return {
-        error: new AppError("Сборка не найдена или другого типа", 400),
-      };
-    }
-  }
-  return { slots: loaded.slots };
-};
-
-// Детали нового ПК: слоты, обязательные, «несколько», модели и конфигурации —
-// всё до первой записи. Возвращает { parts } | { error: AppError }.
-const prepareParts = async (rawParts, slots) => {
-  const planned = planDeviceParts(rawParts, slots);
-  if (planned.error) return { error: new AppError(planned.error, 400) };
-  if (planned.parts.length === 0) return { parts: [] };
-  return resolveParts(planned.parts);
-};
-
-// Откат создания: удаление строго по списку созданных _id — сначала детали,
-// затем ПК. Сбой отката не заслоняет исходную ошибку.
-const rollbackCreated = async (host, parts) => {
-  try {
-    if (parts.length) {
-      await ClientDevice.deleteMany({ _id: { $in: parts.map((p) => p._id) } });
-    }
-    if (host) await ClientDevice.deleteOne({ _id: host._id });
-  } catch (rollbackError) {
-    logger.log("error", "Client device create rollback failed", {
-      hostId: host?._id ? String(host._id) : null,
-      partIds: parts.map((p) => String(p._id)),
-      error: rollbackError.message,
-    });
-  }
-};
-
-// Эффективный тип устройства: у заводской сборки берём из модели, у самосборной —
-// напрямую. Принимает «сырой» документ (deviceModelId/deviceTypeId — ObjectId).
-const getEffectiveTypeId = async (device) => {
-  if (device.deviceModelId) {
-    const model =
-      await DeviceModel.findById(device.deviceModelId).select("deviceTypeId");
-    return model?.deviceTypeId || null;
-  }
-  return device.deviceTypeId || null;
-};
+exports.ASSEMBLY_COMPONENT_SELECT = ASSEMBLY_COMPONENT_SELECT;
+exports.ASSEMBLY_COMPONENT_POPULATE = ASSEMBLY_COMPONENT_POPULATE;
 
 // Тот же расчёт для populated-документа (deviceModelId.deviceTypeId раскрыт).
 const populatedTypeId = (d) =>
@@ -715,46 +415,6 @@ const buildListMatch = async (query, authedUser) => {
 
   if (and.length) match.$and = and;
   return match;
-};
-
-/**
- * E11000 → человеческая 409 вместо «Failed to add device» с 500.
- *
- * Уникальны инвентарный номер, имя в сети (в пределах компании) и machineId —
- * конфликт по ним означает ровно одно: значение уже занято. Серийника здесь нет
- * намеренно: он не уникален (см. модель). Конфликт по другому полю — значит,
- * в базе остался индекс, которого в модели нет, и ответ должен его назвать.
- */
-const DUPLICATE_FIELDS = {
-  inventoryNumber: "инвентарным номером",
-  hostname: "именем устройства",
-  machineId: "идентификатором машины",
-};
-
-const duplicateError = (error) => {
-  if (error?.code !== 11000) return null;
-  const field = Object.keys(error.keyPattern || {}).find(
-    (key) => DUPLICATE_FIELDS[key],
-  );
-  if (!field) {
-    // Индекс не из модели — называем поле, а не отдаём «Такая запись уже существует»
-    const stale = Object.keys(error.keyPattern || {}).join(", ");
-    return new AppError(
-      `Конфликт уникальности по полю «${stale}»: в базе индекс, которого нет в модели.`,
-      409,
-    );
-  }
-  const value = error.keyValue?.[field];
-  if (value == null) {
-    return new AppError(
-      `В базе устаревший уникальный индекс по полю «${field}»: второе устройство без значения он не пропускает.`,
-      409,
-    );
-  }
-  return new AppError(
-    `Устройство с таким ${DUPLICATE_FIELDS[field]} (${value}) уже есть`,
-    409,
-  );
 };
 
 exports.getAll = async (req, res, next) => {
@@ -1304,66 +964,17 @@ exports.getTickets = async (req, res, next) => {
 };
 
 exports.add = async (req, res, next) => {
-  try {
-    const checked = await validateNewDevice(buildDevicePayload(req.body));
-    if (checked.error) return next(checked.error);
-    const { payload, deviceTypeId } = checked;
-
-    // ПК своей сборки собираемого типа может прийти со сборкой-шаблоном и
-    // деталями. Без них — обычное устройство, как раньше.
-    const rawParts = req.body.parts;
-    const withParts = Array.isArray(rawParts)
-      ? rawParts.length > 0
-      : rawParts != null;
-    let parts = [];
-    if (payload.buildId || withParts) {
-      const assembly = await validateAssembly(payload);
-      if (assembly.error) return next(assembly.error);
-      const prepared = await prepareParts(rawParts, assembly.slots);
-      if (prepared.error) return next(prepared.error);
-      parts = prepared.parts;
-    }
-
-    // Записи — только после всех проверок. Транзакций нет: сбой посреди
-    // записи откатывается удалением созданного по списку _id.
-    let host = null;
-    const components = [];
-    try {
-      // Инвентарный номер — первичный идентификатор актива: если не задан
-      // вручную, генерируем автоматически по префиксу типа.
-      if (!payload.inventoryNumber) {
-        payload.inventoryNumber = await generateInventoryNumber(deviceTypeId);
-      }
-      const clientDevice = new ClientDevice({
-        ...payload,
-        createdBy: req.userId,
-      });
-      await clientDevice.save();
-      host = clientDevice;
-
-      // Номер детали — по префиксу её типа.
-      for (const part of parts) {
-        const component = new ClientDevice({
-          ...partPayload(part, host),
-          inventoryNumber: await generateInventoryNumber(part.typeId),
-          createdBy: req.userId,
-        });
-        await component.save();
-        components.push(component);
-      }
-    } catch (error) {
-      await rollbackCreated(host, components);
-      throw error;
-    }
-
-    res.status(201).json({
-      message: "Новое устройство успешно добавлено",
-      clientDevice: host,
-      components,
-    });
-  } catch (error) {
-    next(duplicateError(error) || new AppError("Failed to add device", 500, true, error));
+  const result = await createDevice(req.body, { userId: req.userId });
+  if (!result.ok) {
+    return next(
+      new AppError(result.message, result.status, true, result.error),
+    );
   }
+  res.status(201).json({
+    message: "Новое устройство успешно добавлено",
+    clientDevice: result.device,
+    components: result.parts,
+  });
 };
 
 exports.update = async (req, res, next) => {
@@ -1377,22 +988,15 @@ exports.update = async (req, res, next) => {
 
     const payload = buildDevicePayload(req.body);
 
-    if (
-      payload.inventoryNumber &&
-      payload.inventoryNumber !== device.inventoryNumber
-    ) {
-      const invExists = await ClientDevice.findOne({
-        inventoryNumber: payload.inventoryNumber,
-        _id: { $ne: req.params.id },
-      });
-      if (invExists) {
-        return next(
-          new AppError(
-            `Устройство с инвентарным номером ${payload.inventoryNumber} уже существует`,
-            409,
-          ),
-        );
-      }
+    const takenInventory = await findTakenIdentity({
+      inventoryNumber:
+        payload.inventoryNumber !== device.inventoryNumber
+          ? payload.inventoryNumber
+          : undefined,
+      excludeId: req.params.id,
+    });
+    if (takenInventory) {
+      return next(new AppError(takenInventory.message, takenInventory.status));
     }
 
     if (payload.companyId) {
@@ -1404,21 +1008,14 @@ exports.update = async (req, res, next) => {
 
     // Hostname уникален в пределах компании. Проверяем, только если изменился;
     // компанию берём новую (если меняется) или текущую.
-    if (payload.hostname && payload.hostname !== device.hostname) {
-      const companyId = payload.companyId || device.companyId;
-      const hostExists = await ClientDevice.findOne({
-        companyId,
-        hostname: payload.hostname,
-        _id: { $ne: req.params.id },
-      });
-      if (hostExists) {
-        return next(
-          new AppError(
-            `Устройство с именем "${payload.hostname}" уже есть в этой компании`,
-            409,
-          ),
-        );
-      }
+    const takenHostname = await findTakenIdentity({
+      hostname:
+        payload.hostname !== device.hostname ? payload.hostname : undefined,
+      companyId: payload.companyId || device.companyId,
+      excludeId: req.params.id,
+    });
+    if (takenHostname) {
+      return next(new AppError(takenHostname.message, takenHostname.status));
     }
 
     // Назначенный пользователь — из компании устройства (новой или текущей).
@@ -1474,8 +1071,9 @@ exports.update = async (req, res, next) => {
       device,
     });
   } catch (error) {
+    const duplicate = duplicateError(error);
     next(
-      duplicateError(error) ||
+      (duplicate && new AppError(duplicate.message, duplicate.status)) ||
         new AppError(
           `Failed to update device ${req.params.id}`,
           500,
@@ -1491,55 +1089,24 @@ exports.update = async (req, res, next) => {
 // поля. Назначение пользователя переводит статус в "deployed" (Выдано); снятие
 // (пустой userId) возвращает "readyForDeployment", если было "deployed".
 exports.assignUser = async (req, res, next) => {
-  try {
-    const device = await ClientDevice.findById(req.params.id);
-    if (!device) {
-      return next(
-        new AppError(`Device with id ${req.params.id} not found`, 404),
-      );
-    }
-
-    const userId = clean(req.body.userId);
-
-    if (userId) {
-      const user = await User.findById(userId);
-      const userCompanyId = user?.company?._id || user?.company;
-      if (
-        !user ||
-        userCompanyId?.toString() !== device.companyId?.toString()
-      ) {
-        return next(
-          new AppError("Assigned user must belong to the same company", 400),
-        );
-      }
-      device.userId = userId;
-      device.status = "deployed";
-    } else {
-      device.userId = undefined;
-      if (device.status === "deployed") device.status = "readyForDeployment";
-    }
-
-    device.updatedBy = req.userId;
-    await device.save();
-
-    const populated = await ClientDevice.findById(device._id).populate(
-      DEVICE_POPULATE,
-    );
-
-    res.status(200).json({
-      message: userId ? "Пользователь назначен" : "Пользователь снят",
-      device: populated,
-    });
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to assign user to device ${req.params.id}`,
-        500,
-        true,
-        error,
-      ),
+  const result = await assignUser(req.params.id, req.body.userId, {
+    actorId: req.userId,
+    withComponents: false,
+  });
+  if (!result.ok) {
+    return next(
+      new AppError(result.message, result.status, true, result.error),
     );
   }
+  const populated = await ClientDevice.findById(result.device._id).populate(
+    DEVICE_POPULATE,
+  );
+  res.status(200).json({
+    message: clean(req.body.userId)
+      ? "Пользователь назначен"
+      : "Пользователь снят",
+    device: populated,
+  });
 };
 
 // Свободные устройства, которые можно прикрепить к сборке как комплектующие:
@@ -1565,7 +1132,9 @@ exports.getAttachable = async (req, res, next) => {
         { isConsumable: true },
         { isPeripheral: true },
       ],
-    }).select("_id attachableToTypeIds");
+    }).select(
+      "_id isComponent isConsumable isPeripheral attachableToTypeIds",
+    );
     const typeMap = new Map(attachableTypes.map((t) => [String(t._id), t]));
 
     // Устройства, которые сами являются сборкой (имеют комплектующие), — не
@@ -1583,17 +1152,12 @@ exports.getAttachable = async (req, res, next) => {
       .populate(DEVICE_POPULATE)
       .sort({ _id: -1 });
 
-    const result = candidates.filter((d) => {
-      if (assemblySet.has(String(d._id))) return false;
-      const typeId = populatedTypeId(d);
-      if (!typeId) return false;
-      const type = typeMap.get(String(typeId));
-      if (!type) return false;
-      const attachable = type.attachableToTypeIds || [];
-      if (attachable.length && hostTypeId) {
-        return attachable.some((a) => String(a) === String(hostTypeId));
-      }
-      return true;
+    const result = filterAttachable({
+      candidates,
+      typeOf: populatedTypeId,
+      typeById: typeMap,
+      assemblyIds: assemblySet,
+      hostTypeId,
     });
 
     res.status(200).json(result);
@@ -1606,114 +1170,33 @@ exports.getAttachable = async (req, res, next) => {
 // перенимает компанию/расположение/пользователя/статус. Тип должен быть
 // прикрепляемым и совместимым с хостом; нельзя прикрепить сборку или само себя.
 exports.attachComponent = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const componentId = clean(req.body.componentId);
-
-    if (!componentId) return next(new AppError("Не указан компонент", 400));
-    if (String(componentId) === String(id)) {
-      return next(
-        new AppError("Нельзя прикрепить устройство к самому себе", 400),
-      );
-    }
-
-    const host = await ClientDevice.findById(id);
-    if (!host || host.deletedAt) {
-      return next(new AppError(`Device with id ${id} not found`, 404));
-    }
-
-    const component = await ClientDevice.findById(componentId);
-    if (!component || component.deletedAt) {
-      return next(new AppError(`Component ${componentId} not found`, 404));
-    }
-
-    if (
-      component.parentDeviceId &&
-      String(component.parentDeviceId) !== String(host._id)
-    ) {
-      return next(new AppError("Устройство уже входит в другую сборку", 409));
-    }
-
-    const hasChildren = await ClientDevice.exists({
-      parentDeviceId: component._id,
-      deletedAt: null,
-    });
-    if (hasChildren) {
-      return next(
-        new AppError(
-          "Нельзя прикрепить устройство, которое само является сборкой",
-          409,
-        ),
-      );
-    }
-
-    const typeId = await getEffectiveTypeId(component);
-    const type = typeId
-      ? await DeviceType.findById(typeId).select(
-          "isComponent isConsumable isPeripheral attachableToTypeIds",
-        )
-      : null;
-    if (!type || !(type.isComponent || type.isConsumable || type.isPeripheral)) {
-      return next(
-        new AppError(
-          "Этот тип устройства нельзя прикреплять как комплектующее",
-          400,
-        ),
-      );
-    }
-
-    const attachable = type.attachableToTypeIds || [];
-    if (attachable.length) {
-      const hostTypeId = await getEffectiveTypeId(host);
-      if (
-        !hostTypeId ||
-        !attachable.some((a) => String(a) === String(hostTypeId))
-      ) {
-        return next(
-          new AppError("Этот компонент несовместим с типом хоста", 400),
-        );
-      }
-    }
-
-    // Следует за хостом.
-    component.parentDeviceId = host._id;
-    component.companyId = host.companyId;
-    component.locationId = host.locationId;
-    component.userId = host.userId;
-    component.status = host.status;
-    component.updatedBy = req.userId;
-    await component.save();
-
-    res.status(200).json({ message: "Комплектующее прикреплено", component });
-  } catch (error) {
-    next(new AppError("Failed to attach component", 500, true, error));
+  const result = await attachComponent(req.params.id, req.body.componentId, {
+    actorId: req.userId,
+  });
+  if (!result.ok) {
+    return next(
+      new AppError(result.message, result.status, true, result.error),
+    );
   }
+  res
+    .status(200)
+    .json({ message: "Комплектующее прикреплено", component: result.device });
 };
 
 // Открепить комплектующее: разрывает связь с хостом и возвращает устройство в
 // общий список как «Готово к выдаче» (без пользователя). Расположение сохраняем.
 exports.detachComponent = async (req, res, next) => {
-  try {
-    const { id, componentId } = req.params;
-
-    const component = await ClientDevice.findById(componentId);
-    if (!component || component.deletedAt) {
-      return next(new AppError(`Component ${componentId} not found`, 404));
-    }
-    if (String(component.parentDeviceId || "") !== String(id)) {
-      return next(new AppError("Устройство не входит в эту сборку", 400));
-    }
-
-    component.parentDeviceId = undefined;
-    component.userId = undefined;
-    component.status = "readyForDeployment";
-    component.updatedBy = req.userId;
-    await component.save();
-
-    res.status(200).json({ message: "Комплектующее откреплено", component });
-  } catch (error) {
-    next(new AppError("Failed to detach component", 500, true, error));
+  const result = await detachComponent(req.params.id, req.params.componentId, {
+    actorId: req.userId,
+  });
+  if (!result.ok) {
+    return next(
+      new AppError(result.message, result.status, true, result.error),
+    );
   }
+  res
+    .status(200)
+    .json({ message: "Комплектующее откреплено", component: result.device });
 };
 
 // Фотографии конкретного экземпляра. Та же логика, что у модели устройства.

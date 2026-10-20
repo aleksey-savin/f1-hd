@@ -403,4 +403,4 @@ async function liveReadMenus(deviceId, paths) {
   );
 }
 
-module.exports = { createProposals, mongoStore, liveReadMenus, printWords };
+module.exports = { createProposals, mongoStore, liveReadMenus, printWords, checkText };

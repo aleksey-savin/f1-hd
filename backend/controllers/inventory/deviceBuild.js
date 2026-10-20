@@ -249,6 +249,8 @@ async function buildFields(body, slots) {
   return { name, notes, parts: resolved.parts };
 }
 
+exports.buildFields = buildFields;
+
 exports.getAll = async (req, res, next) => {
   try {
     const { deviceTypeId } = req.query;

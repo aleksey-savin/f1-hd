@@ -60,6 +60,7 @@ const {
 } = require("./services/mikrotik/firmware");
 const { runUpgradeTick } = require("./services/mikrotik/upgradeWorker");
 const { runChangeTick, runChangeSweep } = require("./services/mikrotik/changeWorker");
+const { runInventoryChangeSweep } = require("./services/inventory/changeSweep");
 const {
   runKnowledgeApprovalExpiry,
 } = require("./services/knowledgeApprovalExpiry");
@@ -401,6 +402,15 @@ jobs.register(
   "Mikrotik change sweep",
   "1-56/5 * * * *",
   () => runChangeSweep(),
+  120000,
+  { quietSkip: true },
+);
+
+// Предложения ИИ-агента по инвентарю: истечение и застрявшие применения. Минуты со сдвигом от Mikrotik-sweep.
+jobs.register(
+  "Inventory change sweep",
+  "2-57/5 * * * *",
+  () => runInventoryChangeSweep(),
   120000,
   { quietSkip: true },
 );

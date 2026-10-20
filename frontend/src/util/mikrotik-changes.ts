@@ -146,17 +146,29 @@ export const listWhen = (
   });
 };
 
+// «сегодня», «вчера», «8 октября»
+const dayWord = (value: string, now: Date, timeZone?: string): string => {
+  const days = daysAgo(value, now, timeZone);
+  if (days <= 0) return "сегодня";
+  if (days === 1) return "вчера";
+  return new Date(value).toLocaleDateString("ru", {
+    timeZone,
+    day: "numeric",
+    month: "long",
+  });
+};
+
 /** Фраза шапки о завершении: «сегодня в 12:52», «вчера в 12:52», «8 октября в 12:52». */
 export const atPhrase = (
   value: string,
   { now = new Date(), timeZone }: TimeOptions = {},
-): string => {
-  const days = daysAgo(value, now, timeZone);
-  const time = timeOf(value, timeZone);
-  if (days <= 0) return `сегодня в ${time}`;
-  if (days === 1) return `вчера в ${time}`;
-  return `${new Date(value).toLocaleDateString("ru", { timeZone, day: "numeric", month: "long" })} в ${time}`;
-};
+): string => `${dayWord(value, now, timeZone)} в ${timeOf(value, timeZone)}`;
+
+/** Значение в «Сведениях»: «сегодня, 12:38», «вчера, 12:38», «8 октября, 12:38». */
+export const atStamp = (
+  value: string,
+  { now = new Date(), timeZone }: TimeOptions = {},
+): string => `${dayWord(value, now, timeZone)}, ${timeOf(value, timeZone)}`;
 
 /** Метка хроники и шага: «12:41» сегодня, иначе «09.10, 12:41». */
 export const stampLabel = (

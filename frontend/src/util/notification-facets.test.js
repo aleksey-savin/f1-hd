@@ -12,8 +12,8 @@ import {
   visibleFacets,
 } from "./notification-facets.ts";
 
-test("девять фасетов, «Все» первый, категории покрыты без дыр и дублей", () => {
-  assert.equal(NOTIFICATION_FACETS.length, 9);
+test("десять фасетов, «Все» первый, категории покрыты без дыр и дублей", () => {
+  assert.equal(NOTIFICATION_FACETS.length, 10);
   assert.equal(NOTIFICATION_FACETS[0].key, "all");
   const covered = NOTIFICATION_FACETS.flatMap((facet) => facet.categories);
   assert.equal(new Set(covered).size, covered.length);
@@ -21,6 +21,7 @@ test("девять фасетов, «Все» первый, категории �
     "absenceDecision",
     "absenceRequest",
     "conversationMessage",
+    "inventoryChange",
     "mikrotikChange",
     "newTicket",
     "reportApproval",
@@ -97,4 +98,16 @@ test("фасет, который скрыт, заменяется на «Все�
   const facets = visibleFacets({ messaging: true, mikrotik: false });
   assert.equal(shownFacetKey("mikrotik", facets), "all");
   assert.equal(shownFacetKey("comment", facets), "comment");
+});
+
+test("«Предложения по технике» — категория inventoryChange, видна при включённом Инвентаре", () => {
+  assert.deepEqual(facetCategories("inventory"), ["inventoryChange"]);
+  assert.equal(
+    visibleFacets({ messaging: true, inventory: false }).some((facet) => facet.key === "inventory"),
+    false,
+  );
+  assert.equal(
+    visibleFacets({ messaging: true, inventory: true }).some((facet) => facet.key === "inventory"),
+    true,
+  );
 });

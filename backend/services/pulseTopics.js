@@ -137,6 +137,7 @@ module.exports = {
   MikrotikArtifact: { topics: ["mikrotik"], noise: isBookkeeping },
   MikrotikUpgradeJob: { topics: ["mikrotik"], noise: isBookkeeping },
   MikrotikChange: { topics: ["mikrotikChanges"], noise: mikrotikChangeNoise },
+  InventoryChange: { topics: ["inventoryChanges"], noise: isBookkeeping },
   MikrotikEvent: { topics: ["mikrotik"], noise: isBookkeeping },
   KnowledgeNote: { topics: ["knowledge"], noise: isBookkeeping },
   ServicePlanReport: { topics: ["approval"], noise: isBookkeeping },

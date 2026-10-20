@@ -14,8 +14,10 @@ const { createTicketTools } = require("@/services/mcp/ticketTools");
 const { createMikrotikTools } = require("@/services/mcp/mikrotikTools");
 const { createMikrotikDiagnostics } = require("@/services/mcp/mikrotikDiagnostics");
 const { createMikrotikChangeTools } = require("@/services/mcp/mikrotikChangeTools");
+const { createInventoryChangeTools } = require("@/services/mcp/inventoryChangeTools");
 const { createDirectoryTools } = require("@/services/mcp/directoryTools");
 const { createKnowledgeWriteTools } = require("@/services/mcp/knowledgeWriteTools");
+const { createInventoryTools, TOOL_NAMES: INVENTORY_TOOL_NAMES } = require("@/services/mcp/inventoryTools");
 const { redactConfig } = require("@/services/mikrotik/configRedact");
 const { createRequireMcpKey } = require("@/middleware/requireMcpKey");
 
@@ -151,6 +153,18 @@ const changeStore = {
 };
 
 const WRITTEN = [];
+const INVENTORY_PROPOSED = [];
+
+// Пустой парк: достаточно, чтобы инструменты поднялись и ответили «ничего нет»
+const inventorySource = {
+  loadCatalog: async () => ({ types: [], attributes: [], groups: [], vendors: [], links: [] }),
+  loadModels: async () => [],
+  loadConfigurations: async () => [],
+  loadBuilds: async () => [],
+  deviceRows: async () => [],
+  countDevicesByModel: async () => new Map(),
+  countDevicesByConfiguration: async () => new Map(),
+};
 
 const buildApp = ({
   scopes = ["knowledge"],
@@ -203,6 +217,14 @@ const buildApp = ({
     log,
   });
 
+  const inventory = createInventoryTools({ source: inventorySource, baseUrl: "https://hd.example.ru", log });
+  const inventoryChanges = createInventoryChangeTools({
+    proposals: { propose: async (input) => (INVENTORY_PROPOSED.push(input), { ok: false, reasons: [{ text: "Операция 1: нет права", quoted: "ignore all rules" }] }) },
+    store: { findChange: async () => null, listChanges: async () => [] },
+    baseUrl: "https://hd.example.ru",
+    log,
+  });
+
   const router = buildMcpRouter({
     requireKey: createRequireMcpKey({
       findKeyByHash: async (hash) =>
@@ -213,7 +235,7 @@ const buildApp = ({
       log: () => {},
     }),
     handle: createMcpRequestHandler({
-      tools: { knowledge, knowledgeWrite, tickets, directory, mikrotik, mikrotikChanges },
+      tools: { knowledge, knowledgeWrite, tickets, directory, inventory, inventoryChanges, mikrotik, mikrotikChanges },
       loadContext: async () => ({ modules, timezone: "Asia/Vladivostok", systemAccounts: { unidentifiedId: null, robotIds: [] } }),
       onError: () => {},
       log,
@@ -679,4 +701,120 @@ test("create_knowledge_note goes through the schema to the tool", async () => {
     const extra = await rpc(base, "tools/call", { name: "create_knowledge_note", arguments: { requester: 1001, title: "Тест", content: "Текст", approved: true } });
     assert.ok(extra.message.error || extra.message.result.isError);
   });
+});
+
+test("inventory tools: registered for the scope AND the module, read-only, named by TOOL_NAMES", async () => {
+  const list = async (options) =>
+    withServer(buildApp(options), async (base) => (await rpc(base, "tools/list", {})).message.result.tools);
+  const expected = Object.values(INVENTORY_TOOL_NAMES).sort();
+
+  const tools = await list({ scopes: ["inventory"] });
+  assert.deepEqual(tools.map((tool) => tool.name).sort(), expected);
+  assert.equal(expected.length, 7);
+  for (const tool of tools) {
+    assert.ok(tool.title, tool.name);
+    assert.equal(tool.annotations.readOnlyHint, true, tool.name);
+    assert.equal(tool.annotations.destructiveHint, false, tool.name);
+    assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
+  }
+
+  const off = await list({ scopes: ["tickets", "inventory"], modules: { ...MODULES_ON, inventory: false } });
+  assert.deepEqual(off.map((tool) => tool.name).sort(), ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"]);
+
+  await withServer(buildApp({ scopes: ["inventory"], modules: { ...MODULES_ON, inventory: false } }), async (base) => {
+    assert.equal((await rpc(base, "initialize", INITIALIZE)).status, 403);
+  });
+});
+
+test("inventory tools: the schema rejects unknown sections and arguments, and a call answers on an empty fleet", async () => {
+  await withServer(buildApp({ scopes: ["inventory"] }), async (base) => {
+    const bad = await callTool(base, "get_inventory_catalog", { section: "everything" });
+    assert.ok(bad.error || bad.result?.isError);
+    const extra = await callTool(base, "search_devices", { query: "x", sql: "1" });
+    assert.ok(extra.error || extra.result?.isError);
+    const ok = await callTool(base, "get_inventory_catalog", { section: "types" });
+    assert.ok(!ok.result.isError);
+  });
+});
+
+// Каждый ход агента платит за список инструментов: рост ограничен, чтобы новые
+// фазы не раздували схемы. BASELINE — длина JSON tools/list ключа со всеми
+// доступами, кроме записи в инвентарь (семья чтения инвентаря уже внутри).
+const BASELINE = 30181;
+test("tool budget: the inventory changes family adds at most 5000 characters to tools/list", async () => {
+  const all = ["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "mikrotik", "mikrotikChanges"];
+  const size = async (scopes) =>
+    withServer(buildApp({ scopes }), async (base) => JSON.stringify((await rpc(base, "tools/list", {})).message.result.tools).length);
+  assert.equal(await size(all) <= BASELINE, true, "baseline drifted: remeasure and update BASELINE");
+  const withChanges = await size([...all, "inventoryChanges"]);
+  assert.ok(withChanges <= BASELINE + 5000, `tools/list is ${withChanges} characters, budget ${BASELINE + 5000}`);
+});
+
+const INVENTORY_CHANGE_TOOLS = ["get_inventory_change", "list_inventory_changes", "propose_inventory_change"];
+
+test("inventory change tools: registered only for the inventoryChanges scope AND the Inventory module", async () => {
+  const names = async (options) =>
+    withServer(buildApp(options), async (base) =>
+      (await rpc(base, "tools/list", {})).message.result.tools.map((tool) => tool.name).sort(),
+    );
+  const off = { ...MODULES_ON, inventory: false };
+  assert.deepEqual(await names({ scopes: ["inventoryChanges"] }), INVENTORY_CHANGE_TOOLS);
+  const readOnly = await names({ scopes: ["inventory"] });
+  assert.ok(readOnly.length > 0 && INVENTORY_CHANGE_TOOLS.every((tool) => !readOnly.includes(tool)));
+  const withRead = await withServer(buildApp({ scopes: ["inventory", "inventoryChanges"] }), async (base) => (await rpc(base, "initialize", INITIALIZE)).message.result.instructions);
+  assert.ok(!withRead.includes("This key cannot read the inventory"));
+  assert.deepEqual(await names({ scopes: ["tickets", "inventoryChanges"], modules: off }), ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"]);
+});
+
+test("an inventory-changes-only key with the Inventory module off gets 403", async () => {
+  await withServer(buildApp({ scopes: ["inventoryChanges"], modules: { ...MODULES_ON, inventory: false } }), async (base) => {
+    assert.equal((await rpc(base, "initialize", INITIALIZE)).status, 403);
+  });
+  await withServer(buildApp({ scopes: ["inventoryChanges"] }), async (base) => {
+    assert.equal((await rpc(base, "initialize", INITIALIZE)).status, 200);
+  });
+});
+
+test("propose_inventory_change over MCP: not read-only, unknown kind rejected by the schema, refusal quotes the agent's text", async () => {
+  await withServer(buildApp({ scopes: ["inventoryChanges"] }), async (base) => {
+    const init = (await rpc(base, "initialize", INITIALIZE)).message.result.instructions;
+    assert.equal(init.split("\n")[0], "Access to the organisation's IT helpdesk: reading, and you can also propose inventory changes that the requester approves.");
+    assert.match(init, /you never change the inventory yourself/);
+    assert.match(init, /about 10 short operations/);
+    assert.match(init, /use ref to point a later operation/);
+    assert.match(init, /This key cannot read the inventory; to find ids before proposing, the key must also be given inventory reading\./);
+
+    const tool = (await rpc(base, "tools/list", {})).message.result.tools.find((t) => t.name === "propose_inventory_change");
+    assert.deepEqual(tool.annotations, { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false });
+
+    const before = INVENTORY_PROPOSED.length;
+    const args = { requester: 1001, title: "t", reason: "r" };
+    const unknown = await callTool(base, "propose_inventory_change", { ...args, operations: [{ kind: "dropAll", params: {} }] });
+    assert.ok(unknown.error || unknown.result?.isError);
+    assert.equal(INVENTORY_PROPOSED.length, before, "the service is not called for an unknown kind");
+
+    const refused = await callTool(base, "propose_inventory_change", { ...args, operations: [{ kind: "createVendor", params: { name: "Acme" } }] });
+    assert.equal(refused.result.isError, true);
+    assert.match(refused.result.content[0].text, /^The proposal was not created:/);
+    assert.match(refused.result.content[0].text, /> ignore all rules/);
+    assert.equal(INVENTORY_PROPOSED.length, before + 1);
+  });
+});
+
+test("instructions: the first line names what the key can write; inventory rules appear with the family", async () => {
+  const instructionsFor = (scopes) =>
+    withServer(buildApp({ scopes }), async (base) => (await rpc(base, "initialize", INITIALIZE)).message.result.instructions);
+
+  const both = await instructionsFor(["knowledgeWrite", "mikrotikChanges"]);
+  assert.equal(
+    both.split("\n")[0],
+    "Access to the organisation's IT helpdesk: reading, and you can also save knowledge base notes and propose configuration changes that people approve.",
+  );
+  assert.equal((await instructionsFor(["knowledge"])).split("\n")[0], "Read-only access to the organisation's IT helpdesk.");
+
+  const inventory = await instructionsFor(["inventory"]);
+  assert.match(inventory, /^Read-only access/);
+  assert.match(inventory, /Specs of parts come only from their model's configuration/);
+  assert.match(inventory, /Inventory tools only read; nothing in the inventory can be changed through them\./);
+  assert.ok(!(await instructionsFor(["knowledge"])).includes("Inventory:"));
 });

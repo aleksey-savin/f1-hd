@@ -564,7 +564,8 @@ const part = (n, companyId) =>
 
 const seedParts = () => {
   seedDevices([part(1, OWN), part(2, FOREIGN)]);
-  DeviceType.find = () => query([{ _id: RAM_TYPE, attachableToTypeIds: [] }]);
+  DeviceType.find = () =>
+    query([{ _id: RAM_TYPE, isComponent: true, attachableToTypeIds: [] }]);
 };
 
 const serialsOf = ({ res }) =>

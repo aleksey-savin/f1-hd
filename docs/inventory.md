@@ -86,6 +86,13 @@ Who can do what:
 | Edit the catalog | `inventoryCatalog.manage` |
 | Read suppliers | `supplier.read`; edit — `supplier.manage` |
 
+**Agent access (MCP).** A key with the `inventory` scope reads the catalog, devices,
+build candidates, statistics and findings through seven read-only tools. They bypass
+the rights above (the key belongs to the organisation, not a person) but are gated by
+the same module switch, and never return contacts of people or license keys. Nothing
+in the inventory can be changed through them. Details: `mcp.md`, «Inventory tools».
+A key with the `inventoryChanges` scope can also *propose* changes (catalog entries and devices) that the requester approves in Telegram: `inventory-changes.md`.
+
 ## 2. Data model
 
 ```
@@ -467,6 +474,13 @@ are domain rules and belong here:
 - **Branded vs custom.** *Branded* fills `deviceModelId` (which implies vendor and
   type) plus an optional `configurationId`; *custom* fills `deviceTypeId` directly.
   Serialization clears the other branch's fields — a device is never both.
+  *Custom* is allowed only for a type with `assembly.enabled` (`add` answers 400
+  «Тип «…» не собирается из комплектующих — укажите модель» otherwise); a part
+  (`parentDeviceId` set) may still be model-less. The wizard asks for the type
+  first and offers «Модель из каталога / Своя сборка» only for types with
+  `assembly.enabled` (a new device of such a type starts as custom); any other
+  type goes straight to vendor → model. Existing model-less devices keep their
+  type and kind on edit.
 - **A PC from a build** (self-built device of a type with `assembly.enabled`):
   `add` takes `buildId` (a non-deleted build of the same type) and/or
   `parts[{typeId, deviceModelId, configurationId?, serialNumber?,

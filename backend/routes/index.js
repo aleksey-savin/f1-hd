@@ -56,6 +56,7 @@ const locationRoutes = require("./internal/inventory/location");
 const mikrotikRoutes = require("./internal/inventory/mikrotik");
 const supplierRoutes = require("./internal/inventory/supplier");
 const vendorRoutes = require("./internal/inventory/vendor");
+const inventoryChangeRoutes = require("./internal/inventory/inventoryChange");
 
 // External routes
 const externalUserRoutes = require("./external/user");
@@ -209,6 +210,7 @@ mountInventory(
     mikrotikRoutes,
     supplierRoutes,
     vendorRoutes,
+    inventoryChangeRoutes,
   ],
 );
 

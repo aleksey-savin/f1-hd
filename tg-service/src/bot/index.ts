@@ -4,8 +4,10 @@ import type { Context, NextFunction } from "grammy";
 import {
   claimPairing,
   createTicket,
+  decideInventoryChange,
   decideMikrotikChange,
   fetchActor,
+  fetchInventoryChangeMessage,
   fetchMikrotikChangeMessage,
   fetchOpenTickets,
   setupStatusBoard,
@@ -23,6 +25,7 @@ import {
   ticketButton,
   ticketListKeyboard,
 } from "./render.ts";
+import { handleInventoryChange } from "./inventoryChange.ts";
 import { handleMikrotikChange } from "./mikrotikChange.ts";
 
 /**
@@ -379,6 +382,19 @@ export const createBot = (getConfig: ConfigSource): Bot => {
         decide: decideMikrotikChange,
         explain,
         // Сеть, таймаут и 5xx: исход решения неизвестен
+        isUncertain: (error) =>
+          error instanceof BackendError && (error.status === 0 || error.status >= 500),
+        warn: (message, meta) => logger.warn(message, meta),
+      });
+      return;
+    }
+
+    /** Пакет изменений инвентаря от ИИ-агента: те же правила, что у `mc:`. */
+    if (data.startsWith("ic:")) {
+      await handleInventoryChange(ctx, actor, data, {
+        fetchMessage: fetchInventoryChangeMessage,
+        decide: decideInventoryChange,
+        explain,
         isUncertain: (error) =>
           error instanceof BackendError && (error.status === 0 || error.status >= 500),
         warn: (message, meta) => logger.warn(message, meta),

@@ -9,8 +9,9 @@ const authController = require("@/controllers/auth");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 const attachTelegramActor = require("@/middleware/attachTelegramActor");
 const fileUpload = require("@/middleware/fileUpload");
-const { isNotClient, isAdmin, mikrotikIsActive } = require("@/middleware/permissions");
+const { isNotClient, isAdmin, mikrotikIsActive, inventoryModuleIsActive } = require("@/middleware/permissions");
 const mikrotikChangeBot = require("@/controllers/inventory/mikrotikChangeBot");
+const inventoryChangeBot = require("@/controllers/inventory/inventoryChangeBot");
 
 const router = express.Router();
 
@@ -146,6 +147,18 @@ mikrotikChangeBot.mountRoutes(router, {
   attachActor: attachTelegramActor,
   gates: [mikrotikIsActive, isNotClient],
   handlers: mikrotikChangeBot.live,
+});
+
+/**
+ * Решение заявителя по предложению ИИ-агента об инвентаре кнопкой в Telegram.
+ * Решает только заявитель; право на каждую операцию сервис решений проверяет сам.
+ */
+inventoryChangeBot.mountRoutes(router, {
+  limiter: serviceLimiter,
+  actorLimiter: inventoryChangeBot.createActorLimiter(),
+  attachActor: attachTelegramActor,
+  gates: [inventoryModuleIsActive, isNotClient],
+  handlers: inventoryChangeBot.live,
 });
 
 module.exports = router;

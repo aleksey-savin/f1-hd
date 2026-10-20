@@ -6,6 +6,7 @@ import {
   COMMAND_MARKER,
   actionLabel,
   applyDialog,
+  atStamp,
   approveHint,
   commandsAccusative,
   commandsCount,
@@ -518,4 +519,10 @@ test("общий шаг («любой с правом»): подпись шаг�
     pendingNote(pool, "pending", "awaiting_requester"),
     "Получат запрос после подтверждения заявителя",
   );
+});
+
+test("atStamp: сегодня, вчера, дата — через запятую", () => {
+  assert.equal(atStamp("2026-10-10T08:38:00Z", at()), "сегодня, 11:38");
+  assert.equal(atStamp("2026-10-09T08:38:00Z", at()), "вчера, 11:38");
+  assert.equal(atStamp("2026-10-08T08:38:00Z", at()), "8 октября, 11:38");
 });

@@ -16,6 +16,15 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
 
 **Spec:** `docs/superpowers/specs/2026-10-16-mcp-inventory-design.md` (sections «Решения» and «Фаза 1»).
 
+**Revised 19.10** after the owner's inventory update (commit 47c3e28, `docs/inventory.md` of 2026-10-19). The plan now covers:
+- attribute groups (`AttributeGroup`, `DeviceTypeAttribute.groupId`);
+- the type's own build (`DeviceType.assembly`: slots and key characteristics);
+- build templates (`DeviceBuild`);
+- `ClientDevice.buildId`;
+- the server port of key characteristics (`services/inventory/assemblyKeySpecs.js`).
+
+Builds apply only to self-built devices («Своя сборка») of a type with `assembly.enabled`. A branded PC is an ordinary model with attributes, and a build is not a model.
+
 ## Global Constraints
 
 - Paths are relative to `backend/` unless they start with `frontend/` or `docs/`.
@@ -29,8 +38,16 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
   - no contacts of people: only name, position and company, as in `list_users`;
   - `installedSoftware[].licenseKey` never leaves the source;
   - free text (`notes`, `comment`, `purchaseDocument`) goes through `maskText`.
-- Every read filters `deletedAt: null` for ClientDevice, DeviceModel and DeviceConfiguration. Types, attributes and vendors have no `deletedAt`, so they are filtered by `isActive` only when the tool says so.
+- Every read filters `deletedAt: null` for ClientDevice, DeviceModel, DeviceConfiguration and DeviceBuild. Types, attributes and vendors have no `deletedAt`, so they are filtered by `isActive` only when the tool says so.
 - The type of a device: `deviceModelId.deviceTypeId` if a model is set, else `deviceTypeId`. This is the existing `getEffectiveTypeId` / `populatedTypeId` semantics.
+- **Spec values are formatted by `formatSpecValue` from `services/inventory/assemblyKeySpecs.js`**, the server port of the frontend `spec-sheet.ts`, so the agent sees what people see. `multiselect` is stored as a JSON array string (old values: one raw string), and `parseMultiValue` in the same file handles both.
+- **Spec lines are grouped like the card's «Характеристики»** (`frontend/src/components/app/spec-sheet.ts#buildSpecGroups`):
+  - groups follow `AttributeGroup.order`, rows inside a group follow the link's `order`;
+  - attributes without a group come last under `Прочее`;
+  - empty values and empty groups are skipped.
+
+  The backend has no port of `buildSpecGroups`, so `inventoryFormat.js` gets a small one with a header comment «mirror of spec-sheet.ts#buildSpecGroups, keep in step», like `assemblyKeySpecs.js`.
+- **Self-built assemblies:** for a device without a model whose type has `assembly.enabled`, the key-characteristics line comes from `liveAssembly` + `keySpecsLine` / `loadKeySpecs` of `assemblyKeySpecs.js`. It is never recomputed differently.
 - **Specs of a device:** read from `device.configurationId`. Without it, from the model's only non-deleted configuration. If the model has several, the device has no specs and the card lists the configurations.
 - **Inventory statuses:** `readyForDeployment | deployed | inRepair | decommissioned | inReserve | disposed`. «Free» means `readyForDeployment | inReserve` and no `parentDeviceId`.
 - **Ticket↔device link is approximate:**
@@ -63,7 +80,7 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
 **Files:**
 - Create: `services/inventory/attachRules.js`
 - Create: `services/inventory/attachRules.test.js`
-- Modify: `controllers/inventory/clientDevice.js:1189-1243` (`getAttachable` uses the new function; behavior unchanged)
+- Modify: `controllers/inventory/clientDevice.js` `exports.getAttachable` (≈1549; uses the new function; behavior unchanged)
 
 **Interfaces:**
 - Produces:
@@ -93,14 +110,17 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
 **Interfaces:**
 - Consumes: `filterAttachable`, `isAttachableType` (Task 1).
 - Produces (all return lean plain objects; ids as stored):
-  - `loadCatalog() -> {types, attributes, links, vendors, suppliers}`:
-    - `types`: `_id name isActive isComponent isConsumable isPeripheral attachableToTypeIds inventoryPrefix updatedAt`;
+  - `loadCatalog() -> {types, attributes, links, groups, vendors, suppliers}`:
+    - `types`: `_id name isActive isComponent isConsumable isPeripheral attachableToTypeIds inventoryPrefix assembly updatedAt`;
+    - `groups`: AttributeGroup `_id name order`;
     - `attributes`: `_id code name valueType unit options isActive`;
-    - `links`: DeviceTypeAttribute `deviceTypeId attributeId required order`;
+    - `links`: DeviceTypeAttribute `deviceTypeId attributeId groupId required order`;
     - `vendors`: `_id name isActive`;
     - `suppliers`: `_id name` only, no contacts.
   - `loadModels(filter) -> models[]`: non-deleted, `_id name deviceTypeId vendorId compatibleWithModelIds notes updatedAt`.
   - `loadConfigurations(modelIds?) -> configs[]`: non-deleted, `_id name deviceModelId values`.
+  - `loadBuilds(filter) -> builds[]`: non-deleted DeviceBuild `_id name deviceTypeId parts notes`. Parts are raw ids; tools join through maps.
+  - `loadKeySpecsFor(rows) -> Map<deviceId, line>`: calls `loadKeySpecs` from `assemblyKeySpecs.js` with the same dependencies the controller passes at `clientDevice.js` ≈880. Copy that call, don't re-derive it.
   - `countDevicesByModel() -> Map<modelId, n>` and `countDevicesByConfiguration() -> Map<configId, n>`, over non-deleted devices.
   - `findDevices(filter, {sort, skip, limit}) -> devices[]` and `countDevices(filter)`. `DEVICE_FIELDS` lists every ClientDevice field the tools use **except** `installedSoftware.licenseKey`, `macAddress`, `machineId`. Select `installedSoftware.name installedSoftware.version`.
   - `loadDevice(id) -> device|null`: same fields.
@@ -108,7 +128,7 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
   - `loadAssemblyIds() -> Set<string>`: the distinct `parentDeviceId` of non-deleted devices.
   - `loadDirectory() -> {companies:[{_id,alias,fullTitle}], users:[{_id,firstName,lastName,position,company._id}], locations:[{_id,name,type,parent,company}]}`.
   - `loadTicketsForDevices(devices, {from?}) -> rows[{_id,num,title,isClosed,createdAt,applicantId,relatedClientDeviceId}]`. This is the approximate link from Global Constraints.
-  - `deviceRows(filter) -> rows[]`: light fields for stats and findings: `_id companyId userId locationId deviceModelId deviceTypeId parentDeviceId status serialNumber inventoryNumber purchasedAt deploymentDate warrantyExpirationDate expectedLifespan nextMaintenanceDate updatedAt createdAt`.
+  - `deviceRows(filter) -> rows[]`: light fields for stats and findings: `_id companyId userId locationId deviceModelId deviceTypeId parentDeviceId buildId status serialNumber inventoryNumber purchasedAt deploymentDate warrantyExpirationDate expectedLifespan nextMaintenanceDate updatedAt createdAt`.
   - Exported pure helper `deviceTypeId(device, modelsById) -> string|null`.
 
 - [ ] **Step 1: Write failing tests** for `deviceTypeId`:
@@ -126,7 +146,6 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
   ```
 
   Adjust the db bootstrap to the one `scripts/*.js` use. Expected: two non-zero numbers.
-- [ ] **Step 5: Look up how `multiselect` values are stored** in `DeviceConfiguration.values.value` on the local DB (JSON array string or comma-separated), and write the answer as a comment above `DEVICE_FIELDS`. Task 7 relies on it.
 
 ### Task 3: Formatting (pure)
 
@@ -142,11 +161,16 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
     - `attrsByType: Map<typeId, [{attr, required, order}]>` sorted by `order`.
   - `deviceLink(baseUrl, id) -> string` and `deviceLinkPattern(baseUrl) -> "device link: …/inventory/client-devices/<id>"`.
   - `deviceTitle(device, idx) -> string`: `"<Vendor> <Model>"`, or `"<Type> (no model)"`, or `"unknown device"`.
-  - `specsOf(device, idx) -> {source:"configuration"|"model-only-configuration"|"none"|"ambiguous", lines:string[], configurations?:[{_id,name}]}`. Each line is `"<Attr name> (<code>): <value><unit? ' '+unit>"`, in the type's attribute order; attributes not linked to the type come last.
+  - `specsOf(device, idx) -> {source:"configuration"|"model-only-configuration"|"none"|"ambiguous", groups:[{name, lines:string[]}], configurations?:[{_id,name}]}`:
+    - each line is `"<Attr name> (<code>): <formatSpecValue>"`;
+    - grouping follows Global Constraints;
+    - attributes not linked to the type go under `Прочее`.
+  - `assemblyOf(device, components, idx) -> null | {keySpecs, build:{_id,name}|null, slots:[{type, required, multiple, parts:string[], missing:boolean}]}`. It is null unless the device is self-built and its type has `assembly.enabled`. `missing` means a required slot has no live part.
   - `formatDeviceRow(device, idx, dir) -> string`: one line with title, `inv`, serial, status, company alias, person name, location name and id.
   - `formatDeviceDetail({device, components, parent, tickets, ticketsTotal}, idx, dir, ctx) -> string`. Sections:
     - header;
     - `Specs`;
+    - `Assembly` (only when `assemblyOf` is not null): the key line, the build template name, and per slot its parts or `— empty (required)`;
     - `Components` (each with its own specs);
     - `Part of`;
     - `Where` (location path from `dir.locations` via `parent`, max 6 levels);
@@ -156,7 +180,9 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
     - `Tickets (estimate: by the person the device is assigned to)`.
 
 - [ ] **Step 1: Write failing tests:**
-  - `specsOf` with `configurationId` set → `source:"configuration"` and lines in type order with unit;
+  - `specsOf` with `configurationId` set → `source:"configuration"`, groups in `AttributeGroup.order`, rows in link order, an ungrouped attribute under `Прочее`, a `multiselect` value `'["DDR4","DDR5"]'` printed the way `formatSpecValue` prints it;
+  - `assemblyOf` for a «Системный блок» (self-built, `assembly.enabled`) with a CPU and no RAM → the RAM slot is `missing:true` and the key line equals `keySpecsLine(...)` for the same parts;
+  - `assemblyOf` for a branded PC (has a model) → `null`;
   - no `configurationId` and the model has one config → `"model-only-configuration"`;
   - two configs → `"ambiguous"` with both listed and `lines:[]` (Review Focus 1);
   - type-only device → `"none"`;
@@ -175,15 +201,21 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
 **Interfaces:**
 - Consumes: Tasks 2–3.
 - Produces methods `(args, caller, context) -> {content:[{type:"text",text}]} | {isError:true, content}`:
-  - `catalog({section, query?, valueType?, includeInactive?, limit?})`: one read tool for the small catalogs (build-mcp-server review: fewer tools means fewer tokens in every agent turn). `section` is `types|attributes|vendors|suppliers`:
-    - `types`: per type its flags, attachable-to type names and attribute set `code · name · valueType · unit · options(values) · required`;
+  - `catalog({section, query?, type?, valueType?, includeInactive?, limit?})`: one read tool for the small catalogs (build-mcp-server review: fewer tools means fewer tokens in every agent turn). `section` is `types|attributes|groups|builds|vendors|suppliers`:
+    - `types`: per type:
+      - its flags and attachable-to type names;
+      - the attribute set grouped like specs, rows `code · name · valueType · unit · options(values) · required`;
+      - when `assembly.enabled`, the slots (`type, required, multiple`) and key characteristics (`type · model|attribute · aggregate`);
+    - `groups`: AttributeGroup names in order, with usage counts;
+    - `builds`: DeviceBuild templates, optionally for one `type`. Each has its parts per slot (vendor + model, configuration name and its values, quantity) and the number of devices made from it (`ClientDevice.buildId`);
     - `attributes`: plus «used by N types, M configurations»;
     - `vendors`: names with the active flag;
     - `suppliers`: names only.
   - `searchModels({query?, type?, vendor?, limit?, page?})`: per model `id`, vendor, name, type, device count, `compatible with` names, configurations with value lines and device count.
 
 - [ ] **Step 1: Write failing tests:**
-  - `catalog({section:"types"})` shows `isComponent` as `component` and the attribute order;
+  - `catalog({section:"types"})` shows `isComponent` as `component`, the attribute order inside groups, and for «Системный блок» its slots with `required`/`multiple`;
+  - `catalog({section:"builds", type:"Системный блок"})` lists only that type's non-deleted builds with parts in slot order;
   - `searchModels({type:"ОЗУ"})` returns only RAM models with their config value lines;
   - `searchModels({type:"Принтер"})` when two types contain «Принтер» → `isError` with both names (Review Focus 4);
   - `catalog({section:"attributes", query:"сокет"})` matches by name and by code, case-insensitive;
@@ -222,7 +254,8 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
     - with `onlyFree`, status must be `readyForDeployment|inReserve`; without it, every non-free row is marked `(in use: <status>)`;
     - `type` narrows to one component type;
     - each row has the device line, specs lines and `compatible with this host's model: yes` when the host model is in the candidate model's `compatibleWithModelIds` (or the reverse);
-    - the header lists the host's current components with specs, so the agent sees what is installed.
+    - the header lists the host's current components with specs, so the agent sees what is installed;
+    - **for a self-built host with `assembly.enabled`, candidates are grouped by the host type's slots.** A non-`multiple` slot that already has a part is marked `slot taken — detach the current part first`. Attachable types that are not in the slots are listed last under `Not in the build's slots`.
 
 - [ ] **Step 1: Write failing tests:**
   - `searchDevices({free:true})` excludes deployed and child devices;
@@ -231,6 +264,8 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
   - `getDevice` of a type-only PC with a model-based RAM part shows `Системный блок (no model)` and the RAM specs (Review Focus 2);
   - `listAttachable` hides a deployed RAM with `onlyFree` default and shows it marked `(in use: deployed)` with `onlyFree:false`;
   - `listAttachable` drops a component whose type `attachableToTypeIds` excludes the host type;
+  - `listAttachable` for a «Системный блок» that already has a CPU groups a free CPU under `Процессор` marked `slot taken`, and free RAM under `Оперативная память` without the mark (`multiple`);
+  - `searchDevices` rows of self-built assembled PCs carry their key line (from `loadKeySpecsFor`);
   - `parseDeviceRef` cases:
     - `"https://hd.example.ru/inventory/client-devices/65f0c0ffee0000000000abcd"` → `{id:"65f0c0ffee0000000000abcd"}`;
     - `"PC-000123"` → `{text:"PC-000123"}`;
@@ -273,7 +308,7 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
 
 **Interfaces:**
 - Produces:
-  - `FINDING_KINDS` (frozen array, order as below). Each check is `check(data, {now, days, limit}) -> {count, items:[{id, kind:"device"|"model"|"type"|"attribute", line}], note?}`. `data` is `{rows, catalogIdx, models, configs, links, tickets}`.
+  - `FINDING_KINDS` (frozen array, order as below). Each check is `check(data, {now, days, limit}) -> {count, items:[{id, kind:"device"|"model"|"type"|"attribute", line}], note?}`. `data` is `{rows, catalogIdx, models, configs, links, builds, components, tickets}`.
   - Tool method `findings({kind, company?, days?, limit = 20})`. `kind` is one of `FINDING_KINDS` or `"summary"`; `"summary"` runs every check and prints only the counts.
 - Checks and thresholds (`days` overrides the default):
 
@@ -293,13 +328,15 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
   | `invalidAttributeValues` | config value failing `isValidValue(attr, value)` |
   | `orphanRefs` | type links or config values whose `attributeId` is not in the catalog |
   | `ticketHeavy` | top devices and models by approximate ticket count over the last `days`, default 180; note `estimate` |
+  | `incompleteAssemblies` | self-built device of a type with `assembly.enabled` whose required slot has no live part (`assemblyOf(...).slots[].missing`) |
+  | `brokenBuilds` | non-deleted DeviceBuild whose part model or configuration is deleted, or whose part type is no longer in the type's slots |
 
   - `dupKey(name)`: lowercase, `ё→е`, Latin look-alikes `a e o p c x y k m t h b` → Cyrillic `а е о р с х у к м т н в`, then strip everything except letters and digits.
   - `isValidValue(attr, value)`:
     - `number`: finite after `,→.`;
     - `boolean`: `true|false|да|нет|1|0`;
     - `select`: value is in `options[].value`;
-    - `multiselect`: each element (in the storage form found in Task 2 Step 5) is in options;
+    - `multiselect`: `parseMultiValue(value)` from `assemblyKeySpecs.js`, then each element is in options;
     - `string`/`text`: always valid.
 
 - [ ] **Step 1: Write failing tests:**
@@ -342,7 +379,7 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
   That is 7 tools, all `READ_ONLY`. The spec's three small catalog lists became one tool with `section`.
 - First line composed as: base `"Access to the organisation's IT helpdesk: reading"`, plus `", and you can also "` + the joined list of `["save knowledge base notes", "propose configuration changes that people approve"]` (whichever the families allow), plus `"."`. Read-only keys keep the old `INSTRUCTIONS.common[0]`.
 - `INSTRUCTIONS.inventory` (exact copy):
-  - `"Inventory: get_inventory_catalog and search_device_models for the catalog; search_devices and get_device for devices; list_attachable_components for builds and upgrades; inventory_stats and inventory_findings for the state of the fleet. Specs of parts come only from their model's configuration: compare sockets, memory types and interfaces yourself from those lines and say when a spec is missing instead of guessing."`
+  - `"Inventory: get_inventory_catalog (types with attribute groups and their own build slots, attributes, build templates, vendors, suppliers) and search_device_models for the catalog; search_devices and get_device for devices; list_attachable_components for builds and upgrades; inventory_stats and inventory_findings for the state of the fleet. Specs of parts come only from their model's configuration: compare sockets, memory types and interfaces yourself from those lines and say when a spec is missing instead of guessing. Slots and build templates exist only for self-built devices («Своя сборка»); a branded PC is a model and has no slots."`
   - `"Ticket counts per device are estimates by the person the device is assigned to. Inventory tools only read; nothing in the inventory can be changed through them."`
 
 - [ ] **Step 1: Write failing tests** in `routes/mcp.test.js`:
@@ -379,7 +416,7 @@ The attach rule now inside `controllers/inventory/clientDevice.js#getAttachable`
 - Modify: `docs/mcp.md`:
   - new section «Inventory tools» after «Directory tools»: scope, module gate, each tool's arguments and answer shape, masking rules, the estimate rule, findings kinds table;
   - the scope list in «Keys and permissions».
-- Modify: `docs/inventory.md`: fix the stale lines (type `attributes[]` at ~298, Location `subdivisions[]` at ~189/198, no `deletedAt` on Location at ~461); add a short «Agent access» paragraph linking to `docs/mcp.md`.
+- Modify: `docs/inventory.md`: add a short «Agent access (MCP)» paragraph to §1 linking to `docs/mcp.md`. The stale lines the spec listed were already fixed by the owner's 2026-10-19 rewrite.
 
 - [ ] **Step 1: Write the docs.** English, no UI talk (implementation-notes convention).
 - [ ] **Step 2: Do the manual check** inside `hd-backend-1` on the local prod copy, with a key that has scope `inventory`. Use curl as in `docs/mcp.md` «Tests and manual check». Call:

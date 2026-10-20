@@ -17,10 +17,11 @@ exports.issueMcpKey = () => {
 
 // Доступы ключа: к базе знаний (knowledge — чтение, knowledgeWrite — запись
 // заметок агента), к заявкам, к справочникам компаний и пользователей
-// (companies, users), к Mikrotik и к запросам на изменение Mikrotik
+// (companies, users), к инвентарю (inventory) и к предложениям по инвентарю
+// (inventoryChanges), к Mikrotik и к запросам на изменение Mikrotik
 // (mikrotikChanges). Ключи, выданные до появления доступов, в базе без поля —
 // они читают только базу знаний, как и раньше.
-const MCP_SCOPES = Object.freeze(["knowledge", "knowledgeWrite", "tickets", "companies", "users", "mikrotik", "mikrotikChanges"]);
+const MCP_SCOPES = Object.freeze(["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "inventoryChanges", "mikrotik", "mikrotikChanges"]);
 
 const normalizeScopes = (scopes) => {
   const given = Array.isArray(scopes) ? scopes : [];

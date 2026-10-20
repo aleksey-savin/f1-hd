@@ -20,7 +20,8 @@ const Row = ({ label, value, pending }) => (
  * в конце. Незаполненное показывается тем, где его спросят («шаг 2»), — так
  * видно и то, что уже собрано, и то, что осталось. Номер шага — по ключу
  * (`stepOf`): шаг «Комплектующие» сдвигает остальные. `partsCount` — число
- * деталей нового ПК своей сборки, null — шага нет.
+ * деталей нового ПК своей сборки, null — шага нет (тогда нет и строки
+ * «Сборка»).
  */
 const FormSummary = ({
   form,
@@ -32,7 +33,9 @@ const FormSummary = ({
   const pendingAt = (key) => `шаг ${stepOf(key)}`;
   const identity =
     deviceKind === "custom"
-      ? labels.deviceType || null
+      ? labels.deviceType
+        ? `${labels.deviceType} · своя сборка`
+        : null
       : [labels.deviceType, labels.vendor, labels.model]
           .filter(Boolean)
           .join(" ") || null;
@@ -47,11 +50,14 @@ const FormSummary = ({
         <Row label="Конфигурация" value={labels.configuration} pending="—" />
       )}
       {partsCount !== null && (
-        <Row
-          label="Детали"
-          value={partsCount ? partsCountLabel(partsCount) : null}
-          pending={pendingAt("parts")}
-        />
+        <>
+          <Row label="Сборка" value={labels.build} pending="—" />
+          <Row
+            label="Детали"
+            value={partsCount ? partsCountLabel(partsCount) : null}
+            pending={pendingAt("parts")}
+          />
+        </>
       )}
       <Row
         label="Серийный номер"

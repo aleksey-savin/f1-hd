@@ -12,7 +12,8 @@ export type InAppNotificationCategory =
   | "absenceDecision"
   | "reportApproval"
   | "reportDecision"
-  | "mikrotikChange";
+  | "mikrotikChange"
+  | "inventoryChange";
 
 /** Вид события: каталог хроники (services/ticketEvents) плюс события вне заявок */
 export type InAppNotificationKind =
@@ -41,7 +42,9 @@ export type InAppNotificationKind =
   | "reportApproval"
   | "reportDecision"
   | "mikrotikChangeStep"
-  | "mikrotikChangeResult";
+  | "mikrotikChangeResult"
+  | "inventoryChangeProposed"
+  | "inventoryChangeResult";
 
 export interface IInAppNotificationActor {
   _id: Types.ObjectId;

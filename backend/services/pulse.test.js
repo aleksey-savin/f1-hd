@@ -112,3 +112,19 @@ test("channels is a topic and starts at zero", () => {
   bus.bump({ topics: ["channels"] });
   assert.equal(bus.topics().channels, bus.rev());
 });
+
+test("inventoryChanges is a topic and starts at zero", () => {
+  const { createBus, TOPICS } = require("./pulse");
+  assert.ok(TOPICS.includes("inventoryChanges"));
+  const bus = createBus();
+  assert.equal(bus.topics().inventoryChanges, 0);
+  bus.bump({ topics: ["inventoryChanges"] });
+  assert.equal(bus.topics().inventoryChanges, bus.rev());
+});
+
+test("InventoryChange is wired to the inventoryChanges topic; updatedAt/__v are noise", () => {
+  const MODELS = require("./pulseTopics");
+  assert.deepEqual(MODELS.InventoryChange.topics, ["inventoryChanges"]);
+  assert.equal(MODELS.InventoryChange.noise("updatedAt"), true);
+  assert.equal(MODELS.InventoryChange.noise("status"), false);
+});

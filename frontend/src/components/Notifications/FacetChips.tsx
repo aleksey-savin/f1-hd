@@ -28,10 +28,14 @@ const FacetChips = ({ scroll = false, className }: Props) => {
   const mikrotikOn = useInitialPrefsStore(
     (state) => !!state.modules?.mikrotik?.isActive,
   );
+  const inventoryOn = useInitialPrefsStore(
+    (state) => !!state.modules?.inventory?.isActive,
+  );
   const isEndUser = useAuthedUser().isEndUser;
   const facets = visibleFacets({
     messaging: messagingOn && can({ conversation: ["read"] }),
     mikrotik: mikrotikOn && !isEndUser,
+    inventory: inventoryOn && !isEndUser,
   });
 
   // Выключили модуль, а фасет остался в localStorage: чипа для сброса нет

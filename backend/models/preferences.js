@@ -91,6 +91,8 @@ const preferencesSchema = new Schema({
       conversationMessage: { type: Boolean, default: true },
       // Запросы ИИ-агента на изменение Mikrotik: ждёт решения и итог применения
       mikrotikChange: { type: Boolean, default: true },
+      // Предложения ИИ-агента по учёту техники: ждёт решения и итог
+      inventoryChange: { type: Boolean, default: true },
     },
     // Канал отправки (SMTP). Транспорт задаётся так же, как у ящика-приёмника;
     // authMethod "none" — внутренний релей, принимающий почту без пароля.

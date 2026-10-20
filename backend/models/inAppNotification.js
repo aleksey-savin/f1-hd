@@ -31,6 +31,9 @@ const EXTRA_KINDS = [
   // Запрос ИИ-агента на изменение Mikrotik: очередной шаг согласования и итог
   "mikrotikChangeStep",
   "mikrotikChangeResult",
+  // Предложение ИИ-агента по технике: ждёт решения заявителя и итог
+  "inventoryChangeProposed",
+  "inventoryChangeResult",
 ];
 const KIND_NAMES = [...new Set([...Object.keys(KINDS), ...EXTRA_KINDS])];
 

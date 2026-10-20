@@ -367,6 +367,9 @@ import MikrotikRecordPage, {
 import MikrotikChangePage, {
   loader as mikrotikChangeLoader,
 } from "./pages/Mikrotik/Change.jsx";
+import InventoryChangePage, {
+  loader as inventoryChangeLoader,
+} from "./pages/InventoryChange/Change.jsx";
 import MikrotikDeviceForm from "./components/Mikrotik/DeviceForm.jsx";
 import MikrotikPlannedOfflineForm, {
   action as mikrotikPlannedOfflineAction,
@@ -1464,6 +1467,16 @@ function App() {
               handle: { module: "mikrotik" },
               element: <MikrotikChangePage />,
               loader: mikrotikChangeLoader,
+            },
+            // Предложение ИИ-агента по технике. Только модуль, без права на
+            // технику: автор открывает своё предложение и без него, остальным
+            // (кроме сотрудников с правом менять технику или справочники)
+            // сервер не отдаёт (404).
+            {
+              path: "inventory/changes/:id",
+              handle: { module: "inventory" },
+              element: <InventoryChangePage />,
+              loader: inventoryChangeLoader,
             },
             // Reports
             // Легаси-отчёт по работам влился в «Архив» (сегмент «Работы») —

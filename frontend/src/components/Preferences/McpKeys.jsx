@@ -54,8 +54,9 @@ import {
 //
 // scanForSecrets — черновое значение свитча секции «База знаний»: строка
 // состояния меняется сразу, ещё до сохранения (так же AiRules получает aiOn /
-// feedbackOn). knowledgeModuleOn / mikrotikModuleOn — сохранённое состояние
-// модулей: с выключенным модулем его флажок получает предупреждение.
+// feedbackOn). knowledgeModuleOn / inventoryModuleOn / mikrotikModuleOn —
+// сохранённое состояние модулей: с выключенным модулем его флажок получает
+// предупреждение.
 
 const copyText = async (text) => {
   try {
@@ -77,6 +78,10 @@ const SCOPE_HINTS = {
   companies: "Названия, подразделения и число людей. Без адресов и контактов.",
   users:
     "Имя, компания, должность и состояние учётной записи. Без контактов.",
+  inventory:
+    "Справочники, техника с характеристиками и сборками, статистика и проверки парка. Ключи лицензий и контакты скрыты.",
+  inventoryChanges:
+    "Агент предлагает изменения техники и справочников. Применяются после утверждения автором запроса.",
   mikrotik:
     "Устройства, доступность, прошивки и конфигурация. Пароли и ключи скрыты.",
   mikrotikChanges:
@@ -87,6 +92,8 @@ const SCOPE_HINTS = {
 const MODULE_OFF_HINTS = {
   knowledge:
     "Модуль «База знаний» выключен — пока его не включат, заметки агенту не видны.",
+  inventory:
+    "Модуль «Инвентарь» выключен — пока его не включат, техника агенту не видна.",
   mikrotik:
     "Модуль «Мониторинг Mikrotik» выключен — пока его не включат, устройства агенту не видны.",
 };
@@ -178,9 +185,15 @@ const ScopeChecks = ({ idPrefix, value, onChange, modulesOn }) => (
   </div>
 );
 
-const McpKeys = ({ scanForSecrets, knowledgeModuleOn, mikrotikModuleOn }) => {
+const McpKeys = ({
+  scanForSecrets,
+  knowledgeModuleOn,
+  inventoryModuleOn,
+  mikrotikModuleOn,
+}) => {
   const modulesOn = {
     knowledge: knowledgeModuleOn,
+    inventory: inventoryModuleOn,
     mikrotik: mikrotikModuleOn,
   };
   const showToast = useToastStore((state) => state.showToast);

@@ -112,9 +112,20 @@ test("resources pair reading with writing only where writing exists", () => {
       ["Заявки", "tickets", null],
       ["Компании", "companies", null],
       ["Пользователи", "users", null],
+      ["Инвентарь", "inventory", "inventoryChanges"],
       ["Mikrotik", "mikrotik", "mikrotikChanges"],
     ],
   );
+});
+
+test("the inventory scope sits after users, before Mikrotik; writing proposals includes reading", () => {
+  assert.deepEqual(toggleScope([], "inventory", true), ["inventory"]);
+  assert.deepEqual(toggleScope(["inventory"], "inventoryChanges", true), ["inventory", "inventoryChanges"]);
+  assert.deepEqual(toggleScope([], "inventoryChanges", true), ["inventory", "inventoryChanges"]);
+  assert.deepEqual(toggleScope(["inventory", "inventoryChanges"], "inventory", false), []);
+  assert.equal(scopeAccessLabel(["inventory", "inventoryChanges"]), "инвентарь (чтение и запись)");
+  assert.deepEqual(toggleScope(["mikrotik", "users"], "inventory", true), ["users", "inventory", "mikrotik"]);
+  assert.equal(scopeLossPhrase(["inventory"]), "к инвентарю");
 });
 
 test("ticking writing ticks reading, unticking reading unticks writing", () => {

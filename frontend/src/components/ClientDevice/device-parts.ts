@@ -72,7 +72,7 @@ export const emptyUnit = (typeId: string): PartUnit => ({
 
 const liveSlots = (slots: UnitSlot[]) => slots.filter((slot) => slot.typeId);
 
-/** «Без сборки — детали вручную»: по пустой строке на слот, в порядке слотов (как из сборки). */
+/** «Без сборки — комплектующие вручную»: по пустой строке на слот, в порядке слотов (как из сборки). */
 export const manualUnits = (slots: UnitSlot[]): PartUnit[] =>
   liveSlots(slots).map((slot) => emptyUnit(slot.typeId!._id));
 
