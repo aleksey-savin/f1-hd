@@ -69,6 +69,10 @@ const MIGRATIONS = [
   // Устаревший уникальный индекс серийника → обычный: без серийника не
   // сохранялось второе устройство. См. dropUniqueSerialIndex.js
   { id: "2026-10-16-dropUniqueSerialIndex", script: "dropUniqueSerialIndex.js", apply: true },
+  // Модели — на режим одной конфигурации: пустая конфигурация моделям без неё,
+  // режим нескольких — моделям с двумя и больше, привязка устройств; ничего не
+  // удаляет. См. singleModelConfigurations.js
+  { id: "2026-10-27-singleModelConfigurations", script: "singleModelConfigurations.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

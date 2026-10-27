@@ -16,6 +16,10 @@ const catalogSeed = require("./catalogSeed");
 const { isValidValue } = require("./attributeValue");
 const { formatSpecValue } = require("./assemblyKeySpecs");
 const { hasForbiddenChars } = require("../mikrotik/changeRender");
+const {
+  agentConfigurationMode,
+  liveConfigurations,
+} = require("./modelConfigurations");
 
 // Каталожные операции ИИ-агента: только добавление. Правила дублей и тексты
 // отказов — как у обработчиков контроллеров (vendor, supplier, deviceModel,
@@ -45,14 +49,18 @@ const validationFailure = (error) => {
   return null;
 };
 
-// Исполнитель плана: check — validate без записи; иначе save. E11000 -> 409,
-// ошибка значения -> 400, остальное -> 500 (с error для журнала).
+// Исполнитель плана: check — validate без записи; иначе save. План может
+// вернуть extra — документы, которые пишутся следом за doc (конфигурация новой
+// модели, режим модели). E11000 -> 409, ошибка значения -> 400, остальное ->
+// 500 (с error для журнала).
 const execute = async (failMessage, check, plan) => {
   try {
     const planned = await plan();
     if (!planned.ok) return check ? { ...planned, text: "" } : planned;
-    if (check) await planned.doc.validate();
-    else await planned.doc.save();
+    for (const doc of [planned.doc, ...(planned.extra ?? [])]) {
+      if (check) await doc.validate();
+      else await doc.save();
+    }
     return check ? { ok: true, text: planned.text } : { ok: true, id: planned.doc._id };
   } catch (error) {
     const invalid = validationFailure(error);
@@ -133,7 +141,18 @@ const planModel = async (params = {}, { userId } = {}) => {
     compatibleWithModelIds: [],
     ...author(userId),
   });
-  return { ok: true, doc, text: `Новая модель ${vendor.name} ${name} (${type.name})` };
+  // Модель живёт с конфигурацией с первого дня (services/inventory/modelConfigurations)
+  const configuration = new DeviceConfiguration({
+    deviceModelId: doc._id,
+    values: [],
+    ...author(userId),
+  });
+  return {
+    ok: true,
+    doc,
+    extra: [configuration],
+    text: `Новая модель ${vendor.name} ${name} (${type.name})`,
+  };
 };
 
 const createModel = (params, options) =>
@@ -203,19 +222,41 @@ const planConfiguration = async (params = {}, { userId } = {}) => {
     shown.push(`${attr.name} ${formatSpecValue(attr, value)}`);
   }
 
+  const modelTitle = [vendor?.name, model.name].filter(Boolean).join(" ");
+  const shownText = shown.length ? `: ${shown.join(", ")}` : "";
+  const description = str(params.description) || undefined;
+
+  // Единственная пустая конфигурация вне режима нескольких — это характеристики
+  // модели: заполняются они, второй не появляется
+  const configs = await liveConfigurations(deviceModelId);
+  const mode = agentConfigurationMode(model, configs);
+  if (mode === "fill") {
+    const doc = configs[0];
+    Object.assign(doc, { name, description, values: saved });
+    if (userId) doc.updatedBy = userId;
+    return { ok: true, doc, text: `Характеристики модели ${modelTitle}${shownText}` };
+  }
+
   const doc = new DeviceConfiguration({
     deviceModelId,
     name,
-    description: str(params.description) || undefined,
+    description,
     values: saved,
     ...author(userId),
   });
-  const modelTitle = [vendor?.name, model.name].filter(Boolean).join(" ");
+  // Вторая конфигурация — модель переходит в режим нескольких
+  const extra = [];
+  if (mode === "add" && !model.multiConfig) {
+    const switched = DeviceModel.hydrate(model);
+    switched.multiConfig = true;
+    if (userId) switched.updatedBy = userId;
+    extra.push(switched);
+  }
   return {
     ok: true,
     doc,
-    text:
-      `Новая конфигурация «${name}» для ${modelTitle}` + (shown.length ? `: ${shown.join(", ")}` : ""),
+    extra,
+    text: `Новая конфигурация «${name}» для ${modelTitle}${shownText}`,
   };
 };
 

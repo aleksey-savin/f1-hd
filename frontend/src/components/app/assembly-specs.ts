@@ -105,6 +105,22 @@ export const partTitle = (part: AssemblyPart): string => {
   return [m.vendorId?.name, m.name].filter(Boolean).join(" ");
 };
 
+/**
+ * Короткое имя детали для сжатой сводки («Конфигурация» карточки): модель без
+ * производителя (и в имени тоже) и без хвостов в скобках — «GeForce RTX 3060
+ * WINDFORCE OC» вместо «Gigabyte … (rev. 2.0) [GV-N3060WF2OC-12GD 2.0]».
+ */
+export const shortPartTitle = (part: AssemblyPart): string => {
+  const m = part.deviceModelId;
+  if (!m || m.deletedAt) return partTitle(part);
+  const vendor = m.vendorId?.name?.trim();
+  let name = m.name.replace(/\s*(\([^)]*\)|\[[^\]]*\])/g, "").trim();
+  if (vendor && name.toLowerCase().startsWith(`${vendor.toLowerCase()} `)) {
+    name = name.slice(vendor.length).trim();
+  }
+  return name || m.name;
+};
+
 const qty = (p: AssemblyPart): number => (p.quantity > 0 ? p.quantity : 1);
 
 const valuesOf = (p: AssemblyPart): SpecValue[] =>
@@ -130,10 +146,14 @@ const sameType = (p: AssemblyPart, typeId: string): boolean =>
   p.typeId?._id === typeId;
 
 /** Значение одного keySpec по деталям его типа; пусто — нечего показать. */
-const keySpecValue = (spec: AssemblyKeySpec, parts: AssemblyPart[]): string => {
+const keySpecValue = (
+  spec: AssemblyKeySpec,
+  parts: AssemblyPart[],
+  title: (part: AssemblyPart) => string = partTitle,
+): string => {
   const own = spec.typeId ? parts.filter((p) => sameType(p, spec.typeId!._id)) : [];
   if (spec.source === "model") {
-    return distinct(own.map(partTitle)).join(", ");
+    return distinct(own.map(title)).join(", ");
   }
   const attrId = attrIdOf(spec.attributeId);
   const found: { raw: unknown; meta: SpecAttr | null; quantity: number }[] = [];
@@ -175,6 +195,7 @@ export const buildKeySpecs = (
   keySpecs: AssemblyKeySpec[],
   parts: AssemblyPart[],
   slots?: { typeId: AssemblyTypeRef | null }[],
+  title: (part: AssemblyPart) => string = partTitle,
 ): KeySpecEntry[] => {
   keySpecs = keySpecs.filter((s) => s.typeId?._id);
   const allowed = slots
@@ -189,7 +210,7 @@ export const buildKeySpecs = (
   for (const t of order) {
     const value = keySpecs
       .filter((s) => s.typeId?._id === t._id)
-      .map((s) => keySpecValue(s, parts))
+      .map((s) => keySpecValue(s, parts, title))
       .filter(Boolean)
       .join(" ");
     if (value) result.push({ typeId: t._id, label: t.name, value });
@@ -203,6 +224,16 @@ export const keySpecsLine = (
   slots?: { typeId: AssemblyTypeRef | null }[],
 ): string =>
   buildKeySpecs(keySpecs, parts, slots)
+    .map((e) => e.value)
+    .join(" · ");
+
+/** Сжатая сводка: модели — короткими именами (shortPartTitle). */
+export const compactKeySpecsLine = (
+  keySpecs: AssemblyKeySpec[],
+  parts: AssemblyPart[],
+  slots?: { typeId: AssemblyTypeRef | null }[],
+): string =>
+  buildKeySpecs(keySpecs, parts, slots, shortPartTitle)
     .map((e) => e.value)
     .join(" · ");
 

@@ -30,6 +30,24 @@ const deviceModelValidation = [
     .optional()
     .isMongoId()
     .withMessage("Compatible model ID must be a valid MongoDB ID"),
+  // Характеристики первой конфигурации (форма модели) — как у конфигурации
+  body("values")
+    .optional()
+    .isArray()
+    .withMessage("Values must be an array"),
+  body("values.*.attributeId")
+    .optional()
+    .isMongoId()
+    .withMessage("Attribute ID must be a valid MongoDB ID"),
+  body("values.*.value")
+    .optional()
+    .isString()
+    .withMessage("Attribute value must be a string")
+    .trim(),
+  body("multiConfig")
+    .optional()
+    .isBoolean({ strict: true })
+    .withMessage("multiConfig must be a boolean"),
   body("notes")
     .optional()
     .isLength({ max: 1000 })

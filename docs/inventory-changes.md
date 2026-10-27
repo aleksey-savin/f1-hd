@@ -166,7 +166,7 @@ tool (not `propose`) calls `notifier.proposed`.
 | `createVendor` | `name` | |
 | `createSupplier` | `name`, `inn`, `kpp`, `website`, `notes` | no phone or e-mail: the agent never sees contacts |
 | `createModel` | `type`, `vendor`, `name`, `notes` | |
-| `createConfiguration` | `model`, `name`, `description`, `values[{attribute: code, value}]` | value is a scalar, or a list for multiselect |
+| `createConfiguration` | `model`, `name`, `description`, `values[{attribute: code, value}]` | value is a scalar, or a list for multiselect. A model outside the «several configurations» mode whose only configuration is empty gets that one filled instead of a second; otherwise a new configuration is added and the model switches to the several-configurations mode. `createModel` creates the model with an empty configuration |
 | `createBuild` | `type`, `name`, `parts[{type, model, configuration, quantity}]`, `notes` | |
 | `createDevice` | body of `POST /client-devices/add` (model + configuration or type, company, location, user, status, serial, inventory number, purchase and warranty fields, `buildId`/`parts[]` for a self-built PC, `parentDeviceId`) | company or parent device, and model or type, are required; see «Agent path» below |
 | `updateDevice` | `device` + whitelist | `serialNumber inventoryNumber hostname ipAddress operatingSystem purchasedAt price supplierId purchaseDocument warrantyExpirationDate deploymentDate nextMaintenanceDate comment configurationId`; the form's field rules apply to the fields sent |

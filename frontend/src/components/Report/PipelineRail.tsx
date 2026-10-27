@@ -114,9 +114,9 @@ const PipelineRail = ({
   <div
     role="tablist"
     aria-label="Стадии конвейера"
-    // На узком экране плитки уходят в горизонтальную прокрутку со снапом:
-    // сжимать деньги до нечитаемого нельзя
-    className="-mx-1 flex items-stretch overflow-x-auto px-1 pb-1 max-lg:snap-x"
+    // На узком экране плитки уходят в горизонтальную прокрутку со снапом
+    // (жестом, без полосы): сжимать деньги до нечитаемого нельзя
+    className="-mx-1 flex items-stretch overflow-x-auto px-1 pb-1 max-lg:snap-x max-lg:scrollbar-none"
   >
     {STAGES.map((stage, index) => {
       const stat = stages[stage.key] || { count: 0, total: 0 };

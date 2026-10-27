@@ -4,7 +4,6 @@ import UserLink from "@/components/app/UserLink";
 import { BrowserView } from "react-device-detect";
 import {
   RiAddLine,
-  RiArrowRightSLine,
   RiBarcodeLine,
   RiBuilding2Line,
   RiCalendarLine,
@@ -41,6 +40,11 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import FormOutlet from "@/components/app/FormOutlet";
 import Environment from "@/components/app/Environment";
 import {
+  ENVIRONMENT_VIEW_OPTIONS,
+  useEnvironmentView,
+} from "@/components/app/environment-view";
+import Segmented from "@/components/app/Segmented";
+import {
   Eyebrow,
   Panel,
   Section,
@@ -49,10 +53,9 @@ import {
 import PropRow from "@/components/app/PropRow";
 import SpecSheet from "@/components/app/SpecSheet";
 import { buildSpecGroups, specSummary } from "@/components/app/spec-sheet";
-import KeySpecChips from "@/components/app/KeySpecChips";
 import {
   buildAssemblyGroups,
-  buildKeySpecs,
+  compactKeySpecsLine,
   collapseDiffRows,
   connectedRows,
   devicePartsToAssembly,
@@ -152,10 +155,27 @@ const ViewClientDevice = ({ device = {} }) => {
     window.scrollTo(0, 0);
   }, []);
 
+  const [environmentView, setEnvironmentView] = useEnvironmentView();
+
   const model = device.deviceModelId;
   const type = model?.deviceTypeId || device.deviceTypeId;
   const vendor = model?.vendorId;
   const isCustom = !model;
+  // «Сеть и система» — не у комплектующих, расходников и периферии: у них нет
+  // ни имени в сети, ни ОС. Заполненное (и заметки в той же панели) не прячем.
+  const partLike = Boolean(
+    type?.isComponent || type?.isConsumable || type?.isPeripheral,
+  );
+  const showTech =
+    !partLike ||
+    [
+      device.hostname,
+      device.ipAddress,
+      device.macAddress,
+      device.operatingSystem,
+      device.machineId,
+      device.notes,
+    ].some(Boolean);
   const title =
     [vendor?.name, model?.name].filter(Boolean).join(" ") ||
     type?.name ||
@@ -202,15 +222,20 @@ const ViewClientDevice = ({ device = {} }) => {
   // Пустая «Конфигурация» — только тем, кто может её наполнить (как раньше
   // у «Состава сборки»)
   const showConfig = configRows.length > 0 || canManage;
+  // «Состав сборки» — у типа, который собирается из комплектующих; уже
+  // прикреплённые детали видны у любого
+  const showComponents =
+    components.length > 0 || (canManage && Boolean(type?.assembly?.enabled));
   // «Подключено» — тем же видом строк, что «Конфигурация»
   const connectedConfigRows = assembly
     ? connectedRows(devicePartsToAssembly(connected))
     : [];
   // «Конфигурация · N» — штук деталей: «2 × память» — две
   const configUnits = slotParts.reduce((sum, part) => sum + part.quantity, 0);
-  const keySpecs = assembly
-    ? buildKeySpecs(assembly.keySpecs, slotParts, assembly.slots)
-    : [];
+  // Сжатая сводка — первой строкой «Конфигурации» (в шапке её больше нет)
+  const keySpecsSummary = assembly
+    ? compactKeySpecsLine(assembly.keySpecs, slotParts, assembly.slots)
+    : "";
   const assemblyGroups = assembly
     ? buildAssemblyGroups(slotParts, device.partLinks || {})
     : [];
@@ -359,12 +384,11 @@ const ViewClientDevice = ({ device = {} }) => {
     () =>
       [
         { id: "placement", label: "Размещение" },
-        { id: "environment", label: "Окружение" },
         { id: "identity", label: "Идентификация" },
         specGroups.length && !assembly
           ? { id: "specs", label: "Характеристики" }
           : null,
-        { id: "tech", label: "Сеть и система" },
+        showTech ? { id: "tech", label: "Сеть и система" } : null,
         ...(assembly
           ? [
               showConfig ? { id: "components", label: "Конфигурация" } : null,
@@ -376,7 +400,7 @@ const ViewClientDevice = ({ device = {} }) => {
                 : null,
             ]
           : [
-              components.length || canManage
+              showComponents
                 ? { id: "components", label: "Состав сборки" }
                 : null,
             ]),
@@ -386,10 +410,12 @@ const ViewClientDevice = ({ device = {} }) => {
         effectivePhotos.length || canManage
           ? { id: "photos", label: "Фотографии" }
           : null,
+        { id: "environment", label: "Окружение" },
       ].filter(Boolean),
     [
       specGroups.length,
-      components.length,
+      showTech,
+      showComponents,
       Boolean(assembly),
       showConfig,
       connected.length,
@@ -402,6 +428,29 @@ const ViewClientDevice = ({ device = {} }) => {
   );
 
   const TypeIcon = deviceIcon(type?.name);
+  // Подстрока не повторяет заголовок: у сборки он и есть тип, у модели в нём
+  // уже производитель
+  const heroSub = assembly ? (
+    <>
+      Своя сборка
+      {build && (
+        <>
+          {" · "}
+          <Link
+            to={`/inventory/device-builds/${build._id}`}
+            state={fromState}
+            className="font-medium text-accent-text no-underline hover:underline"
+          >
+            {build.name || "Без названия"}
+          </Link>
+        </>
+      )}
+    </>
+  ) : isCustom ? (
+    "Собственная сборка"
+  ) : (
+    type?.name || null
+  );
   const heroPhoto = effectivePhotos[0] ? photoUrl(effectivePhotos[0]) : null;
 
   return (
@@ -409,11 +458,14 @@ const ViewClientDevice = ({ device = {} }) => {
       <div className="mx-auto w-full max-w-5xl">
         <Crumbs />
 
-        {/* Hero */}
-        <div className="flex flex-wrap items-start gap-4">
+        {/* Hero (макет «Шапка карточки устройства»): имя, что это, статус и
+            действия. Инвентарный номер — в «Идентификации», характеристики
+            сборки — в «Конфигурации». Телефон: иконка в строке с заголовком,
+            остальное во всю ширину (сетка; с md — прежний ряд) */}
+        <div className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-x-3 md:flex md:flex-wrap md:items-start md:gap-4">
           <span
             aria-hidden
-            className="grid size-14 flex-none place-items-center overflow-hidden rounded-2xl bg-accent text-2xl text-muted-foreground inset-ring inset-ring-border bg-cover bg-center"
+            className="grid size-11 flex-none place-items-center overflow-hidden rounded-xl bg-accent text-xl text-muted-foreground inset-ring inset-ring-border bg-cover bg-center md:size-14 md:rounded-2xl md:text-2xl"
             style={
               heroPhoto ? { backgroundImage: `url(${heroPhoto})` } : undefined
             }
@@ -421,58 +473,18 @@ const ViewClientDevice = ({ device = {} }) => {
             {!heroPhoto && <TypeIcon />}
           </span>
 
-          <div className="min-w-0 flex-1">
-            <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight">
+          <div className="contents md:block md:min-w-0 md:flex-1">
+            <h1 className="col-start-2 my-0 self-center text-xl leading-tight font-semibold tracking-tight md:text-2xl">
               {title}
             </h1>
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="text-sm text-muted-foreground">
-                {assembly ? (
-                  <>
-                    {[type?.name, "своя сборка"].filter(Boolean).join(" · ")}
-                    {build && (
-                      <>
-                        {" · "}
-                        <Link
-                          to={`/inventory/device-builds/${build._id}`}
-                          state={fromState}
-                          className="font-medium text-accent-text no-underline hover:underline"
-                        >
-                          {build.name || "Без названия"}
-                        </Link>
-                      </>
-                    )}
-                  </>
-                ) : isCustom ? (
-                  [type?.name, "собственная сборка"].filter(Boolean).join(" · ")
-                ) : (
-                  [type?.name, vendor?.name].filter(Boolean).join(" · ")
-                )}
-              </span>
-              {/* Метка — тот же вход в QR, что в строке списка */}
-              <button
-                type="button"
-                onClick={() => setQrOpen(true)}
-                title="Показать QR-код"
-                className={cn(
-                  "inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-xs font-semibold tracking-wide transition-colors",
-                  device.inventoryNumber
-                    ? "border-border-soft bg-accent text-foreground hover:border-input"
-                    : "bg-transparent font-sans font-normal text-faint",
-                )}
-                style={
-                  device.inventoryNumber
-                    ? undefined
-                    : { border: "1px dashed var(--border)" }
-                }
-              >
-                {device.inventoryNumber || "нет номера"}
-                <RiQrCodeLine size={11} aria-hidden className="opacity-55" />
-              </button>
-            </div>
+            {heroSub && (
+              <div className="col-span-full mt-3 text-sm text-muted-foreground md:mt-2">
+                {heroSub}
+              </div>
+            )}
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <div className="col-span-full mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
               {status && (
                 <DeviceStatusText tone={status.tone} className="text-sm">
                   {status.label}
@@ -496,31 +508,9 @@ const ViewClientDevice = ({ device = {} }) => {
                 </DeviceStatusText>
               )}
             </div>
-
-            {/* Ключевые характеристики — по фактическим деталям, как у сборки */}
-            <KeySpecChips entries={keySpecs} />
-
-            {/* Комплектующее: путь наверх — в списке устройств его нет */}
-            {parent && (
-              <Link
-                to={`/inventory/client-devices/${parent._id}`}
-                className="mt-2.5 inline-flex items-center gap-2 rounded-lg bg-accent px-2.5 py-1.5 text-sm text-muted-foreground no-underline hover:text-foreground"
-              >
-                <RiStackLine size={15} aria-hidden />В составе:{" "}
-                <span className="font-medium text-accent-text">
-                  {[
-                    parent.deviceModelId?.name || parent.deviceTypeId?.name,
-                    parent.inventoryNumber,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-                <RiArrowRightSLine size={15} aria-hidden />
-              </Link>
-            )}
           </div>
 
-          <div className="flex flex-none items-center gap-2">
+          <div className="col-span-full mt-3.5 flex items-center gap-2 md:mt-0 md:flex-none">
             {/* QR — отдельная кнопка, а не пункт меню: код открывают часто и
                 не глядя в списки действий */}
             <Button
@@ -554,7 +544,8 @@ const ViewClientDevice = ({ device = {} }) => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button asChild>
+                {/* Телефон: «Изменить» первой и во всю оставшуюся ширину */}
+                <Button asChild className="max-md:order-first max-md:flex-1">
                   <Link to="update">
                     <RiEdit2Line /> Изменить
                   </Link>
@@ -599,6 +590,24 @@ const ViewClientDevice = ({ device = {} }) => {
                 Размещение
               </Eyebrow>
               <Panel>
+                {/* Комплектующее, расходник, периферия: путь наверх — в списке
+                    устройств его нет; размещение детали — это её сборка */}
+                {parent && (
+                  <PropRow icon={<RiStackLine size={17} />} label="В составе">
+                    <Link
+                      to={`/inventory/client-devices/${parent._id}`}
+                      state={fromState}
+                      className="text-foreground no-underline hover:text-accent-text"
+                    >
+                      {[
+                        parent.deviceModelId?.name || parent.deviceTypeId?.name,
+                        parent.inventoryNumber,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Link>
+                  </PropRow>
+                )}
                 <PropRow icon={<RiBuilding2Line size={17} />} label="Компания">
                   {device.companyId ? (
                     <Link
@@ -656,12 +665,6 @@ const ViewClientDevice = ({ device = {} }) => {
                 </PropRow>
               </Panel>
             </Section>
-
-            {/* Окружение — тот же виджет, что у заявки и карточек компании и
-                пользователя, в режиме «по устройству»: цепочка расположений и
-                соседи по помещению, само устройство обведено */}
-            <Eyebrow id="environment">Окружение</Eyebrow>
-            <Environment deviceId={device._id} from={title} />
 
             <Section>
               <Eyebrow
@@ -761,79 +764,81 @@ const ViewClientDevice = ({ device = {} }) => {
               </>
             )}
 
-            <Section>
-              <Eyebrow
-                id="tech"
-                action={
-                  canManage && (
-                    <SectionEditLink
-                      to="update#tech"
-                      label="Сеть и система"
+            {showTech && (
+              <Section>
+                <Eyebrow
+                  id="tech"
+                  action={
+                    canManage && (
+                      <SectionEditLink
+                        to="update#tech"
+                        label="Сеть и система"
                      
-                    />
-                  )
-                }
-              >
-                Сеть и система
-              </Eyebrow>
-              <Panel>
-                <PropRow
-                  icon={<RiTerminalBoxLine size={17} />}
-                  label="Имя устройства"
-                >
-                  {device.hostname ? (
-                    <span className="font-mono">{device.hostname}</span>
-                  ) : (
-                    dash
-                  )}
-                </PropRow>
-                <PropRow
-                  icon={<RiGlobalLine size={17} />}
-                  label="IP-адрес"
-                  copy={
-                    device.ipAddress
-                      ? { value: device.ipAddress, label: "IP-адрес" }
-                      : undefined
+                      />
+                    )
                   }
                 >
-                  {device.ipAddress ? (
-                    <span className="font-mono">{device.ipAddress}</span>
-                  ) : (
-                    dash
-                  )}
-                </PropRow>
-                <PropRow icon={<RiGlobalLine size={17} />} label="MAC-адрес">
-                  {device.macAddress ? (
-                    <span className="font-mono">{device.macAddress}</span>
-                  ) : (
-                    dash
-                  )}
-                </PropRow>
-                <PropRow
-                  icon={<RiCpuLine size={17} />}
-                  label="Операционная система"
-                >
-                  {device.operatingSystem || dash}
-                </PropRow>
-                {device.machineId && (
+                  Сеть и система
+                </Eyebrow>
+                <Panel>
                   <PropRow
-                    icon={<RiFingerprintLine size={17} />}
-                    label="ID машины (агент)"
+                    icon={<RiTerminalBoxLine size={17} />}
+                    label="Имя устройства"
                   >
-                    <span className="font-mono text-sm">
-                      {device.machineId}
-                    </span>
+                    {device.hostname ? (
+                      <span className="font-mono">{device.hostname}</span>
+                    ) : (
+                      dash
+                    )}
                   </PropRow>
-                )}
-                {device.notes && (
-                  <PropRow icon={<RiFileList2Line size={17} />} label="Заметки">
-                    <span className="font-normal whitespace-pre-line">
-                      {device.notes}
-                    </span>
+                  <PropRow
+                    icon={<RiGlobalLine size={17} />}
+                    label="IP-адрес"
+                    copy={
+                      device.ipAddress
+                        ? { value: device.ipAddress, label: "IP-адрес" }
+                        : undefined
+                    }
+                  >
+                    {device.ipAddress ? (
+                      <span className="font-mono">{device.ipAddress}</span>
+                    ) : (
+                      dash
+                    )}
                   </PropRow>
-                )}
-              </Panel>
-            </Section>
+                  <PropRow icon={<RiGlobalLine size={17} />} label="MAC-адрес">
+                    {device.macAddress ? (
+                      <span className="font-mono">{device.macAddress}</span>
+                    ) : (
+                      dash
+                    )}
+                  </PropRow>
+                  <PropRow
+                    icon={<RiCpuLine size={17} />}
+                    label="Операционная система"
+                  >
+                    {device.operatingSystem || dash}
+                  </PropRow>
+                  {device.machineId && (
+                    <PropRow
+                      icon={<RiFingerprintLine size={17} />}
+                      label="ID машины (агент)"
+                    >
+                      <span className="font-mono text-sm">
+                        {device.machineId}
+                      </span>
+                    </PropRow>
+                  )}
+                  {device.notes && (
+                    <PropRow icon={<RiFileList2Line size={17} />} label="Заметки">
+                      <span className="font-normal whitespace-pre-line">
+                        {device.notes}
+                      </span>
+                    </PropRow>
+                  )}
+                </Panel>
+              </Section>
+            )}
 
             {assembly ? (
               <>
@@ -870,6 +875,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     ) : (
                       <AssemblyConfiguration
                         rows={configRows}
+                        summary={keySpecsSummary}
                         canManage={canManage}
                         detachingId={detachingId}
                         onDetach={detachComponent}
@@ -907,7 +913,7 @@ const ViewClientDevice = ({ device = {} }) => {
                 )}
               </>
             ) : (
-              (components.length > 0 || canManage) && (
+              showComponents && (
                 <>
                   <Eyebrow
                     id="components"
@@ -1049,6 +1055,30 @@ const ViewClientDevice = ({ device = {} }) => {
                 </Panel>
               </>
             )}
+
+            {/* Окружение — тот же виджет, что у заявки и карточек компании и
+                пользователя, в режиме «по устройству»: цепочка расположений и
+                соседи по помещению, само устройство отмечено. Внизу страницы:
+                сначала — само устройство */}
+            <Eyebrow
+              id="environment"
+              action={
+                <Segmented
+                  ariaLabel="Вид окружения"
+                  options={ENVIRONMENT_VIEW_OPTIONS}
+                  value={environmentView}
+                  onChange={setEnvironmentView}
+                />
+              }
+            >
+              Окружение
+            </Eyebrow>
+            <Environment
+              deviceId={device._id}
+              from={title}
+              view={environmentView}
+              targetLabel="это устройство"
+            />
 
             <div className="mt-6 border-t border-border-soft pt-3.5 text-sm text-faint">
               {device.createdBy && (

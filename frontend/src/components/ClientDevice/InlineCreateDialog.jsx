@@ -147,21 +147,10 @@ const KINDS = {
       vendorId: state.vendorId,
       compatibleWithModelIds: state.compatibleWithModelIds || [],
       notes: state.notes,
+      // Характеристики — первая конфигурация, её создаёт сервер вместе с моделью
+      values: state.values || [],
+      multiConfig: !!state.multiConfig,
     }),
-    // Конфигурации создаются отдельными запросами — как и в action страницы.
-    afterCreate: async (created, state) => {
-      const configurations = state.configurations || [];
-      for (const config of configurations) {
-        await fetch(`${base}/api/inventory/device-configurations/add`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            deviceModelId: created._id,
-            values: config.values,
-          }),
-        });
-      }
-    },
     validate: (state) =>
       state.deviceTypeId && state.vendorId
         ? null

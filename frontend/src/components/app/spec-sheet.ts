@@ -206,6 +206,7 @@ export const specSummary = (
   links: SpecLink[],
   values: SpecValue[],
   limit = 3,
+  separator = " / ",
 ): string => {
   const byAttr = new Map<string, SpecValue>();
   for (const v of values) byAttr.set(idOf(v.attributeId), v);
@@ -226,7 +227,7 @@ export const specSummary = (
     const text = formatSpecValue(attrOf(entry.attributeId), entry.value);
     if (text) parts.push(text);
   }
-  return parts.slice(0, limit).join(" / ");
+  return parts.slice(0, limit).join(separator);
 };
 
 /** Две колонки: ceil(n/2) слева. */

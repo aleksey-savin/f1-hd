@@ -2,6 +2,7 @@ import { RiFocus3Line, RiMapPin2Line, RiStarFill } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
+import EnvironmentDeviceMeta from "./EnvironmentDeviceMeta";
 import {
   DEVICE_STATUS_META,
   DeviceStatusText,
@@ -9,7 +10,8 @@ import {
   mikrotikStatus,
 } from "./device-status";
 
-// Плитка устройства в окружении: плитка-иконка, имя (+★ личного), тип · вендор,
+// Плитка устройства в окружении: плитка-иконка, имя (+★ личного), подстрока
+// EnvironmentDeviceMeta (имя или инв. номер · характеристики сборки или тип · вендор),
 // статусы текстом с точкой. highlightId — устройство заявки (режим окружения по
 // устройству): бирюзовое кольцо + прицел, короткий пульс при появлении.
 const EnvironmentDeviceTile = ({
@@ -64,11 +66,7 @@ const EnvironmentDeviceTile = ({
             />
           )}
         </span>
-        {(device.typeName || device.vendorName) && (
-          <span className="block truncate text-xs text-muted-foreground">
-            {[device.typeName, device.vendorName].filter(Boolean).join(" · ")}
-          </span>
-        )}
+        <EnvironmentDeviceMeta device={device} />
         {showLocation && device.locationName && (
           <span className="flex items-center gap-1 text-xs text-faint">
             <RiMapPin2Line size={12} className="flex-none" />

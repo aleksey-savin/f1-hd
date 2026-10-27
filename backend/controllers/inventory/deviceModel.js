@@ -3,6 +3,12 @@ const ClientDevice = require("@/models/inventory/clientDevice");
 const DeviceConfiguration = require("@/models/inventory/deviceConfiguration");
 const { createPhotoHandlers } = require("./photoHandlers");
 const { AppError } = require("@/middleware/errorHandling");
+const {
+  liveConfigurations,
+  modelWriteFromBody,
+  modeChangeError,
+  relinkDevicesTo,
+} = require("@/services/inventory/modelConfigurations");
 
 // Каталожные снимки модели. Удаление модели мягкое, поэтому объекты в S3 при
 // нём остаются: восстановленная модель должна вернуться со своими фото.
@@ -53,13 +59,19 @@ exports.getOne = async (req, res, next) => {
       .populate("deviceTypeId", "name")
       .populate("vendorId", "name")      .populate("compatibleWithModelIds", "name")
       .populate("createdBy", "firstName lastName")
-      .populate("updatedBy", "firstName lastName");
+      .populate("updatedBy", "firstName lastName")
+      .lean();
 
     if (!deviceModel) {
       return next(
         new AppError(`Device model with id ${req.params.id} not found`, 404),
       );
     }
+    // Сколько живых устройств этой модели — шапка карточки
+    deviceModel.devicesCount = await ClientDevice.countDocuments({
+      deviceModelId: deviceModel._id,
+      deletedAt: null,
+    });
     res.status(200).json(deviceModel);
   } catch (error) {
     next(
@@ -81,6 +93,7 @@ exports.add = async (req, res, next) => {
       name,      compatibleWithModelIds,
       notes,
     } = req.body;
+    const multiConfig = req.body.multiConfig === true;
 
     // Check if name already exists (if name is provided)
     if (name) {
@@ -100,10 +113,28 @@ exports.add = async (req, res, next) => {
       vendorId,
       name,      compatibleWithModelIds: compatibleWithModelIds || [],
       notes,
+      multiConfig,
       createdBy: req.userId,
     });
 
     await deviceModel.save();
+
+    // Модель живёт с конфигурацией с первого дня: значения формы (или пустая).
+    // Транзакций нет — сбой второй записи откатывает модель по _id.
+    try {
+      const { values } = modelWriteFromBody(req.body, {
+        creating: true,
+        multiConfig,
+      });
+      await new DeviceConfiguration({
+        deviceModelId: deviceModel._id,
+        values,
+        createdBy: req.userId,
+      }).save();
+    } catch (error) {
+      await DeviceModel.deleteOne({ _id: deviceModel._id });
+      throw error;
+    }
 
     const populatedDeviceModel = await DeviceModel.findById(deviceModel._id)
       .populate("deviceTypeId", "name")
@@ -151,15 +182,61 @@ exports.update = async (req, res, next) => {
       }
     }
 
+    // Режим «Несколько конфигураций»: вне его — только при одной живой
+    const configs = await liveConfigurations(deviceModel._id);
+    const wasMulti = !!deviceModel.multiConfig;
+    const multiConfig =
+      typeof req.body.multiConfig === "boolean"
+        ? req.body.multiConfig
+        : wasMulti;
+    const refused = modeChangeError(multiConfig, configs.length);
+    if (refused) return next(new AppError(refused, 409));
+
     // Update fields
     if (name !== undefined) deviceModel.name = name;
     if (deviceTypeId) deviceModel.deviceTypeId = deviceTypeId;
     if (vendorId) deviceModel.vendorId = vendorId;    if (compatibleWithModelIds !== undefined)
       deviceModel.compatibleWithModelIds = compatibleWithModelIds;
     if (notes !== undefined) deviceModel.notes = notes;
+    deviceModel.multiConfig = multiConfig;
     deviceModel.updatedBy = req.userId;
 
     await deviceModel.save();
+
+    // Вне режима нескольких характеристики формы — значения первой
+    // конфигурации; её нет (модель старше миграции) — создаётся
+    const { values } = modelWriteFromBody(req.body, {
+      creating: false,
+      multiConfig,
+      wasMulti,
+    });
+    if (values !== undefined) {
+      const first =
+        configs[0] ||
+        new DeviceConfiguration({
+          deviceModelId: deviceModel._id,
+          createdBy: req.userId,
+        });
+      first.values = values;
+      first.updatedBy = req.userId;
+      await first.save();
+      if (!configs.length) configs.push(first);
+    }
+
+    // Вне режима нескольких все устройства модели — на её единственной
+    // конфигурации: после выключения режима прежние ссылки (пустые или на
+    // удалённый вариант) иначе остались бы без характеристик
+    const sole = relinkDevicesTo(multiConfig, configs);
+    if (sole) {
+      await ClientDevice.updateMany(
+        {
+          deviceModelId: deviceModel._id,
+          deletedAt: null,
+          configurationId: { $ne: sole._id },
+        },
+        { $set: { configurationId: sole._id } },
+      );
+    }
 
     const populatedDeviceModel = await DeviceModel.findById(deviceModel._id)
       .populate("deviceTypeId", "name")

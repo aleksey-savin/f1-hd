@@ -3,6 +3,7 @@ import {
   RiAddLine,
   RiAlertLine,
   RiArrowRightUpLine,
+  RiCpuLine,
   RiLinkUnlink,
   RiLinksLine,
   RiMoreLine,
@@ -178,6 +179,8 @@ const RowMenu = ({
 };
 
 /**
+ * `summary` — сжатая сводка ключевых характеристик первой строкой панели
+ * (макет «Шапка карточки устройства»): в шапке карточки её больше нет.
  * Строки «Конфигурации» (и «Подключено» — тем же видом). Сетка как в макете: слот · деталь · метки · «⋯»;
  * на телефоне слот — строкой над деталью, метки — под ней.
  * `connected` — строки «Подключено»: устройство без модели называется типом,
@@ -191,11 +194,24 @@ const AssemblyConfiguration = ({
   onDetach,
   onNew,
   onAttach,
+  summary,
 }) => {
   const today = new Date();
   // Строки до края панели — отступ панели гасится (см. app/Panel)
   return (
     <div className="-mx-4 -my-4 md:-mx-5 md:-my-5">
+      {summary && (
+        <div className="flex items-start gap-2.5 border-b border-border-soft px-4 py-3">
+          <RiCpuLine
+            size={16}
+            aria-hidden
+            className="mt-0.5 flex-none text-accent-text"
+          />
+          <span className="line-clamp-2 font-semibold" title={summary}>
+            {summary}
+          </span>
+        </div>
+      )}
       {rows.map((row) => {
         const tag = row.tag ? TAG[row.tag] : null;
         const single = row.devices.length === 1;

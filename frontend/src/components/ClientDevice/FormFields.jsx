@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { RiAddLine, RiAlertLine } from "react-icons/ri";
+import { RiAddLine, RiAlertLine, RiInformationLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -261,10 +261,10 @@ export const DeviceFields = ({
               />
             </div>
 
-            {/* Поле есть, только когда есть из чего выбрать: заблокированный
-                селект с подписью «конфигураций нет» — это пустое место,
-                занявшее строку формы. Заводят их на странице модели. */}
-            {values.deviceModelId && options.configurations.length > 0 && (
+            {/* Выбор — только когда конфигураций больше одной (у
+                единственной его нет: устройство привязывается к ней). Заводят
+                их на странице модели. */}
+            {values.deviceModelId && options.configMode === "picker" && (
               <CatalogField
                 id="device-configuration"
                 label="Конфигурация"
@@ -276,6 +276,34 @@ export const DeviceFields = ({
                 searchPlaceholder="Найти конфигурацию…"
               />
             )}
+
+            {/* Одна конфигурация — сводка её характеристик под моделью */}
+            {values.deviceModelId &&
+              options.configMode === "summary" &&
+              options.modelSummary && (
+                <div className="-mt-1 mb-3.5 flex items-start gap-2 rounded-lg border border-border bg-accent px-3 py-2.5 text-sm text-muted-foreground">
+                  <RiInformationLine
+                    size={15}
+                    aria-hidden
+                    className="mt-0.5 flex-none text-accent-text"
+                  />
+                  <div className="min-w-0">
+                    <b className="font-medium text-foreground tabular-nums">
+                      {options.modelSummary}
+                    </b>{" "}
+                    — характеристики модели.{" "}
+                    {/* Новая вкладка: форма с введённым остаётся открытой */}
+                    <Link
+                      to={`/inventory/device-models/${values.deviceModelId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium whitespace-nowrap text-accent-text no-underline hover:underline"
+                    >
+                      Открыть модель
+                    </Link>
+                  </div>
+                </div>
+              )}
           </>
         )}
 

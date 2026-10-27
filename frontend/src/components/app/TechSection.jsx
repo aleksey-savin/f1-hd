@@ -8,6 +8,7 @@ import {
   RiCloseLine,
   RiExternalLinkLine,
   RiListUnordered,
+  RiMap2Line,
   RiMapPin2Line,
   RiSearchLine,
   RiServerLine,
@@ -41,6 +42,7 @@ const ROW_LIMIT = 10;
 const VIEW_OPTIONS = [
   { value: "list", label: "Список", icon: <RiListUnordered size={15} /> },
   { value: "env", label: "Окружение", icon: <RiMapPin2Line size={15} /> },
+  { value: "plan", label: "План", icon: <RiMap2Line size={15} /> },
 ];
 
 const LIVE_DOT = {
@@ -427,8 +429,13 @@ const TechSection = ({
       </Eyebrow>
       {!self && <div className="mb-2.5 md:hidden">{segmented("w-full")}</div>}
 
-      {view === "env" && !self ? (
-        <Environment companyId={companyId} userId={userId} subject={subject} />
+      {(view === "env" || view === "plan") && !self ? (
+        <Environment
+          companyId={companyId}
+          userId={userId}
+          subject={subject}
+          view={view === "plan" ? "plan" : "list"}
+        />
       ) : isLoading || (!data && !error) ? (
         <div className="rounded-xl border border-border bg-card">
           <Spinner className="min-h-48" />

@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Link,
-  useActionData,
-  useRevalidator,
-} from "react-router";
+import { Link, useActionData, useRevalidator } from "react-router";
 
 import {
   RiAddFill,
@@ -11,6 +7,7 @@ import {
   RiCpuLine,
   RiDeleteBinLine,
   RiEdit2Line,
+  RiListUnordered,
   RiMoreLine,
   RiStackLine,
 } from "react-icons/ri";
@@ -57,7 +54,7 @@ const Detail = ({ label, children, className }) => (
 
 // «⋯» действия конфигурации. Диалог удаления рендерится ВНЕ radix-меню
 // (меню размонтирует содержимое при закрытии), открывается состоянием.
-const ConfigActions = ({ config, label }) => {
+const ConfigActions = ({ config, label, canDelete = true }) => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   return (
     <>
@@ -79,12 +76,15 @@ const ConfigActions = ({ config, label }) => {
               <RiEdit2Line /> Изменить
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onSelect={() => setDeleteOpen(true)}
-          >
-            <RiDeleteBinLine /> Удалить
-          </DropdownMenuItem>
+          {/* Последнюю конфигурацию не удаляют — сервер откажет */}
+          {canDelete && (
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => setDeleteOpen(true)}
+            >
+              <RiDeleteBinLine /> Удалить
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <DeleteDialog
@@ -98,10 +98,10 @@ const ConfigActions = ({ config, label }) => {
 
 // Пустое состояние секции «Конфигурации» — не пустота: иконка, заголовок,
 // объяснение, главное действие (гайд).
-const EmptyConfigs = ({ title, hint, children }) => (
+const EmptyConfigs = ({ title, hint, children, icon: Icon = RiStackLine }) => (
   <Panel>
     <div className="flex flex-col items-center gap-2 px-6 py-9 text-center">
-      <RiStackLine size={40} aria-hidden className="mb-1 text-faint" />
+      <Icon size={40} aria-hidden className="mb-1 text-faint" />
       <div className="text-base font-semibold">{title}</div>
       <p className="my-0 max-w-md text-sm text-muted-foreground">{hint}</p>
       {children && <div className="mt-2">{children}</div>}
@@ -148,6 +148,18 @@ const ViewDeviceModel = ({
   const fromState = useCrumbFrom(title);
   const compatible = deviceModel.compatibleWithModelIds || [];
   const configCount = configurations.length;
+  const devicesCount = deviceModel.devicesCount || 0;
+  // Режим одной конфигурации: её характеристики — свойства модели, правятся
+  // формой модели (макет «Модель без конфигураций»). Две и больше без флага
+  // (модель старше миграции) — тоже варианты: иначе вторые не видно
+  const multiConfig = !!deviceModel.multiConfig || configCount > 1;
+  const firstConfig =
+    [...configurations].sort(
+      (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+    )[0] || null;
+  const modelGroups = firstConfig
+    ? buildSpecGroups(attributes, firstConfig.values || [])
+    : [];
 
   // Связки типа (с группами) — каркас «спецификации» конфигураций.
   const noTypeAttributes = attributes.length === 0;
@@ -222,13 +234,19 @@ const ViewDeviceModel = ({
               </span>
             )}
             <span className="text-sm text-muted-foreground tabular-nums">
-              {sep} {bold(configCount)}{" "}
-              {plural(
-                configCount,
-                "конфигурация",
-                "конфигурации",
-                "конфигураций",
+              {multiConfig && (
+                <>
+                  {sep} {bold(configCount)}{" "}
+                  {plural(
+                    configCount,
+                    "конфигурация",
+                    "конфигурации",
+                    "конфигураций",
+                  )}{" "}
+                </>
               )}
+              {sep} {bold(devicesCount)}{" "}
+              {plural(devicesCount, "устройство", "устройства", "устройств")}
               {photos.length > 0 && (
                 <>
                   {" "}
@@ -344,108 +362,174 @@ const ViewDeviceModel = ({
         </>
       )}
 
-      {/* Конфигурации */}
-      <div className="mt-6 mb-2.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
-          Конфигурации
-          {configCount > 0 && (
-            <span className="font-semibold tracking-normal tabular-nums">
-              · {configCount}
-            </span>
-          )}
-        </div>
-        {canManage && !noTypeAttributes && (
-          <Button asChild size="sm">
-            <Link to="add">
-              <RiAddFill /> Новая конфигурация
-            </Link>
-          </Button>
-        )}
-      </div>
-
-      {noTypeAttributes ? (
-        <EmptyConfigs
-          title="У типа устройства нет характеристик"
-          hint="Сначала добавьте атрибуты к типу устройства, затем создавайте конфигурации."
-        >
-          {canManage && typeId && (
-            <Button asChild variant="outline">
-              {/* Атрибуты добавляются с карточки типа — туда и ведём */}
-              <Link to={`/inventory/device-types/${typeId}`} state={fromState}>
-                Открыть тип устройства
-              </Link>
-            </Button>
-          )}
-        </EmptyConfigs>
-      ) : configCount === 0 ? (
-        <EmptyConfigs
-          title="Конфигураций пока нет"
-          hint="Добавьте первую — например «16 ГБ / 512 ГБ»."
-        >
-          {canManage && (
-            <Button asChild>
-              <Link to="add">
-                <RiAddFill /> Новая конфигурация
-              </Link>
-            </Button>
-          )}
-        </EmptyConfigs>
-      ) : (
+      {/* Характеристики — режим одной конфигурации */}
+      {!multiConfig && (
         <>
-          {/* Переключатель конфигураций: чипы, первая выбрана; при одной —
-              без чипов */}
-          {configCount > 1 && (
-            <div
-              role="group"
-              aria-label="Конфигурации"
-              className="mb-2.5 flex flex-wrap gap-1.5"
+          <Eyebrow
+            action={
+              canManage &&
+              !noTypeAttributes &&
+              modelGroups.length > 0 && (
+                <Button asChild variant="outline" size="xs">
+                  <Link to="update#specs">
+                    <RiEdit2Line /> Изменить
+                  </Link>
+                </Button>
+              )
+            }
+          >
+            Характеристики
+          </Eyebrow>
+          {noTypeAttributes ? (
+            <EmptyConfigs
+              title="У типа устройства нет характеристик"
+              hint="Сначала добавьте атрибуты к типу устройства."
             >
-              {configurations.map((config, index) => {
-                const pressed = index === selectedIndex;
-                return (
-                  <button
-                    key={config._id}
-                    type="button"
-                    aria-pressed={pressed}
-                    onClick={() => setSelectedId(config._id)}
-                    className={cn(
-                      "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.25 text-sm font-medium text-muted-foreground tabular-nums transition-colors outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
-                      pressed &&
-                        "border-primary text-foreground inset-ring inset-ring-primary",
-                    )}
+              {canManage && typeId && (
+                <Button asChild variant="outline">
+                  <Link
+                    to={`/inventory/device-types/${typeId}`}
+                    state={fromState}
                   >
-                    <span className="truncate">{labelOf(config, index)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <Panel>
-            {/* Шапка выбранной конфигурации — до краёв панели */}
-            <div className="-mx-4 -mt-4 mb-4 flex items-center gap-2.5 border-b border-border-soft px-4 py-3 md:-mx-5 md:-mt-5 md:mb-5">
-              <RiCpuLine
-                aria-hidden
-                className="size-4 flex-none text-accent-text"
-              />
-              <div className="min-w-0 flex-1 text-sm font-semibold break-words tabular-nums">
-                {selectedLabel}
-              </div>
+                    Открыть тип устройства
+                  </Link>
+                </Button>
+              )}
+            </EmptyConfigs>
+          ) : modelGroups.length === 0 ? (
+            <EmptyConfigs
+              icon={RiListUnordered}
+              title="Характеристики не заполнены"
+              hint="Их увидят все устройства этой модели. Из них же собирается сводка ПК своей сборки."
+            >
               {canManage && (
-                <ConfigActions
-                  key={selected._id}
-                  config={selected}
-                  label={selectedLabel}
-                />
+                <Button asChild size="sm">
+                  <Link to="update#specs">
+                    <RiEdit2Line /> Заполнить
+                  </Link>
+                </Button>
+              )}
+            </EmptyConfigs>
+          ) : (
+            <Panel>
+              <SpecSheet groups={modelGroups} />
+            </Panel>
+          )}
+        </>
+      )}
+
+      {/* Конфигурации — режим нескольких */}
+      {multiConfig && (
+        <>
+          <div className="mt-6 mb-2.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
+              Конфигурации
+              {configCount > 0 && (
+                <span className="font-semibold tracking-normal tabular-nums">
+                  · {configCount}
+                </span>
               )}
             </div>
-            {selectedGroups.length === 0 ? (
-              <p className="my-0 text-sm text-muted-foreground">
-                Без характеристик
-              </p>
-            ) : (
-              <SpecSheet groups={selectedGroups} />
+            {canManage && !noTypeAttributes && (
+              <Button asChild size="sm">
+                <Link to="add">
+                  <RiAddFill /> Новая конфигурация
+                </Link>
+              </Button>
             )}
-          </Panel>
+          </div>
+
+          {noTypeAttributes ? (
+            <EmptyConfigs
+              title="У типа устройства нет характеристик"
+              hint="Сначала добавьте атрибуты к типу устройства, затем создавайте конфигурации."
+            >
+              {canManage && typeId && (
+                <Button asChild variant="outline">
+                  {/* Атрибуты добавляются с карточки типа — туда и ведём */}
+                  <Link
+                    to={`/inventory/device-types/${typeId}`}
+                    state={fromState}
+                  >
+                    Открыть тип устройства
+                  </Link>
+                </Button>
+              )}
+            </EmptyConfigs>
+          ) : configCount === 0 ? (
+            <EmptyConfigs
+              title="Конфигураций пока нет"
+              hint="Добавьте первую — например «16 ГБ / 512 ГБ»."
+            >
+              {canManage && (
+                <Button asChild>
+                  <Link to="add">
+                    <RiAddFill /> Новая конфигурация
+                  </Link>
+                </Button>
+              )}
+            </EmptyConfigs>
+          ) : (
+            <>
+              {/* Переключатель конфигураций: чипы, первая выбрана; при одной —
+              без чипов */}
+              {configCount > 1 && (
+                <div
+                  role="group"
+                  aria-label="Конфигурации"
+                  className="mb-2.5 flex flex-wrap gap-1.5"
+                >
+                  {configurations.map((config, index) => {
+                    const pressed = index === selectedIndex;
+                    return (
+                      <button
+                        key={config._id}
+                        type="button"
+                        aria-pressed={pressed}
+                        onClick={() => setSelectedId(config._id)}
+                        className={cn(
+                          "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.25 text-sm font-medium text-muted-foreground tabular-nums transition-colors outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
+                          pressed &&
+                            "border-primary text-foreground inset-ring inset-ring-primary",
+                        )}
+                      >
+                        <span className="truncate">
+                          {labelOf(config, index)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <Panel>
+                {/* Шапка выбранной конфигурации — до краёв панели */}
+                <div className="-mx-4 -mt-4 mb-4 flex items-center gap-2.5 border-b border-border-soft px-4 py-3 md:-mx-5 md:-mt-5 md:mb-5">
+                  <RiCpuLine
+                    aria-hidden
+                    className="size-4 flex-none text-accent-text"
+                  />
+                  <div className="min-w-0 flex-1 text-sm font-semibold break-words tabular-nums">
+                    {selectedLabel}
+                  </div>
+                  {canManage && (
+                    <ConfigActions
+                      key={selected._id}
+                      config={selected}
+                      label={selectedLabel}
+                      canDelete={configCount > 1}
+                    />
+                  )}
+                </div>
+                {selectedGroups.length === 0 ? (
+                  <p className="my-0 text-sm text-muted-foreground">
+                    Без характеристик
+                  </p>
+                ) : (
+                  <SpecSheet groups={selectedGroups} />
+                )}
+              </Panel>
+            </>
+          )}
         </>
       )}
 

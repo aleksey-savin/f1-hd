@@ -19,15 +19,17 @@ export default UpdateDeviceModelPage;
 export async function loader({ params }) {
   setDocTitle("Изменить модель устройства");
 
-  // Модель — всегда свежая; справочники — из кэша (store/form-data).
-  // Атрибуты типа форме модели больше не нужны (конфигурации — отдельная
-  // форма с карточки); тип по-прежнему несёт isConsumable для совместимости.
-  const [deviceModel, deviceTypes, vendors, allDeviceModels] =
+  // Модель и её конфигурации — всегда свежие; справочники — из кэша
+  // (store/form-data). Атрибуты типа поля характеристик грузят сами — по
+  // выбранному в форме типу; тип по-прежнему несёт isConsumable.
+  const [deviceModel, deviceTypes, vendors, allDeviceModels, configurations] =
     await Promise.all([
       api(`/api/inventory/device-models/${params.id}`),
       load("/api/inventory/device-types"),
       load("/api/inventory/vendors"),
       load("/api/inventory/device-models"),
+      // Характеристики модели — значения её первой конфигурации
+      api(`/api/inventory/device-configurations/model/${params.id}`),
     ]);
   // Совместимые модели — без самой себя
   const deviceModels = allDeviceModels.filter((dm) => dm._id !== params.id);
@@ -37,6 +39,7 @@ export async function loader({ params }) {
     deviceTypes,
     vendors,
     deviceModels,
+    configurations,
   };
 }
 
@@ -51,6 +54,9 @@ export async function action({ request, params }) {
     name: data.get("name"),
     compatibleWithModelIds: data.getAll("compatibleWithModelIds"),
     notes: data.get("notes"),
+    // Характеристики (первая конфигурация) и режим «Несколько конфигураций»
+    values: JSON.parse(data.get("values") || "[]"),
+    multiConfig: data.get("multiConfig") === "true",
   };
 
   const response = await fetch(

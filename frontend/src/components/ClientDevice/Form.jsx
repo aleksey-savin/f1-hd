@@ -24,6 +24,8 @@ import {
 } from "@/components/app/FormLayout";
 import WizardStepper from "@/components/app/WizardStepper";
 import { liveAssembly } from "@/components/app/assembly-specs";
+import { specSummary } from "@/components/app/spec-sheet";
+import { load } from "@/store/form-data";
 import { toDayKey } from "@/components/app/date-value";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,7 @@ import {
   useModelIndex,
 } from "../DeviceBuild/part-pickers";
 import InlineCreateDialog from "./InlineCreateDialog";
+import { configFieldMode } from "./model-config";
 import useAssignableUsers, { userOptionLabel } from "./useAssignableUsers";
 import { useCan } from "@/store/authed-user";
 
@@ -256,6 +259,33 @@ const ClientDeviceForm = ({ title }) => {
     };
   }, [form.deviceModelId]);
 
+  // Одна конфигурация у модели — вместо выбора сводка её характеристик;
+  // связки типа нужны для порядка и единиц (макет «Модель без конфигураций»)
+  // Только конфигурации выбранной модели: список догружается после смены
+  // модели, и до ответа в нём ещё прежние
+  const modelConfigs = configurations.filter(
+    (c) => (c.deviceModelId?._id ?? c.deviceModelId) === form.deviceModelId,
+  );
+  const configMode = configFieldMode(modelConfigs);
+  const [typeLinks, setTypeLinks] = useState([]);
+  useEffect(() => {
+    if (configMode !== "summary" || !form.deviceTypeId) {
+      setTypeLinks([]);
+      return undefined;
+    }
+    let cancelled = false;
+    load(`/api/inventory/device-type-attributes/type/${form.deviceTypeId}`)
+      .then((list) => {
+        if (!cancelled) setTypeLinks(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (!cancelled) setTypeLinks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [configMode, form.deviceTypeId]);
+
   // Слоты типа своей сборки и его сборки. Свежими, не из кэша: тип только
   // что могли перевести на комплектующие, сборку — завести. Смена типа (или
   // вида) сбрасывает выбор сборки и строки деталей.
@@ -404,6 +434,11 @@ const ClientDeviceForm = ({ title }) => {
     ),
     vendors: useMemo(() => optionsOf(vendors), [vendors]),
     deviceModels: modelOptions,
+    configMode,
+    modelSummary:
+      configMode === "summary"
+        ? specSummary(typeLinks, modelConfigs[0]?.values || [], 4, " · ")
+        : "",
     configurations: useMemo(
       () =>
         configurations.map((configuration) => ({
@@ -691,6 +726,12 @@ const ClientDeviceForm = ({ title }) => {
       payload.configurationId = "";
     } else {
       payload.deviceTypeId = "";
+      // Поля выбора нет — единственная конфигурация модели. Явно, а не
+      // пустым: у модели в режиме нескольких с одной конфигурацией сервер
+      // сам её не подставит
+      if (configMode === "summary") {
+        payload.configurationId = modelConfigs[0]._id;
+      }
     }
     const body = Object.fromEntries(
       SUBMIT_FIELDS.map((field) => [field, payload[field] ?? ""]),

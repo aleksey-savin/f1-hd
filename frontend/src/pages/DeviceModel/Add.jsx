@@ -48,8 +48,8 @@ export async function loader() {
   setDocTitle("Новая модель устройства");
 
   // Справочники — из кэша (store/form-data). Тип содержит флаг isConsumable
-  // (для поля «Совместимые модели»); атрибуты здесь больше не нужны —
-  // конфигурации создаются отдельной формой с карточки.
+  // (для поля «Совместимые модели»); атрибуты типа поля характеристик грузят
+  // сами — по выбранному в форме типу.
   const [deviceTypes, vendors, deviceModels] = await Promise.all([
     load("/api/inventory/device-types"),
     load("/api/inventory/vendors"),
@@ -74,6 +74,9 @@ export async function action({ request }) {
     name: data.get("name"),
     compatibleWithModelIds: data.getAll("compatibleWithModelIds"),
     notes: data.get("notes"),
+    // Характеристики (первая конфигурация) и режим «Несколько конфигураций»
+    values: JSON.parse(data.get("values") || "[]"),
+    multiConfig: data.get("multiConfig") === "true",
   };
 
   const response = await fetch(

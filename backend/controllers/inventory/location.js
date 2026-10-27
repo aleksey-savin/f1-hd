@@ -3,7 +3,15 @@ const Subdivision = require("../../models/subdivision");
 const User = require("../../models/user");
 const Company = require("../../models/company");
 const ClientDevice = require("../../models/inventory/clientDevice");
+const DeviceType = require("../../models/inventory/deviceType");
+const { loadKeySpecs } = require("../../services/inventory/assemblyKeySpecs");
+const { ASSEMBLY_POPULATE } = require("./deviceType");
+const {
+  ASSEMBLY_COMPONENT_POPULATE,
+  ASSEMBLY_COMPONENT_SELECT,
+} = require("./clientDevice");
 const { AppError } = require("../../middleware/errorHandling");
+const logger = require("../../utils/logger");
 const {
   buildMikrotikStatusMap,
   mikrotikOverlay,
@@ -66,7 +74,9 @@ const ENV_DEVICE_POPULATE = [
 // Тонкий DTO устройства для окружения. Имя — из модели или прямого типа
 // (самосборные), вендор/тип человекочитаемые. isPersonal: устройство закреплено
 // лично за заявителем (бейдж «★»). Только не удалённые самостоятельные единицы.
-const toEnvDevice = (d, userId, mikroMap) => {
+// keySpecs — ключевые характеристики ПК своей сборки, как в списке техники:
+// без них одинаковые «Системный блок» не различить.
+const toEnvDevice = (d, userId, mikroMap, keySpecsMap) => {
   const model = d.deviceModelId;
   const typeName = model?.deviceTypeId?.name || d.deviceTypeId?.name || null;
   const mikro = mikroMap?.get(String(d._id));
@@ -75,6 +85,8 @@ const toEnvDevice = (d, userId, mikroMap) => {
     name: model?.name || typeName || "Устройство",
     typeName,
     vendorName: model?.vendorId?.name || null,
+    keySpecs: keySpecsMap?.get(String(d._id)) || null,
+    hostname: d.hostname || null,
     serialNumber: d.serialNumber || null,
     inventoryNumber: d.inventoryNumber || null,
     status: d.status || null,
@@ -88,6 +100,28 @@ const toEnvDevice = (d, userId, mikroMap) => {
   };
 };
 
+// Ключевые характеристики своих сборок пачкой (services/inventory/
+// assemblyKeySpecs); детали — в том же скоупе компании, что и хозяева.
+// Сводка — украшение строки: её сбой окружение не роняет.
+const envKeySpecs = (devicesRaw, scope) =>
+  loadKeySpecs(devicesRaw, {
+    ClientDevice,
+    DeviceType,
+    assemblyPopulate: ASSEMBLY_POPULATE,
+    componentPopulate: ASSEMBLY_COMPONENT_POPULATE,
+    componentSelect: `${ASSEMBLY_COMPONENT_SELECT} parentDeviceId`,
+    componentsFilter: (hostIds) => ({
+      deletedAt: null,
+      parentDeviceId: hostIds,
+      ...deviceScopeMatch(scope),
+    }),
+  }).catch((error) => {
+    logger.log("warn", "Не удалось собрать ключевые характеристики сборок", {
+      error: error.message,
+    });
+    return new Map();
+  });
+
 // Узел окружения: устройства локации (со слоем isPersonal) + дочерние локации с
 // числом устройств. Без isCurrent — «ветку заявителя» подсвечивает фронт по id
 // цепочки, чтобы кликабельны были ВСЕ дочерние узлы. Общий код для
@@ -100,7 +134,10 @@ const buildEnvNode = async (location, userId, scope = null) => {
     ...deviceScopeMatch(scope),
   }).populate(ENV_DEVICE_POPULATE);
   const mikroMap = await buildMikrotikStatusMap(devicesRaw.map((d) => d._id));
-  const devices = devicesRaw.map((d) => toEnvDevice(d, userId, mikroMap));
+  const keySpecsMap = await envKeySpecs(devicesRaw, scope);
+  const devices = devicesRaw.map((d) =>
+    toEnvDevice(d, userId, mikroMap, keySpecsMap),
+  );
 
   const childrenDocs = await Location.find({
     parent: location._id,
@@ -899,8 +936,9 @@ exports.getUserEnvironment = async (req, res, next) => {
     const personalMikroMap = await buildMikrotikStatusMap(
       personalDevicesRaw.map((d) => d._id),
     );
+    const personalKeySpecs = await envKeySpecs(personalDevicesRaw, scope);
     const personalDevices = personalDevicesRaw.map((d) =>
-      toEnvDevice(d, userId, personalMikroMap),
+      toEnvDevice(d, userId, personalMikroMap, personalKeySpecs),
     );
 
     // Рабочее место (workplace с assignedUser=userId). populate parent/subdivision.
@@ -1011,8 +1049,9 @@ exports.getDeviceEnvironment = async (req, res, next) => {
     }
 
     const mikroMap = await buildMikrotikStatusMap([device._id]);
+    const keySpecsMap = await envKeySpecs([device], scope);
     const deviceDto = {
-      ...toEnvDevice(device, null, mikroMap),
+      ...toEnvDevice(device, null, mikroMap, keySpecsMap),
       deleted: !!device.deletedAt,
     };
 
@@ -1190,7 +1229,10 @@ exports.getCompanyTech = async (req, res, next) => {
     }).populate(ENV_DEVICE_POPULATE);
 
     const mikroMap = await buildMikrotikStatusMap(devicesRaw.map((d) => d._id));
-    const devices = devicesRaw.map((d) => toEnvDevice(d, null, mikroMap));
+    const keySpecsMap = await envKeySpecs(devicesRaw, scope);
+    const devices = devicesRaw.map((d) =>
+      toEnvDevice(d, null, mikroMap, keySpecsMap),
+    );
 
     // Порядковый номер каждой локации при DFS-обходе леса компании
     const childrenMap = new Map();
@@ -1325,10 +1367,13 @@ exports.getUserTech = async (req, res, next) => {
     const mikroMap = await buildMikrotikStatusMap(
       [...ownRaw, ...parentRaw].map((d) => d._id),
     );
+    const keySpecsMap = await envKeySpecs([...ownRaw, ...parentRaw], scope);
     const byName = (a, b) => (a.name || "").localeCompare(b.name || "", "ru");
-    const own = ownRaw.map((d) => toEnvDevice(d, userId, mikroMap)).sort(byName);
+    const own = ownRaw
+      .map((d) => toEnvDevice(d, userId, mikroMap, keySpecsMap))
+      .sort(byName);
     const nearby = parentRaw
-      .map((d) => toEnvDevice(d, userId, mikroMap))
+      .map((d) => toEnvDevice(d, userId, mikroMap, keySpecsMap))
       .sort(byName);
 
     const groups = [];

@@ -28,6 +28,10 @@ const {
 const { mikrotikEnabled } = require("../../services/mikrotik/enabled");
 const { loadKeySpecs } = require("../../services/inventory/assemblyKeySpecs");
 const {
+  configurationForDevice,
+  soleConfigurationId,
+} = require("../../services/inventory/modelConfigurations");
+const {
   assignUser,
   attachComponent,
   buildDevicePayload,
@@ -56,6 +60,11 @@ const DEVICE_STATUSES = ClientDevice.schema.path("status").enumValues;
 // Shared populate graph: model (+ its vendor & type), company, location, user.
 // Снимки модели тянем только там, где они действительно нужны (карточка
 // устройства): в списке это лишний вес на каждой строке.
+// Флаги типа решают секции карточки: «Сеть и система» не у комплектующих,
+// расходников и периферии, «Состав сборки» — у собираемых типов.
+const DEVICE_TYPE_SELECT =
+  "name isComponent isConsumable isPeripheral assembly.enabled";
+
 const devicePopulate = ({ withModelPhotos = false } = {}) => [
   {
     path: "deviceModelId",
@@ -64,11 +73,11 @@ const devicePopulate = ({ withModelPhotos = false } = {}) => [
       // Флаг вендора нужен странице устройства: показывать ли вкладку
       // «Мониторинг» (устройство управляемо, даже если ещё не подключено).
       { path: "vendorId", select: "name isMikrotikManagementEnabled" },
-      { path: "deviceTypeId", select: "name" },
+      { path: "deviceTypeId", select: DEVICE_TYPE_SELECT },
     ],
   },
   // Прямой тип — для самосборных устройств без модели.
-  { path: "deviceTypeId", select: "name" },
+  { path: "deviceTypeId", select: DEVICE_TYPE_SELECT },
   // Конфигурация (пресет характеристик модели) с расшифровкой значений.
   {
     path: "configurationId",
@@ -1035,6 +1044,14 @@ exports.update = async (req, res, next) => {
       if (!deviceModel) {
         return next(new AppError("Invalid device model ID", 400));
       }
+      // Не прислана (форма сбрасывает её при смене модели) — единственная
+      // конфигурация модели
+      payload.configurationId = configurationForDevice(
+        payload.configurationId,
+        payload.configurationId
+          ? null
+          : await soleConfigurationId(deviceModel._id),
+      );
     }
 
     // Сборка-шаблон: присланная — проверяется как при создании; не присланная

@@ -146,6 +146,8 @@ test("specSummary: link order across groups, empties skipped, orphans after, lim
   assert.equal(specSummary(links, values), "i5 / 512 ГБ / old");
   assert.equal(specSummary(links, values, 1), "i5");
   assert.equal(specSummary(links, []), "");
+  // Сводка модели в форме устройства — через « · »
+  assert.equal(specSummary(links, values, 4, " · "), "i5 · 512 ГБ · old");
 });
 
 test("splitColumns", () => {

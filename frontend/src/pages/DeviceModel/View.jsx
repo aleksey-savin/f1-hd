@@ -109,6 +109,15 @@ export async function action({ request, params }) {
     { method: "POST", headers },
   );
 
+  // Последнюю конфигурацию сервер не удаляет (409) — тост на карточке
+  if (response.status === 409) {
+    const body = await response.json().catch(() => ({}));
+    return {
+      error: true,
+      message: body.message || "Последнюю конфигурацию модели удалить нельзя",
+    };
+  }
+
   if (!response.ok) {
     throw response;
   }

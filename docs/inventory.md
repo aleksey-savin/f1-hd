@@ -138,8 +138,8 @@ Counter (InventoryCounter)  →  generates ClientDevice.inventoryNumber
 | **DeviceAttribute** (`deviceAttribute.js`) | `code` (unique), `name`, `valueType` (`string\|number\|boolean\|select\|multiselect\|text`), `unit`, `options[{value,label}]`, `isActive` | Global spec catalog (e.g. `ram_gb`, `cpu_cores`). Only `code` is unique in the schema — the controller additionally rejects duplicate `name` (see [§7](#7-known-issues--gotchas)). |
 | **DeviceTypeAttribute** (`deviceTypeAttribute.js`) | `deviceTypeId`, `attributeId`, `groupId→AttributeGroup` (default `null`), `required`, `extendable`, `order`, `extendableFromIds[{deviceTypeId}]` | Join table: which attributes a type exposes, in what order, under which group, whether required / extendable. `order` orders rows **within** a group. |
 | **AttributeGroup** (`attributeGroup.js`) | `name` (unique case-insensitively — collation `ru`, strength 2), `order`, audit | Global catalogue of spec headings («Процессор», «Оперативная память»…). See [§2.4](#24-attribute-groups-and-the-catalogue-seed). |
-| **DeviceModel** (`deviceModel.js`) | `name`, `deviceTypeId` (req), `vendorId` (req), `compatibleWithModelIds[]→DeviceModel`, `notes`, `photos[]`, **soft-delete** (`deletedAt`/`deletedBy`) | A vendor's concrete model. Uniqueness checks respect `deletedAt: null`. |
-| **DeviceConfiguration** (`deviceConfiguration.js`) | `name`, `description`, `deviceModelId` (req), `values[{attributeId,value}]`, **soft-delete** | Reusable preset of attribute values for a model (e.g. "16 GB / 512 GB"). |
+| **DeviceModel** (`deviceModel.js`) | `name`, `deviceTypeId` (req), `vendorId` (req), `compatibleWithModelIds[]→DeviceModel`, `notes`, `photos[]`, `multiConfig`, **soft-delete** (`deletedAt`/`deletedBy`) | A vendor's concrete model. Uniqueness checks respect `deletedAt: null`. `multiConfig` — the «several configurations» mode, see [§2.6](#26-model-configurations). |
+| **DeviceConfiguration** (`deviceConfiguration.js`) | `name`, `description`, `deviceModelId` (req), `values[{attributeId,value}]`, **soft-delete** | The only home of a model's attribute values. Outside `multiConfig` a model has exactly one, edited as the model's own specs; in that mode they are variants (e.g. "16 GB / 512 GB"). See [§2.6](#26-model-configurations). |
 | **DeviceBuild** (`deviceBuild.js`) | `name`, `deviceTypeId` (req), `parts[{typeId, deviceModelId, configurationId, quantity}]`, `notes`, **soft-delete**, audit | A template of a self-built device: which part models go into the type's slots. Not a catalogue model — models are factory-only. See [§2.5](#25-self-built-types-and-builds). |
 | **DeviceConfigurationRecommendation** (`deviceConfigurationRecommendation.js`) | `deviceConfigurationId` (req), `companyId`, `comment` | A company's recommended config. No UI consumes recommendations yet. |
 | **Supplier** (`supplier.js`) | `name` (unique), `isActive`, `phone`, `email`, `website`, `address`, `inn`, `kpp`, `notes`, audit | Where the equipment was bought. Everything except the name is optional — a supplier is created on the fly from the device wizard and filled in later, when a warranty case makes the contacts matter. `inn`/`kpp` are separate fields, not free text: they get checked against accounting. |
@@ -339,6 +339,35 @@ ids); the planner (`update.typeAssembly`) sets it with `enabled: true` **only
 while the type has no slots** — an assembly the owner configured is left alone,
 silently. Entries that would break the API's rules above are warnings and are
 skipped.
+
+### 2.6 Model configurations
+
+Attribute values live only in `DeviceConfiguration`; the rules are in
+`services/inventory/modelConfigurations.js`.
+
+- **Invariant:** every live model has at least one live configuration. Creating
+  a model (portal, agent `createModel`) creates its configuration in the same
+  call, with the form's values or empty. The last live configuration of a model
+  cannot be deleted (409).
+- **`multiConfig: false`** (default): the model has one configuration, the first
+  by `createdAt`. `POST/PUT /device-models` accept `values` and write them into
+  it. `POST /device-configurations/add` is refused (409) in this mode.
+- **`multiConfig: true`**: configurations are variants and are added on the
+  model page. The flag can be turned off only while one configuration is left
+  (409 otherwise).
+- **Device link:** when a device is created or updated with a model and no
+  `configurationId`, the server writes the model's only configuration
+  (`soleConfigurationId`: not `multiConfig` and exactly one live). The link is
+  stored, not derived on read, so adding a second configuration later does not
+  change existing devices. Parts of a self-built PC keep their own rule
+  (`resolvePartConfiguration`).
+- **Agent `createConfiguration`:** outside `multiConfig` an empty sole
+  configuration is filled instead of adding a second; adding a second switches
+  the model to `multiConfig`.
+- **Migration** `2026-10-27-singleModelConfigurations`
+  (`scripts/singleModelConfigurations.js`): creates an empty configuration for
+  models without one, sets `multiConfig` on models with two or more, links
+  devices to their model's only configuration. Inserts and guarded updates only.
 
 ## 3. HTTP API
 

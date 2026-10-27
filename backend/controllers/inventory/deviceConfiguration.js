@@ -1,5 +1,9 @@
 const DeviceConfiguration = require("@/models/inventory/deviceConfiguration");
 const { AppError } = require("@/middleware/errorHandling");
+const {
+  configAddError,
+  configDeleteError,
+} = require("@/services/inventory/modelConfigurations");
 
 exports.getByDeviceModelId = async (req, res, next) => {
   try {
@@ -66,11 +70,10 @@ exports.add = async (req, res, next) => {
       );
     }
 
-    // Check for duplicate configuration with same values
-    await DeviceConfiguration.findOne({
-      deviceModelId,
-      deletedAt: null,
-    });
+    // Вне режима «Несколько конфигураций» вторую не заводят: единственная
+    // правится формой модели
+    const refused = configAddError(deviceModel);
+    if (refused) return next(new AppError(refused, 409));
 
     // Create new configuration
     const deviceConfiguration = new DeviceConfiguration({
@@ -176,6 +179,15 @@ exports.delete = async (req, res, next) => {
         ),
       );
     }
+
+    // Последнюю конфигурацию модели не удаляют: значения характеристик живут
+    // только в ней
+    const liveCount = await DeviceConfiguration.countDocuments({
+      deviceModelId: deviceConfiguration.deviceModelId,
+      deletedAt: null,
+    });
+    const refused = configDeleteError(liveCount);
+    if (refused) return next(new AppError(refused, 409));
 
     // Soft delete
     deviceConfiguration.deletedAt = new Date();

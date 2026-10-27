@@ -10,6 +10,10 @@ const DeviceBuild = require("../../models/inventory/deviceBuild");
 const DeviceConfiguration = require("../../models/inventory/deviceConfiguration");
 const Location = require("../../models/inventory/location");
 const { isAttachableType } = require("./attachRules");
+const {
+  configurationForDevice,
+  soleConfigurationId,
+} = require("./modelConfigurations");
 const { validationResult } = require("express-validator");
 const {
   clientDeviceValidation,
@@ -275,6 +279,11 @@ const validateNewDevice = async (payload) => {
     if (!deviceModel) {
       return { error: new AppError("Invalid device model ID", 400) };
     }
+    // Не прислана — единственная конфигурация модели (режим одной)
+    payload.configurationId = configurationForDevice(
+      payload.configurationId,
+      payload.configurationId ? null : await soleConfigurationId(deviceModel._id),
+    );
     return { payload, deviceTypeId: deviceModel.deviceTypeId };
   }
   if (payload.deviceTypeId) {

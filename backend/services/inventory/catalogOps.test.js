@@ -54,6 +54,7 @@ const DeviceModel = require("@/models/inventory/deviceModel");
 const DeviceType = require("@/models/inventory/deviceType");
 const DeviceAttribute = require("@/models/inventory/deviceAttribute");
 const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
+const DeviceConfiguration = require("@/models/inventory/deviceConfiguration");
 const catalogSeed = require("./catalogSeed");
 const {
   validateCatalog,
@@ -76,6 +77,7 @@ const chain = (value) => {
   const q = Object.assign(promise, {
     select: () => q,
     populate: () => q,
+    sort: () => q,
     lean: () => q,
   });
   return q;
@@ -92,6 +94,7 @@ const stubs = [
   [Vendor, "findById"],
   [DeviceAttribute, "find"],
   [DeviceTypeAttribute, "find"],
+  [DeviceConfiguration, "find"],
 ];
 let saved;
 let db;
@@ -130,6 +133,9 @@ test.beforeEach(() => {
   DeviceAttribute.find = (filter) =>
     chain(db.attrs.filter((a) => (filter.code ? filter.code.$in.includes(a.code) : true)));
   DeviceTypeAttribute.find = () => chain(db.links);
+  // Живые конфигурации модели; по умолчанию нет ни одной (модель старше миграции)
+  db.configs = [];
+  DeviceConfiguration.find = () => chain(db.configs);
 });
 
 test.afterEach(() => {
@@ -188,6 +194,11 @@ test("createModel: текст называет вендора, модель и �
   assert.equal(String(saved[0].vendorId), VENDOR);
   assert.equal(String(saved[0].updatedBy), USER);
   assert.equal(saved[0].notes, "n");
+  // Модель живёт с конфигурацией с первого дня: пустая, той же модели
+  assert.equal(saved.length, 2);
+  assert.equal(saved[1].constructor.modelName, "DeviceConfiguration");
+  assert.equal(String(saved[1].deviceModelId), String(saved[0]._id));
+  assert.deepEqual(saved[1].values.toObject(), []);
 });
 
 test("createModel: неизвестный вендор или тип — 400, имя занято — 409", async () => {
@@ -270,6 +281,73 @@ test("createConfiguration: модель не найдена — 404, имя об
   assert.equal(noModel.status, 404);
   const noName = await createConfiguration(config([], { name: " " }), { userId: USER });
   assert.equal(noName.status, 400);
+});
+
+test("createConfiguration: единственная пустая вне режима нескольких — заполняется, новой нет", async () => {
+  // Каждый вызов читает базу заново — у проверки и записи свои документы
+  db.configs = [new DeviceConfiguration({ deviceModelId: MODEL, values: [] })];
+  const args = config([{ attribute: "ram_size", value: "16" }]);
+  const check = await checkConfiguration(args, { userId: USER });
+  const existing = new DeviceConfiguration({ deviceModelId: MODEL, values: [] });
+  db.configs = [existing];
+  assert.equal(check.text, "Характеристики модели HP ProBook 450 G9: Объём ОЗУ 16 ГБ");
+  assert.equal(saved.length, 0);
+  const created = await createConfiguration(args, { userId: USER });
+  assert.equal(created.ok, true);
+  assert.equal(String(created.id), String(existing._id));
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0], existing);
+  assert.equal(existing.name, "16 ГБ / DDR5");
+  assert.equal(existing.description, "для офиса");
+  assert.equal(String(existing.updatedBy), USER);
+  assert.deepEqual(existing.values.map((v) => [String(v.attributeId), v.value]), [[ATTR_RAM, "16"]]);
+});
+
+test("createConfiguration: единственная заполнена — новая, у модели включается режим нескольких", async () => {
+  db.configs = [
+    new DeviceConfiguration({ deviceModelId: MODEL, values: [{ attributeId: ATTR_RAM, value: "8" }] }),
+  ];
+  const created = await createConfiguration(config([{ attribute: "ram_size", value: "16" }]), {
+    userId: USER,
+  });
+  assert.equal(created.ok, true);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].constructor.modelName, "DeviceConfiguration");
+  assert.equal(String(saved[0]._id), String(created.id));
+  assert.equal(saved[1].constructor.modelName, "DeviceModel");
+  assert.equal(String(saved[1]._id), MODEL);
+  assert.equal(saved[1].multiConfig, true);
+});
+
+test("createConfiguration: в режиме нескольких модель не трогается", async () => {
+  db.model = { ...db.model, multiConfig: true };
+  db.configs = [new DeviceConfiguration({ deviceModelId: MODEL, values: [] })];
+  const created = await createConfiguration(config([{ attribute: "ram_size", value: "16" }]), {
+    userId: USER,
+  });
+  assert.equal(created.ok, true);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].constructor.modelName, "DeviceConfiguration");
+});
+
+test("createConfiguration: у модели конфигураций нет — одна новая, модель не сохраняется", async () => {
+  const created = await createConfiguration(config([{ attribute: "ram_size", value: "16" }]), {
+    userId: USER,
+  });
+  assert.equal(created.ok, true);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].constructor.modelName, "DeviceConfiguration");
+});
+
+test("checkConfiguration: ни в одном режиме ничего не сохраняет", async () => {
+  const args = config([{ attribute: "ram_size", value: "16" }]);
+  db.configs = [new DeviceConfiguration({ deviceModelId: MODEL, values: [] })];
+  assert.equal((await checkConfiguration(args, { userId: USER })).ok, true);
+  db.configs = [
+    new DeviceConfiguration({ deviceModelId: MODEL, values: [{ attributeId: ATTR_RAM, value: "8" }] }),
+  ];
+  assert.equal((await checkConfiguration(args, { userId: USER })).ok, true);
+  assert.equal(saved.length, 0);
 });
 
 // --- сборка --------------------------------------------------------------------

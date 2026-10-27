@@ -4,6 +4,8 @@ import { Link } from "react-router";
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
+  RiArrowRightSLine,
+  RiArrowUpLine,
   RiBuilding2Line,
   RiCommunityLine,
   RiDoorLine,
@@ -19,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 import Spinner from "./Spinner";
 import EnvironmentDeviceTile from "./EnvironmentDeviceTile";
+import EnvironmentDeviceRow from "./EnvironmentDeviceRow";
 import EnvironmentDeviceSheet from "./EnvironmentDeviceSheet";
 import useHttp from "../../hooks/use-http";
 import useSemanticZoom from "../../hooks/useSemanticZoom";
@@ -60,8 +63,13 @@ const SUBJECT_TEXT = {
 };
 
 // Uppercase-метка секции внутри сцены (в духе Eyebrow/SubLabel).
-const SectionLabel = ({ count, children }) => (
-  <div className="mt-5 mb-2.5 flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
+const SectionLabel = ({ count, className, children }) => (
+  <div
+    className={cn(
+      "mt-5 mb-2.5 flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase",
+      className,
+    )}
+  >
     {children}
     {count != null && (
       <span className="font-semibold tracking-normal tabular-nums">
@@ -103,6 +111,18 @@ const EmptyState = ({ icon: Icon, title, children }) => (
 // Сколько вложенных пространств показываем без разворачивания: длинные списки
 // на карточках обязаны сворачиваться (у компаний бывают десятки «висячих» РМ).
 const CELLS_COLLAPSED = 12;
+
+// Подпись вложенного пространства: тип · вложенные · техника (общая у плиток
+// плана и строк списка).
+const childMeta = (child) =>
+  [
+    TYPE_LABEL[child.type] || child.type,
+    child.childCount > 0 &&
+      `${child.childCount} ${plural(child.childCount, "вложенное", "вложенных", "вложенных")}`,
+    `${child.deviceCount ?? 0} техн.`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
 // Один уровень иерархии: шапка (тип/имя/подразделение + выход на карточку
 // расположения), вложенные пространства (кликабельны все; ветка субъекта
@@ -173,14 +193,7 @@ const EnvLevel = ({
           <div className="flex flex-wrap gap-2">
             {visibleChildren.map((child) => {
               const isCurrent = chainIds?.has(String(child._id));
-              const meta = [
-                TYPE_LABEL[child.type] || child.type,
-                child.childCount > 0 &&
-                  `${child.childCount} ${plural(child.childCount, "вложенное", "вложенных", "вложенных")}`,
-                `${child.deviceCount ?? 0} техн.`,
-              ]
-                .filter(Boolean)
-                .join(" · ");
+              const meta = childMeta(child);
               return (
                 <button
                   key={child._id}
@@ -253,6 +266,226 @@ const EnvLevel = ({
   );
 };
 
+// Метка ветки субъекта — «здесь».
+const HereMark = () => (
+  <span className="inline-flex flex-none items-center gap-1 text-xs font-semibold text-accent-text">
+    <span
+      aria-hidden
+      className="size-1.5 rounded-full bg-primary ring-3 ring-primary/20"
+    />
+    здесь
+  </span>
+);
+
+// Вид «Список» (макет «Окружение списком»): тот же путь, что у плана, но
+// строками. Вверх — «Выше» и крошки до текущего уровня, вниз — строка
+// вложенного расположения; техника уровня — строки со шторкой. Хозяин даёт
+// key по узлу, так что развороты сбрасываются при переходе.
+const EnvList = ({
+  from,
+  path,
+  index,
+  chainIds,
+  highlightId,
+  targetLabel,
+  busy,
+  onNavigate,
+  onSelectChild,
+  onSelectDevice,
+}) => {
+  const fromState = useCrumbFrom(from);
+  const node = path[index];
+  const isCompany = node.type === "company";
+  const Icon = isCompany ? RiCommunityLine : TYPE_ICON[node.type] || RiDoorLine;
+  const children = node.children || [];
+  const devices = node.devices || [];
+  const sub = isCompany ? node.sub : node.subdivisionName;
+
+  const [showAllCells, setShowAllCells] = useState(false);
+  const [showAllDevices, setShowAllDevices] = useState(false);
+  const visibleChildren = showAllCells
+    ? children
+    : children.slice(0, CELLS_COLLAPSED);
+  const visibleDevices = showAllDevices
+    ? devices
+    : devices.slice(0, CELLS_COLLAPSED);
+
+  // На телефоне путь прокручивается вбок — текущий уровень держим в кадре
+  const pathRef = useRef(null);
+  useEffect(() => {
+    const el = pathRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, []);
+
+  const toggleAll = (total, expanded, setExpanded) =>
+    total > CELLS_COLLAPSED && (
+      <div className="mt-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? "Свернуть" : `Показать все (${total})`}
+        </Button>
+      </div>
+    );
+
+  return (
+    <div>
+      <div className="flex min-w-0 items-center gap-2.5 border-b border-border-soft pb-3">
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={() => onNavigate(index - 1)}
+          disabled={index === 0}
+        >
+          <RiArrowUpLine /> Выше
+        </Button>
+        <nav
+          ref={pathRef}
+          aria-label="Путь"
+          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto text-sm whitespace-nowrap scrollbar-none"
+        >
+          {path.slice(0, index + 1).map((item, i) =>
+            i === index ? (
+              <span
+                key={item._id}
+                className="flex-none px-1.5 py-0.5 font-semibold"
+              >
+                {item.name}
+              </span>
+            ) : (
+              <span
+                key={item._id}
+                className="flex flex-none items-center gap-0.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => onNavigate(i)}
+                  className="flex-none cursor-pointer appearance-none rounded-md border-0 bg-transparent px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  {item.name}
+                </button>
+                <span aria-hidden className="text-faint">
+                  ›
+                </span>
+              </span>
+            ),
+          )}
+        </nav>
+        {!isCompany && (
+          <Button asChild variant="ghost" size="icon-xs" className="text-faint">
+            <Link
+              to={`/inventory/locations/${node._id}`}
+              state={fromState}
+              title="Открыть карточку расположения"
+              aria-label="Открыть карточку расположения"
+            >
+              <RiExternalLinkLine />
+            </Link>
+          </Button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3 pt-3.5 pb-1">
+        <span
+          aria-hidden
+          className="grid size-10 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border"
+        >
+          <Icon size={20} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-xs font-semibold tracking-wide text-faint uppercase">
+            {isCompany ? "Компания" : TYPE_LABEL[node.type] || node.type}
+          </div>
+          <div className="truncate text-base leading-snug font-semibold">
+            {node.name}
+          </div>
+          {sub && (
+            <div className="truncate text-sm text-muted-foreground">{sub}</div>
+          )}
+        </div>
+      </div>
+
+      {children.length > 0 && (
+        <>
+          <SectionLabel count={children.length} className="mt-3.5 mb-1">
+            {isCompany ? node.childrenLabel || "Здания" : "Внутри"}
+          </SectionLabel>
+          <div className="-mx-2 flex flex-col divide-y divide-border-soft">
+            {visibleChildren.map((child) => {
+              const ChildIcon = TYPE_ICON[child.type] || RiDoorLine;
+              return (
+                <button
+                  key={child._id}
+                  type="button"
+                  onClick={() => onSelectChild(child)}
+                  disabled={busy}
+                  title={`Открыть: ${child.name}`}
+                  className="flex w-full min-w-0 cursor-pointer appearance-none items-center gap-3 rounded-lg border-0 bg-transparent px-2 py-2.5 text-left transition-colors hover:bg-accent disabled:cursor-progress"
+                >
+                  <span
+                    aria-hidden
+                    className="grid size-8 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border"
+                  >
+                    <ChildIcon size={16} />
+                  </span>
+                  <span className="block min-w-0 flex-1">
+                    <span className="block truncate text-sm leading-snug font-medium">
+                      {child.name}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground tabular-nums">
+                      {childMeta(child)}
+                    </span>
+                  </span>
+                  {chainIds?.has(String(child._id)) && <HereMark />}
+                  <RiArrowRightSLine
+                    size={16}
+                    aria-hidden
+                    className="flex-none text-faint"
+                  />
+                </button>
+              );
+            })}
+          </div>
+          {toggleAll(children.length, showAllCells, setShowAllCells)}
+        </>
+      )}
+
+      {!isCompany && (
+        <>
+          <SectionLabel
+            count={devices.length || undefined}
+            className="mt-3.5 mb-1"
+          >
+            Техника на этом уровне
+          </SectionLabel>
+          {devices.length > 0 ? (
+            <>
+              <div className="-mx-2 flex flex-col divide-y divide-border-soft">
+                {visibleDevices.map((device) => (
+                  <EnvironmentDeviceRow
+                    key={device._id}
+                    device={device}
+                    highlightId={highlightId}
+                    targetLabel={targetLabel}
+                    onSelect={onSelectDevice}
+                  />
+                ))}
+              </div>
+              {toggleAll(devices.length, showAllDevices, setShowAllDevices)}
+            </>
+          ) : (
+            <div className="pt-1.5 text-sm text-faint">
+              Здесь нет закреплённой техники.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 // Физическое окружение — семантический zoom по иерархии здание → этаж →
 // помещение → рабочее место. Один компонент на три места:
 //  - заявка: по заявителю (userId) или по устройству (deviceId, приоритетный —
@@ -269,6 +502,10 @@ const Environment = ({
   companyId,
   subject = "applicant",
   onEmptyChange,
+  /** «list» — уровни строками (по умолчанию), «plan» — семантический зум. */
+  view = "list",
+  /** Метка устройства режима «по устройству» в списке. */
+  targetLabel = "устройство заявки",
 }) => {
   const { token } = getLocalStorageData();
   const reduceMotion = useReducedMotion();
@@ -410,7 +647,7 @@ const Environment = ({
     levelIndex: safeIndex,
     maxIndex,
     navigate,
-    enabled: hasChain && path.length > 1,
+    enabled: view === "plan" && hasChain && path.length > 1,
   });
 
   const onStageKeyDown = (event) => {
@@ -474,13 +711,32 @@ const Environment = ({
         </NoteLine>
       )}
 
-      {hasChain ? (
+      {hasChain && view === "list" ? (
+        <div
+          aria-busy={isDiving}
+          className="rounded-xl border border-border bg-card p-5 max-md:p-3.5"
+        >
+          <EnvList
+            key={current._id}
+            from={from}
+            path={path}
+            index={safeIndex}
+            chainIds={chainIds}
+            highlightId={mode === "device" ? deviceId : null}
+            targetLabel={targetLabel}
+            busy={isDiving}
+            onNavigate={navigate}
+            onSelectChild={diveInto}
+            onSelectDevice={setSelectedDevice}
+          />
+        </div>
+      ) : hasChain ? (
         <div className="flex items-stretch gap-4 max-md:flex-col max-md:gap-0">
           {/* Линейка глубины: вертикальная на десктопе, лента чипов на мобайле */}
           <div
             role="group"
             aria-label="Уровни окружения"
-            className="relative flex flex-none flex-col justify-center gap-0.5 py-2 max-md:flex-row max-md:justify-start max-md:gap-1.5 max-md:overflow-x-auto max-md:py-0 max-md:pb-3"
+            className="relative flex flex-none flex-col justify-center gap-0.5 py-2 max-md:flex-row max-md:justify-start max-md:gap-1.5 max-md:overflow-x-auto max-md:py-0 max-md:pb-3 max-md:scrollbar-none"
           >
             <span
               aria-hidden

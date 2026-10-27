@@ -21,6 +21,10 @@ import AnchorRail from "@/components/app/AnchorRail";
 import Checklist from "@/components/app/Checklist";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import Environment from "@/components/app/Environment";
+import {
+  ENVIRONMENT_VIEW_OPTIONS,
+  useEnvironmentView,
+} from "@/components/app/environment-view";
 import FormOutlet, { useSheetOpen } from "@/components/app/FormOutlet";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -54,6 +58,7 @@ import KnowledgeSection from "../../components/Ticket/View/KnowledgeSection";
 import RemoteAccess from "../../components/Ticket/View/RemoteAccess";
 import ActionDialog from "../../components/Ticket/Actions/ActionDialog";
 import { Eyebrow, Panel, Section } from "@/components/app/Panel";
+import Segmented from "@/components/app/Segmented";
 import {
   DescriptionSection,
   FactsSection,
@@ -178,6 +183,7 @@ const ViewTicket = () => {
   // Окружение прячется целиком, когда сопоставлять нечего: виджет сам знает,
   // что приехало с сервера, а метку и панель рисует страница
   const [environmentEmpty, setEnvironmentEmpty] = useState(false);
+  const [environmentView, setEnvironmentView] = useEnvironmentView();
 
   // Секция только что смонтировалась — переносим к ней и ставим курсор в поле
   useEffect(() => {
@@ -765,12 +771,25 @@ const ViewTicket = () => {
 
           {showEnvironment && (
             <Section className={environmentEmpty ? "hidden" : undefined}>
-              <Eyebrow id="ticket-environment">Окружение</Eyebrow>
+              <Eyebrow
+                id="ticket-environment"
+                action={
+                  <Segmented
+                    ariaLabel="Вид окружения"
+                    options={ENVIRONMENT_VIEW_OPTIONS}
+                    value={environmentView}
+                    onChange={setEnvironmentView}
+                  />
+                }
+              >
+                Окружение
+              </Eyebrow>
               <Environment
                 userId={ticket.applicant?._id}
                 deviceId={ticket.relatedClientDeviceId}
                 onEmptyChange={setEnvironmentEmpty}
                 from={`Заявка ${ticket.num}`}
+                view={environmentView}
               />
             </Section>
           )}

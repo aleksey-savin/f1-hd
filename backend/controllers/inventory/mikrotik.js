@@ -73,6 +73,9 @@ const { plannedUntil } = require("../../services/mikrotik/plannedOffline");
 const { loadActivity } = require("../../services/mikrotik/activity");
 const { parsePlannedOffline } = require("../../validations/inventory/mikrotik");
 const { resolveTimezone } = require("../../utils/datetime");
+const {
+  soleConfigurationId,
+} = require("../../services/inventory/modelConfigurations");
 
 // Config exports contain device secrets, so downloading one requires a step-up
 // email OTP: a 6-digit code, valid 10 minutes, single-use, max 5 tries.
@@ -1517,8 +1520,11 @@ exports.createInventoryCard = async (req, res, next) => {
     }
 
     const values = deriveSyncValues(record);
+    // Модель вне режима нескольких конфигураций — устройство на её единственной
+    const configurationId = model ? await soleConfigurationId(model._id) : null;
     const device = new ClientDevice({
       ...(model ? { deviceModelId: model._id } : {}),
+      ...(configurationId ? { configurationId } : {}),
       companyId: record.companyId || undefined,
       ...(values.hostname ? { hostname: values.hostname } : {}),
       ...(serial ? { serialNumber: serial } : {}),

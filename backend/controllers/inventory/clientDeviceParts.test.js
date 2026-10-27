@@ -226,6 +226,8 @@ const stubCatalog = (t, { saveFailsAt = 0 } = {}) => {
     chain(models.filter((m) => filter._id.$in.includes(m._id))),
   );
   t.mock.method(DeviceConfiguration, "find", () => chain([]));
+  // Единственная конфигурация модели (soleConfigurationId) — здесь её нет
+  t.mock.method(DeviceModel, "findOne", () => chain(null));
   t.mock.method(Company, "findById", () => chain({ _id: COMPANY }));
   t.mock.method(DeviceBuild, "exists", (filter) =>
     String(filter._id) === BUILD && String(filter.deviceTypeId) === PC

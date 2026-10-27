@@ -10,9 +10,11 @@ import {
   connectedRows,
   devicePartsToAssembly,
   diffWithBuild,
+  compactKeySpecsLine,
   keySpecsLine,
   liveAssembly,
   partTitle,
+  shortPartTitle,
   warrantyNote,
 } from "./assembly-specs.ts";
 
@@ -425,4 +427,29 @@ test("connectedRows: строка на устройство, тип — подп
       ["Устройство", 1, null, "d-x"],
     ],
   );
+});
+
+test("shortPartTitle: модель без производителя и без хвостов в скобках", () => {
+  const gpu = model(
+    "m9",
+    "Gigabyte",
+    "GeForce RTX 3060 WINDFORCE OC (rev. 2.0) [GV-N3060WF2OC-12GD 2.0]",
+  );
+  assert.equal(shortPartTitle(part(cpu, gpu, null)), "GeForce RTX 3060 WINDFORCE OC");
+  // Производитель, вписанный в имя модели, тоже срезается
+  assert.equal(
+    shortPartTitle(part(cpu, model("m8", "AMD", "AMD Ryzen 7 5700X3D OEM"), null)),
+    "Ryzen 7 5700X3D OEM",
+  );
+  // Имя целиком в скобках не теряется
+  assert.equal(shortPartTitle(part(cpu, model("m7", "X", "(OEM)"), null)), "(OEM)");
+  assert.equal(shortPartTitle(part(cpu, null, null)), "без модели");
+});
+
+test("compactKeySpecsLine: модели короткими именами, атрибуты как есть", () => {
+  assert.equal(
+    compactKeySpecsLine(keySpecs, parts),
+    "Ryzen 5 8600G · 16 ГБ DDR5 · 500 ГБ SSD",
+  );
+  assert.equal(keySpecsLine(keySpecs, parts), "AMD Ryzen 5 8600G · 16 ГБ DDR5 · 500 ГБ SSD");
 });
