@@ -35,7 +35,9 @@ export async function action({ request }) {
 
   const deviceTypeData = {
     name: data.get("name"),
-    isActive: data.get("isActive") === "true",
+    // Тумблера «Активен» на создании нет — поля в форме нет, и новый тип
+    // активен; явное "false" уважаем на случай, если тумблер появится
+    isActive: data.get("isActive") !== "false",
     isComponent: data.get("isComponent") === "true",
     isConsumable: data.get("isConsumable") === "true",
     isPeripheral: data.get("isPeripheral") === "true",
