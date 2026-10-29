@@ -50,6 +50,7 @@ const catalogSeed = require("./catalogSeed");
 const { createCatalogRefs, plural } = require("./catalogRefs");
 const { isValidValue, storedValue, renameValue: renamed } = require("./attributeValue");
 const { formatSpecValue, parseMultiValue } = require("./assemblyKeySpecs");
+const { KIND_FLAGS, SEVERAL_KINDS_MESSAGE, hasSeveralKinds } = require("./typeKind");
 
 const fail = (status, message) => ({ ok: false, status, message });
 const str = (value) => (typeof value === "string" ? value.trim() : "");
@@ -300,6 +301,9 @@ const kindRules = {
     return null;
   },
   type: async (store, doc, next) => {
+    // Назначение после правки: невзведённые в правке флаги — из документа
+    const merged = Object.fromEntries(KIND_FLAGS.map((flag) => [flag, next[flag] ?? doc[flag]]));
+    if (hasSeveralKinds(merged)) return fail(400, SEVERAL_KINDS_MESSAGE);
     if (next.attachableToTypeIds !== undefined) {
       const list = next.attachableToTypeIds;
       if (list.includes(String(doc._id))) return fail(400, "Тип не может прикрепляться сам к себе");

@@ -168,19 +168,32 @@ test("updateModel: multiConfig — не поле вида, сервис его �
 
 test("updateDeviceType: флаги, префикс (заглавными), список «прикрепляется к»", async () => {
   const { ops, state } = setup();
-  const args = { id: TYPE, isConsumable: true, inventoryPrefix: "нб2", attachableToTypeIds: [], name: "Ноутбуки" };
+  // Назначение одно: перевод в расходники снимает «комплектующее» явно
+  const args = { id: TYPE, isComponent: false, isConsumable: true, inventoryPrefix: "нб2", attachableToTypeIds: [], name: "Ноутбуки" };
   const check = await ops.checkUpdateDeviceType(args);
   assert.deepEqual(check, {
     ok: true,
-    before: { name: "Ноутбук", isConsumable: "нет", inventoryPrefix: "НБ", attachableToTypeIds: "Док-станция" },
+    before: { name: "Ноутбук", isComponent: "да", isConsumable: "нет", inventoryPrefix: "НБ", attachableToTypeIds: "Док-станция" },
   });
   await ops.applyUpdateDeviceType(args, { userId: USER });
   assert.deepEqual(state.writes[0].patch, {
     name: "Ноутбуки",
+    isComponent: false,
     isConsumable: true,
     inventoryPrefix: "НБ2",
     attachableToTypeIds: [],
   });
+});
+
+test("updateDeviceType: второе назначение поверх первого — отказ", async () => {
+  const { ops, state } = setup();
+  const result = await ops.checkUpdateDeviceType({ id: TYPE, isPeripheral: true });
+  assert.deepEqual(result, {
+    ok: false,
+    status: 400,
+    message: "У типа одно назначение: комплектующее, расходник или периферия — не несколько сразу",
+  });
+  assert.equal(state.writes.length, 0);
 });
 
 test("updateDeviceType: isComponent:false у типа в чужом слоте — отказ", async () => {

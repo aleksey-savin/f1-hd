@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
+import { isMobile } from "react-device-detect";
 
 import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
+import Segmented from "@/components/app/Segmented";
 import SwitchField from "@/components/app/SwitchField";
 
 import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import { plural } from "../../util/plural";
+import { KIND_FORM_OPTIONS, isKind, kindFlags, kindOf } from "./kinds";
 
 // Поля типа устройства. Рендерят `name`-атрибуты для сабмита со страницы
 // (react-router action) и сообщают агрегированное состояние через onChange для
@@ -13,24 +16,24 @@ import { plural } from "../../util/plural";
 //
 // Атрибуты типа сюда НЕ входят — они управляются отдельными формами с карточки
 // типа (добавить/изменить/удалить/порядок), как конфигурации у модели.
+//
+// Назначение — один выбор из четырёх (хранится тремя флагами, взведён не
+// больше одного). `initialKind` — раздел списка, из которого создают тип.
 const DeviceTypeFormFields = ({
   deviceType,
   availableDeviceTypes = [],
+  initialKind,
   onChange,
 }) => {
   const [name, setName] = useState(deviceType?.name || "");
   const [isActive, setIsActive] = useState(
     deviceType ? deviceType.isActive : true,
   );
-  const [isComponent, setIsComponent] = useState(
-    deviceType ? deviceType.isComponent : false,
+  const [kind, setKind] = useState(
+    deviceType ? kindOf(deviceType) : isKind(initialKind) ? initialKind : "primary",
   );
-  const [isConsumable, setIsConsumable] = useState(
-    deviceType ? deviceType.isConsumable : false,
-  );
-  const [isPeripheral, setIsPeripheral] = useState(
-    deviceType ? deviceType.isPeripheral : false,
-  );
+  const { isComponent, isConsumable, isPeripheral } = kindFlags(kind);
+  const kindHint = KIND_FORM_OPTIONS.find((o) => o.value === kind)?.hint;
   const [inventoryPrefix, setInventoryPrefix] = useState(
     deviceType?.inventoryPrefix || "",
   );
@@ -119,31 +122,22 @@ const DeviceTypeFormFields = ({
         />
       </Field>
 
-      <SwitchField
-        id="isComponent"
-        name="isComponent"
-        checked={isComponent}
-        onCheckedChange={() => setIsComponent(!isComponent)}
-        label="Комплектующие"
-      />
-      <SwitchField
-        id="isConsumable"
-        name="isConsumable"
-        checked={isConsumable}
-        onCheckedChange={() => setIsConsumable(!isConsumable)}
-        label="Расходники"
-        divider
-      />
-      <SwitchField
-        id="isPeripheral"
-        name="isPeripheral"
-        checked={isPeripheral}
-        onCheckedChange={() => setIsPeripheral(!isPeripheral)}
-        label="Периферия"
-        divider
-      />
+      <Field label="Назначение" hint={kindHint}>
+        <Segmented
+          ariaLabel="Назначение"
+          fit
+          compact={isMobile}
+          options={KIND_FORM_OPTIONS}
+          value={kind}
+          onChange={setKind}
+        />
+      </Field>
+      {/* Сабмит страницы читает три флага — отдаём их из одного выбора */}
+      <input type="hidden" name="isComponent" value={String(isComponent)} />
+      <input type="hidden" name="isConsumable" value={String(isConsumable)} />
+      <input type="hidden" name="isPeripheral" value={String(isPeripheral)} />
 
-      {(isComponent || isConsumable || isPeripheral) && (
+      {kind !== "primary" && (
         <Field
           label="К каким типам устройств можно прикреплять"
           htmlFor="attachableToTypeIds"
@@ -172,7 +166,10 @@ const DeviceTypeFormFields = ({
         </Field>
       )}
 
-      {deviceType && (
+      {/* Собирается из комплектующих только устройство. Скрытый переключатель
+          не шлёт поля — сабмит прочтёт «выключено», и сервер не даст снять
+          сборку у типа, у которого сборки уже есть (409 с причиной). */}
+      {deviceType && kind === "primary" && (
         <SwitchField
           id="assemblyEnabled"
           name="assemblyEnabled"

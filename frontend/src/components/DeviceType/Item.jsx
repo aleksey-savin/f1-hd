@@ -3,34 +3,14 @@ import ListRow from "@/components/app/ListRow";
 import { plural } from "../../util/plural";
 
 const DeviceTypeItem = ({ item }) => {
-  const {
-    name,
-    isActive,
-    isComponent,
-    isConsumable,
-    isPeripheral,
-    inventoryPrefix,
-    attributes,
-  } = item;
+  const { name, isActive, inventoryPrefix, attributes } = item;
 
   const attributeCount = attributes?.length || 0;
-  // Назначение — «включённая способность» типа: показываем акцентом
-  const kindFlags = [
-    isComponent && "комплектующие",
-    isConsumable && "расходники",
-    isPeripheral && "периферия",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
+  // Назначения в мете нет: список уже разложен по нему сегментом, и у всех
+  // строк раздела оно одно
   const metaParts = [
     attributeCount > 0 &&
       `${attributeCount} ${plural(attributeCount, "атрибут", "атрибута", "атрибутов")}`,
-    kindFlags && (
-      <span key="kind" className="text-accent-text">
-        {kindFlags}
-      </span>
-    ),
     inventoryPrefix && `префикс ${inventoryPrefix}`,
   ].filter(Boolean);
 

@@ -8,6 +8,7 @@ const DeviceAttribute = require("../../models/inventory/deviceAttribute");
 const DeviceTypeAttribute = require("../../models/inventory/deviceTypeAttribute");
 const DeviceBuild = require("../../models/inventory/deviceBuild");
 const AttributeGroup = require("../../models/inventory/attributeGroup");
+const { SEVERAL_KINDS_MESSAGE, hasSeveralKinds } = require("./typeKind");
 const {
   loadAssemblyType,
   buildFields,
@@ -453,6 +454,8 @@ const validateCatalog = (catalog) => {
     if (type.flags !== undefined) {
       if (!isPlain(type.flags) || Object.entries(type.flags).some(([k, v]) => !FLAGS.includes(k) || typeof v !== "boolean")) {
         bad(`${where}: flags — только ${FLAGS.join(", ")} со значением true/false`);
+      } else if (hasSeveralKinds(type.flags)) {
+        bad(`${where}: ${SEVERAL_KINDS_MESSAGE}`);
       }
     }
     const items = type.attributes ?? [];

@@ -143,6 +143,15 @@ type ListWrapperProps = {
   emptyHint?: ReactNode;
   /** Дополнительное действие рядом с кнопкой создания в пустом состоянии. */
   emptyAction?: ReactNode;
+  /** Пустота под фильтрами словами раздела — вместо «Ничего не нашлось».
+   *  Нужна там, где пустой срез — не промах запроса: сегмент «Расходники»
+   *  без единого типа зовёт создать первый, а найденное в соседнем разделе
+   *  называет этот раздел. `undefined` — общее пустое состояние. */
+  filteredEmptyState?: {
+    title: ReactNode;
+    hint: ReactNode;
+    actions?: ReactNode;
+  };
   renderOutlet?: boolean;
   children?: ReactNode;
 };
@@ -174,6 +183,7 @@ const ListWrapper = ({
   emptyTitle,
   emptyHint,
   emptyAction,
+  filteredEmptyState,
   // Шторка с формами add/update (app/FormOutlet). Экраны, рендерящие
   // <Outlet/> сами (база знаний), передают false — иначе маршрут
   // смонтируется дважды.
@@ -557,7 +567,15 @@ const ListWrapper = ({
               : "rounded-xl",
           )}
         >
-          {filteredEmpty ? (
+          {filteredEmpty && filteredEmptyState ? (
+            <EmptyState
+              icon={RiInboxLine}
+              title={filteredEmptyState.title}
+              hint={filteredEmptyState.hint}
+            >
+              {filteredEmptyState.actions}
+            </EmptyState>
+          ) : filteredEmpty ? (
             <EmptyState
               icon={RiFilterOffLine}
               title="Ничего не нашлось"

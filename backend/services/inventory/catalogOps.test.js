@@ -580,6 +580,17 @@ test("validateCatalog: варианты, unit, flags, сборка", () => {
   );
 });
 
+test("validateCatalog: два назначения у типа — отказ", () => {
+  const message = refused({
+    types: [{ key: "t", name: "T", flags: { isComponent: true, isPeripheral: true } }],
+  });
+  assert.match(message, /одно назначение/);
+  assert.deepEqual(
+    validateCatalog({ types: [{ key: "t", name: "T", flags: { isComponent: true, isPeripheral: false } }] }),
+    { ok: true },
+  );
+});
+
 test("validateCatalog: перевод строки и невидимые символы в любой строке — отказ с полем", () => {
   const message = refused({
     groups: [{ key: "g", name: "Память\nНовая группа «Х»" }],

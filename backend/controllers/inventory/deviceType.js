@@ -6,6 +6,10 @@ const DeviceBuild = require("@/models/inventory/deviceBuild");
 require("@/models/inventory/deviceAttribute");
 const mongoose = require("mongoose");
 const { AppError } = require("@/middleware/errorHandling");
+const {
+  SEVERAL_KINDS_MESSAGE,
+  hasSeveralKinds,
+} = require("@/services/inventory/typeKind");
 
 const AGGREGATES = ["first", "sum", "list"];
 
@@ -200,6 +204,10 @@ exports.add = async (req, res, next) => {
       attachableToTypeIds,
     } = req.body;
 
+    if (hasSeveralKinds({ isComponent, isConsumable, isPeripheral })) {
+      return next(new AppError(SEVERAL_KINDS_MESSAGE, 400));
+    }
+
     const deviceTypeExists = await DeviceType.findOne({ name });
     if (deviceTypeExists) {
       return next(
@@ -244,6 +252,10 @@ exports.update = async (req, res, next) => {
       attachableToTypeIds,
       assemblyEnabled,
     } = req.body;
+
+    if (hasSeveralKinds({ isComponent, isConsumable, isPeripheral })) {
+      return next(new AppError(SEVERAL_KINDS_MESSAGE, 400));
+    }
 
     const deviceType = await DeviceType.findById(req.params.id);
     if (!deviceType) {

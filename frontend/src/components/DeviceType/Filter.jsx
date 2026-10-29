@@ -10,9 +10,6 @@ import useDeviceTypeFilterStore from "../../store/lists/deviceTypes";
 import useDeviceAttributeFilterStore from "../../store/lists/deviceAttributes";
 import { KIND_OPTIONS } from "./kinds";
 
-// Одиночный выбор назначения: «Любое» сбрасывает фасет
-const KIND_SELECT_OPTIONS = [{ value: "all", label: "Любое" }, ...KIND_OPTIONS];
-
 // Sheet-фильтр справочника (кнопка «Фильтр» в строке инструментов).
 // Применённые значения показывает липкая плашка бейджей ListWrapper.
 // Выбранные атрибуты храним объектами {_id, name} (гайд: фасеты — объектами,
@@ -51,14 +48,6 @@ const DeviceTypeFilter = () => {
     filterStore.applyFilter();
   };
 
-  const kindChangeHandler = (value) => {
-    filterStore.updateFilter({
-      ...filterStore,
-      kind: value && value !== "all" ? value : null,
-    });
-    filterStore.applyFilter();
-  };
-
   return (
     <FilterContainer resetFilterHandler={filterStore.resetFilter}>
       <SwitchField
@@ -67,13 +56,14 @@ const DeviceTypeFilter = () => {
         onCheckedChange={isActiveToggleHandler}
         label="Только активные"
       />
+      {/* То же значение, что сегмент в строке инструментов, — не вторая
+          настройка: шторка держит полный набор условий в одном месте */}
       <Field label="Назначение" htmlFor="filter-kind" className="mt-2">
         <Combobox
           id="filter-kind"
-          placeholder="Любое"
-          value={filterStore.kind || "all"}
-          options={KIND_SELECT_OPTIONS}
-          onChange={kindChangeHandler}
+          value={filterStore.kind}
+          options={KIND_OPTIONS}
+          onChange={(value) => value && filterStore.setKind(value)}
         />
       </Field>
       <Field
