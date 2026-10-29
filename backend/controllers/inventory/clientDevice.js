@@ -329,6 +329,10 @@ const buildListMatch = async (query, authedUser) => {
   const locations = toIdList(query.locations);
   if (locations.length) match.locationId = { $in: locations };
 
+  // Модель — фасет секции «Устройства» на карточке модели
+  const models = toIdList(query.models);
+  if (models.length) match.deviceModelId = { $in: models };
+
   // Пробел учёта: единица без инвентарного номера. Счётчик такой техники
   // показывает лента парка, и он же её отбирает — число, по которому нельзя
   // кликнуть, только раздражает.
@@ -508,10 +512,12 @@ exports.getAll = async (req, res, next) => {
       // значило бы удвоить парк (расхождение подписано над списком).
       // Исключение — режим «только детали»: сборок в выдаче нет вовсе, удваивать
       // нечего, и лента обязана описывать ровно показанное, а не пустоту.
+      // Так же у выборки одной модели: модель — либо сборка, либо деталь,
+      // удвоения нет, а модель памяти иначе показала бы пустую ленту.
       ClientDevice.aggregate([
         {
           $match:
-            componentsMode(q) === "only"
+            componentsMode(q) === "only" || toIdList(q.models).length
               ? baseMatch
               : { ...baseMatch, parentDeviceId: null },
         },
@@ -571,6 +577,36 @@ exports.getAll = async (req, res, next) => {
         .map((entry) => [entry._id, entry.n]),
     );
 
+    // Чип компаний секции на карточке модели: компании выборки со счётчиками.
+    // Считаются без фасета компаний (выбор одной не обнуляет соседние), но с
+    // остальными условиями. По запросу: реестру хватает своих фасетов.
+    let companyCounts;
+    if (q.companyCounts === "true") {
+      const withoutCompanies = await buildListMatch(
+        { ...q, companies: undefined },
+        authedUser,
+      );
+      const groups = await ClientDevice.aggregate([
+        {
+          $match: statuses.length
+            ? { ...withoutCompanies, status: { $in: statuses } }
+            : withoutCompanies,
+        },
+        { $group: { _id: "$companyId", n: { $sum: 1 } } },
+      ]);
+      const companies = await Company.find({
+        _id: { $in: groups.map((group) => group._id).filter(Boolean) },
+      }).select("alias fullTitle");
+      const countOf = new Map(groups.map((group) => [String(group._id), group.n]));
+      companyCounts = companies
+        .map((company) => ({
+          value: String(company._id),
+          label: company.alias || company.fullTitle || "—",
+          count: countOf.get(String(company._id)) || 0,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+    }
+
     res.status(200).json({
       devices: rows.map((row) =>
         toListDevice(
@@ -588,6 +624,7 @@ exports.getAll = async (req, res, next) => {
       pageSize: limit,
       statusCounts,
       noInventoryNumber: facetCounts?.noInventoryNumber?.[0]?.n || 0,
+      ...(companyCounts ? { companyCounts } : {}),
     });
   } catch (error) {
     next(new AppError("Failed to fetch devices", 500, true, error));

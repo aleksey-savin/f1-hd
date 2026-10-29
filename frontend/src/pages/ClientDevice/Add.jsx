@@ -23,6 +23,20 @@ export async function loader({ params }) {
   };
 }
 
+// С карточки модели (`/inventory/device-models/:id/devices/add`) предвыбрана
+// модель — а с ней тип и производитель; после создания мастер возвращает на
+// карточку модели (Form.jsx, afterCreate).
+export async function modelLoader({ params }) {
+  setDocTitle("Новое устройство");
+
+  return {
+    device: null,
+    formData: await loadFormData(),
+    presetCompanyId: "",
+    presetModelId: params.id,
+  };
+}
+
 // Каждая ручка отдаёт массив, но форма и раньше страховалась: пришедший не
 // массив обнуляет ровно свой селект, а не роняет всю форму.
 const asList = (value) => (Array.isArray(value) ? value : []);

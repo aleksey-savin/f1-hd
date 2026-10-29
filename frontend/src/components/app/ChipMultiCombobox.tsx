@@ -18,7 +18,9 @@ import {
 import { useInOverlay } from "@/components/app/overlay-context";
 import { cn } from "@/lib/utils";
 
-type Option = { value: string; label: string };
+// count — сколько записей за значением (компании в секции устройств модели):
+// пункт списка показывает его справа, чип — нет
+type Option = { value: string; label: string; count?: number };
 
 // Мультивыбор-чип с поиском (combobox) для фасета с длинным списком значений
 // (компания). Как app/ChipCombobox, но выбирается несколько: чип показывает
@@ -114,6 +116,11 @@ const ChipMultiCombobox = ({
                     )}
                   />
                   {option.label}
+                  {option.count != null && (
+                    <span className="ms-auto text-faint tabular-nums">
+                      {option.count}
+                    </span>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>

@@ -203,6 +203,7 @@ import ClientDevices, {
 
 import AddClientDevicePage, {
   loader as addClientDeviceLoader,
+  modelLoader as addModelDeviceLoader,
   action as addClientDeviceAction,
 } from "./pages/ClientDevice/Add.jsx";
 
@@ -1363,6 +1364,15 @@ function App() {
                   element: <UpdateDeviceConfigurationPage />,
                   loader: updateDeviceConfigurationLoader,
                   action: updateDeviceConfigurationAction,
+                },
+                // «Новое устройство» из секции «Устройства»: тот же мастер,
+                // что в реестре, с предвыбранной моделью карточки
+                {
+                  path: "devices/add",
+                  handle: { can: { device: ["manage"] }, ...SHEET_LG },
+                  loader: addModelDeviceLoader,
+                  action: addClientDeviceAction,
+                  element: <AddClientDevicePage />,
                 },
               ],
             },

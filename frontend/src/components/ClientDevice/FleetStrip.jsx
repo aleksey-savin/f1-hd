@@ -23,6 +23,10 @@ const FleetStrip = ({
   noInventoryNumber = 0,
   noInventoryActive = false,
   onToggleNoInventory,
+  // Подпись ленты; null — без неё (секция «Устройства» карточки модели:
+  // заголовок секции уже называет набор)
+  label = "Парк",
+  className,
 }) => {
   const stages = DEVICE_STATUS_ORDER.filter(
     (status) => statusCounts[status] > 0 || selected.includes(status),
@@ -30,12 +34,19 @@ const FleetStrip = ({
   if (!stages.length && !noInventoryNumber) return null;
 
   return (
-    <div className="mb-3 flex items-center gap-2 px-1 max-md:overflow-x-auto max-md:scrollbar-none md:flex-wrap">
+    <div
+      className={cn(
+        "mb-3 flex items-center gap-2 px-1 max-md:overflow-x-auto max-md:scrollbar-none md:flex-wrap",
+        className,
+      )}
+    >
       {/* На телефоне подпись прячется, как «Очереди» у заявок: ряд там
           прокручивается жестом, без полосы, и слово стоило бы первого чипа */}
-      <span className="flex-none text-xs font-bold tracking-wider text-faint uppercase max-md:hidden">
-        Парк
-      </span>
+      {label && (
+        <span className="flex-none text-xs font-bold tracking-wider text-faint uppercase max-md:hidden">
+          {label}
+        </span>
+      )}
       {stages.map((status) => {
         const meta = DEVICE_STATUS_META[status];
         const active = selected.includes(status);

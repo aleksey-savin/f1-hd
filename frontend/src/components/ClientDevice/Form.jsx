@@ -126,8 +126,17 @@ const optionsOf = (items, label = (item) => item.name) =>
 const ClientDeviceForm = ({ title }) => {
   // Справочники приезжают лоадером из кэша (store/form-data), поэтому форма
   // открывается готовой: собственного ожидания у неё нет.
-  const { device: data, formData, presetCompanyId } = useLoaderData();
+  const { device: data, formData, presetCompanyId, presetModelId } =
+    useLoaderData();
   const isEdit = Boolean(data?._id);
+  // С карточки модели: модель (а с ней тип и производитель) уже выбрана, и
+  // после создания возвращаемся на карточку — следующее устройство той же
+  // модели заводят оттуда же
+  const presetModel = presetModelId
+    ? formData.deviceModels.find((model) => model._id === presetModelId)
+    : null;
+  const afterCreate = (id) =>
+    presetModel ? ".." : `/inventory/client-devices/${id}`;
 
   const fetcher = useFetcher();
   const { close } = useFormSheet();
@@ -138,9 +147,12 @@ const ClientDeviceForm = ({ title }) => {
     locationId: refId(data?.locationId),
     userId: refId(data?.userId),
     deviceTypeId:
-      refId(data?.deviceModelId?.deviceTypeId) || refId(data?.deviceTypeId),
-    vendorId: refId(data?.deviceModelId?.vendorId),
-    deviceModelId: refId(data?.deviceModelId),
+      refId(data?.deviceModelId?.deviceTypeId) ||
+      refId(data?.deviceTypeId) ||
+      refId(presetModel?.deviceTypeId),
+    vendorId:
+      refId(data?.deviceModelId?.vendorId) || refId(presetModel?.vendorId),
+    deviceModelId: refId(data?.deviceModelId) || refId(presetModel),
     configurationId: refId(data?.configurationId),
     serialNumber: data?.serialNumber || "",
     inventoryNumber: data?.inventoryNumber || "",
@@ -427,7 +439,9 @@ const ClientDeviceForm = ({ title }) => {
     deviceTypes: useMemo(
       () =>
         visibleOptions(deviceTypes, [
-          refId(data?.deviceModelId?.deviceTypeId) || refId(data?.deviceTypeId),
+          refId(data?.deviceModelId?.deviceTypeId) ||
+            refId(data?.deviceTypeId) ||
+            refId(presetModel?.deviceTypeId),
         ]).map((type) => ({
           value: type._id,
           label: type.name,
@@ -438,7 +452,10 @@ const ClientDeviceForm = ({ title }) => {
     vendors: useMemo(
       () =>
         optionsOf(
-          visibleOptions(vendors, [refId(data?.deviceModelId?.vendorId)]),
+          visibleOptions(vendors, [
+            refId(data?.deviceModelId?.vendorId) ||
+              refId(presetModel?.vendorId),
+          ]),
         ),
       [vendors, data],
     ),
@@ -771,12 +788,9 @@ const ClientDeviceForm = ({ title }) => {
       setConnectOffer(created._id);
       return;
     }
-    close(
-      !isEdit && created?._id
-        ? `/inventory/client-devices/${created._id}`
-        : "..",
-      { replace: true },
-    );
+    close(!isEdit && created?._id ? afterCreate(created._id) : "..", {
+      replace: true,
+    });
   }, [fetcher.state, fetcher.data]);
 
   const inlineResources = { companies, deviceTypes, vendors, deviceModels };
@@ -983,7 +997,7 @@ const ClientDeviceForm = ({ title }) => {
           if (open) return;
           const id = connectOffer;
           setConnectOffer(null);
-          close(`/inventory/client-devices/${id}`, { replace: true });
+          close(afterCreate(id), { replace: true });
         }}
       >
         <DialogContent className="sm:max-w-md">
@@ -1000,7 +1014,7 @@ const ClientDeviceForm = ({ title }) => {
               onClick={() => {
                 const id = connectOffer;
                 setConnectOffer(null);
-                close(`/inventory/client-devices/${id}`, { replace: true });
+                close(afterCreate(id), { replace: true });
               }}
             >
               Позже

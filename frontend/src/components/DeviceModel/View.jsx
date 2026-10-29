@@ -27,6 +27,7 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import { cn } from "@/lib/utils";
 
 import PhotoGallery, { photoUrl } from "@/components/app/PhotoGallery";
+import DevicesSection from "./DevicesSection";
 import SpecSheet from "@/components/app/SpecSheet";
 import { buildSpecGroups, specSummary } from "@/components/app/spec-sheet";
 import { formatShortDate } from "../../util/format-date";
@@ -245,8 +246,22 @@ const ViewDeviceModel = ({
                   )}{" "}
                 </>
               )}
-              {sep} {bold(devicesCount)}{" "}
-              {plural(devicesCount, "устройство", "устройства", "устройств")}
+              {sep}{" "}
+              {/* Счётчик ведёт к секции «Устройства» ниже — прокруткой, без
+                  записи в историю: хеш стал бы навигацией роутера */}
+              <a
+                href="#devices"
+                onClick={(event) => {
+                  event.preventDefault();
+                  document
+                    .getElementById("devices")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className="text-muted-foreground no-underline decoration-faint decoration-dashed underline-offset-4 hover:underline"
+              >
+                {bold(devicesCount)}{" "}
+                {plural(devicesCount, "устройство", "устройства", "устройств")}
+              </a>
               {photos.length > 0 && (
                 <>
                   {" "}
@@ -330,6 +345,12 @@ const ViewDeviceModel = ({
           {deviceModel.notes}
         </Detail>
       </Panel>
+
+      {/* Вся техника этой модели — сразу после «Основного»: это первое, что
+          спрашивают у модели («где наши hAP ac²») */}
+      {can({ device: ["read"] }) && (
+        <DevicesSection modelId={deviceModel._id} crumbState={fromState} />
+      )}
 
       {/* Совместимость — только когда заданы совместимые модели (расходники) */}
       {compatible.length > 0 && (

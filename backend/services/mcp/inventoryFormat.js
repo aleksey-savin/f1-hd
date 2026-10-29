@@ -95,9 +95,12 @@ const deviceTitle = (device, idx) => {
  * Зеркало spec-sheet.ts#buildSpecGroups, держать в ногу: группы по
  * AttributeGroup.order (затем по имени), строки по order связки; связка без
  * группы и значения атрибутов, снятых с типа, — в «Прочее»; пустое пропускаем.
+ * Да/Нет без значения — «нет», если характеристики вообще заполнены: форма
+ * показывает невключённый тумблер как «Нет» и ничего не сохраняет.
  */
 const buildSpecGroups = (typeId, values, idx) => {
   const valueOf = new Map(values.map((v) => [idStr(v.attributeId), v.value]));
+  const filled = values.some((v) => formatSpecValue(idx.attributes.get(idStr(v.attributeId)), v.value) !== "");
   const links = idx.attrsByType.get(typeId) ?? [];
   const linked = new Set(links.map((l) => idStr(l.attr)));
   const buckets = new Map(); // groupKey -> {name, order, lines}
@@ -106,7 +109,8 @@ const buildSpecGroups = (typeId, values, idx) => {
     buckets.get(key).lines.push(line);
   };
   for (const link of links) {
-    const text = formatSpecValue(link.attr, valueOf.get(idStr(link.attr)));
+    const raw = formatSpecValue(link.attr, valueOf.get(idStr(link.attr)));
+    const text = raw || (filled && link.attr?.valueType === "boolean" ? "нет" : "");
     if (!text) continue;
     const line = `${link.attr.name} (${link.attr.code}): ${text}`;
     const group = link.groupId ? idx.groups.get(link.groupId) : null;

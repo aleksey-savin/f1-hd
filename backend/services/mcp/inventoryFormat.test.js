@@ -104,6 +104,37 @@ test("specsOf with configurationId groups by AttributeGroup.order and puts the r
   ]);
 });
 
+test("specsOf: незаполненный Да/Нет — «нет», если характеристики заполнены", () => {
+  const monitor = {
+    types: [{ _id: "tMon", name: "Монитор" }],
+    attributes: [
+      { _id: "aDiag", code: "diag", name: "Диагональ", valueType: "number", unit: '"' },
+      { _id: "aLift", code: "lift", name: "Регулировка по высоте", valueType: "boolean" },
+    ],
+    links: [
+      { deviceTypeId: "tMon", attributeId: "aDiag", groupId: null, order: 0 },
+      { deviceTypeId: "tMon", attributeId: "aLift", groupId: null, order: 1 },
+    ],
+    groups: [],
+  };
+  const monIdx = buildCatalogIndex(
+    monitor,
+    [
+      { _id: "mFull", name: "P2725", deviceTypeId: "tMon" },
+      { _id: "mBare", name: "X", deviceTypeId: "tMon" },
+    ],
+    [
+      { _id: "cFull", deviceModelId: "mFull", values: [{ attributeId: "aDiag", value: "27" }] },
+      { _id: "cBare", deviceModelId: "mBare", values: [] },
+    ],
+  );
+  assert.deepEqual(specsOf({ deviceModelId: "mFull" }, monIdx).groups, [
+    { name: "Прочее", lines: ['Диагональ (diag): 27"', "Регулировка по высоте (lift): нет"] },
+  ]);
+  // Пустая конфигурация — без столбика «нет»
+  assert.deepEqual(specsOf({ deviceModelId: "mBare" }, monIdx).groups, []);
+});
+
 test("specsOf: model-only, ambiguous, none", () => {
   const solo = specsOf({ deviceModelId: "mOne" }, idx);
   assert.equal(solo.source, "model-only-configuration");
