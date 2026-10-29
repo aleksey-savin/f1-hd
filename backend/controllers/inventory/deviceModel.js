@@ -23,7 +23,7 @@ exports.deletePhoto = modelPhotos.deletePhoto;
 exports.getAll = async (req, res, next) => {
   try {
     const deviceModels = await DeviceModel.find({ deletedAt: null })
-      .populate("deviceTypeId", "name isConsumable")
+      .populate("deviceTypeId", "name isConsumable isComponent isPeripheral")
       .populate("vendorId", "name")
       .populate("compatibleWithModelIds", "name")
       .populate("createdBy", "firstName lastName")

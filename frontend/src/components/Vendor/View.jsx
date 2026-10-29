@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useActionData } from "react-router";
+import { isMobile } from "react-device-detect";
 
 import {
   RiAddFill,
@@ -22,6 +23,7 @@ import {
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { Panel } from "@/components/app/Panel";
 import SearchBar from "@/components/app/SearchBar";
+import Segmented from "@/components/app/Segmented";
 import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { deviceIcon } from "@/components/app/device-status";
@@ -32,6 +34,7 @@ import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import useToastStore from "../../store/toast-store";
 import { useCan } from "@/store/authed-user";
+import { ALL_KINDS, matchKind, modelKindOptions } from "./vendor-kinds";
 
 const fmtDate = (value) => (value ? formatShortDate(value) : null);
 const userName = (u) =>
@@ -89,6 +92,9 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
   const canManage = can({ inventoryCatalog: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // Назначение моделей: «Все» или раздел, где у вендора есть модели
+  const [kind, setKind] = useState(ALL_KINDS);
+  const kindOptions = useMemo(() => modelKindOptions(models), [models]);
   // Свёрнутый/раскрытый набор групп (по id типа). Малый каталог — всё раскрыто.
   const [openIds, setOpenIds] = useState(() => {
     if (models.length > SMALL_CATALOG) return new Set();
@@ -149,13 +155,16 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
       .toLowerCase()
       .includes(query);
 
-  // Группы к показу: при поиске — только с совпадениями, и в них — совпавшие
+  // Группы к показу: модели раздела назначения и (при поиске) совпавшие;
+  // группа без таких моделей не показывается
   const viewGroups = groups
     .map((group) => ({
       ...group,
-      shown: searching ? group.models.filter(matchModel) : group.models,
+      shown: group.models.filter(
+        (model) => matchKind(model, kind) && (!searching || matchModel(model)),
+      ),
     }))
-    .filter((group) => !searching || group.shown.length > 0);
+    .filter((group) => group.shown.length > 0);
 
   const grouped = groups.length > 1;
   const allOpen =
@@ -363,6 +372,21 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
               onChange={(event) => setSearch(event.target.value)}
               className="w-full sm:w-64"
             />
+            {/* Назначение — сегментом на виду, как на странице типов; на
+                телефоне ряд прокручивается жестом, без полосы */}
+            {kindOptions.length > 0 && (
+              <div className="max-md:w-full max-md:overflow-x-auto max-md:scrollbar-none">
+                <Segmented
+                  ariaLabel="Назначение моделей"
+                  fit
+                  compact={isMobile}
+                  className="w-max"
+                  options={kindOptions}
+                  value={kind}
+                  onChange={setKind}
+                />
+              </div>
+            )}
             {grouped && !searching && (
               <button
                 type="button"
