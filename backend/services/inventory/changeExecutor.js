@@ -2,7 +2,8 @@
 // Без моделей: хранилище и реестр операций приходят аргументами (боевое хранилище — mongoStore ниже).
 //
 // Дрейф: каждая цель каждой операции (и детали каскада) должна иметь тот же updatedAt, что в снимке
-// предложения. Расхождение или пропавший документ — ничего не применяется, статус failed.
+// предложения, а снимок ссылок операции (refs: слияние, переименование варианта) — сойтись с пересчётом
+// (ops.snapshotDrift). Расхождение или пропавший документ — ничего не применяется, статус failed.
 const { STATUS } = require("./changeSteps");
 
 const DRIFT = "изменилось после предложения";
@@ -14,10 +15,23 @@ const timeOf = (value) => (value == null ? NaN : new Date(value).getTime());
 
 /**
  * createExecutor({ ops, store, now }) -> { run(change, { actorId, onResult? }) -> { status, results, drift? } }
- * ops.applyPackage(items, ctx); store.currentUpdatedAt(model, id) -> Date | UNDATED | null (документа нет).
+ * ops.applyPackage(items, ctx); ops.snapshotDrift?(item) -> текст | null;
+ * store.currentUpdatedAt(model, id) -> Date | UNDATED | null (документа нет).
  * onResult(index, result) уходит в applyPackage: зовётся после каждой выполненной операции (при дрейфе — ни разу).
  * В results пропущенной операции — только причина; drift — строки для журнала: причина и текст операции.
  */
+// Поля операции совпадают с элементом checkPackage
+const itemOf = (operation) => ({
+  kind: operation.kind,
+  ref: operation.ref || null,
+  params: operation.params,
+  text: operation.text,
+  targets: operation.targets || [],
+  ...(operation.componentIds ? { componentIds: operation.componentIds.map(String) } : {}),
+  ...(operation.componentRefs?.length ? { componentRefs: [...operation.componentRefs] } : {}),
+  ...(operation.refs ? { refs: operation.refs } : {}),
+});
+
 function createExecutor({ ops, store, now = () => new Date() }) {
   // Цель сходится со снимком? Даты нет с обеих сторон — сходится (сверять нечего, но и менять
   // её никто не мог незаметно: правка ставит updatedAt); дата только с одной стороны — дрейф.
@@ -31,7 +45,7 @@ function createExecutor({ ops, store, now = () => new Date() }) {
     return !Number.isNaN(expected) && expected === current;
   };
 
-  // По операции: true — у неё что-то изменилось после предложения
+  // По операции: false — без изменений; true — изменилась цель; строка — дрейф снимка refs (его текст)
   async function driftOf(operations) {
     const flags = [];
     for (const operation of operations) {
@@ -41,6 +55,9 @@ function createExecutor({ ops, store, now = () => new Date() }) {
           drifted = true;
           break;
         }
+      }
+      if (!drifted && operation.refs && ops.snapshotDrift) {
+        drifted = (await ops.snapshotDrift(itemOf(operation))) || false;
       }
       flags.push(drifted);
     }
@@ -53,23 +70,21 @@ function createExecutor({ ops, store, now = () => new Date() }) {
     if (flags.some(Boolean)) {
       return {
         status: STATUS.failed,
-        results: flags.map((drifted) => ({ state: "skipped", error: drifted ? DRIFT : DRIFT_ELSEWHERE })),
-        // Для хроники: заголовок операции (первая строка текста)
+        results: flags.map((drifted) => ({
+          state: "skipped",
+          error: typeof drifted === "string" ? drifted : drifted ? DRIFT : DRIFT_ELSEWHERE,
+        })),
+        // Для хроники: заголовок операции (первая строка текста); у снимка — его текст
         drift: operations
-          .filter((_, i) => flags[i])
-          .map((operation) => `${DRIFT}: ${String(operation.text ?? "").split("\n")[0]}`),
+          .map((operation, i) => [operation, flags[i]])
+          .filter(([, drifted]) => drifted)
+          .map(([operation, drifted]) =>
+            typeof drifted === "string" ? drifted : `${DRIFT}: ${String(operation.text ?? "").split("\n")[0]}`,
+          ),
       };
     }
-    // Поля операции совпадают с элементом checkPackage; created/updatedBy — заявитель, не бот и не портал
-    const items = operations.map((operation) => ({
-      kind: operation.kind,
-      ref: operation.ref || null,
-      params: operation.params,
-      text: operation.text,
-      targets: operation.targets || [],
-      ...(operation.componentIds ? { componentIds: operation.componentIds.map(String) } : {}),
-      ...(operation.componentRefs?.length ? { componentRefs: [...operation.componentRefs] } : {}),
-    }));
+    // created/updatedBy — заявитель, не бот и не портал
+    const items = operations.map(itemOf);
     return ops.applyPackage(items, { userId: actorId, now: now(), ...(onResult ? { onResult } : {}) });
   }
 

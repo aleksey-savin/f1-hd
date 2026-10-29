@@ -72,8 +72,9 @@ const ApplyDescription = ({ items }) => (
   <>
     {items.length > 0 && (
       <span className="mb-2.5 block list-disc space-y-0.5 ps-4.5 text-foreground">
-        {items.map((item) => (
-          <span key={item} className="list-item">
+        {/* строки могут совпадать (две безымянные конфигурации одной модели) — ключ по месту */}
+        {items.map((item, index) => (
+          <span key={index} className="list-item">
             {item}
           </span>
         ))}

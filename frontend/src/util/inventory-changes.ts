@@ -135,11 +135,16 @@ const joinList = (parts: string[]): string =>
     ? (parts[0] ?? "")
     : `${parts.slice(0, -1).join(", ")} и ${parts[parts.length - 1]}`;
 
-/** Заголовок и строки диалога «Применить N операций?». */
+/**
+ * Заголовок и строки диалога «Применить N операций?»: создаваемое, изменяемые
+ * устройства, затем правки, слияния и скрытие справочников (`catalog` — строки
+ * сервера, по порядку операций).
+ */
 export const confirmSummary = (
   summary: {
     create?: Partial<InventoryChangeSummary["create"]>;
     change?: { count?: number; names?: string[] };
+    catalog?: string[];
   },
   total: number,
 ): { title: string; items: string[] } => {
@@ -155,6 +160,7 @@ export const confirmSummary = (
   const count = summary?.change?.count ?? 0;
   if (names?.length) sides.push(`изменить: ${names.join(", ")}`);
   else if (count > 0) sides.push(`изменить: ${count} ${devices(count)}`);
+  for (const line of summary?.catalog ?? []) if (line) sides.push(line);
 
   const items = sides.map((s, i) => `${s}${i === sides.length - 1 ? "." : ";"}`);
   return {

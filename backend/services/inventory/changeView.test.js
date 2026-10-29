@@ -281,3 +281,111 @@ test("summary: создать и изменить", () => {
   const legacy = change({ operations: [{ kind: "moveDevice", text: "Перенести ПК PC-000123", targets: [target(PC)] }] });
   assert.deepEqual(toView(legacy, viewer(), NOW).summary.change, { count: 1 });
 });
+
+// ─── Финальная правка фазы 4: сводка «Применить?» для правок, слияний, скрытия ─
+
+const ids = (prefix, n) => Array.from({ length: n }, (_, i) => `${prefix}${String(i).padStart(4, "0")}`);
+const entry = (model, path, list, deletedIds = []) => ({
+  model,
+  path,
+  ids: list,
+  live: list.length - deletedIds.length,
+  deleted: deletedIds.length,
+  deletedIds,
+});
+
+test("summary: правка, слияние и скрытие — строкой на операцию, как в макете", () => {
+  const devices = ids("d", 13);
+  const configs = ids("c", 4);
+  const merge = {
+    // Числа — из строк страницы (там уже учтено, что не переезжает)
+    ...op("mergeModels", {
+      head: "Слить модель «ThinkPad T14 G4» в «ThinkPad T14 Gen 4»",
+      fields: [
+        { label: "устройств", value: "12 и 1 удалённое" },
+        { label: "конфигураций", value: "3" },
+        { label: "сборок", value: "1" },
+        { label: "совместимость", value: "у 2 моделей" },
+      ],
+    }),
+    refs: {
+      entity: "DeviceModel",
+      source: MODEL,
+      target: CONFIG,
+      refs: [
+        entry("ClientDevice", "deviceModelId", devices, [devices[12]]),
+        entry("DeviceConfiguration", "deviceModelId", configs),
+        entry("DeviceBuild", "parts.deviceModelId", ["b1"]),
+        entry("DeviceModel", "compatibleWithModelIds", ["m1", "m2"]),
+      ],
+      // Пустая конфигурация не переезжает (гасится), как и в числах страницы
+      retire: [configs[3]],
+    },
+  };
+  const view = toView(
+    change({
+      operations: [
+        op("updateAttribute", { head: "Изменить атрибут «Тип памяти»" }),
+        merge,
+        op("retireAttribute", { head: "Скрыть атрибут «Цвет корпуса» (не используется)" }),
+      ],
+    }),
+    viewer(),
+    NOW,
+  );
+  assert.deepEqual(view.summary.catalog, [
+    "изменить: атрибут «Тип памяти»",
+    "слить: модель «ThinkPad T14 G4» — переедут 12 устройств, 3 конфигурации, 1 сборка",
+    "скрыть: атрибут «Цвет корпуса»",
+  ]);
+  assert.deepEqual(view.summary.change, { count: 0 });
+});
+
+test("summary: скрытие правкой, пустая группа, снятие связи, имена с кавычками, одна запись", () => {
+  const supplier = {
+    ...op("mergeSuppliers", { head: "Слить поставщика «ООО «Ромашка»» в «ООО Ромашка»" }),
+    // Ссылаются только удалённые устройства — переезжать живому нечему
+    refs: { entity: "Supplier", source: "s1", target: "s2", refs: [entry("ClientDevice", "supplierId", ["d1"], ["d1"])] },
+  };
+  const type = {
+    ...op("mergeDeviceTypes", {
+      head: "Слить тип «Ноут» в «Ноутбук»",
+      // Два пути одного вида («сборок») — в сводке складываются
+      fields: [{ label: "сборок", value: "1" }, { label: "сборок", value: "1" }],
+    }),
+    refs: {
+      entity: "DeviceType",
+      source: "t1",
+      target: "t2",
+      refs: [entry("DeviceBuild", "deviceTypeId", ["b1"]), entry("DeviceBuild", "parts.typeId", ["b2"])],
+    },
+  };
+  const attr = {
+    ...op("mergeAttributes", { head: "Слить атрибут «ОЗУ» в «Объём ОЗУ»", fields: [{ label: "значений", value: "1" }] }),
+    refs: { entity: "DeviceAttribute", source: "a1", target: "a2", refs: [entry("DeviceConfiguration", "values.attributeId", ["c1"])] },
+  };
+  const view = toView(
+    change({
+      operations: [
+        op("updateVendor", { head: "Скрыть вендора «Lenovo Inc»" }),
+        op("deleteGroup", { head: "Удалить пустую группу «ЦП»" }),
+        op("unlinkAttribute", { head: "Снять атрибут «Цвет» с типа «Ноутбук»" }),
+        supplier,
+        type,
+        attr,
+      ],
+    }),
+    viewer(),
+    NOW,
+  );
+  assert.deepEqual(view.summary.catalog, [
+    "скрыть: вендора «Lenovo Inc»",
+    "удалить: группу «ЦП»",
+    "снять: атрибут «Цвет» с типа «Ноутбук»",
+    "слить: поставщика «ООО «Ромашка»»",
+    "слить: тип «Ноут» — переедут 2 сборки",
+    "слить: атрибут «ОЗУ» — переедет 1 значение",
+  ]);
+  // Пакет без справочников — без поля
+  assert.equal(toView(change(), viewer(), NOW).summary.catalog, undefined);
+});

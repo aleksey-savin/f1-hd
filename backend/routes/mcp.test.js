@@ -741,13 +741,15 @@ test("inventory tools: the schema rejects unknown sections and arguments, and a 
 // фазы не раздували схемы. BASELINE — длина JSON tools/list ключа со всеми
 // доступами, кроме записи в инвентарь (семья чтения инвентаря уже внутри).
 const BASELINE = 30181;
-test("tool budget: the inventory changes family adds at most 5000 characters to tools/list", async () => {
+// Семья записи в инвентарь, фазы 2–4 (фаза 4 — правка, слияние и скрытие справочников): 28.10 — 37047.
+const INVENTORY_CHANGES_BUDGET = 7000;
+test("tool budget: the inventory changes family adds at most 7000 characters to tools/list", async () => {
   const all = ["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "mikrotik", "mikrotikChanges"];
   const size = async (scopes) =>
     withServer(buildApp({ scopes }), async (base) => JSON.stringify((await rpc(base, "tools/list", {})).message.result.tools).length);
   assert.equal(await size(all) <= BASELINE, true, "baseline drifted: remeasure and update BASELINE");
   const withChanges = await size([...all, "inventoryChanges"]);
-  assert.ok(withChanges <= BASELINE + 5000, `tools/list is ${withChanges} characters, budget ${BASELINE + 5000}`);
+  assert.ok(withChanges <= BASELINE + INVENTORY_CHANGES_BUDGET, `tools/list is ${withChanges} characters, budget ${BASELINE + INVENTORY_CHANGES_BUDGET}`);
 });
 
 const INVENTORY_CHANGE_TOOLS = ["get_inventory_change", "list_inventory_changes", "propose_inventory_change"];
@@ -782,6 +784,9 @@ test("propose_inventory_change over MCP: not read-only, unknown kind rejected by
     assert.match(init, /you never change the inventory yourself/);
     assert.match(init, /about 10 short operations/);
     assert.match(init, /use ref to point a later operation/);
+    assert.match(init, /Merge catalog records only for a catalogDuplicates finding of inventory_findings or when the person explicitly asks/);
+    assert.match(init, /fixes those configurations in a separate proposal first/);
+    assert.match(init, /Hidden records .* cannot be picked/);
     assert.match(init, /This key cannot read the inventory; to find ids before proposing, the key must also be given inventory reading\./);
 
     const tool = (await rpc(base, "tools/list", {})).message.result.tools.find((t) => t.name === "propose_inventory_change");

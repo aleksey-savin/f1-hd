@@ -24,4 +24,33 @@ const isValidValue = (attr, value) => {
   }
 };
 
-module.exports = { isValidValue };
+// Значение, как его хранит конфигурация: строка; multiselect — JSON-массив
+// строк (как serializeMultiValue формы). Массив допустим только multiselect.
+// null — значение негодное (объект, массив не там и т. п.).
+const storedValue = (attr, raw) => {
+  if (raw == null) return "";
+  if (Array.isArray(raw)) {
+    if (attr.valueType !== "multiselect") return null;
+    if (!raw.every((item) => typeof item === "string" || typeof item === "number")) return null;
+    return raw.length ? JSON.stringify(raw.map(String)) : "";
+  }
+  if (typeof raw === "object") return null;
+  return String(raw).trim();
+};
+
+// Значение атрибута после переименований map (from -> to): у multiselect —
+// элементы JSON-массива на местах, повтор выпадает; не JSON — как одно значение.
+// Общее для renameOptions (catalogEditOps) и optionMap слияния (catalogMergeRules)
+const renameValue = (valueType, value, map) => {
+  if (valueType !== "multiselect") return map.get(value) ?? value;
+  let list;
+  try {
+    list = JSON.parse(value);
+  } catch {
+    return map.get(value) ?? value;
+  }
+  if (!Array.isArray(list)) return map.get(value) ?? value;
+  return JSON.stringify([...new Set(list.map((item) => map.get(String(item)) ?? String(item)))]);
+};
+
+module.exports = { isValidValue, storedValue, renameValue };

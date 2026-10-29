@@ -4,7 +4,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { createInventoryChangeTools, KIND_NAMES, PROPOSE_DESCRIPTION } = require("./inventoryChangeTools");
-const { KINDS } = require("../inventory/changeOps");
+const { KINDS, createChangeOps } = require("../inventory/changeOps");
+const { createProposals } = require("../inventory/changeProposals");
 
 const ID = "64f1000000000000000000a1";
 const CALLER = { keyId: "66aa000000000000000000aa", keyName: "OpenClaw" };
@@ -84,11 +85,18 @@ const compare = (where, fields, tokens) => {
   for (const name of Object.keys(tokens)) assert.ok(byName.has(name), `${where}: ${name} is described but unknown to the registry`);
 };
 
+// Строка вида: «kind: …» или общая строка одинаковых видов «kindA, kindB: …»
+const kindsOf = (line) => {
+  const head = line.slice(0, Math.max(line.indexOf(":"), 0));
+  return /^[a-z][A-Za-z]*(, [a-z][A-Za-z]*)*$/.test(head) ? head.split(", ") : [];
+};
+const kindLines = () => PROPOSE_DESCRIPTION.split("\n").filter((l) => kindsOf(l).length);
+
 test("the kind list and its description mirror the registry in both directions", () => {
   assert.deepEqual([...KIND_NAMES].sort(), Object.keys(KINDS).sort());
-  const lines = PROPOSE_DESCRIPTION.split("\n");
+  const lines = kindLines();
   for (const [kind, def] of Object.entries(KINDS)) {
-    const line = lines.find((l) => l.startsWith(`${kind}:`));
+    const line = lines.find((l) => kindsOf(l).includes(kind));
     assert.ok(line, `no description line for ${kind}`);
     const tokens = parseLine(line);
     if (kind === "catalog") {
@@ -98,6 +106,18 @@ test("the kind list and its description mirror the registry in both directions",
       compare(kind, def.fields, tokens);
     }
   }
+});
+
+test("описание: все виды операций перечислены", () => {
+  // каждый вид реестра — ровно в одной строке описания, и ни одного лишнего
+  const described = kindLines().flatMap(kindsOf);
+  assert.deepEqual([...described].sort(), Object.keys(KINDS).sort());
+  assert.equal(new Set(described).size, described.length, "a kind is described twice");
+  // виды фазы 4 — с их параметрами
+  for (const kind of ["updateConfiguration", "mergeModels", "mergeAttributes", "retireAttribute", "deleteGroup"]) {
+    assert.ok(KIND_NAMES.includes(kind), kind);
+  }
+  assert.match(PROPOSE_DESCRIPTION, /optionMap/);
 });
 
 test("propose: success names id, status, how to approve, expiry and link; notifies once", async () => {
@@ -217,4 +237,95 @@ test("propose: a multi-line operation is a header with indented sub-lines", asyn
   const { tools } = build({ proposals: { propose: async () => ({ ok: true, change: multi }) } });
   const body = text(await tools.propose({ requester: 1, title: "t", reason: "r", operations: [] }, CALLER));
   assert.match(body, /\n1\. Справочники техники:\n {3}- Новый тип «Моноблок»\n {3}- Новый атрибут «Диагональ»\n/);
+});
+
+// Настоящая цепочка: виды реестра (план слияния — подделка) → проверка пакета → ответ агенту
+const MODEL_A = "bbbbbbbbbbbbbbbbbbbbbbb1";
+const MODEL_B = "bbbbbbbbbbbbbbbbbbbbbbb2";
+const ATTR_A = "a0000000000000000000a001";
+const ATTR_B = "a0000000000000000000a002";
+const NAMES = {
+  DeviceModel: { [MODEL_A]: "Lenovo ThinkPad X1", [MODEL_B]: "Lenovo T14" },
+  DeviceAttribute: { [ATTR_A]: "ОЗУ, ГБ", [ATTR_B]: "Объём ОЗУ" },
+};
+const realChain = (plan) => {
+  const describe = async (model, id) => (NAMES[model]?.[id] ? { name: NAMES[model][id], updatedAt: NOW } : null);
+  const ops = createChangeOps({ catalogMerge: { plan }, describe, log: () => {} });
+  const store = {
+    findUserByTelegram: async () => ({ _id: "64f1000000000000000000b1" }),
+    canFor: async () => true,
+    countOpen: async () => 0,
+    countByKeySince: async () => 0,
+    nextNumber: async () => 8,
+    create: async (doc) => ({ _id: ID, createdAt: NOW, ...doc }),
+  };
+  return build({ proposals: createProposals({ store, ops, now: () => NOW }), notifier: { proposed: async () => 1 } });
+};
+
+test("propose: слияние — ответ с числами ссылок", async () => {
+  const merged = realChain(async (entity, source, target) => ({
+    ok: true,
+    refs: { entity, source, target, refs: [{ model: "ClientDevice", path: "deviceModelId", ids: ["aaaaaaaaaaaaaaaaaaaaaaa1"], live: 12, deleted: 1, deletedIds: [] }] },
+    conflicts: [],
+    targets: [],
+    lines: ["устройств: 12 и 1 удалённое", "конфигураций: 3", "сборок: 1"],
+    devices: [],
+    moreDevices: 0,
+    multiOn: true,
+    newName: "Lenovo ThinkPad X1 (слито в «Lenovo T14»)",
+  }));
+  const ok = await merged.tools.propose({ requester: 1001, title: "Дубли", reason: "Просили слить", operations: [{ kind: "mergeModels", params: { source: MODEL_A, target: MODEL_B } }] }, CALLER);
+  assert.ok(!ok.isError, text(ok));
+  assert.match(
+    text(ok),
+    /\n1\. Слить модель «Lenovo ThinkPad X1» в «Lenovo T14»\n {3}- устройств: 12 и 1 удалённое\n {3}- конфигураций: 3\n {3}- сборок: 1\n {3}- у «Lenovo T14» включится «Несколько конфигураций»\n {3}- «Lenovo ThinkPad X1» скроется\n/,
+  );
+
+  // Конфликт: отказ перечисляет конфигурации отдельными строками, а не одной склеенной
+  const conflictText = [
+    "слить атрибут «ОЗУ, ГБ» в «Объём ОЗУ» нельзя — в 2 конфигурациях разные значения:",
+    "   – Lenovo T14 «16/512»: 16 и 32",
+    "   – Lenovo X1 «8/256»: 8 и 32",
+    "Сначала поправьте эти конфигурации отдельным предложением.",
+  ].join("\n");
+  const conflicting = realChain(async () => ({ ok: false, status: 409, error: conflictText, conflicts: ["Lenovo T14 «16/512»: 16 и 32", "Lenovo X1 «8/256»: 8 и 32"] }));
+  const refused = await conflicting.tools.propose({ requester: 1001, title: "Дубли", reason: "Просили слить", operations: [{ kind: "mergeAttributes", params: { source: ATTR_A, target: ATTR_B } }] }, CALLER);
+  assert.equal(refused.isError, true);
+  assert.equal(
+    text(refused),
+    [
+      "The proposal was not created:",
+      "- Операция 1: слить атрибут «ОЗУ, ГБ» в «Объём ОЗУ» нельзя — в 2 конфигурациях разные значения:",
+      "  – Lenovo T14 «16/512»: 16 и 32",
+      "  – Lenovo X1 «8/256»: 8 и 32",
+      "  Сначала поправьте эти конфигурации отдельным предложением.",
+    ].join("\n"),
+  );
+});
+
+test("get: слияние — перенесённые ссылки по видам, и у сбоя тоже", async () => {
+  const merged = change({
+    status: "partial",
+    operations: [
+      { kind: "mergeVendors", text: "Слить вендора «LENOVO» в «Lenovo»\nмоделей: 3\n«LENOVO» скроется", result: { state: "done", moved: { моделей: 3 } } },
+      { kind: "mergeModels", text: "Слить модель «X1» в «T14»", result: { state: "failed", error: "Не удалось слить записи", moved: { устройств: 2, конфигураций: 1 } } },
+      { kind: "updateVendor", text: "Изменить вендора «HP»", result: { state: "done" } },
+    ],
+  });
+  const { tools } = build({ store: { findChange: async () => merged, listChanges: async () => [] } });
+  const body = text(await tools.get({ change: ID }, CALLER));
+  assert.match(body, /1\. Слить вендора «LENOVO» в «Lenovo»\n {3}- моделей: 3\n {3}- «LENOVO» скроется\n {3}result: done\n {3}moved: моделей 3\n/);
+  assert.match(body, /result: failed\n {3}> Не удалось слить записи\n {3}moved: устройств 2, конфигураций 1\n/);
+  assert.equal((body.match(/moved:/g) || []).length, 2);
+});
+
+test("propose: неизвестный параметр с переводом строки — одна строка причины, без поддельных подстрок", async () => {
+  const chain = realChain(async () => ({ ok: true, refs: {}, conflicts: [], targets: [], lines: [], devices: [], moreDevices: 0 }));
+  const key = "x\n  - fake";
+  const refused = await chain.tools.propose(
+    { requester: 1001, title: "Дубли", reason: "Просили слить", operations: [{ kind: "mergeModels", params: { source: MODEL_A, target: MODEL_B, [key]: 1 } }] },
+    CALLER,
+  );
+  assert.equal(refused.isError, true);
+  assert.equal(text(refused), ["The proposal was not created:", "- Операция 1: неизвестный параметр «x - fake»"].join("\n"));
 });

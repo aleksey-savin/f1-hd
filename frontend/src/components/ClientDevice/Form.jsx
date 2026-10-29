@@ -27,6 +27,7 @@ import { liveAssembly } from "@/components/app/assembly-specs";
 import { specSummary } from "@/components/app/spec-sheet";
 import { load } from "@/store/form-data";
 import { toDayKey } from "@/components/app/date-value";
+import { visibleOptions } from "@/util/hidden-options";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -425,14 +426,22 @@ const ClientDeviceForm = ({ title }) => {
     // спросим «Модель из каталога / Своя сборка»
     deviceTypes: useMemo(
       () =>
-        deviceTypes.map((type) => ({
+        visibleOptions(deviceTypes, [
+          refId(data?.deviceModelId?.deviceTypeId) || refId(data?.deviceTypeId),
+        ]).map((type) => ({
           value: type._id,
           label: type.name,
           hint: type.assembly?.enabled ? "из комплектующих" : undefined,
         })),
-      [deviceTypes],
+      [deviceTypes, data],
     ),
-    vendors: useMemo(() => optionsOf(vendors), [vendors]),
+    vendors: useMemo(
+      () =>
+        optionsOf(
+          visibleOptions(vendors, [refId(data?.deviceModelId?.vendorId)]),
+        ),
+      [vendors, data],
+    ),
     deviceModels: modelOptions,
     configMode,
     modelSummary:
@@ -453,7 +462,10 @@ const ClientDeviceForm = ({ title }) => {
         })),
       [configurations],
     ),
-    suppliers: useMemo(() => optionsOf(suppliers), [suppliers]),
+    suppliers: useMemo(
+      () => optionsOf(visibleOptions(suppliers, [refId(data?.supplierId)])),
+      [suppliers, data],
+    ),
     users: useMemo(
       () =>
         assignableUsers.map((user) => ({

@@ -160,6 +160,76 @@ test("catalogDuplicates: types, models within one vendor, attributes", () => {
   assert.doesNotMatch(r.items.find((i) => i.kind === "model").line, /Intel/);
 });
 
+// Справочник для дублей фазы 4: вендоры, поставщики, группы, конфигурации одной модели
+const dupData = (extra = {}) => {
+  const cat = {
+    types: [],
+    attributes: [
+      { _id: "a-ram", code: "ram", name: "ОЗУ", valueType: "number" },
+      { _id: "a-col", code: "colors", name: "Цвета", valueType: "multiselect", options: [{ value: "red" }, { value: "black" }] },
+    ],
+    links: [],
+    groups: [{ _id: "g1", name: "Память" }, { _id: "g2", name: "память " }, { _id: "g3", name: "Экран" }],
+    vendors: [
+      { _id: "v-l1", name: "Lenovo" },
+      { _id: "v-l2", name: "LENOVO " },
+      { _id: "v-hp", name: "HP" },
+      { _id: "v-l3", name: "lenovo", isActive: false }, // скрытая: не предлагается к слиянию
+    ],
+    suppliers: [{ _id: "s1", name: "ООО «Ромашка»" }, { _id: "s2", name: "ООО Ромашка" }, { _id: "s3", name: "Другой" }],
+    ...extra.catalog,
+  };
+  const dModels = [
+    { _id: "m1", name: "T14", vendorId: "v-l1", deviceTypeId: "t" },
+    { _id: "m2", name: "X1", vendorId: "v-l1", deviceTypeId: "t" },
+  ];
+  const dConfigs = extra.configs ?? [];
+  return { ...data, catalogIdx: buildCatalogIndex(cat, dModels, dConfigs), models: dModels, configs: dConfigs, links: [] };
+};
+
+test("catalogDuplicates: вендоры «Lenovo» и «LENOVO » — одна группа", () => {
+  const r = run("catalogDuplicates", {}, dupData());
+  const vendors = r.items.filter((i) => i.kind === "vendor");
+  assert.equal(vendors.length, 1);
+  assert.equal(vendors[0].id, "v-l1, v-l2");
+  assert.match(vendors[0].line, /Vendors with the same name: «Lenovo», «LENOVO » · v-l1, v-l2$/);
+  // скрытая запись не попадает в находку: слить её нельзя
+  assert.ok(!r.items.some((i) => i.id.includes("v-l3")));
+  const suppliers = r.items.filter((i) => i.kind === "supplier");
+  assert.deepEqual(suppliers.map((i) => i.id), ["s1, s2"]);
+  const groups = r.items.filter((i) => i.kind === "group");
+  assert.deepEqual(groups.map((i) => i.id), ["g1, g2"]);
+  assert.match(groups[0].line, /^Groups with the same name: «Память», «память »/);
+});
+
+test("catalogDuplicates: конфигурации одной модели с одинаковыми значениями", () => {
+  const configs = [
+    // одинаковые значения под разными именами; multiselect — как множество, пустое значение не в счёт
+    { _id: "c1", name: "16 ГБ", deviceModelId: "m1", values: [{ attributeId: "a-ram", value: "16" }, { attributeId: "a-col", value: "[\"red\",\"black\"]" }] },
+    { _id: "c2", name: "Базовая", deviceModelId: "m1", values: [{ attributeId: "a-col", value: "[\"black\",\"red\"]" }, { attributeId: "a-ram", value: "16" }, { attributeId: "a-x", value: "" }] },
+    { _id: "c3", name: "32 ГБ", deviceModelId: "m1", values: [{ attributeId: "a-ram", value: "32" }] },
+    // те же значения, но у другой модели — не дубль
+    { _id: "c4", name: "16 ГБ", deviceModelId: "m2", values: [{ attributeId: "a-ram", value: "16" }, { attributeId: "a-col", value: "[\"red\",\"black\"]" }] },
+    // одно имя внутри модели — дубль по имени; пустые значения дублем по значениям не считаются
+    { _id: "c5", name: "Пустая", deviceModelId: "m2", values: [] },
+    { _id: "c6", name: "пустая", deviceModelId: "m2", values: [{ attributeId: "a-ram", value: "" }] },
+  ];
+  const r = run("catalogDuplicates", {}, dupData({ configs }));
+  const found = r.items.filter((i) => i.kind === "configuration");
+  assert.deepEqual(found.map((i) => i.id).sort(), ["c1, c2", "c5, c6"]);
+  const byValues = found.find((i) => i.id === "c1, c2");
+  assert.match(byValues.line, /^Configurations of «Lenovo T14» with the same values: «16 ГБ», «Базовая» · c1, c2$/);
+  const byName = found.find((i) => i.id === "c5, c6");
+  assert.match(byName.line, /^Configurations of «Lenovo X1» with the same name: «Пустая», «пустая» · c5, c6$/);
+  // одно и то же множество по имени и по значениям — одна находка
+  const twins = [
+    { _id: "d1", name: "Одна", deviceModelId: "m1", values: [{ attributeId: "a-ram", value: "8" }] },
+    { _id: "d2", name: "одна", deviceModelId: "m1", values: [{ attributeId: "a-ram", value: "8" }] },
+  ];
+  const once = run("catalogDuplicates", {}, dupData({ configs: twins })).items.filter((i) => i.kind === "configuration");
+  assert.deepEqual(once.map((i) => i.id), ["d1, d2"]);
+});
+
 test("unusedAttributes: no link and no value", () => {
   assert.deepEqual(ids(run("unusedAttributes")), ["a-unused"]);
 });
@@ -230,4 +300,16 @@ test("empty fleet: every check answers 0", () => {
 test("warrantyExpiring: retired devices are excluded", () => {
   const retired = { _id: "wr", deviceModelId: "m-a", status: "decommissioned", warrantyExpirationDate: day(10) };
   assert.deepEqual(ids(run("warrantyExpiring", {}, { ...data, rows: [...rows, retired] })), ["w1"]);
+});
+
+test("catalogDuplicates: конфигурации удалённой модели не предлагаются к слиянию", () => {
+  // m-gone нет в живом индексе моделей (удалена): её конфигурации-дубли не находка
+  const configs = [
+    { _id: "e1", name: "Базовая", deviceModelId: "m-gone", values: [{ attributeId: "a-ram", value: "8" }] },
+    { _id: "e2", name: "базовая", deviceModelId: "m-gone", values: [{ attributeId: "a-ram", value: "8" }] },
+    { _id: "e3", name: "Одна", deviceModelId: "m1", values: [] },
+    { _id: "e4", name: "одна", deviceModelId: "m1", values: [] },
+  ];
+  const found = run("catalogDuplicates", {}, dupData({ configs })).items.filter((i) => i.kind === "configuration");
+  assert.deepEqual(found.map((i) => i.id), ["e3, e4"]);
 });

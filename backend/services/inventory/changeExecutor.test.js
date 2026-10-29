@@ -148,3 +148,14 @@ test("частичный итог applyPackage проходит без изме�
   const r = await createExecutor({ ops, store: fakeStore(allCurrent()), now: () => NOW }).run(change(), { actorId: "req" });
   assert.deepEqual(r, outcome);
 });
+
+test("снимок refs операции уходит в элемент пакета; без него — нет поля", async () => {
+  const refs = [{ model: "DeviceConfiguration", path: "values.value", ids: ["c1"], live: 1, deleted: 0, deletedIds: [] }];
+  const withRefs = change();
+  withRefs.operations[1].refs = refs;
+  const ops = fakeOps();
+  await createExecutor({ ops, store: fakeStore(allCurrent()), now: () => NOW }).run(withRefs, { actorId: "req" });
+  const [first, second] = ops.calls[0].items;
+  assert.equal(Object.hasOwn(first, "refs"), false);
+  assert.deepEqual(second.refs, refs);
+});

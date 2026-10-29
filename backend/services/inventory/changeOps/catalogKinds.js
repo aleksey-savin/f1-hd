@@ -16,6 +16,14 @@ const pair = (ops, check, apply) => ({
   apply: (args, ctx) => ops[apply](args, options(ctx)),
 });
 
+// Детали сборки для текста: модель именем, «×N» при количестве больше одного
+// (общая с updateBuild)
+const partsText = (parts, show) =>
+  (parts ?? []).map((part, i) => {
+    const model = show(`parts[${i}].model`);
+    return Number(part.quantity) > 1 ? `${model} ×${part.quantity}` : model;
+  });
+
 // Запись каталога по его key в списке типов или атрибутов
 const catalogEntry = (params, refKind, key) => {
   const list = params?.[refKind === "type" ? "types" : "attributes"];
@@ -156,10 +164,7 @@ module.exports = (deps) => {
       created: createdAs("build"),
       text: ({ checked, params, show }) => {
         if (checked) return checked.text;
-        const parts = (params.parts ?? []).map((part, i) => {
-          const model = show(`parts[${i}].model`);
-          return Number(part.quantity) > 1 ? `${model} ×${part.quantity}` : model;
-        });
+        const parts = partsText(params.parts, show);
         return `Новая сборка «${nameOf(params)}» (${show("type")})` + (parts.length ? `: ${parts.join(", ")}` : "");
       },
     },
@@ -170,3 +175,4 @@ module.exports = (deps) => {
 };
 
 module.exports.catalogEntry = catalogEntry;
+module.exports.partsText = partsText;

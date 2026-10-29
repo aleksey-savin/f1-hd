@@ -63,7 +63,7 @@ const loadCatalog = async () => {
     DeviceTypeAttribute.find({}).select(LINK_FIELDS).lean(),
     AttributeGroup.find({}).select("name order").lean(),
     Vendor.find({}).select("name isActive").lean(),
-    Supplier.find({}).select("name").lean(),
+    Supplier.find({}).select("name isActive").lean(),
   ]);
   return { types, attributes, links, groups, vendors, suppliers };
 };

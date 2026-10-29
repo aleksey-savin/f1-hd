@@ -30,11 +30,12 @@ const USER = "333333333333333333333333";
 const build = require("@/controllers/inventory/deviceBuild");
 const { AppError } = require("@/middleware/errorHandling");
 let assemblySlots;
+let typeActive = true;
 stubModule("@/controllers/inventory/deviceBuild", {
   ...build,
   loadAssemblyType: async (id) =>
     id === TYPE
-      ? { deviceType: { _id: TYPE, name: "Системный блок" }, slots: assemblySlots }
+      ? { deviceType: { _id: TYPE, name: "Системный блок", isActive: typeActive }, slots: assemblySlots }
       : { error: new AppError("Тип устройства не найден", 404) },
   // buildFields из контроллера держит resolveParts внутри; здесь — тот же порядок
   // проверок с подменённой проверкой ссылок (базы нет)
@@ -163,6 +164,40 @@ test("createVendor: имя занято — 409 с текстом обработ
   assert.equal((await checkVendor({ name: "HP" }, { userId: USER })).status, 409);
   const empty = await createVendor({ name: "  " }, { userId: USER });
   assert.equal(empty.status, 400);
+  assert.equal(saved.length, 0);
+});
+
+const HIDDEN_NAME = "имя занято скрытой записью «HP» — верните её (isActive) или выберите другое имя";
+
+test("скрытая запись: создание вендора и поставщика с тем же именем — понятный отказ", async () => {
+  Vendor.findOne = async () => ({ _id: VENDOR, name: "HP", isActive: false });
+  const dup = await createVendor({ name: "HP" }, { userId: USER });
+  assert.deepEqual(dup, { ok: false, status: 409, message: HIDDEN_NAME });
+  assert.equal((await checkVendor({ name: "HP" }, { userId: USER })).message, HIDDEN_NAME);
+  Supplier.findOne = async () => ({ _id: "x", name: "HP", isActive: false });
+  assert.deepEqual(await createSupplier({ name: "HP" }, { userId: USER }), {
+    ok: false,
+    status: 409,
+    message: HIDDEN_NAME,
+  });
+  assert.equal(saved.length, 0);
+});
+
+test("createModel: скрытый вендор или тип — отказ", async () => {
+  const args = { deviceTypeId: TYPE, vendorId: VENDOR, name: "X" };
+  db.vendor.isActive = false;
+  assert.deepEqual(await createModel(args, { userId: USER }), {
+    ok: false,
+    status: 400,
+    message: "Вендор «HP» скрыт",
+  });
+  db.vendor.isActive = true;
+  db.type.isActive = false;
+  assert.deepEqual(await createModel(args, { userId: USER }), {
+    ok: false,
+    status: 400,
+    message: "Тип «Ноутбук» скрыт",
+  });
   assert.equal(saved.length, 0);
 });
 
@@ -368,6 +403,19 @@ test("createBuild: слоты и детали разобраны общими ф
   assert.equal(String(saved[0].deviceTypeId), TYPE);
   assert.equal(String(saved[0].createdBy), USER);
   assert.equal(saved[0].parts[0].quantity, 2);
+});
+
+test("createBuild: скрытый тип — отказ", async () => {
+  typeActive = false;
+  try {
+    const args = { deviceTypeId: TYPE, name: "X", parts: [] };
+    const expected = { ok: false, status: 400, message: "Тип «Системный блок» скрыт" };
+    assert.deepEqual(await createBuild(args, { userId: USER }), expected);
+    assert.equal((await checkBuild(args, { userId: USER })).message, expected.message);
+  } finally {
+    typeActive = true;
+  }
+  assert.equal(saved.length, 0);
 });
 
 test("createBuild: тип без слотов, деталь вне слотов, неизвестный тип, нет названия — 400/404", async () => {
@@ -581,4 +629,37 @@ test("конфигурация: объект — 400, multiselect массиво
   assert.equal(saved[0].values[0].value, JSON.stringify(["usb", "hdmi"]));
   const bad = await checkConfiguration(config([{ attribute: "ports", value: ["usb", "vga"] }]), { userId: USER });
   assert.equal(bad.status, 400);
+});
+
+// ─── Финальная правка фазы 4 ──────────────────────────────────────────────────
+
+test("createConfiguration: скрытый атрибут по коду — отказ «Атрибут «X» скрыт»", async () => {
+  db.attrs[0].isActive = false;
+  const args = config([{ attribute: "ram_size", value: "16" }]);
+  const expected = { ok: false, status: 400, message: "Атрибут «Объём ОЗУ» скрыт" };
+  assert.deepEqual(await checkConfiguration(args, { userId: USER }), { ...expected, text: "" });
+  assert.deepEqual(await createConfiguration(args, { userId: USER }), expected);
+  assert.equal(saved.length, 0);
+});
+
+test("checkCatalogPatch/applyCatalogPatch: скрытое имя — отказ на пути агента", async (t) => {
+  const existing = {
+    groups: [],
+    types: [{ _id: "t-old", name: "Ноутбук", isActive: false, isComponent: false }],
+    attributes: [],
+    links: [],
+  };
+  t.mock.method(catalogSeed, "loadExisting", async () => existing);
+  const check = await checkCatalogPatch(miniCatalog);
+  assert.equal(check.ok, false);
+  assert.equal(check.status, 409);
+  assert.match(check.message, /^имя занято скрытой записью «Ноутбук»/);
+  // Запись: агентский путь просит отказ, а не предупреждение сида
+  const calls = [];
+  t.mock.method(catalogSeed, "applyCatalog", async (catalog, options) => {
+    calls.push(options);
+    return { created: {}, updated: {}, warnings: [], ids: { groups: {}, types: {}, attributes: {} } };
+  });
+  await applyCatalogPatch(miniCatalog, { userId: USER });
+  assert.equal(calls[0].hiddenClash, "refuse");
 });

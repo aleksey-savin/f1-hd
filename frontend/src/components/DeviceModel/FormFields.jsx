@@ -11,6 +11,7 @@ import { sectionAnchorId } from "@/components/app/FormLayout";
 import { load } from "@/store/form-data";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
+import { visibleOptions } from "@/util/hidden-options";
 import SpecFields from "../DeviceConfiguration/SpecFields";
 
 // Связки типа → атрибуты (populate attributeId) с группами
@@ -156,10 +157,13 @@ const DeviceModelFormFields = ({
             id="deviceTypeId"
             value={deviceTypeId || null}
             onChange={(id) => setDeviceTypeId(id || "")}
-            options={toOptions(deviceTypes, {
-              value: (option) => String(option._id),
-              label: (option) => option.name,
-            })}
+            options={toOptions(
+              visibleOptions(deviceTypes, [deviceModel?.deviceTypeId?._id]),
+              {
+                value: (option) => String(option._id),
+                label: (option) => option.name,
+              },
+            )}
             placeholder="Выберите тип устройства…"
             clearable={!lockDeviceType}
             clearLabel="Не выбран"
@@ -172,10 +176,13 @@ const DeviceModelFormFields = ({
             id="vendorId"
             value={vendorId || null}
             onChange={(id) => setVendorId(id || "")}
-            options={toOptions(vendors, {
-              value: (option) => String(option._id),
-              label: (option) => option.name,
-            })}
+            options={toOptions(
+              visibleOptions(vendors, [deviceModel?.vendorId?._id]),
+              {
+                value: (option) => String(option._id),
+                label: (option) => option.name,
+              },
+            )}
             placeholder="Выберите производителя…"
             clearable
             clearLabel="Не выбран"
@@ -286,7 +293,11 @@ const DeviceModelFormFields = ({
             У типа устройства нет характеристик.
           </p>
         ) : (
-          <SpecFields links={links || []} values={values} onChange={setValues} />
+          <SpecFields
+            links={links || []}
+            values={values}
+            onChange={setValues}
+          />
         )}
       </section>
     </>

@@ -47,11 +47,21 @@ function resultLine({ status, results, drift }) {
   return line.length > MAX_RESULT_LINE ? `${line.slice(0, MAX_RESULT_LINE - 1)}…` : line;
 }
 
+// Слияние: что перенесено (result.moved) — строкой хроники на выполненную операцию,
+// после строки итога. Подписи — счётчики catalogRefs («устройств: 12»), нули опущены
+function movedLines(results) {
+  return results.flatMap((r, i) => {
+    if (r.state !== "done" || !r.moved || typeof r.moved !== "object") return [];
+    const parts = Object.entries(r.moved).filter(([, n]) => Number(n) > 0).map(([label, n]) => `${label}: ${n}`);
+    return parts.length ? [`Перенесено по операции ${i + 1} — ${parts.join(", ")}`] : [];
+  });
+}
+
 /**
  * createDecisions({ store, executor, ops, notifier, canFor, now, log })
  *   store: load(id), loadUser(id) — полный документ, applyPatch(id, expectedStatus, patch),
  *          progress(id, index, result) — итог одной операции, только пока статус applying,
- *          finish(id, expectedStatus, { status, results, timeline })
+ *          finish(id, expectedStatus, { status, results, timeline }) — timeline: список записей
  *   executor: run(change, { actorId }) -> { status, results, drift? }
  *   ops: requiredRights(operations) -> statement[]
  *   canFor: async (fullUser) -> (statement) -> boolean (как services/permissions.canFor)
@@ -105,16 +115,17 @@ function createDecisions({ store, executor, ops, notifier, canFor, now = () => n
     }
     const doneAt = now();
     const results = (change.operations || []).map((_, i) => ({ ...(outcome.results?.[i] || { state: "skipped" }), at: doneAt }));
+    const entry = (text) => ({ at: doneAt, kind: "result", user: change.requestedBy, text });
     const finished = await store.finish(change._id, STATUS.applying, {
       status: outcome.status,
       results,
-      timeline: { at: doneAt, kind: "result", user: change.requestedBy, text: resultLine({ ...outcome, results }) },
+      timeline: [entry(resultLine({ ...outcome, results })), ...movedLines(results).map(entry)],
     });
     if (!finished) {
       // Ни applying, ни failed+stuck: статус сменился иначе (например, истёк); итог только в журнал, второго уведомления нет
       write("error", `apply #${change.number}: result not saved, status changed meanwhile`, {
         status: outcome.status,
-        results: results.map((r) => ({ state: r.state, error: r.error, created: r.created })),
+        results: results.map((r) => ({ state: r.state, error: r.error, created: r.created, moved: r.moved })),
         decidedAt: at,
       });
       return { ok: true, change: await store.load(change._id) };
@@ -193,7 +204,7 @@ const mongoStore = {
     return InventoryChange.findOneAndUpdate(
       // Из applying; для applying также из failed+stuck — догадку sweep перекрывает настоящий итог
       { _id: id, $or: [{ status: expectedStatus }, ...(expectedStatus === STATUS.applying ? [{ status: STATUS.failed, stuck: true }] : [])] },
-      { $set: set, $unset: { applyingSince: "", stuck: "" }, $push: { timeline } },
+      { $set: set, $unset: { applyingSince: "", stuck: "" }, $push: { timeline: { $each: timeline } } },
       { new: true },
     ).lean();
   },

@@ -1,20 +1,34 @@
 // Реестр операций пакета изменений инвентаря (предложения ИИ-агента). Каждый
 // вид: право, что может стоять за ссылкой на него (refKinds), check и apply.
 // Здесь — пакет целиком: ссылки между операциями, права, применение по
-// порядку. Виды описаны в changeOps/catalogKinds.js и changeOps/deviceKinds.js,
-// общая механика — changeOps/kit.js.
+// порядку. Виды описаны в changeOps/catalogKinds.js, catalogEditKinds.js, mergeKinds.js
+// и deviceKinds.js, общая механика — changeOps/kit.js.
 //
 //   checkPackage(operations, ctx) -> { ok, reasons, items:[{ kind, ref, params,
-//     text, page, targets, componentIds?, componentRefs? }] }
+//     text, page, targets, componentIds?, componentRefs?, refs? }] }
 //     (page — вид операции для страницы портала, см. defineKind в kit.js)
 //   requiredRights(operations) -> statement[]
-//   applyPackage(items, ctx) -> { results:[{ state, error?, created? }], status }
+//   applyPackage(items, ctx) -> { results:[{ state, error?, created?, moved? }], status }
+//     (moved — у слияний: { [подпись счётчика]: число перенесённых документов })
+//   snapshotDrift(item) -> текст дрейфа снимка refs | null (до любой записи, changeExecutor)
+//
+// Правило пакета для слияний и скрытия (у вида есть dataIds): только по данным базы.
+// Если любая другая операция пакета — раньше или позже — называет источник или цель
+// в параметрах (id, у атрибута — и код: mentions вида) или её цели (детали каскада, снимок другого слияния) пересекаются с
+// id этой операции — отказ «слияние или скрытие предложите отдельным пакетом после
+// утверждения этого». Проверяется после разбора всех операций.
+// Каталог (catalog) подхватывает типы, атрибуты и группы по имени и коду: слияние
+// или скрытие типа, атрибута, группы и deleteGroup рядом с ним — тот же отказ.
+// Правка с одними mentions (updateAttribute с renameOptions: id и код) — то же
+// правило: другая операция пакета, назвавшая атрибут, — отказ.
 //
 // ctx = { userId, now, onResult? } (onResult(index, result) — после каждой выполненной операции).
 const { REF_RE, isPlain, entities, lowerIds, shapeErrors, humanError } = require("./changeOps/kit");
 const catalogKinds = require("./changeOps/catalogKinds");
 const logger = require("../../utils/logger");
 const deviceKinds = require("./changeOps/deviceKinds");
+const catalogEditKinds = require("./changeOps/catalogEditKinds");
+const mergeKinds = require("./changeOps/mergeKinds");
 
 const { catalogEntry } = catalogKinds;
 
@@ -39,16 +53,62 @@ const NEEDED = {
   device: "нужно устройство",
 };
 const KEY_OF = { type: "типа", attribute: "атрибута" };
+const SEPARATE = "слияние или скрытие предложите отдельным пакетом после утверждения этого";
+// Слияние и скрытие того, что каталог может подхватить
+const NEAR_CATALOG = new Set(["mergeDeviceTypes", "mergeAttributes", "mergeGroups", "retireDeviceType", "retireAttribute", "deleteGroup"]);
+
+// Строки-id где угодно в параметрах (вглубь)
+const idsIn = (value, out = new Set()) => {
+  if (typeof value === "string") out.add(value.toLowerCase());
+  else if (Array.isArray(value)) value.forEach((item) => idsIn(item, out));
+  else if (isPlain(value)) Object.values(value).forEach((item) => idsIn(item, out));
+  return out;
+};
+
+// right вида — одно утверждение или список (нужны все): плоский список без повторов
+const uniqueStatements = (rights) => {
+  const seen = new Map();
+  for (const statement of rights.flat()) {
+    const key = JSON.stringify(statement);
+    if (!seen.has(key)) seen.set(key, JSON.parse(key));
+  }
+  return [...seen.values()];
+};
 
 /**
- * deps: { deviceOps, catalogOps, describe(model, id) -> { name, updatedAt } | null,
+ * deps: { deviceOps, catalogOps, catalogEditOps, catalogMerge, describe(model, id) -> { name, updatedAt } | null,
  * attributeNames?(codes) -> { code: name }, liveParts?(hostId) -> [id] (состав
  * хоста для отложенного каскада; без него — «вместе со всеми деталями»),
  * log?(level, message, meta) }.
  * Тесты подставляют подделки.
  */
 const createChangeOps = (deps) => {
-  const KINDS = Object.freeze({ ...catalogKinds(deps), ...deviceKinds(deps) });
+  const KINDS = Object.freeze({
+    ...catalogKinds(deps),
+    ...catalogEditKinds(deps),
+    ...mergeKinds(deps),
+    ...deviceKinds(deps),
+  });
+
+  // Правило пакета (см. шапку): элемент с dataIds против остальных элементов пакета
+  const touchesOthers = (def, item, others) => {
+    const own = new Set((def.dataIds?.(item.params, item.refs) ?? []).map((id) => id.toLowerCase()));
+    // Упоминания: id источника и цели, у атрибута — и коды (mentions вида)
+    const ends = def.mentions
+      ? def.mentions(item.params, item.refs).map((m) => String(m).toLowerCase())
+      : entities(def.fields, item.params).filter(({ parsed }) => parsed.id).map(({ parsed }) => parsed.id);
+    return others.some((other) => {
+      const mentioned = idsIn(other.params);
+      if (ends.some((id) => mentioned.has(id))) return true;
+      const otherDef = KINDS[other.kind];
+      const theirs = [
+        ...other.targets.map((target) => String(target.id)),
+        ...(other.componentIds ?? []).map(String),
+        ...(otherDef?.dataIds ? otherDef.dataIds(other.params, other.refs) : []),
+      ];
+      return theirs.some((id) => own.has(id.toLowerCase()));
+    });
+  };
 
   // Ссылки параметров операции index на операции пакета. refs: ref -> { index, kind, params }
   const refErrors = (def, params, index, refs) => {
@@ -109,6 +169,8 @@ const createChangeOps = (deps) => {
     // touched — устройства, которые меняют уже разобранные операции (их цели и
     // детали каскада): операция над ними проверяется при применении.
     const items = [];
+    // Номер операции каждого элемента (для причин правила пакета)
+    const itemIndex = [];
     const touched = new Set();
     for (const [index, op] of operations.entries()) {
       const errors = perOp[index];
@@ -142,6 +204,7 @@ const createChangeOps = (deps) => {
       for (const target of checked.targets) if (target.model === "ClientDevice") touched.add(String(target.id));
       for (const id of checked.componentIds ?? []) touched.add(String(id));
       if (errors.length) continue;
+      itemIndex.push(index);
       items.push({
         kind: op.kind,
         ref: op.ref ?? null,
@@ -151,24 +214,30 @@ const createChangeOps = (deps) => {
         targets: checked.targets,
         ...(checked.componentIds ? { componentIds: checked.componentIds } : {}),
         ...(checked.componentRefs ? { componentRefs: checked.componentRefs } : {}),
+        ...(checked.refs ? { refs: checked.refs } : {}),
       });
     }
+
+    // Правило пакета для слияний и скрытия — в обе стороны, по всем разобранным операциям
+    const withCatalog = operations.some((op) => isPlain(op) && op.kind === "catalog");
+    items.forEach((item, i) => {
+      const def = KINDS[item.kind];
+      const near = withCatalog && NEAR_CATALOG.has(item.kind);
+      const ruled = def.dataIds || def.mentions;
+      if (near || (ruled && touchesOthers(def, item, items.filter((_, j) => j !== i)))) perOp[itemIndex[i]].push(SEPARATE);
+    });
 
     const reasons = perOp.flatMap((errors, index) => errors.map((text) => `Операция ${index + 1}: ${text}`));
     return { ok: reasons.length === 0, reasons, items };
   };
 
   // Права пакета: по утверждению на вид, без повторов, в порядке появления
-  const requiredRights = (operations) => {
-    const seen = new Map();
-    for (const op of Array.isArray(operations) ? operations : []) {
-      const def = isPlain(op) && Object.hasOwn(KINDS, op.kind) ? KINDS[op.kind] : null;
-      if (!def) continue;
-      const key = JSON.stringify(def.right);
-      if (!seen.has(key)) seen.set(key, JSON.parse(key));
-    }
-    return [...seen.values()];
-  };
+  const requiredRights = (operations) =>
+    uniqueStatements(
+      (Array.isArray(operations) ? operations : [])
+        .map((op) => (isPlain(op) && Object.hasOwn(KINDS, op.kind) ? KINDS[op.kind].right : null))
+        .filter(Boolean),
+    );
 
   // Подстановка id, созданных ранее в пакете: { ref } -> created[ref][refKind],
   // { ref, key } -> created[ref][refKind][key]. Параметры пакета не меняются.
@@ -197,14 +266,24 @@ const createChangeOps = (deps) => {
       if (made.some((id) => typeof id !== "string")) return { state: "failed", error: "не создано на предыдущем шаге" };
       componentIds = [...(componentIds ?? []), ...made];
     }
-    const opCtx = { ...ctx, applying: true, ...(componentIds ? { componentIds } : {}) };
+    // snapshot — снимок ссылок из предложения (refs): сверка дрейфа и запись по нему
+    const opCtx = {
+      ...ctx,
+      applying: true,
+      ...(componentIds ? { componentIds } : {}),
+      ...(item.refs ? { snapshot: item.refs } : {}),
+    };
     try {
       // Повторная проверка уже с настоящими id, затем запись
       const checked = await def.check(resolved.params, opCtx);
       if (!checked.ok) return { state: "failed", error: checked.errors.join("; ") };
       const applied = await def.apply(resolved.params, opCtx);
-      if (!applied.ok) return { state: "failed", error: applied.error };
-      return { state: "done", ...(applied.created ? { created: applied.created } : {}) };
+      if (!applied.ok) return { state: "failed", error: applied.error, ...(applied.moved ? { moved: applied.moved } : {}) };
+      return {
+        state: "done",
+        ...(applied.created ? { created: applied.created } : {}),
+        ...(applied.moved ? { moved: applied.moved } : {}),
+      };
     } catch (error) {
       return { state: "failed", error: humanError({ error }, deps.log) };
     }
@@ -238,18 +317,32 @@ const createChangeOps = (deps) => {
     return { results, status };
   };
 
-  return { KINDS, checkPackage, requiredRights, applyPackage };
+  // Сверка снимка refs операции до применения пакета (вид с drift и снимком)
+  const snapshotDrift = async (item) => {
+    const def = Object.hasOwn(KINDS, item.kind) ? KINDS[item.kind] : null;
+    if (!def?.drift || !item.refs) return null;
+    try {
+      return (await def.drift(item.params ?? {}, item.refs)) || null;
+    } catch (error) {
+      return humanError({ error }, deps.log);
+    }
+  };
+
+  return { KINDS, checkPackage, requiredRights, applyPackage, snapshotDrift };
 };
 
 // Экземпляр на настоящих сервисах
 const defaultOps = createChangeOps({
   deviceOps: require("./deviceOps"),
   catalogOps: require("./catalogOps"),
+  catalogEditOps: require("./catalogEditOps"),
+  catalogMerge: require("./catalogMerge"),
   ...require("./changeOps/names"),
   log: (level, message, meta) => logger.log(level, message, meta),
 });
 
 module.exports = {
   createChangeOps,
+  uniqueStatements,
   ...defaultOps,
 };

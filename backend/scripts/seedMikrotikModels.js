@@ -168,6 +168,10 @@ const MIKROTIK_MODELS = [
 // findOne-or-create для вендора MikroTik (обязателен флаг управления).
 async function ensureVendor() {
   let vendor = await Vendor.findOne({ name: MIKROTIK_VENDOR_NAME });
+  // Скрытого вендора не подхватываем и не воскрешаем: имя занято — это решает человек
+  if (vendor?.isActive === false) {
+    throw new Error(`Вендор ${MIKROTIK_VENDOR_NAME} скрыт (isActive:false) — верните его или переименуйте`);
+  }
   if (!vendor) {
     vendor = await new Vendor({
       name: MIKROTIK_VENDOR_NAME,

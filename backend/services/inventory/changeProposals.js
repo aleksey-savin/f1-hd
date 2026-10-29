@@ -31,6 +31,29 @@ const KIND_LABELS = {
   setDeviceStatus: "смена статуса устройства",
   attachComponent: "установка компонента",
   detachComponent: "снятие компонента",
+  updateVendor: "изменение вендора",
+  updateSupplier: "изменение поставщика",
+  updateModel: "изменение модели",
+  updateDeviceType: "изменение типа",
+  updateGroup: "изменение группы",
+  updateAttribute: "изменение атрибута",
+  updateTypeAttribute: "изменение атрибута у типа",
+  unlinkAttribute: "снятие атрибута с типа",
+  updateConfiguration: "изменение конфигурации",
+  updateBuild: "изменение шаблона сборки",
+  mergeVendors: "слияние вендоров",
+  mergeSuppliers: "слияние поставщиков",
+  mergeGroups: "слияние групп",
+  mergeModels: "слияние моделей",
+  mergeAttributes: "слияние атрибутов",
+  mergeConfigurations: "слияние конфигураций",
+  mergeDeviceTypes: "слияние типов",
+  retireVendor: "скрытие вендора",
+  retireSupplier: "скрытие поставщика",
+  retireModel: "скрытие модели",
+  retireAttribute: "скрытие атрибута",
+  retireDeviceType: "скрытие типа",
+  deleteGroup: "удаление группы",
 };
 
 const isPlain = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -73,8 +96,12 @@ function createProposals({ store, ops, now = () => new Date() }) {
         const KINDS = ops.KINDS || {};
         for (let i = 0; i < operations.length; i++) {
           const def = isPlain(operations[i]) && Object.hasOwn(KINDS, operations[i].kind) ? KINDS[operations[i].kind] : null;
-          if (def && !(await store.canFor(requester, def.right))) {
-            errors.push(`Операция ${i + 1} (${KIND_LABELS[operations[i].kind] || operations[i].kind}): нет права «${rightLabel(def.right)}»`);
+          // right вида — одно утверждение или список: отказ на каждое недостающее
+          const statements = [...new Map([def?.right].flat().filter(Boolean).map((r) => [JSON.stringify(r), r])).values()];
+          for (const statement of statements) {
+            if (!(await store.canFor(requester, statement))) {
+              errors.push(`Операция ${i + 1} (${KIND_LABELS[operations[i].kind] || operations[i].kind}): нет права «${rightLabel(statement)}»`);
+            }
           }
         }
       }
@@ -107,6 +134,8 @@ function createProposals({ store, ops, now = () => new Date() }) {
           targets: item.targets,
           ...(item.componentIds ? { componentIds: item.componentIds } : {}),
           ...(item.componentRefs ? { componentRefs: item.componentRefs } : {}),
+          // Снимок ссылок (renameOptions, слияния): применение идёт ровно по нему
+          ...(item.refs ? { refs: item.refs } : {}),
           result: { state: "pending" },
         })),
         status: STATUS.awaitingRequester,

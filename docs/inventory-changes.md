@@ -19,8 +19,11 @@ In scope: creating vendors, suppliers, models, configurations, builds and
 catalog structure (groups, types, attributes — add-only); creating devices
 (including self-built PCs); updating a whitelist of device fields; assigning,
 moving, changing the status of a device; attaching and detaching components.
+Since phase 4 (2026-10-28): editing catalog records, merging catalog duplicates
+and hiding unused records (see «Catalog edits, merges and retires»).
 
-Out of scope (not implemented): editing or deleting catalog entries (phase 4),
+Out of scope (not implemented): deleting catalog records outright (only an empty
+group is deleted), un-retiring a deleted model, configuration or build,
 deleting devices, cancelling a
 proposal (there is no `cancelled` status), resolving catalog entries by name
 (the agent finds ids with the read tools), rollback across operations.
@@ -33,6 +36,10 @@ Code map (all under `backend/` unless noted):
 | Intake: requester, rights, limits, write | `services/inventory/changeProposals.js` |
 | Operation registry, package check/apply | `services/inventory/changeOps.js`, `changeOps/kit.js` |
 | Kinds: catalog / device | `changeOps/catalogKinds.js`, `changeOps/deviceKinds.js` |
+| Kinds: catalog edits / merges and retires (phase 4) | `changeOps/catalogEditKinds.js`, `changeOps/mergeKinds.js` |
+| Edits behind the kinds | `services/inventory/catalogEditOps.js` |
+| Referrers of a catalog record, count lines, snapshot compare | `services/inventory/catalogRefs.js` |
+| Merge and retire engine / per-entity merge rules | `services/inventory/catalogMerge.js`, `services/inventory/catalogMergeRules.js` |
 | Names and `updatedAt` snapshots of targets | `changeOps/names.js` |
 | Services behind the kinds | `services/inventory/catalogOps.js`, `deviceOps.js`, `catalogSeed.js`, `attributeValue.js`, `attachRules.js` |
 | Drift check and apply | `services/inventory/changeExecutor.js` |
@@ -66,6 +73,18 @@ their own rights.
 | `catalog`, `createVendor`, `createModel`, `createConfiguration`, `createBuild` | `{ inventoryCatalog: ["manage"] }` |
 | `createSupplier` | `{ supplier: ["manage"] }` |
 | device kinds | `{ device: ["manage"] }` |
+| every `update*` and `unlinkAttribute` except `updateSupplier`; `mergeVendors`, `mergeGroups`, `mergeAttributes`; `retireVendor`, `retireModel`, `retireAttribute`, `retireDeviceType`, `deleteGroup` | `{ inventoryCatalog: ["manage"] }` |
+| `updateSupplier`, `retireSupplier` | `{ supplier: ["manage"] }` |
+| `mergeSuppliers` | `[{ supplier: ["manage"] }, { device: ["manage"] }]` |
+| `mergeModels`, `mergeConfigurations`, `mergeDeviceTypes` | `[{ inventoryCatalog: ["manage"] }, { device: ["manage"] }]` |
+
+A kind's `right` is one statement or an **array of statements, all required**:
+the merges that rewrite devices (`ClientDevice`) also need `device.manage`. The
+right is static per kind (it does not depend on whether the source has devices).
+At proposal `changeProposals` checks every statement of the array and refuses
+once per missing one (`Операция N (слияние моделей): нет права «…»`);
+`changeOps.requiredRights` flattens the arrays without repeats, so the decision
+check covers them too.
 
 The check runs **twice**: at proposal time (a refusal lists every operation the
 requester cannot do, `Операция N (…): нет права «…»`) and again at decision time
@@ -112,6 +131,12 @@ run only for the winner.
    result carries only the reason — `изменилось после предложения` for a drifted
    one, `другая операция пакета изменилась после предложения` for the others —
    and the timeline line names the drifted operations by their first text line.
+   Operations that carry a snapshot (`refs`: `updateAttribute` with
+   `renameOptions`, merges, retires) are then recounted in the same phase
+   (`ops.snapshotDrift` → the kind's `drift(params, snapshot)`), still before
+   anything is written: a mismatch is drift of that operation with the text
+   «изменилось после предложения: …», the others get the «другая операция…»
+   reason, and nothing in the package is applied.
 2. **Operations in order.** For each one the check is run again, now with real
    ids, then the write. The result is recorded per operation, and persisted as
    soon as the operation completes (see «Progress» below).
@@ -175,6 +200,17 @@ tool (not `propose`) calls `notifier.proposed`.
 | `setDeviceStatus` | `device`, `status`, cascade fields | anything but `deployed` clears the user |
 | `attachComponent` | `host`, `component` | `attachRules.js` (shared with the form) |
 | `detachComponent` | `host`, `component` | |
+| `updateVendor` / `updateSupplier` | `id`, `name`, `isActive` (supplier also `website`, `inn`, `kpp`, `notes`) | phase 4 edits: see «Catalog edits, merges and retires» |
+| `updateModel` | `id`, `name`, `vendorId`, `notes`, `compatibleWithModelIds` (replaces the list) | no `multiConfig` |
+| `updateDeviceType` | `id`, `name`, `isActive`, `isComponent`, `isConsumable`, `isPeripheral`, `inventoryPrefix`, `attachableToTypeIds` | |
+| `updateGroup` | `id`, `name`, `order` | |
+| `updateAttribute` | `id`, `name`, `unit`, `isActive`, `addOptions[]`, `renameOptions[{from, to}]` | a rename carries a `refs` snapshot |
+| `updateTypeAttribute` / `unlinkAttribute` | `type`, `attribute` (ids); `required`, `order`, `groupId` | |
+| `updateConfiguration` | `id`, `name`, `description`, `setValues[{attribute: code, value}]`, `clearValues[code]` | |
+| `updateBuild` | `id`, `name`, `notes`, `parts[]` (replaces the list, `createBuild` rules) | |
+| `mergeVendors`, `mergeSuppliers`, `mergeGroups`, `mergeModels`, `mergeConfigurations`, `mergeDeviceTypes` | `source`, `target` | existing live ids only; `refs` snapshot |
+| `mergeAttributes` | `source`, `target`, `optionMap { sourceOption: targetOption }` | |
+| `retireVendor`, `retireSupplier`, `retireModel`, `retireAttribute`, `retireDeviceType`, `deleteGroup` | `id` | existing live id only; `refs` snapshot |
 
 Unknown or extra parameters are refused (`неизвестный параметр «…»`); fields have
 types (`string`, `number`, `date`, `boolean`, `value`, `array`). Any parameter
@@ -298,6 +334,258 @@ its Russian label from `kit.FIELD_LABELS` (`«тип»`, `«IP-адрес»`). T
 be kept in step with the services' own messages. A user without a name is shown
 as «пользователь без имени» (never the e-mail).
 
+## Catalog edits, merges and retires
+
+Added 2026-10-28 (phase 4). 23 kinds on top of phase 2: 10 edits
+(`catalogEditKinds.js` → `catalogEditOps.js`), 7 merges and 5 retires plus
+`deleteGroup` (`mergeKinds.js` → `catalogMerge.js`, `catalogMergeRules.js`).
+They are ordinary kinds: typed params, a check twin with no writes, a Telegram
+text, a `page` and `targets` for drift. Rights are in «Roles and who decides».
+The Russian texts live in the kinds and services; only phrases worth grepping
+for are quoted here.
+
+### Edits
+
+- **Target.** `id` (or `type` + `attribute` for `updateTypeAttribute` /
+  `unlinkAttribute`) is an existing record; `{ ref }` is refused. A hidden
+  vendor, supplier, type or attribute may be the target (`allowHidden`): that is
+  how it is brought back with `isActive: true`. A deleted model, configuration
+  or build is refused: un-retiring is not offered. Other entity params
+  (`vendorId`, `groupId`, parts) follow the phase 2 rules, refs included.
+- **Text.** The head names the record; the page has a before → after table of
+  the changed fields only. `isActive: false` on a vendor, supplier, type or
+  attribute hides it from choice; it does not delete. When it is the only
+  change, the head reads «Скрыть <вид> «A»», without «(не используется)»: only
+  `retire*` checks usage.
+- **No-change edit.** An edit that changes nothing is refused at proposal
+  («Ничего не меняется»). At apply the check runs with `allowNoop`, so an edit
+  that someone made in the meantime is a no-op, not a failure.
+- **Refusals** (at proposal and again at apply):
+  - a taken name: vendor, supplier and type are case-sensitive, a group is
+    case-insensitive, a model is checked among live models, an attribute by
+    exact name (its code is never edited);
+  - `isComponent: false` on a type that is a slot of another type;
+  - `isActive: false` on a type with live models;
+  - an option renamed into an existing one;
+  - for `unlinkAttribute`: the attribute is a key spec of that type, or has
+    values in live configurations of live models of the type. Deleted
+    configurations are ignored by this check; clear the values first with
+    `updateConfiguration`.
+- **Attribute in params.** In `updateTypeAttribute` and `unlinkAttribute`
+  `attribute` is an **id**; in `updateConfiguration.setValues[].attribute` and
+  `clearValues[]` it is the attribute **code**, as in `createConfiguration`.
+  A value is checked against `valueType` and `options`, and the attribute must
+  be linked to the model's type. A hidden attribute named by code is refused in
+  `setValues` and `createConfiguration` («Атрибут «X» скрыт»); `clearValues`
+  may still clear its value.
+- **`renameOptions`** rewrites configuration values: a `select` value as a whole,
+  a `multiselect` element inside its JSON array (order kept, a duplicate dropped
+  when both old and new are present). The configurations to rewrite are counted
+  at proposal and stored in `refs` (one entry per rename, see «The refs
+  snapshot»). At apply the list is recounted first; a difference is drift. The
+  attribute is written first, then exactly the snapshot configurations, each
+  conditioned on the old value, so a repeat after a crash writes only the
+  remainder. Each snapshot entry also carries the attribute `code`, for the
+  package rule.
+- `updateModel` replaces `compatibleWithModelIds` as a whole and does not take
+  `multiConfig`; `updateBuild` replaces `parts` with the `createBuild` rules.
+
+### Merge lifecycle
+
+`merge*` take `{ source, target }`: two existing records of one kind, both
+**live**, `source ≠ target`. `{ ref }` is refused: only data already in the
+database can be merged.
+
+1. **Proposal: plan.** `catalogMerge.plan` refuses a merge into itself, a hidden
+   source, a hidden or deleted target, and the per-entity cases below. It finds
+   every referrer of the source (`catalogRefs.find`, the field table of the
+   spec), **deleted referrers included**, and stores the snapshot as the
+   operation's `refs`.
+2. **Proposal: text.** A head, one count line per kind of referrer (live
+   count, deleted ones added separately; `catalogRefs.countLines`), the
+   per-entity notes, and last what happens to the source. Telegram gets counts
+   only; the page also lists the first 5 devices as links. The MCP answer shows
+   the same lines as sub-lines of the operation.
+3. **Apply: drift first.** In the executor's drift phase, before any operation of
+   the package is written, the `updatedAt` of source and target is compared.
+   Then the referrers are recounted against the snapshot (`drift`). A new
+   referrer, or one that vanished without moving to the target, is drift with a
+   text starting «изменилось после предложения: ». Nothing in the package is
+   applied.
+4. **Apply: the operation.** The plan's rules are re-checked and the snapshot is
+   recounted once more. Then, in order:
+   - the entity's `before` hook;
+   - the rewire, by the snapshot ids only and conditioned on the source value
+     (`updateMany({ _id: { $in: ids }, <path>: source }, …)`; arrays and
+     sub-documents through `arrayFilters`, position kept, no duplicates);
+   - the `after` hook;
+   - the **source is retired last**.
+
+   Only inventory collections (catalog, devices, builds, locations'
+   responsibility rules) are written; tickets and Mikrotik are never touched.
+5. **Retiring the source.** It is renamed `<name> (слито в «<target name>»)`, so
+   the name is free and the hidden list shows where it went. A model or
+   configuration gets `deletedAt` + `deletedBy`; a type, attribute, vendor or
+   supplier gets `isActive: false`; an attribute also gets the code
+   `<code>_merged_<last 6 hex of its id>`. A group is deleted outright, and only
+   when no link points at it any more. A configuration without a name is called
+   by its model's name, in the texts and in the new name (`names.describe`).
+6. **Result.** `result.moved` is `{ <count label>: n }` of the documents this
+   apply actually modified (labels with 0 omitted). It is stored on a failed
+   result too: what was moved before the failure. After apply each **done**
+   merge with moved documents adds a timeline line after the result line:
+   «Перенесено по операции 2 — устройств: 12, конфигураций: 3».
+
+**Crash and repeat.** Every write is conditioned on the source value, so applying
+the same snapshot again moves nothing twice and ends with the source retired.
+Through the executor, however, a re-run of the same proposal fails as target
+drift, because the rewire changed the target's `updatedAt`. The remainder is
+finished by a **new proposal of the same merge**: its snapshot already sees the
+moved referrers on the target.
+
+**Per entity** (`catalogMergeRules.js`):
+
+- **Vendors, suppliers, groups.** Referrers move (models, devices, type↔attribute
+  links); a group source is deleted.
+- **Models.** Both must be of one type, or devices would change type; vendors
+  may differ, the target's stays. Other models' `compatibleWithModelIds` get the
+  target instead of the source, without duplicates; the target gets the union
+  of both lists, minus itself. The multiConfig invariant — a live model has at
+  least one live configuration, and a model without `multiConfig` exactly one —
+  is kept:
+  - source configurations with no values and no referrers are retired with the
+    source, not moved;
+  - **collapse:** the target is single-config with one live configuration T,
+    the source has one S, and their values are equal or one side is empty. Then
+    S's referrers are rewired to T and S is retired; an empty T first takes S's
+    values (only if T is still empty). The mode stays;
+  - otherwise S moves to the target. When the target would end with more than
+    one live configuration, `multiConfig: true` is written **before** the
+    rewire, and the text says so.
+- **Attributes.** `valueType` must match. `optionMap { sourceOption: targetOption
+  }` maps select / multiselect options: a key must be a source option, a value a
+  target option, and a map on a non-option attribute is refused. An unmapped
+  source option is added to the target as is (or maps to the target's equal
+  option). Per configuration with a source value, after the map:
+  - equal to the target value (multiselect as a set): the source value is
+    dropped;
+  - target value missing or blank: the value moves to the target (rewritten as a
+    JSON array for multiselect);
+  - different in a live configuration: a **conflict**;
+  - different in a deleted configuration: no block, that value stays on the
+    hidden source.
+
+  Type↔attribute links: a type that already links the target loses the source
+  link (the target link's `required`, `order`, `groupId` win); otherwise the
+  link is repointed. `assembly.keySpecs.attributeId` is repointed without
+  duplicate specs.
+- **Configurations.** Only within one live model (a deleted model is refused,
+  «модель «X» скрыта»). The target's values are never
+  written: any filled source value that the target lacks or holds differently is
+  a conflict. Devices and build parts move; the target stays, so the model keeps
+  a live configuration.
+- **Types.** Refused when the source has an assembly scheme (`assembly.enabled`,
+  slots or key specs) or live build templates (the text sends the person to the
+  portal: «только в портале»), or when `isComponent` / `isPeripheral` /
+  `isConsumable` differ. Links are unioned by the attribute rule. Other types'
+  slots, key specs and `attachableToTypeIds`, and locations'
+  `responsibilityRules.deviceTypeOverrides`, get the target without duplicates
+  (the target's own entries win); the source's own `attachableToTypeIds` join the
+  target's. The target's inventory prefix stays; issued numbers do not change.
+
+**Conflicts.** A conflict refuses the proposal with a list, one line per
+configuration (at most 20), each with both values (a mapped source value shows
+the mapping). The plan also returns the lines as `conflicts[]`; `mergeKinds`
+passes on only the message, which already holds the list, and the MCP answer
+keeps its lines (see `docs/mcp.md`). The agent fixes the configurations with
+`updateConfiguration` in one proposal and sends the merge after that one is
+approved; the package rule below forbids both in one package.
+
+### Retires and `deleteGroup`
+
+`retireVendor`, `retireSupplier`, `retireModel`, `retireAttribute` and
+`retireDeviceType` take `id`, an existing live record (no ref).
+
+- `planRetire` refuses a hidden record, and any record with **live** referrers
+  (the refusal lists them with the count lines).
+- Referrers that are only soft-deleted do not block. They keep pointing at the
+  hidden record, which is safe because it still exists.
+- A model's own configurations do not count.
+- The snapshot keeps the deleted referrers. At apply, a new live referrer is
+  drift, and so is a deleted one that was restored.
+- The record is retired by `_id` with a condition (`deletedAt: null` /
+  `isActive ≠ false`) and is not renamed. A model gets `deletedAt` +
+  `deletedBy`, the others `isActive: false`.
+- `deleteGroup` deletes a group with no type↔attribute links (links have no soft
+  delete).
+
+### The refs snapshot
+
+`operations[].refs` is what apply works from. It is built by the check at
+proposal and travels: kit check → `checkPackage` item → stored on the
+operation → rebuilt by the executor → `ctx.snapshot` of the apply-time check
+and apply.
+
+```
+merge:  { entity, source, target,
+          refs: [{ model, path, ids (sorted), live, deleted, deletedIds }],
+          retire?, multiOn?, collapse?: { source, target, refs, fill? },     // models
+          optionMap?, values?: { drop, move:[{ id, from, to }], keep },
+          dropLinks?, codes? }                                                // attributes, types
+retire: { entity, source, refs, codes? }                                   // codes — attributes
+updateAttribute: [{ model: "DeviceConfiguration", path: "values.value", attributeId, code, option, ids, … }]
+```
+
+A merge or retire applied without a snapshot, or with one whose source or target
+differs from the params, is refused («нет снимка ссылок»).
+
+### Hidden records
+
+Hidden means `isActive: false` (only types, attributes, vendors, suppliers;
+`isActive` of a company, user or location is ignored) or `deletedAt` (models,
+configurations, builds, devices); `names.describe` returns `hidden`.
+
+- On the agent's path a hidden record is found but cannot be picked: the kit
+  refuses it in any entity param. The exceptions are the `id` of the edits that
+  restore it (see «Edits») and the `type` / `attribute` of the link edits.
+- A hidden record is not live for merges and retires: it cannot be merged,
+  merged into, or retired again.
+- Creating a vendor, supplier, type, attribute or catalog entry with the name of
+  a hidden (retired, not merged) record is refused, never silently re-linked
+  («имя занято скрытой записью»): the agent's catalog path passes
+  `hiddenClash: "refuse"` to `catalogSeed`. A seed run (`backend/scripts/seeds`),
+  in any mode, only warns and skips that entry: nothing is picked up or
+  created, and the links and assembly that depend on it are dropped.
+- `catalogDuplicates` (`docs/mcp.md`) leaves hidden records out, and the
+  configurations of a deleted model too.
+
+### The package rule
+
+A `merge*`, `retire*` or `deleteGroup` works only on data already in the
+database, so the person always approves the exact list. It is refused at
+proposal («…отдельным пакетом после утверждения этого») when **any other**
+operation of the package, earlier or later:
+
+- mentions its source, target or `id` in its params. This is a deep,
+  case-insensitive scan of all strings. For `mergeAttributes` the source and
+  target **codes** count too, and for `retireAttribute` its code, through the
+  kind's `mentions` hook, so a `setValues` by code is caught;
+- or has `targets`, `componentIds` or snapshot ids (`dataIds`) that intersect
+  this operation's source, target and snapshot ids.
+
+Also, a package with a `catalog` operation refuses every `mergeDeviceTypes`,
+`mergeAttributes`, `mergeGroups`, `retireDeviceType`, `retireAttribute` and
+`deleteGroup` in it (the catalog picks types, attributes and groups up by name
+and code), wherever they stand.
+
+Two merges that touch each other are both refused. `updateAttribute` with
+`renameOptions` has a `mentions` hook too (the attribute id and code): another
+operation that names that attribute — a value by code, a link edit — refuses it
+with the same text, because the rename rewrites configurations by its snapshot.
+Other edits (`update*`, `unlinkAttribute`) are not under this rule. The phase 2
+«touched» rule covers devices only: an operation on a device that an earlier
+operation changes is checked at apply.
+
 ## Telegram flow
 
 Callback data: `ic:<action>:<24-hex id>`, enforced by
@@ -412,8 +700,14 @@ or contacts):
   created, in operation order; `kindLabel` is тип, атрибут, группа, вендор,
   поставщик, модель, конфигурация, сборка or устройство;
 - `summary: { create: { type, attribute, group, vendor, supplier, model,
-  configuration, build, device }, change: { count, names? } }` for the
-  confirmation dialog. Catalog counts come from the operation's «Новая группа /
+  configuration, build, device }, change: { count, names? }, catalog? }` for the
+  confirmation dialog. `catalog` (present only when the package has catalog
+  edits, merges or retires) is one line per such operation, in order, built
+  from its `page.head`: «изменить: атрибут «A»», «слить: модель «A» — переедут
+  12 устройств, 3 конфигурации, 1 сборка» (live counts of the `refs` snapshot,
+  without what does not move, as on the page; compatibility is not listed),
+  «скрыть: атрибут «A»», «удалить: группу «A»»; the dialog lists them after the
+  create and device lines. Catalog counts come from the operation's «Новая группа /
   Новый тип / Новый атрибут» lines (entries that already exist are not
   counted); a `createDevice` counts itself plus its `parts`. `change.count` is
   the number of distinct existing `ClientDevice` targets of the other
@@ -504,6 +798,10 @@ independent; updates are conditional on the previous status.
   carry entries that already existed and were picked up; `group` is only listed
   on the portal and is not a ref target). `result` is written per operation
   while applying («Progress») and again in full by `finish`;
+- `operations[].refs` (Mixed, phase 4): the snapshot the operation applies by —
+  an array of rename entries for `updateAttribute`, an object for merges and
+  retires (see «The refs snapshot»); `result.moved` (Mixed): `{ <count label>: n }`
+  of what a merge moved, kept on a failed result too;
 - `status`, `decision { user, decision, channel, comment, at }` (`channel` is
   `telegram` or `portal`), `timeline[] { at, kind, user, text }`;
 - `expiresAt`, `applyingSince`, `stuck`.
@@ -521,7 +819,10 @@ id, label }], deferred }`.
   single-lined), so the page can find it in `head` and `subs`.
 - `fields` come from the kind's optional hook `page(t)` (in `defineKind`,
   `changeOps/kit.js`; it may be async). It returns `{ head?, fields? }`: its own
-  head and a field table. Every label, value and `before` is single-lined, and a
+  head and a field table, and may also return `subs` (they replace the default
+  sub-lines; merges use them for the device labels, the target's mode and the
+  source's fate) and `links` (appended to the found links, de-duplicated; a merge
+  adds its first 5 devices). Every label, value and `before` is single-lined, and a
   blank `before` is dropped. `text` for Telegram does not depend on `page`.
 - `before` is the value prior to the change. It comes from the check twins of
   `deviceOps`: `checkPatchDevice` (`updateDevice`) and `checkSetDeviceStatus`
@@ -557,8 +858,10 @@ Everything needed to apply is on the document; the executor needs no other state
 - The person cannot mute the approval message in Telegram (see «Notifications»);
   without a linked bot the person approves on the portal page `/inventory/changes/<id>`.
 - No rollback; a catalog or device created before a later failure stays.
-- Catalog entries are not edited or deleted (phase 4); entity names are not
-  resolved, the agent passes ids.
+- Entity names are not resolved, the agent passes ids.
+- A merge or retire needs a package of its own, so «fix the conflicts, then
+  merge» takes two approvals. Other open proposals that point at a merged source
+  get drift or «не найдено» when they are applied; they are not rewritten.
 - The sweep cannot tell what the operation in flight wrote when an apply got
   stuck; operations that completed before it have their results recorded
   («Progress»).
@@ -572,6 +875,7 @@ Run the touched files only (`node --test <file>` in `backend/`; never the full
 
 - `services/inventory/changeSteps.test.js`, `changeProposals.test.js`,
   `changeOps.test.js`, `changeOps/names.test.js`, `changeExecutor.test.js`,
+  `catalogEditOps.test.js`, `catalogRefs.test.js`, `catalogMerge.test.js`,
   `changeDecisions.test.js` (double decision, drift, partial, lost right),
   `changeRender.test.js`, `changeNotifications.test.js`, `changeSweep.test.js`,
   `services/notifications/fanOut.test.js` (with `services/mikrotik/changeNotifications.test.js`),
@@ -581,5 +885,6 @@ Run the touched files only (`node --test <file>` in `backend/`; never the full
 - the services behind the kinds: `catalogOps.test.js`, `deviceOps.test.js`,
   `catalogSeed.test.js`, `attributeValue.test.js`, `attachRules.test.js`;
 - `services/mcp/inventoryChangeTools.test.js`, `routes/mcp.test.js` (scope gate,
-  schema, tool budget), `services/mcp/keys.test.js`;
+  schema, tool budget), `services/mcp/keys.test.js`,
+  `services/mcp/inventoryFindings.test.js` (`catalogDuplicates`);
 - `tg-service`: `node --test src/bot/inventoryChange.test.ts`.

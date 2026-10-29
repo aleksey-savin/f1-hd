@@ -79,7 +79,8 @@ function fakeStore(initial, { users = { req: staff() }, current = { "ClientDevic
       results.forEach((r, i) => { d.operations[i].result = r; });
       delete d.applyingSince;
       delete d.stuck;
-      d.timeline.push(timeline);
+      // Как mongoStore.finish: список записей ($each)
+      d.timeline.push(...timeline);
       return clone(d);
     },
     async currentUpdatedAt(model, id) {
@@ -492,4 +493,41 @@ test("исполнитель бросил после выполненной оп
   assert.deepEqual(results.map((x) => x.state), ["done", "skipped", "skipped"]);
   assert.deepEqual(results[0].created, { vendor: "v9" });
   assert.equal(results[1].error, "Не удалось применить: внутренняя ошибка");
+});
+
+test("слияние: после применения — строка хроники с перенесённым по операции", async () => {
+  const outcome = {
+    status: "done",
+    results: [
+      { state: "done", moved: { устройств: 12, конфигураций: 3 } },
+      { state: "done", moved: {} },
+      { state: "done" },
+    ],
+  };
+  const { decisions, store } = make(baseChange(), { outcome });
+  assert.equal((await decisions.decide(approve)).ok, true);
+  const texts = store.state.doc.timeline.map((t) => t.text);
+  assert.deepEqual(texts.slice(2), ["Применено", "Перенесено по операции 1 — устройств: 12, конфигураций: 3"]);
+  const entry = store.state.doc.timeline.at(-1);
+  assert.equal(entry.kind, "result");
+  assert.equal(entry.at.getTime(), NOW.getTime());
+  // Страница показывает строку как есть
+  assert.equal(toView(store.state.doc, { userId: "req" }, NOW).timeline.at(-1).text, texts.at(-1));
+
+  // Частично: перенесённое несостоявшейся операции не пишется, нулевые числа опущены
+  const partial = make(baseChange(), {
+    outcome: {
+      status: "partial",
+      results: [
+        { state: "done", moved: { устройств: 2, сборок: 0 } },
+        { state: "failed", error: "сбой", moved: { устройств: 1 } },
+        { state: "skipped" },
+      ],
+    },
+  });
+  await partial.decisions.decide(approve);
+  const lines = partial.store.state.doc.timeline.map((t) => t.text).slice(2);
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /^Применено частично \(1 из 3\)/);
+  assert.equal(lines[1], "Перенесено по операции 1 — устройств: 2");
 });

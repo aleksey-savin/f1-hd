@@ -59,6 +59,9 @@ export type InventoryChangeSummary = {
   create: InventoryChangeCreateCounts;
   // names — только когда устройств немного и подпись есть у каждого
   change: { count: number; names?: string[] };
+  // Правки, слияния и скрытие справочников: строка на операцию
+  // («слить: модель «A» — переедут 12 устройств»); нет таких операций — поля нет
+  catalog?: string[];
 };
 
 export type InventoryChangeView = {

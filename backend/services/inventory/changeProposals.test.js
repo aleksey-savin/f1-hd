@@ -54,6 +54,18 @@ test("missing right names the operation and kind", async () => {
   ]);
 });
 
+test("array right: one reason per missing statement", async () => {
+  const asked = [];
+  const { proposals } = setup({
+    store: { canFor: async (u, s) => (asked.push(s), !s.device) },
+    ops: { KINDS: { ...KINDS, mergeX: { right: [{ inventoryCatalog: ["manage"] }, { device: ["manage"] }] } } },
+  });
+  const r = await proposals.propose(base({ operations: [{ kind: "mergeX", params: {} }] }), CALLER);
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.reasons.map((x) => x.text), ["Операция 1 (mergeX): нет права «Изменять технику и расположения»"]);
+  assert.equal(asked.length, 2);
+});
+
 test("rights and package reasons come together", async () => {
   const { proposals } = setup({
     store: { canFor: async () => false },
@@ -172,4 +184,87 @@ test("предложение сохраняет page каждой операци
   assert.equal(first.text, "Перенести ПК PC-000123 в «Кабинет 214»");
   // Операция без page (вид её не построил) — без ключа: страница возьмёт text
   assert.equal(Object.hasOwn(second, "page"), false);
+});
+
+test("снимок refs операции сохраняется как есть; без него — нет поля", async () => {
+  const refs = [{ model: "DeviceConfiguration", path: "values.value", ids: ["c1"], live: 1, deleted: 0, deletedIds: [] }];
+  const { proposals, created } = setup({
+    ops: {
+      checkPackage: async () => ({
+        ok: true,
+        reasons: [],
+        items: [
+          { kind: "createVendor", ref: null, params: {}, text: "T", targets: [], refs },
+          { kind: "createVendor", ref: null, params: {}, text: "T", targets: [] },
+        ],
+      }),
+    },
+  });
+  const r = await proposals.propose(base({ operations: [goodOps[0], goodOps[0]] }), CALLER);
+  assert.equal(r.ok, true);
+  const [first, second] = created[0].operations;
+  assert.deepEqual(first.refs, refs);
+  assert.equal(Object.hasOwn(second, "refs"), false);
+});
+
+test("правки каталога: в отказе по праву — русское название вида", async () => {
+  const kinds = [
+    "updateVendor",
+    "updateSupplier",
+    "updateModel",
+    "updateDeviceType",
+    "updateGroup",
+    "updateAttribute",
+    "updateTypeAttribute",
+    "unlinkAttribute",
+    "updateConfiguration",
+    "updateBuild",
+  ];
+  const { proposals } = setup({
+    ops: { KINDS: Object.fromEntries(kinds.map((kind) => [kind, { right: { inventoryCatalog: ["manage"] } }])) },
+    store: { canFor: async () => false },
+  });
+  const r = await proposals.propose(base({ operations: kinds.map((kind) => ({ kind, params: {} })) }), CALLER);
+  assert.deepEqual(
+    r.reasons.map((x) => x.text.match(/\((.*)\)/)[1]),
+    [
+      "изменение вендора",
+      "изменение поставщика",
+      "изменение модели",
+      "изменение типа",
+      "изменение группы",
+      "изменение атрибута",
+      "изменение атрибута у типа",
+      "снятие атрибута с типа",
+      "изменение конфигурации",
+      "изменение шаблона сборки",
+    ],
+  );
+});
+
+test("слияния: в отказе по праву — русское название вида", async () => {
+  const kinds = ["mergeVendors", "mergeSuppliers", "mergeGroups", "mergeModels", "mergeAttributes", "mergeConfigurations", "mergeDeviceTypes", "retireVendor", "retireSupplier", "retireModel", "retireAttribute", "retireDeviceType", "deleteGroup"];
+  const { proposals } = setup({
+    ops: { KINDS: Object.fromEntries(kinds.map((kind) => [kind, { right: { inventoryCatalog: ["manage"] } }])) },
+    store: { canFor: async () => false },
+  });
+  const r = await proposals.propose(base({ operations: kinds.map((kind) => ({ kind, params: {} })) }), CALLER);
+  assert.deepEqual(
+    r.reasons.map((x) => x.text.match(/\((.*)\)/)[1]),
+    [
+      "слияние вендоров",
+      "слияние поставщиков",
+      "слияние групп",
+      "слияние моделей",
+      "слияние атрибутов",
+      "слияние конфигураций",
+      "слияние типов",
+      "скрытие вендора",
+      "скрытие поставщика",
+      "скрытие модели",
+      "скрытие атрибута",
+      "скрытие типа",
+      "удаление группы",
+    ],
+  );
 });

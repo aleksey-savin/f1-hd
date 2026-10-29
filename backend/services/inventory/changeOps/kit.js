@@ -61,32 +61,53 @@ const forbiddenPath = (value, path) => {
 // (null — только существующая), target — входит ли в сверку дрейфа. Пользователь
 // и компания не цели: это не инвентарь, их updatedAt меняется по своим поводам,
 // а правила (компания пользователя и т. п.) перепроверяются перед записью.
-// missing — причина при применении (без имён параметров).
+// missing — причина при применении (без имён параметров); hidden — слово после
+// имени в отказе для скрытой записи («тип «X» скрыт»); deleted — то же для
+// удалённой (deletedAt), если её называют иначе («устройство X удалено»).
 const ENTITIES = {
-  type: { model: "DeviceType", label: "тип", missing: "тип не найден", refKind: "type" },
-  vendor: { model: "Vendor", label: "вендор", missing: "вендор не найден", refKind: "vendor" },
-  supplier: { model: "Supplier", label: "поставщик", missing: "поставщик не найден", refKind: "supplier" },
-  model: { model: "DeviceModel", label: "модель", missing: "модель не найдена", refKind: "model", quote: false },
+  type: { model: "DeviceType", label: "тип", missing: "тип не найден", hidden: "скрыт", refKind: "type" },
+  vendor: { model: "Vendor", label: "вендор", missing: "вендор не найден", hidden: "скрыт", refKind: "vendor" },
+  supplier: { model: "Supplier", label: "поставщик", missing: "поставщик не найден", hidden: "скрыт", refKind: "supplier" },
+  model: { model: "DeviceModel", label: "модель", missing: "модель не найдена", hidden: "скрыта", refKind: "model", quote: false },
   configuration: {
     model: "DeviceConfiguration",
     label: "конфигурация",
     missing: "конфигурация не найдена",
+    hidden: "скрыта",
     refKind: "configuration",
   },
-  build: { model: "DeviceBuild", label: "сборка", missing: "сборка не найдена", refKind: "build" },
+  build: {
+    model: "DeviceBuild",
+    label: "сборка",
+    missing: "сборка не найдена",
+    hidden: "скрыта",
+    deleted: "удалена",
+    refKind: "build",
+  },
   device: {
     model: "ClientDevice",
     label: "устройство",
     missing: "устройство не найдено",
+    hidden: "скрыто",
+    deleted: "удалено",
     refKind: "device",
     quote: false,
   },
-  location: { model: "Location", label: "помещение", missing: "помещение не найдено", refKind: null },
-  company: { model: "Company", label: "компания", missing: "компания не найдена", refKind: null, target: false },
+  attribute: {
+    model: "DeviceAttribute",
+    label: "атрибут",
+    missing: "атрибут не найден",
+    hidden: "скрыт",
+    refKind: "attribute",
+  },
+  group: { model: "AttributeGroup", label: "группа", missing: "группа не найдена", hidden: "скрыта", refKind: null },
+  location: { model: "Location", label: "помещение", missing: "помещение не найдено", hidden: "скрыто", refKind: null },
+  company: { model: "Company", label: "компания", missing: "компания не найдена", hidden: "скрыта", refKind: null, target: false },
   user: {
     model: "User",
     label: "пользователь",
     missing: "пользователь не найден",
+    hidden: "скрыт",
     refKind: null,
     target: false,
     quote: false,
@@ -159,6 +180,8 @@ const TYPES = {
   ],
   // структура каталога: форму разбирает validateCatalog
   array: [Array.isArray, "список"],
+  // карта вариантов слияния атрибута: { вариант источника: вариант цели }
+  map: [(value) => isPlain(value) && Object.values(value).every((v) => typeof v === "string"), "объект «вариант источника → вариант цели»"],
 };
 
 // Параметр-сущность: id или ссылка { ref } / { ref, key }; иначе null.
@@ -184,7 +207,8 @@ const shapeErrors = (fields, params, prefix = "") => {
   const errors = [];
   const known = new Set(fields.map((f) => f.name));
   for (const key of Object.keys(params)) {
-    if (!known.has(key)) errors.push(`неизвестный параметр «${prefix}${key}»`);
+    // Ключ — текст агента: в одну строку (многострочны только причины, собранные HD)
+    if (!known.has(key)) errors.push(`неизвестный параметр «${prefix}${flat(key)}»`);
   }
   for (const f of fields) {
     const value = params[f.name];
@@ -230,6 +254,7 @@ const entities = (fields, params, prefix = "") => {
         out.push({
           path: prefix + f.name,
           spec: f.entity,
+          allowHidden: Boolean(f.allowHidden),
           parsed,
           set: (id) => {
             params[f.name] = id;
@@ -332,8 +357,17 @@ const asIdMap = (map) => Object.fromEntries(Object.entries(map || {}).map(([key,
  *     каскадом: [{ id } | { ref, name }] или null (не вывести);
  *   text(t) — строка или список строк (заголовок, затем подстроки) для
  *     человека (может быть async); каждая строка схлопывается в одну.
- *   page?(t) — { head?, fields? } для страницы портала (может быть async):
- *     свой заголовок и табличка полей [{ label, value, before? }].
+ *   page?(t) — { head?, fields?, subs?, links? } для страницы портала (может
+ *     быть async): свой заголовок, табличка полей [{ label, value, before? }],
+ *     subs — вместо подстрок из text, links — к найденным ссылкам (подпись —
+ *     ровно как в подстроке: страница находит её там и делает ссылкой);
+ *   drift?(args, snapshot) — сверка снимка refs до любой записи пакета (changeExecutor):
+ *     текст «изменилось после предложения: …» | null;
+ *   dataIds?(params, refs) — id, на которых стоит операция (источник, цель, снимок):
+ *     слияния и скрытия идут только по данным базы (правило пакета в changeOps);
+ *   mentions?(params, refs) — строки, упоминание которых в параметрах другой операции
+ *     пакета задевает эту: id источника и цели (у атрибута — ещё их коды: значения
+ *     конфигураций называют атрибут кодом). Без него — id сущностей параметров.
  *
  * check при предложении отдаёт и page — вид операции для страницы портала:
  *   { head, subs, fields, links:[{ model, id, label }], deferred }.
@@ -348,8 +382,14 @@ const asIdMap = (map) => Object.fromEntries(Object.entries(map || {}).map(([key,
  * (ссылки на ещё не созданное, только при предложении); touched — Set id
  * устройств, которые меняют более ранние операции пакета, и earlier — эти
  * операции { kind, ref, params } по порядку (только при предложении); при
- * применении — applying: true (причины без имён параметров) и componentIds
- * (снимок каскада из предложения, с id деталей, созданных пакетом).
+ * применении — applying: true (причины без имён параметров), componentIds
+ * (снимок каскада из предложения, с id деталей, созданных пакетом) и snapshot
+ * (refs операции из предложения).
+ *
+ * refs — снимок ссылок, который отдала проверка сервиса при предложении
+ * (checked.refs); check передаёт его дальше как есть, хранится в операции.
+ * checked.targets — цели сверки дрейфа, которых нет в параметрах (документ
+ * связи и т. п.): дописываются к целям параметров.
  *
  * deps: describe, attributeNames?, log?(level, message, meta).
  */
@@ -364,11 +404,14 @@ const defineKind = (spec, deps) => {
       value: flat(value),
       ...(blank(before) ? {} : { before: flat(before) }),
     }));
+    const extra = (custom?.links ?? [])
+      .map((link) => ({ model: link.model, id: String(link.id), label: flat(link.label) }))
+      .filter((link) => !links.some((l) => l.model === link.model && l.id === link.id && l.label === link.label));
     return {
       head: custom?.head !== undefined ? flat(custom.head) : subs.length ? head.replace(/:$/, "") : head,
-      subs,
+      subs: custom?.subs ? custom.subs.map(flat) : subs,
       fields,
-      links,
+      links: [...links, ...extra],
       deferred,
     };
   };
@@ -386,7 +429,7 @@ const defineKind = (spec, deps) => {
     let pending = false;
     // Устройство, которое меняет более ранняя операция пакета (правило в шапке)
     let deferred = false;
-    for (const { path, spec: e, parsed } of entities(spec.fields, params)) {
+    for (const { path, spec: e, parsed, allowHidden } of entities(spec.fields, params)) {
       if (parsed.ref) {
         const entry = ctx.pending?.get(parsed.ref);
         if (!entry) {
@@ -401,6 +444,12 @@ const defineKind = (spec, deps) => {
       const found = await deps.describe(e.model, parsed.id);
       if (!found) {
         errors.push(ctx.applying ? e.missing : `не найдено: ${e.label} (параметр «${path}»)`);
+        continue;
+      }
+      // Скрытую запись выбрать нельзя (у update* — можно: так её возвращают)
+      if (found.hidden && !allowHidden) {
+        const word = found.deleted && e.deleted ? e.deleted : e.hidden;
+        errors.push(`${e.label} ${e.quote ? `«${found.name}»` : found.name} ${word}`);
         continue;
       }
       view[path] = { name: found.name, quote: e.quote, pending: false };
@@ -419,6 +468,8 @@ const defineKind = (spec, deps) => {
     const args = toArgs(spec.fields, params);
     const checked = unchecked ? null : await spec.service.check(args, ctx);
     if (checked && !checked.ok) return fail([humanError(checked, deps.log)]);
+    // Цели сверки, которые знает только сервис (связь тип↔атрибут и т. п.)
+    if (Array.isArray(checked?.targets)) targets.push(...checked.targets);
 
     // Каскад: детали, которые уйдут вместе с устройством, — по именам, в
     // снимок сверки и в componentIds (применение пойдёт ровно по ним).
@@ -483,6 +534,7 @@ const defineKind = (spec, deps) => {
       targets,
       ...(componentIds ? { componentIds } : {}),
       ...(componentRefs?.length ? { componentRefs } : {}),
+      ...(checked?.refs ? { refs: checked.refs } : {}),
     };
   };
 
@@ -493,8 +545,9 @@ const defineKind = (spec, deps) => {
       return { ok: false, error: "не создано на предыдущем шаге" };
     }
     const result = await spec.service.apply(toArgs(spec.fields, params), ctx);
-    if (!result.ok) return { ok: false, error: humanError(result, deps.log) };
-    return { ok: true, ...(spec.created ? spec.created(result) : {}) };
+    if (!result.ok) return { ok: false, error: humanError(result, deps.log), ...(result.moved ? { moved: result.moved } : {}) };
+    // moved — числа перенесённых ссылок (слияния): в итог операции и хронику
+    return { ok: true, ...(spec.created ? spec.created(result) : {}), ...(result.moved ? { moved: result.moved } : {}) };
   };
 
   return Object.freeze({
@@ -504,6 +557,9 @@ const defineKind = (spec, deps) => {
     label: spec.label ?? (() => ""),
     check,
     apply,
+    ...(spec.drift ? { drift: (params, snapshot) => spec.drift(toArgs(spec.fields, params), snapshot) } : {}),
+    ...(spec.dataIds ? { dataIds: spec.dataIds } : {}),
+    ...(spec.mentions ? { mentions: spec.mentions } : {}),
   });
 };
 

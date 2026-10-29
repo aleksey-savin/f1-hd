@@ -1,4 +1,5 @@
 const { isValidValue } = require("../inventory/attributeValue");
+const { parseMultiValue } = require("../inventory/assemblyKeySpecs");
 const { assemblyOf, deviceTitle, lifespanEnd: lifespanEndDate, TICKET_ESTIMATE } = require("./inventoryFormat");
 
 /**
@@ -6,7 +7,8 @@ const { assemblyOf, deviceTitle, lifespanEnd: lifespanEndDate, TICKET_ESTIMATE }
  * (inventoryTools#findings грузит их и выбирает нужные виды).
  * check(data, {now, days, limit}) -> {count, items: [{id, kind, line}], note?}:
  * count — сколько найдено всего, items — первые `limit`. Строка называет предмет
- * (устройство, модель, тип, атрибут) и несёт id в конце для следующих запросов.
+ * (устройство, модель, тип, атрибут, вендор, поставщик, группа, конфигурация)
+ * и несёт id в конце для следующих запросов.
  * data: {rows, catalogIdx, models, configs, links, builds, components, tickets, systemUserIds}.
  */
 
@@ -176,18 +178,68 @@ const collisions = (entries, keyOf) => {
   return [...groups.values()].filter((list) => list.length > 1);
 };
 
+// Значения конфигурации как множество: пустые не в счёт, multiselect — без порядка
+const BLANK_VALUES = new Set(["", "[]"]);
+const valueSetKey = (config, idx) => {
+  const pairs = (config.values ?? [])
+    .filter((v) => !BLANK_VALUES.has(String(v.value ?? "").trim()))
+    .map((v) => {
+      const raw = String(v.value).trim();
+      const multi = idx.attributes.get(idStr(v.attributeId))?.valueType === "multiselect" || raw.startsWith("[");
+      return [idStr(v.attributeId), multi ? JSON.stringify([...new Set(parseMultiValue(raw))].sort()) : raw];
+    })
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return pairs.length ? JSON.stringify(pairs) : null;
+};
+
+// Скрытую запись слить нельзя (ни источником, ни целью): в находку она не идёт
+const live = (entries) => entries.filter((e) => e.isActive !== false);
+
 const catalogDuplicates = (data, { limit }) => {
   const idx = data.catalogIdx;
   const quoted = (list, label) => list.map((e) => `«${label(e)}»`).join(", ");
-  const found = (kind, noun, list, label) => ({
+  const found = (kind, noun, list, label, what = "name") => ({
     id: list.map(idStr).join(", "),
     kind,
-    line: `${noun} with the same name: ${quoted(list, label)} · ${list.map(idStr).join(", ")}`,
+    line: `${noun} with the same ${what}: ${quoted(list, label)} · ${list.map(idStr).join(", ")}`,
   });
+  const byName = (e) => e.name;
+  // Конфигурации — только внутри одной модели: по имени и отдельно по значениям
+  const configItems = [];
+  const byModel = new Map();
+  for (const config of data.configs ?? []) {
+    const key = idStr(config.deviceModelId);
+    // Модель удалена (её нет в живом индексе) — слить её конфигурации нельзя
+    if (!idx.models.has(key)) continue;
+    if (!byModel.has(key)) byModel.set(key, []);
+    byModel.get(key).push(config);
+  }
+  for (const [modelId, list] of byModel) {
+    const noun = `Configurations of «${modelName(idx.models.get(modelId), idx)}»`;
+    const label = (c) => c.name || "(no name)";
+    const named = collisions(list, (c) => dupKey(c.name));
+    const seen = new Set(named.map((group) => group.map(idStr).join(",")));
+    configItems.push(...named.map((group) => found("configuration", noun, group, label)));
+    const sameValues = new Map();
+    for (const config of list) {
+      const key = valueSetKey(config, idx);
+      if (!key) continue;
+      if (!sameValues.has(key)) sameValues.set(key, []);
+      sameValues.get(key).push(config);
+    }
+    for (const group of sameValues.values()) {
+      if (group.length < 2 || seen.has(group.map(idStr).join(","))) continue;
+      configItems.push(found("configuration", noun, group, label, "values"));
+    }
+  }
   const items = [
-    ...collisions([...idx.types.values()], (e) => dupKey(e.name)).map((l) => found("type", "Types", l, (e) => e.name)),
+    ...collisions(live([...idx.types.values()]), (e) => dupKey(e.name)).map((l) => found("type", "Types", l, byName)),
     ...collisions(data.models, (e) => `${idStr(e.vendorId)}|${dupKey(e.name)}`).map((l) => found("model", "Models", l, (e) => modelName(e, idx))),
-    ...collisions([...idx.attributes.values()], (e) => dupKey(e.name)).map((l) => found("attribute", "Attributes", l, attrName)),
+    ...collisions(live([...idx.attributes.values()]), (e) => dupKey(e.name)).map((l) => found("attribute", "Attributes", l, attrName)),
+    ...collisions(live([...idx.vendors.values()]), (e) => dupKey(e.name)).map((l) => found("vendor", "Vendors", l, byName)),
+    ...collisions(live([...idx.suppliers.values()]), (e) => dupKey(e.name)).map((l) => found("supplier", "Suppliers", l, byName)),
+    ...collisions([...idx.groups.values()], (e) => dupKey(e.name)).map((l) => found("group", "Groups", l, byName)),
+    ...configItems,
   ];
   return result(items, { limit });
 };

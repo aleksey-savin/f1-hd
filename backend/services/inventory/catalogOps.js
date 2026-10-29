@@ -13,7 +13,8 @@ const {
   buildFields,
 } = require("../../controllers/inventory/deviceBuild");
 const catalogSeed = require("./catalogSeed");
-const { isValidValue } = require("./attributeValue");
+// storedValue — значение, как его хранит конфигурация (общее с catalogEditOps)
+const { isValidValue, storedValue } = require("./attributeValue");
 const { formatSpecValue } = require("./assemblyKeySpecs");
 const { hasForbiddenChars } = require("../mikrotik/changeRender");
 const {
@@ -73,6 +74,12 @@ const execute = async (failMessage, check, plan) => {
   }
 };
 
+// Имя занято скрытой записью (isActive:false): создать новую нельзя, а молча
+// вернуть скрытую — тем более. Текст общий с planCatalog (catalogSeed.hiddenNameTaken);
+// каталог агента просит у сида отказ (HIDDEN_CLASH), сиды только предупреждают.
+const HIDDEN_CLASH = { hiddenClash: "refuse" };
+const hiddenTaken = (holder) => (holder && holder.isActive === false ? fail(409, catalogSeed.hiddenNameTaken(holder.name)) : null);
+
 const author = (userId) => (userId ? { createdBy: userId, updatedBy: userId } : {});
 
 // --- вендор --------------------------------------------------------------------
@@ -80,8 +87,9 @@ const author = (userId) => (userId ? { createdBy: userId, updatedBy: userId } : 
 const planVendor = async ({ name } = {}, { userId } = {}) => {
   const clean = str(name);
   if (!clean) return fail(400, "Укажите название вендора");
-  if (await Vendor.findOne({ name: clean })) {
-    return fail(409, `Vendor with name "${clean}" already exists`);
+  const taken = await Vendor.findOne({ name: clean });
+  if (taken) {
+    return hiddenTaken(taken) ?? fail(409, `Vendor with name "${clean}" already exists`);
   }
   const doc = new Vendor({ name: clean, isMikrotikManagementEnabled: false, ...author(userId) });
   return { ok: true, doc, text: `Новый вендор «${clean}»` };
@@ -104,8 +112,9 @@ const planSupplier = async (params = {}, { userId } = {}) => {
       return fail(400, `Неверное значение поля «${field}»`);
     }
   }
-  if (await Supplier.findOne({ name })) {
-    return fail(409, `Поставщик «${name}» уже есть в справочнике`);
+  const taken = await Supplier.findOne({ name });
+  if (taken) {
+    return hiddenTaken(taken) ?? fail(409, `Поставщик «${name}» уже есть в справочнике`);
   }
   const doc = new Supplier({ name, ...author(userId) });
   // Как applyFields контроллера: пустое — не задано
@@ -125,10 +134,12 @@ const planModel = async (params = {}, { userId } = {}) => {
   const { deviceTypeId, vendorId } = params;
   const name = str(params.name);
   if (!name) return fail(400, "Укажите название модели");
-  const type = isId(deviceTypeId) ? await DeviceType.findById(deviceTypeId).select("name").lean() : null;
+  const type = isId(deviceTypeId) ? await DeviceType.findById(deviceTypeId).select("name isActive").lean() : null;
   if (!type) return fail(400, "Тип устройства не найден");
-  const vendor = isId(vendorId) ? await Vendor.findById(vendorId).select("name").lean() : null;
+  if (type.isActive === false) return fail(400, `Тип «${type.name}» скрыт`);
+  const vendor = isId(vendorId) ? await Vendor.findById(vendorId).select("name isActive").lean() : null;
   if (!vendor) return fail(400, "Вендор не найден");
+  if (vendor.isActive === false) return fail(400, `Вендор «${vendor.name}» скрыт`);
   if (await DeviceModel.findOne({ name, deletedAt: null })) {
     return fail(409, `Device model with name "${name}" already exists`);
   }
@@ -162,20 +173,6 @@ const checkModel = (params, options) =>
 
 // --- конфигурация --------------------------------------------------------------
 
-// Значение, как его хранит конфигурация: строка; multiselect — JSON-массив
-// строк (как serializeMultiValue формы). Массив допустим только multiselect.
-// null — значение негодное (объект, массив не там и т. п.).
-const storedValue = (attr, raw) => {
-  if (raw == null) return "";
-  if (Array.isArray(raw)) {
-    if (attr.valueType !== "multiselect") return null;
-    if (!raw.every((item) => typeof item === "string" || typeof item === "number")) return null;
-    return raw.length ? JSON.stringify(raw.map(String)) : "";
-  }
-  if (typeof raw === "object") return null;
-  return String(raw).trim();
-};
-
 const planConfiguration = async (params = {}, { userId } = {}) => {
   const { deviceModelId } = params;
   const name = str(params.name);
@@ -208,6 +205,7 @@ const planConfiguration = async (params = {}, { userId } = {}) => {
   for (const { code, raw } of values) {
     const attr = attrByCode.get(code);
     if (!attr) return fail(400, `Атрибут «${code}» не найден`);
+    if (attr.isActive === false) return fail(400, `Атрибут «${attr.name}» скрыт`);
     if (!linked.has(String(attr._id))) {
       return fail(400, `Атрибут «${attr.name}» не относится к типу «${type?.name ?? "—"}»`);
     }
@@ -272,6 +270,7 @@ const checkConfiguration = (params, options) =>
 const planBuild = async (params = {}, { userId } = {}) => {
   const loaded = await loadAssemblyType(params.deviceTypeId);
   if (loaded.error) return fail(loaded.error.statusCode, loaded.error.message);
+  if (loaded.deviceType.isActive === false) return fail(400, `Тип «${loaded.deviceType.name}» скрыт`);
   if (loaded.slots.length === 0) return fail(400, "У типа не заданы комплектующие");
   // Имя, детали и их ссылки — общая с контроллером buildFields
   const fields = await buildFields(params, loaded.slots);
@@ -559,7 +558,8 @@ const checkCatalogPatch = async (catalog, { allowNoop = false } = {}) => {
   if (!valid.ok) return { ...valid, text: "" };
   try {
     const normalized = normalizeCatalog(catalog);
-    const plan = catalogSeed.planCatalog(normalized, await catalogSeed.loadExisting());
+    const plan = catalogSeed.planCatalog(normalized, await catalogSeed.loadExisting(), HIDDEN_CLASH);
+    if (plan.conflicts.length) return { ...fail(409, plan.conflicts.join("; ")), text: "" };
     if (!allowNoop && !planHasWork(plan)) return { ...fail(400, NOTHING_TO_DO), text: "" };
     await validatePlanned(plan);
     const lines = catalogSeed.describePlan(plan, normalized);
@@ -577,11 +577,12 @@ const applyCatalogPatch = async (catalog, { userId } = {}) => {
   const valid = validateCatalog(catalog);
   if (!valid.ok) return valid;
   try {
-    const result = await catalogSeed.applyCatalog(normalizeCatalog(catalog), { userId });
+    const result = await catalogSeed.applyCatalog(normalizeCatalog(catalog), { userId, ...HIDDEN_CLASH });
     return { ok: true, ...result };
   } catch (error) {
     const invalid = validationFailure(error);
     if (invalid) return invalid;
+    if (error?.conflict) return fail(409, error.message);
     if (error?.code === 11000) return fail(409, "Такая запись уже есть в справочнике");
     // Созданное откачено; уже дописанные варианты откатить нельзя
     const note = error?.optionsPushed ? "; часть вариантов могла быть добавлена" : "";

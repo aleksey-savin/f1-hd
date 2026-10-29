@@ -129,6 +129,19 @@ test("catalog suppliers: names only, no contacts or INN", async () => {
   assert.doesNotMatch(out, /999|@|2540123456/);
 });
 
+test("catalog suppliers: hidden ones only with includeInactive, marked inactive", async () => {
+  const withHidden = { ...catalog, suppliers: [...suppliers, { _id: "s2", name: "Старый поставщик", isActive: false }] };
+  const tools = createInventoryTools({ source: { ...fakeSource(), loadCatalog: async () => withHidden }, baseUrl: "https://hd.example.ru", log: () => {} });
+
+  const live = text(await tools.catalog({ section: "suppliers" }, caller, {}));
+  const all = text(await tools.catalog({ section: "suppliers", includeInactive: true }, caller, {}));
+
+  assert.match(live, /- ООО Поставщик$/m);
+  assert.doesNotMatch(live, /Старый поставщик/);
+  assert.match(all, /- Старый поставщик · inactive/);
+  assert.match(all, /- ООО Поставщик$/m);
+});
+
 test("catalog groups, vendors and unknown section", async () => {
   const { tools } = setup();
 

@@ -870,3 +870,114 @@ test("applyCatalog: сбой в фазе дописывания откатыва
   assert.equal(models.DeviceTypeAttribute.rows.length, 0);
   assert.deepEqual(models.DeviceAttribute.rows.map((r) => r._id), ["a-socket"]);
 });
+
+test("catalog: скрытый тип с тем же именем не подхватывается — понятный отказ", () => {
+  const existing = empty();
+  existing.types.push({ _id: "t-old", name: "Процессор", isActive: false, isComponent: true });
+  const plan = planCatalog(catalog, existing, { hiddenClash: "refuse" });
+  assert.deepEqual(plan.matched.types, {});
+  assert.deepEqual(
+    plan.create.types.map((t) => t.name),
+    ["Ноутбук", "Блок питания"],
+  );
+  assert.deepEqual(plan.conflicts, [
+    "имя занято скрытой записью «Процессор» — верните её (isActive) или выберите другое имя",
+  ]);
+});
+
+test("catalog: скрытый атрибут по коду или имени не подхватывается — отказ", () => {
+  const existing = empty();
+  existing.attributes.push({ _id: "a-s", code: "socket", name: "Сокет", isActive: false, valueType: "select" });
+  const plan = planCatalog(catalog, existing, { hiddenClash: "refuse" });
+  assert.deepEqual(plan.matched.attributes, {});
+  assert.equal(plan.conflicts.length, 1);
+  assert.match(plan.conflicts[0], /^имя занято скрытой записью «Сокет»/);
+});
+
+test("catalog: активные записи подхватываются как раньше, конфликтов нет", () => {
+  const existing = empty();
+  existing.types.push({ _id: "t-cpu", name: "Процессор", isActive: true, isComponent: true });
+  const plan = planCatalog(catalog, existing);
+  assert.equal(plan.matched.types.cpu, "t-cpu");
+  assert.deepEqual(plan.conflicts, []);
+});
+
+test("catalog: подхват (pickUpOnly) — скрытое имя это предупреждение, не отказ", () => {
+  const existing = empty();
+  existing.types.push({ _id: "t-old", name: "Процессор", isActive: false, isComponent: true });
+  const plan = planCatalog(catalog, existing, { pickUpOnly: true });
+  assert.deepEqual(plan.conflicts, []);
+  assert.deepEqual(plan.matched.types, {});
+  assert.deepEqual(plan.create.types, []);
+  assert.ok(
+    plan.warnings.includes(
+      "подхват: имя занято скрытой записью «Процессор» — верните её (isActive) или выберите другое имя",
+    ),
+  );
+});
+
+// ─── Финальная правка фазы 4: скрытое имя у сида — предупреждение ────────────
+
+const hiddenDb = () => {
+  const existing = empty();
+  existing.types.push({ _id: "t-old", name: "Процессор", isActive: false, isComponent: true });
+  existing.attributes.push({ _id: "a-s", code: "socket", name: "Сокет", isActive: false, valueType: "select" });
+  existing.groups.push({ _id: "g-old", name: "Экран", order: 0, isActive: false });
+  return existing;
+};
+const HIDDEN_WARNINGS = ["Экран", "Сокет", "Процессор"].map(
+  (name) => `имя занято скрытой записью «${name}» — верните её (isActive) или выберите другое имя`,
+);
+
+test("сид в полном режиме: скрытое имя — предупреждение и пропуск, без отказа", () => {
+  const plan = planCatalog(withAssembly(pcAssembly), hiddenDb());
+  assert.deepEqual(plan.conflicts, []);
+  for (const text of HIDDEN_WARNINGS) assert.ok(plan.warnings.includes(`каталог: ${text}`), text);
+  // Скрытое не подхвачено и не создано
+  assert.deepEqual(plan.matched, { groups: {}, types: {}, attributes: {} });
+  assert.ok(!plan.create.types.some((t) => t.key === "cpu"));
+  assert.ok(!plan.create.attributes.some((a) => a.key === "socket"));
+  assert.ok(!plan.create.groups.some((g) => g.key === "screen"));
+  // Зависящее выпадает: связок пропущенного типа и атрибута нет, пропущенная группа — без группы
+  assert.ok(!plan.create.links.some((l) => l.typeKey === "cpu" || l.attrKey === "socket"));
+  assert.equal(plan.create.links.find((l) => l.typeKey === "laptop" && l.attrKey === "diagonal").groupKey, null);
+  // Слот пропущенного типа выпадает из сборки, остальное — как было
+  const [pc] = plan.update.typeAssembly;
+  assert.deepEqual(pc.assembly.slots.map((slot) => slot.typeKey), ["psu"]);
+  assert.ok(pc.assembly.keySpecs.every((spec) => spec.typeKey === "psu"));
+});
+
+test("сид в полном режиме через applyCatalog: скрытое имя не роняет прогон, ссылок в пустоту нет", async () => {
+  const existing = hiddenDb();
+  const models = {
+    AttributeGroup: fakeModel(existing.groups),
+    DeviceType: fakeModel(existing.types),
+    DeviceAttribute: fakeModel(existing.attributes),
+    DeviceTypeAttribute: fakeModel(existing.links),
+  };
+  const lines = [];
+  const result = await applyCatalog(catalog, { log: (line) => lines.push(line), models });
+  for (const text of HIDDEN_WARNINGS) assert.ok(lines.includes(`warning: каталог: ${text}`), text);
+  assert.deepEqual(result.created, { groups: 1, types: 2, attributes: 3, links: 3 });
+  for (const link of models.DeviceTypeAttribute.rows) {
+    assert.ok(link.deviceTypeId && link.attributeId, JSON.stringify(link));
+    assert.notEqual(link.groupId, undefined);
+  }
+  // Скрытые записи на месте и не тронуты
+  assert.equal(models.DeviceType.rows.filter((t) => t.name === "Процессор").length, 1);
+});
+
+test("путь агента (hiddenClash: refuse): скрытое имя — отказ, applyCatalog ничего не пишет", async () => {
+  const plan = planCatalog(catalog, hiddenDb(), { hiddenClash: "refuse" });
+  assert.deepEqual(plan.conflicts, HIDDEN_WARNINGS);
+  const existing = hiddenDb();
+  const models = {
+    AttributeGroup: fakeModel(existing.groups),
+    DeviceType: fakeModel(existing.types),
+    DeviceAttribute: fakeModel(existing.attributes),
+    DeviceTypeAttribute: fakeModel(existing.links),
+  };
+  await assert.rejects(applyCatalog(catalog, { models, hiddenClash: "refuse" }), (error) => error.conflict === true);
+  assert.equal(models.DeviceType.rows.length, 1);
+  assert.equal(models.DeviceTypeAttribute.rows.length, 0);
+});

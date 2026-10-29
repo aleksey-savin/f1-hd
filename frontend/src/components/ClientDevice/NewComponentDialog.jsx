@@ -17,6 +17,7 @@ import Combobox from "@/components/app/Combobox";
 import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
 import { load } from "@/store/form-data";
+import { visibleOptions } from "@/util/hidden-options";
 import {
   configEmptyText,
   needsConfiguration,
@@ -103,7 +104,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
   // периферия — тот же отбор, что у прикрепления существующего устройства.
   const typeOptions = useMemo(
     () =>
-      catalog.deviceTypes
+      visibleOptions(catalog.deviceTypes)
         .filter(
           (type) => type.isComponent || type.isConsumable || type.isPeripheral,
         )
@@ -112,7 +113,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
   );
   const vendorOptions = useMemo(
     () =>
-      catalog.vendors.map((vendor) => ({
+      visibleOptions(catalog.vendors).map((vendor) => ({
         value: vendor._id,
         label: vendor.name,
       })),

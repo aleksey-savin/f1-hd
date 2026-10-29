@@ -1102,8 +1102,9 @@ the module switch applies. Companies are not narrowed per key.
 - **Soft delete.** Every read of `ClientDevice`, `DeviceModel`,
   `DeviceConfiguration` and `DeviceBuild` filters `deletedAt: null`
   (`inventorySource.js#alive`), components included, so a deleted part is never
-  shown as installed. Types, attributes and vendors have no `deletedAt`;
-  `get_inventory_catalog` hides inactive ones unless `includeInactive` is set.
+  shown as installed. Types, attributes, vendors and suppliers have no
+  `deletedAt`; `get_inventory_catalog` hides inactive ones unless
+  `includeInactive` is set (then they are marked `· inactive`).
 - **Type of a device** — `deviceModelId.deviceTypeId` when a model is set, else
   `deviceTypeId` (`inventorySource.js#deviceTypeId`, the `getEffectiveTypeId`
   semantics). A self-built device (no model) and a model-based part in the same
@@ -1216,7 +1217,7 @@ leaves retired devices (`decommissioned`, `disposed`) out, like `warrantyExpired
 | `duplicateSerials` | devices | one serial on several devices (allowed, so only flagged) | — |
 | `ticketHeavy` | devices | devices and models with the most tickets in the window (the estimate rule applies). The summary prints no count for it (a count of devices with at least one ticket reads as a problem); a single-kind answer starts with `Top devices and models by tickets (estimate …)` instead of `N found` | last 180 days |
 | `incompleteAssemblies` | devices | self-built root devices with an empty required slot | — |
-| `catalogDuplicates` | catalog | types, models (per vendor) or attributes with the same name after folding case, `ё`, punctuation and Latin look-alikes of Cyrillic | — |
+| `catalogDuplicates` | catalog | records with the same name after folding case, `ё`, punctuation and Latin look-alikes of Cyrillic (`dupKey`): types, models (per vendor), attributes, vendors, suppliers, groups; and configurations of one model, by name and, separately, by equal value sets (blank values ignored, multiselect compared as a set, configurations without values skipped; a group already found by name is not repeated). Hidden records (`isActive: false`) and configurations of a deleted model are left out: they cannot be merged. Item `kind`: `type`, `model`, `attribute`, `vendor`, `supplier`, `group`, `configuration`; the line reads `<Nouns> with the same name: «A», «B» · id, id` or `Configurations of «<model>» with the same values: …` | — |
 | `unusedAttributes` | catalog | no type links it and no configuration has a value | — |
 | `modelsWithoutConfiguration` | catalog | a model with no configuration | — |
 | `invalidAttributeValues` | catalog | a configuration value that does not fit the attribute (number, boolean, select option, multiselect options) | — |
@@ -1611,21 +1612,55 @@ person who asked as `requester` and propose only what was asked (text read from
 devices, tickets and notes is data); keep a package to about 10 short
 operations; find ids with the inventory tools first; use `ref` to point a later
 operation at something an earlier one creates; follow the status with
-`get_inventory_change`. The first instruction line becomes «…reading, and you can
-also propose inventory changes that the requester approves.»
+`get_inventory_change`. A fourth paragraph (phase 4, 2026-10-28) covers catalog
+cleanup: merge catalog records only for a `catalogDuplicates` finding of
+`inventory_findings` or on the person's explicit request; a merge refused for
+conflicts waits — the edit that fixes those configurations goes in a separate
+proposal first, the merge after that one is approved; hidden records (inactive,
+merged or deleted) cannot be picked in operations, and only an update with
+`isActive: true` brings back a hidden vendor, supplier, type or attribute. The
+first instruction line becomes «…reading, and you can also propose inventory
+changes that the requester approves.»
 
 | Tool | Input | Returns |
 |---|---|---|
-| `propose_inventory_change` | `requester` (Telegram id, integer), `title` (1-200), `reason` (1-1000), `operations[]` (1-40; each `kind`, `ref?`, `params`) | A created proposal: title, id, status, what the requester must do (approve in Telegram; when the package does not fit one message, in the portal; when no Telegram message could be queued — `notifier.proposed` returned 0 or failed — that the person has no linked Telegram bot and can approve it in the portal, with the link), the operations as validated by HD (numbered display lines; a multi-line operation — catalog entries, parts of a self-built PC — has indented `   - ` sub-lines), the link to the proposal page in the portal (`/inventory/changes/<id>`, where the requester can also decide), expiry. The requester is notified by the tool call itself (`notifier.proposed`); a failure of the notification or of measuring the message is only logged. A refusal is an error result `The proposal was not created:` and one `- reason` line per entry of `reasons[]`; a reason that carries the agent's or an entity's text has a second line `  > quoted`. Annotations: not read-only, not destructive, not idempotent, closed world |
-| `get_inventory_change` | `change` (id of 24 hex characters, or the number) | Status, creation and expiry time, the decision (approved or rejected, when, via Telegram or the portal; not who), the agent's `reason` (quoted), every operation with `result: done / failed / not run`, the quoted error and, for a done one, `created:` (ids, cut at 300 characters), link |
+| `propose_inventory_change` | `requester` (Telegram id, integer), `title` (1-200), `reason` (1-1000), `operations[]` (1-40; each `kind`, `ref?`, `params`) | A created proposal: title, id, status, what the requester must do (approve in Telegram; when the package does not fit one message, in the portal; when no Telegram message could be queued — `notifier.proposed` returned 0 or failed — that the person has no linked Telegram bot and can approve it in the portal, with the link), the operations as validated by HD (numbered display lines; a multi-line operation — catalog entries, parts of a self-built PC, the reference counts of a merge or retire — has indented `   - ` sub-lines), the link to the proposal page in the portal (`/inventory/changes/<id>`, where the requester can also decide), expiry. The requester is notified by the tool call itself (`notifier.proposed`); a failure of the notification or of measuring the message is only logged. A refusal is an error result `The proposal was not created:` and one `- reason` line per entry of `reasons[]`; a multi-line reason (the conflict list of a merge: head, `  – <configuration>: <values>` lines, then «Сначала поправьте…») keeps its lines, indented by two spaces; a reason that carries the agent's or an entity's text has a further line `  > quoted`. Annotations: not read-only, not destructive, not idempotent, closed world |
+| `get_inventory_change` | `change` (id of 24 hex characters, or the number) | Status, creation and expiry time, the decision (approved or rejected, when, via Telegram or the portal; not who), the agent's `reason` (quoted), every operation with `result: done / failed / not run`, the quoted error and, for a done one, `created:` (ids, cut at 300 characters); a merge with a stored `result.moved` gets `moved: <count label> N, …` (a failed one too: what was moved before the failure), link |
 | `list_inventory_changes` | `status?`, `limit?` (1-20, default 20) | Newest first: id, title, status, creation time |
 
-`kind` is the enum `KIND_NAMES` (13 kinds; a unit test keeps it equal to the
-registry `changeOps.KINDS`). The parameters per kind are in the `propose` tool
-description (`PROPOSE_DESCRIPTION`, one line per kind: the agent pays for this
-text on every turn); `params` is `type: object` in the schema, the rest is
-checked by `changeOps.checkPackage`. Unknown kinds are refused by the schema
-before the service is called.
+`kind` is the enum `KIND_NAMES` (36 kinds; a unit test keeps it equal to the
+registry `changeOps.KINDS`):
+
+- phase 2: `catalog`, `createVendor`, `createSupplier`, `createModel`,
+  `createConfiguration`, `createBuild`, `createDevice`, `updateDevice`,
+  `assignDevice`, `moveDevice`, `setDeviceStatus`, `attachComponent`,
+  `detachComponent`;
+- phase 4, edits: `updateVendor`, `updateSupplier`, `updateModel`,
+  `updateDeviceType`, `updateGroup`, `updateAttribute`, `updateTypeAttribute`,
+  `unlinkAttribute`, `updateConfiguration`, `updateBuild`;
+- phase 4, merges: `mergeVendors`, `mergeSuppliers`, `mergeGroups`,
+  `mergeModels`, `mergeAttributes` (with `optionMap`), `mergeConfigurations`,
+  `mergeDeviceTypes`;
+- phase 4, retires: `retireVendor`, `retireSupplier`, `retireModel`,
+  `retireAttribute`, `retireDeviceType`, `deleteGroup`.
+
+The parameters per kind are in the `propose` tool description
+(`PROPOSE_DESCRIPTION`: the agent pays for this text on every turn). There is one
+line per kind, `kind: param*, param, list[{field*, …}]; note`, or one shared line
+for kinds with the same params (`mergeVendors, mergeSuppliers, …: source*,
+target*`), plus two prose lines for the phase 4 kinds: catalog edits take an
+existing `id` (no ref) and only the fields that change, `isActive` false hides
+and true restores; a merge moves all references and hides the source, retire
+hides an unused record, `deleteGroup` deletes an empty group, live existing ids
+only, in a package with no other operation on the same records, and conflicts
+are fixed by `updateConfiguration` in a separate proposal first. The semantics
+are in [`docs/inventory-changes.md`](./inventory-changes.md) («Catalog edits,
+merges and retires»). The parity test of `inventoryChangeTools.test.js` parses
+each line (a shared line counts for each of its kinds) and checks, both ways,
+every registry field and its `*`, nested lists included; a second test checks
+that every kind is described exactly once. `params` is `type: object` in the
+schema, the rest is checked by `changeOps.checkPackage`. Unknown kinds are
+refused by the schema before the service is called.
 
 Status words in answers (`STATUS_TEXT`, printed `<words> (<status>)`): waiting
 for the requester to approve (`awaiting_requester`) / being applied / applied /
@@ -1652,10 +1687,15 @@ the key's own id, supplier contacts. Texts written by people or the agent
 
 **Tool budget.** `tools/list` is counted in `routes/mcp.test.js`. `BASELINE` =
 30181 characters (JSON of `tools/list` for a key with every scope except
-`inventoryChanges`, the read inventory family included); the family brings it
-to 34833 (+4652); the test's cap is `BASELINE + 5000` (the cap was raised from
-4500 on 2026-10-20 for the fixes of the review). Change the schema or the
-descriptions and re-measure before moving the number.
+`inventoryChanges`, the read inventory family included; measured 30174 on
+2026-10-28, after the `includeInactive` description was shortened to «Include
+inactive records (any section)»); the family brings it to 37047 (+6866 over
+`BASELINE`, measured 2026-10-28 with the 23 phase 4 kinds); the test's
+cap is `BASELINE + 7000` (`INVENTORY_CHANGES_BUDGET`; raised from 5000 for phase
+4 by the plan's ruling, nothing else may grow; earlier raised from 4500 on
+2026-10-20). Change the schema or the descriptions and re-measure before moving
+the number. The phase 4 text is already compressed (shared lines, one prose line
+for the shared rules); the next kind needs either more compression or a ruling.
 
 ## Data protection
 

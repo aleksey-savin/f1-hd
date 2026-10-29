@@ -331,11 +331,11 @@ const createInventoryTools = ({ source, baseUrl, log, now = () => new Date() }) 
       const rows = catalog.vendors.filter((v) => (includeInactive || v.isActive !== false) && matchesQuery(query, v.name)).sort(byName);
       return { rows, noun: "vendors", render: (v) => `- ${v.name}${v.isActive === false ? " · inactive" : ""}` };
     },
-    suppliers: async ({ query }) => {
+    suppliers: async ({ query, includeInactive }) => {
       const { catalog } = await loadIndex();
-      // Только названия: контакты и ИНН поставщиков агенту не нужны
-      const rows = catalog.suppliers.filter((s) => matchesQuery(query, s.name)).sort(byName);
-      return { rows, noun: "suppliers", render: (s) => `- ${s.name}` };
+      // Только названия: контакты и ИНН поставщиков агенту не нужны; скрытые — по includeInactive, как у вендоров
+      const rows = catalog.suppliers.filter((s) => (includeInactive || s.isActive !== false) && matchesQuery(query, s.name)).sort(byName);
+      return { rows, noun: "suppliers", render: (s) => `- ${s.name}${s.isActive === false ? " · inactive" : ""}` };
     },
   };
 

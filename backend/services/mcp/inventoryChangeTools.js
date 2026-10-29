@@ -32,9 +32,32 @@ const KIND_NAMES = Object.freeze([
   "setDeviceStatus",
   "attachComponent",
   "detachComponent",
+  "updateVendor",
+  "updateSupplier",
+  "updateModel",
+  "updateDeviceType",
+  "updateGroup",
+  "updateAttribute",
+  "updateTypeAttribute",
+  "unlinkAttribute",
+  "updateConfiguration",
+  "updateBuild",
+  "mergeVendors",
+  "mergeSuppliers",
+  "mergeGroups",
+  "mergeModels",
+  "mergeAttributes",
+  "mergeConfigurations",
+  "mergeDeviceTypes",
+  "retireVendor",
+  "retireSupplier",
+  "retireModel",
+  "retireAttribute",
+  "retireDeviceType",
+  "deleteGroup",
 ]);
 
-// По строке на вид: агент платит этим текстом на каждом ходу
+// По строке на вид (одинаковые параметры — общей строкой «kindA, kindB: …»): агент платит этим текстом на каждом ходу
 const PROPOSE_DESCRIPTION = [
   "Propose a package of inventory operations (at most 40, applied in order). Nothing changes until the requester approves it in Telegram. An operation using a ref, or a device changed by an earlier operation, is fully checked only at approval. Params per kind (* required); an entity param is a 24-hex id or {\"ref\":\"<ref>\"} of an earlier operation, or {\"ref\":\"<catalog ref>\",\"key\":\"<key>\"} for a type/attribute of a catalog operation. Statuses: readyForDeployment, deployed, inReserve, inRepair, decommissioned, disposed.",
   "catalog: groups[{key,name,order}], types[{key,name,flags,attributes[{attr,group,required}],assembly}], attributes[{key,code,name,valueType,unit,options}]; add-only. flags is {isComponent,isConsumable,isPeripheral}, assembly is {slots,keySpecs}. attr/group/type inside a catalog are keys of its own lists; to use an existing type or attribute, list it with the same name or code - it is reused, not duplicated",
@@ -50,7 +73,22 @@ const PROPOSE_DESCRIPTION = [
   "setDeviceStatus: device*, status*, withComponents, exceptComponentIds",
   "attachComponent: host*, component*",
   "detachComponent: host*, component*",
-  "Returns the proposal id, status, link and what the requester must do; a refusal lists the reasons.",
+  "Catalog edits: id is an existing record (no ref); give only what changes; isActive false hides, true restores.",
+  "updateVendor: id*, name, isActive",
+  "updateSupplier: id*, name, isActive, website, inn, kpp, notes",
+  "updateModel: id*, name, vendorId, notes, compatibleWithModelIds; the id list replaces the old one",
+  "updateDeviceType: id*, name, isActive, isComponent, isConsumable, isPeripheral, inventoryPrefix, attachableToTypeIds",
+  "updateGroup: id*, name, order",
+  "updateAttribute: id*, name, unit, isActive, addOptions, renameOptions[{from*, to*}]",
+  "updateTypeAttribute: type*, attribute*, required, order, groupId",
+  "unlinkAttribute: type*, attribute*; refused while configurations hold a value",
+  "updateConfiguration: id*, name, description, setValues[{attribute*, value*}], clearValues; attribute and clearValues are attribute codes (ids in the two lines above)",
+  "updateBuild: id*, name, notes, parts[{type*, model*, configuration, quantity}]; parts replaces the list",
+  "mergeVendors, mergeSuppliers, mergeGroups, mergeModels, mergeConfigurations, mergeDeviceTypes: source*, target*",
+  "mergeAttributes: source*, target*, optionMap; optionMap is {source option: target option}, an unmapped option is added to the target",
+  "retireVendor, retireSupplier, retireModel, retireAttribute, retireDeviceType, deleteGroup: id*",
+  "A merge moves all references to target, then hides source (deletes a group); retire hides an unused record, deleteGroup an empty group. Live existing ids only, in a package with no other operation on the same records. Different values refuse a merge: fix them by updateConfiguration in a separate proposal first.",
+  "Returns the proposal id, status, link, what the requester must do and the reference counts of merges; a refusal lists the reasons.",
 ].join("\n");
 
 const STATUS_TEXT = {
@@ -93,6 +131,9 @@ const createInventoryChangeTools = ({ proposals, store, notifier, baseUrl, log }
       lines.push(`   result: ${RESULT_TEXT[op.result?.state] || "not run"}`);
       if (op.result?.error) lines.push(...quoted(op.result.error).map((line) => `   ${line}`));
       if (op.result?.state === "done" && op.result.created) lines.push(`   created: ${oneLine(JSON.stringify(op.result.created)).slice(0, 300)}`);
+      // Слияние: перенесённые ссылки по видам (у сбоя — что успело перенестись; остаток доносит новое предложение)
+      const moved = Object.entries(op.result?.moved || {}).filter(([, n]) => Number(n) > 0);
+      if (moved.length) lines.push(`   moved: ${moved.map(([label, n]) => `${oneLine(label)} ${Number(n)}`).join(", ").slice(0, 300)}`);
       return lines;
     });
 
@@ -109,7 +150,12 @@ const createInventoryChangeTools = ({ proposals, store, notifier, baseUrl, log }
     if (!result.ok) {
       logCall(caller, "propose_inventory_change", { ...meta, outcome: "refused" }, started);
       const reasons = Array.isArray(result.reasons) && result.reasons.length ? result.reasons : [{ text: result.error || "unknown reason" }];
-      const lines = reasons.flatMap((r) => [`- ${oneLine(r.text)}`, ...(r.quoted ? quoted(r.quoted).map((line) => `  ${line}`) : [])]);
+      // Причина HD может быть многострочной (конфликты слияния — перечень конфигураций): подстроки с отступом
+      const reasonLines = (value) => {
+        const [head, ...subs] = String(value ?? "").split(/\r?\n/).map(oneLine).filter(Boolean);
+        return [`- ${head ?? ""}`, ...subs.map((sub) => `  ${sub}`)];
+      };
+      const lines = reasons.flatMap((r) => [...reasonLines(r.text), ...(r.quoted ? quoted(r.quoted).map((line) => `  ${line}`) : [])]);
       return errorResult(["The proposal was not created:", ...lines].join("\n"));
     }
     const { change } = result;

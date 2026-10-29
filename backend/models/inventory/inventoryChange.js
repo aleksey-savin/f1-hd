@@ -38,11 +38,19 @@ const operationSchema = new Schema(
     // Детали каскада, которые создаёт более ранняя операция пакета: ref этих
     // операций; при применении их id дописываются к componentIds
     componentRefs: { type: [String], default: undefined },
+    // Снимок ссылок, взятый при предложении: [{ model, path, ids, live, deleted,
+    // deletedIds, … }] (форма catalogRefs). При применении операция сверяет его с
+    // текущим (дрейф) и переписывает ровно по нему. Сейчас — renameOptions у
+    // updateAttribute. У слияний — объект { entity, source, target, refs, retire?,
+    // multiOn?, collapse? } (catalogMerge)
+    refs: Schema.Types.Mixed,
     result: {
       state: { type: String, enum: RESULT_STATES, default: "pending" },
       error: String,
       // Созданное операцией: { [вид]: id } или { type:{key:id}, attribute:{key:id}, group:{key:id} }
       created: Schema.Types.Mixed,
+      // Слияние: числа перенесённых ссылок { [подпись счётчика]: n } (catalogMerge)
+      moved: Schema.Types.Mixed,
       at: Date,
     },
   },

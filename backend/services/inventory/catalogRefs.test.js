@@ -81,3 +81,51 @@ test("REF_TABLE без мёртвых полей", () => {
   ]);
   assert.ok(Object.isFrozen(REF_TABLE) && Object.isFrozen(REF_TABLE.DeviceModel));
 });
+
+test("same: формы числа — 2 новых устройства, 5 новых устройств", () => {
+  const refs = createCatalogRefs({ store: fakeStore({}) });
+  const entry = (ids) => [
+    { model: "ClientDevice", path: "deviceModelId", ids, live: ids.length, deleted: 0, deletedIds: [] },
+  ];
+  const opts = { entityLabel: "модель", name: "X" };
+  assert.deepEqual(refs.same(entry([]), entry(["a", "b"]), opts).diff, ["на модель «X» появилось 2 новых устройства"]);
+  assert.deepEqual(refs.same(entry([]), entry(["a", "b", "c", "d", "e"]), opts).diff, ["на модель «X» появилось 5 новых устройств"]);
+});
+
+test("find: путь-массив ищется по тому же пути, совместимость — отдельная строка счётчика", async () => {
+  const calls = [];
+  const store = {
+    query: async (model, path, kind, id) => {
+      calls.push([model, path, kind, id]);
+      return model === "DeviceModel" ? [{ _id: "m1" }, { _id: "m2" }] : [];
+    },
+  };
+  const refs = await createCatalogRefs({ store }).find("DeviceModel", "m0");
+  assert.deepEqual(calls[3], ["DeviceModel", "compatibleWithModelIds", "array", "m0"]);
+  assert.deepEqual(countLines(refs), ["совместимость: у 2 моделей"]);
+});
+
+test("find: у моделей без deletedAt все попадания живые", async () => {
+  const store = fakeStore({ "DeviceTypeAttribute:groupId": [{ _id: "l1", deletedAt: new Date() }] });
+  const refs = await createCatalogRefs({ store }).find("AttributeGroup", "g1");
+  assert.equal(refs[0].live, 1);
+  assert.equal(refs[0].deleted, 0);
+});
+
+test("countLines: «и 1 удалённое» в единственном числе", () => {
+  assert.deepEqual(
+    countLines([{ model: "DeviceBuild", path: "parts.deviceModelId", ids: ["b"], live: 0, deleted: 1, deletedIds: ["b"] }]),
+    ["сборок: 0 и 1 удалённое"],
+  );
+});
+
+test("same: глагол по роду — «появилась 1 новая конфигурация»", () => {
+  const refs = createCatalogRefs({ store: fakeStore({}) });
+  const entry = (ids) => [
+    { model: "DeviceConfiguration", path: "deviceModelId", ids, live: ids.length, deleted: 0, deletedIds: [] },
+  ];
+  const res = refs.same(entry([]), entry(["c1"]), { entityLabel: "модель", name: "X" });
+  assert.deepEqual(res.diff, ["на модель «X» появилась 1 новая конфигурация"]);
+  const two = refs.same(entry([]), entry(["c1", "c2"]), { entityLabel: "модель", name: "X" });
+  assert.match(two.diff[0], /^на модель «X» появилось 2 новых конфигурации$/);
+});

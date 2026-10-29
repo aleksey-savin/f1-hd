@@ -29,6 +29,13 @@
  * зависящие от них слоты и ключевые характеристики выпадают. Не найден сам
  * собираемый тип — предупреждение, ничего не пишется.
  *
+ * Имя (или код атрибута) держит скрытая запись (isActive:false): подхватить её
+ * нельзя. `hiddenClash` — что тогда: "warn" (по умолчанию, сиды в любом режиме) —
+ * предупреждение и пропуск записи каталога: ничего не подхвачено и не создано,
+ * связки и сборка пропущенного выпадают, пропущенная группа у связки — без
+ * группы; "refuse" (путь агента, catalogOps) — отказ: план несёт conflicts,
+ * applyCatalog бросает до записи.
+ *
  * Каталог:
  *   { groups:     [{ key, name, order }],
  *     types:      [{ key, name, flags?, attributes: [{ attr, group, required? }],
@@ -145,8 +152,25 @@ const planAssembly = (type, { componentTypeKeys, attrKeysByType, valueTypeByKey,
  * {_id,deviceTypeId,attributeId,groupId,order}. `matched` — ключ каталога →
  * `_id` подхваченного документа.
  */
-const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
+// Отказ для имени, которое держит скрытая запись: подхватить её нельзя, создать
+// такую же — тоже (уникальный индекс), поэтому человеку остаётся вернуть её
+const hiddenNameTaken = (name) =>
+  `имя занято скрытой записью «${name}» — верните её (isActive) или выберите другое имя`;
+const isHidden = (doc) => doc?.isActive === false;
+
+const planCatalog = (catalog, existing, { pickUpOnly = false, hiddenClash = "warn" } = {}) => {
   const warnings = [];
+  // Имена скрытых записей, с которыми столкнулся каталог (по порядку, без повторов)
+  const conflicts = [];
+  // Ключи каталога, пропущенные из-за скрытого имени (сид): от них зависящее выпадает
+  const skipped = { groups: new Set(), types: new Set(), attributes: new Set() };
+  // Сиды не должны падать — предупреждение; путь агента — отказ
+  const clash = (list, key, doc) => {
+    const text = hiddenNameTaken(doc.name);
+    skipped[list].add(key);
+    if (hiddenClash !== "refuse") warnings.push(`${pickUpOnly ? "подхват" : "каталог"}: ${text}`);
+    else if (!conflicts.includes(text)) conflicts.push(text);
+  };
   const create = { groups: [], types: [], attributes: [], links: [] };
   const update = { attributeOptions: [], linkGroups: [], typeFlags: [], typeAssembly: [] };
   const matched = { groups: {}, types: {}, attributes: {} };
@@ -177,6 +201,10 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
   const groupBase = existing.groups.length ? maxOrder(existing.groups) + 1 : 0;
   for (const group of catalog.groups) {
     const found = groupsByName.get(fold(group.name));
+    if (isHidden(found)) {
+      clash("groups", group.key, found);
+      continue;
+    }
     if (found) matched.groups[group.key] = found._id;
     else if (!pickUpOnly) {
       create.groups.push({
@@ -195,6 +223,10 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
   for (const attr of catalog.attributes) {
     const options = (attr.options || []).map(normalizeOption);
     const found = attrsByCode.get(fold(attr.code)) || attrsByName.get(fold(attr.name));
+    if (isHidden(found)) {
+      clash("attributes", attr.key, found);
+      continue;
+    }
     if (!found && pickUpOnly) {
       warnings.push(`подхват: атрибут «${attr.name}» не найден`);
       continue;
@@ -240,8 +272,10 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
 
   const groupKeys = new Set(catalog.groups.map((group) => group.key));
   const attrKeys = new Set(catalog.attributes.map((attr) => attr.key));
-  // Атрибуты, которые будут в базе: при подхвате — только найденные
-  const liveAttrKeys = pickUpOnly ? new Set(Object.keys(matched.attributes)) : attrKeys;
+  // Атрибуты, которые будут в базе: при подхвате — только найденные; пропущенные — нет
+  const liveAttrKeys = pickUpOnly
+    ? new Set(Object.keys(matched.attributes))
+    : new Set([...attrKeys].filter((key) => !skipped.attributes.has(key)));
   // Для проверки сборки: тип-комплектующая (по каталогу или в базе), его атрибуты
   const componentTypeKeys = new Set();
   const attrKeysByType = new Map();
@@ -250,6 +284,10 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
     const flags = {};
     for (const flag of TYPE_FLAGS) if (type.flags?.[flag]) flags[flag] = true;
     const found = typesByName.get(fold(type.name));
+    if (isHidden(found)) {
+      clash("types", type.key, found);
+      continue;
+    }
     if (!found && pickUpOnly) {
       warnings.push(`подхват: тип «${type.name}» не найден`);
       continue;
@@ -285,6 +323,8 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
         warnings.push(`каталог: у типа «${type.name}» неизвестная группа ${groupKey}`);
         groupKey = null;
       }
+      // Группа пропущена (скрытое имя, уже в предупреждениях) — связка без группы
+      if (groupKey && skipped.groups.has(groupKey)) groupKey = null;
       const attrId = Object.hasOwn(matched.attributes, item.attr)
         ? matched.attributes[item.attr]
         : undefined;
@@ -323,7 +363,7 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
 
   // «Своя сборка»: только типу без слотов
   for (const type of catalog.types) {
-    if (!type.assembly) continue;
+    if (!type.assembly || skipped.types.has(type.key)) continue;
     const found = foundByTypeKey.get(type.key);
     // При подхвате ненайденный собираемый тип уже в предупреждениях
     if (pickUpOnly && !found) continue;
@@ -339,16 +379,16 @@ const planCatalog = (catalog, existing, { pickUpOnly = false } = {}) => {
     update.typeAssembly.push({ _id: found ? found._id : null, typeKey: type.key, assembly });
   }
 
-  return { create, update, matched, warnings };
+  return { create, update, matched, warnings, conflicts };
 };
 
 const DEFAULT_MODELS = { AttributeGroup, DeviceType, DeviceAttribute, DeviceTypeAttribute };
 
 /** Лёгкие выборки из базы, на которых строится план (см. planCatalog). */
 const loadExisting = async (models = DEFAULT_MODELS) => ({
-  groups: await models.AttributeGroup.find({}).select("name order").lean(),
-  types: await models.DeviceType.find({}).select("name isComponent assembly.slots").lean(),
-  attributes: await models.DeviceAttribute.find({}).select("code name valueType options").lean(),
+  groups: await models.AttributeGroup.find({}).select("name order isActive").lean(),
+  types: await models.DeviceType.find({}).select("name isComponent isActive assembly.slots").lean(),
+  attributes: await models.DeviceAttribute.find({}).select("code name valueType options isActive").lean(),
   links: await models.DeviceTypeAttribute.find({}).select("deviceTypeId attributeId groupId order").lean(),
 });
 
@@ -363,7 +403,7 @@ const loadExisting = async (models = DEFAULT_MODELS) => ({
  */
 const applyCatalog = async (
   catalog,
-  { log = () => {}, models = DEFAULT_MODELS, pickUpOnly = false, userId } = {},
+  { log = () => {}, models = DEFAULT_MODELS, pickUpOnly = false, hiddenClash = "warn", userId } = {},
 ) => {
   const {
     AttributeGroup: Group,
@@ -374,7 +414,8 @@ const applyCatalog = async (
   const existing = await loadExisting(models);
   const author = userId ? { createdBy: userId, updatedBy: userId } : {};
   const editor = userId ? { updatedBy: userId } : {};
-  const plan = planCatalog(catalog, existing, { pickUpOnly });
+  const plan = planCatalog(catalog, existing, { pickUpOnly, hiddenClash });
+  if (plan.conflicts.length) throw Object.assign(new Error(plan.conflicts.join("; ")), { conflict: true });
   for (const warning of plan.warnings) log(`warning: ${warning}`);
 
   const ids = {
@@ -601,4 +642,4 @@ const describePlan = (plan, catalog) => {
   return lines;
 };
 
-module.exports = { planCatalog, applyCatalog, loadExisting, describePlan };
+module.exports = { hiddenNameTaken, planCatalog, applyCatalog, loadExisting, describePlan };

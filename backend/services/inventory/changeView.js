@@ -2,6 +2,7 @@
 // ключ MCP, параметры операций, снимки сверки, контакты людей), наружу не уходит, как бы документ ни был загружен.
 // Чистый модуль: без моделей и логгера. Подписи созданного разрешает контроллер (createdRefs → Map).
 const { STATUS, STATUS_LABELS, isOpen, isFinal } = require("./changeSteps");
+const { REF_TABLE, plural } = require("./catalogRefs");
 
 const idOf = (v) => (v && typeof v === "object" && "_id" in v ? String(v._id) : v == null ? "" : String(v));
 const nameOf = (u) => (u && typeof u === "object" ? [u.firstName, u.lastName].filter(Boolean).join(" ") : "");
@@ -116,7 +117,8 @@ const resolveRefs = (refs, created) =>
     return [{ model: ref.model, id: ref.id, label: found.label, ...(found.to ? { to: found.to } : {}) }];
   });
 
-// Сводка для диалога «Применить?»: что создаст пакет и сколько существующих устройств изменит
+// Сводка для диалога «Применить?»: что создаст пакет, сколько существующих устройств изменит
+// и строки правок, слияний и скрытия справочников (catalog, по порядку операций)
 const CREATE_KINDS = {
   createVendor: "vendor",
   createSupplier: "supplier",
@@ -131,10 +133,77 @@ const CATALOG_NEW = [
 ];
 const NAMES_MAX = 2;
 
+// Правки, слияния и скрытие справочников: строка диалога на операцию из её
+// заголовка (page.head): «Изменить атрибут «A»» → «изменить: атрибут «A»»,
+// «Слить модель «A» в «B»» → «слить: модель «A» — переедут 12 устройств, …»,
+// «Скрыть атрибут «A» (не используется)» → «скрыть: атрибут «A»»,
+// «Удалить пустую группу «A»» → «удалить: группу «A»».
+const CATALOG_EDITS = new Set([
+  "updateVendor",
+  "updateSupplier",
+  "updateModel",
+  "updateDeviceType",
+  "updateGroup",
+  "updateAttribute",
+  "updateTypeAttribute",
+  "unlinkAttribute",
+  "updateConfiguration",
+  "updateBuild",
+]);
+const isMerge = (kind) => /^merge[A-Z]/.test(kind);
+const isRetire = (kind) => /^retire[A-Z]/.test(kind) || kind === "deleteGroup";
+
+// Живые ссылки слияния по видам: «12 устройств, 3 конфигурации, 1 сборка» — из
+// строк чисел страницы (page.fields слияния: { label: countLabel, value: «12 и 1
+// удалённое» }). Там уже учтено, что не переезжает (skip правил catalogMerge), —
+// своих правил здесь нет. Совместимость (особая строка) не переезжает; одинаковые
+// виды складываются
+function movingOf(op) {
+  const table = REF_TABLE[op.refs?.entity];
+  if (!table) return [];
+  const counts = new Map();
+  for (const field of pageOf(op).fields ?? []) {
+    const meta = table.find((t) => t.countLabel === field?.label);
+    if (!meta || meta.line) continue;
+    const n = Number.parseInt(String(field.value), 10);
+    if (!(n > 0)) continue;
+    const was = counts.get(meta.countLabel);
+    counts.set(meta.countLabel, { noun: meta.noun, n: (was?.n ?? 0) + n });
+  }
+  return [...counts.values()].map(({ noun, n }) => ({ n, text: `${n} ${plural(n, ...noun)}` }));
+}
+
+function catalogLine(op) {
+  const head = flat(pageOf(op).head);
+  const at = head.indexOf(" ");
+  if (at < 0) return null;
+  const verb = head.slice(0, at).toLowerCase();
+  let what = head.slice(at + 1);
+  if (isMerge(op.kind)) {
+    // Цель не называем: «Слить модель «A» в «B»» → «модель «A»» (до первого «» в «»)
+    const cut = what.indexOf("» в «");
+    if (cut >= 0) what = what.slice(0, cut + 1);
+    const moving = movingOf(op);
+    if (!moving.length) return `${verb}: ${what}`;
+    // «переедет 1 сборка», «переедут 12 устройств, 3 конфигурации»
+    const one = moving.length === 1 && plural(moving[0].n, "one", "few", "many") === "one";
+    return `${verb}: ${what} — ${one ? "переедет" : "переедут"} ${moving.map((m) => m.text).join(", ")}`;
+  }
+  if (op.kind === "deleteGroup") what = what.replace(/^пустую /, "");
+  else if (isRetire(op.kind)) what = what.replace(/ \(не используется\)$/, "");
+  return `${verb}: ${what}`;
+}
+
 function summaryOf(operations) {
   const create = { type: 0, attribute: 0, group: 0, vendor: 0, supplier: 0, model: 0, configuration: 0, build: 0, device: 0 };
   const changed = new Map();
+  const catalog = [];
   for (const op of operations) {
+    if (CATALOG_EDITS.has(op.kind) || isMerge(op.kind) || isRetire(op.kind)) {
+      const line = catalogLine(op);
+      if (line) catalog.push(line);
+      continue;
+    }
     if (op.kind === "catalog") {
       // Новое каталога — по строкам проверки: «уже есть» не считается
       for (const line of linesOf(op)) {
@@ -166,7 +235,7 @@ function summaryOf(operations) {
   const names = [...changed.values()];
   // Имена — когда устройств немного и подпись есть у каждого (у старых предложений ссылок нет)
   const withNames = count > 0 && count <= NAMES_MAX && names.every((n) => typeof n === "string" && n);
-  return { create, change: withNames ? { count, names } : { count } };
+  return { create, change: withNames ? { count, names } : { count }, ...(catalog.length ? { catalog } : {}) };
 }
 
 // Закрыто: отклонённое — по решению; итоговые статусы — по последней записи хроники; открытое и применяемое — null
