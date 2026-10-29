@@ -155,6 +155,7 @@ const DeviceBuild = require("@/models/inventory/deviceBuild");
 const DeviceType = require("@/models/inventory/deviceType");
 const DeviceModel = require("@/models/inventory/deviceModel");
 const DeviceConfiguration = require("@/models/inventory/deviceConfiguration");
+const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
 const controller = require("./clientDevice");
 
 const PC = "eeeeeeeeeeeeeeeeeeeeee01";
@@ -226,6 +227,7 @@ const stubCatalog = (t, { saveFailsAt = 0 } = {}) => {
     chain(models.filter((m) => filter._id.$in.includes(m._id))),
   );
   t.mock.method(DeviceConfiguration, "find", () => chain([]));
+  t.mock.method(DeviceTypeAttribute, "find", () => chain([]));
   // Единственная конфигурация модели (soleConfigurationId) — здесь её нет
   t.mock.method(DeviceModel, "findOne", () => chain(null));
   t.mock.method(Company, "findById", () => chain({ _id: COMPANY }));
@@ -542,7 +544,6 @@ test("delete: ПК с деталями — 409 со счётом, без уда�
 
 // --- getOne: данные карточки ПК своей сборки ---------------------------------
 
-const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
 
 test("getOne: у ПК своей сборки — assembly, build, partLinks и узкие детали", async (t) => {
   stubCatalog(t);
@@ -590,7 +591,8 @@ test("getOne: у ПК своей сборки — assembly, build, partLinks и 
   });
   let linkTypes = null;
   t.mock.method(DeviceTypeAttribute, "find", (filter) => {
-    linkTypes = filter.deviceTypeId.$in;
+    // Второй запрос — связки самого типа (атрибуты устройства), не деталей
+    if (filter.deviceTypeId?.$in) linkTypes = filter.deviceTypeId.$in;
     return chain([]);
   });
 
@@ -634,4 +636,51 @@ test("getOne: у заводского устройства — без данны
   assert.equal(res.body.assembly, undefined);
   assert.equal(res.body.build, undefined);
   assert.equal(res.body.partLinks, undefined);
+});
+
+// --- update: параметры устройства сливаются с текущими ----------------------
+
+const IP_ATTR = "cdcdcdcdcdcdcdcdcdcdcd01";
+const MAC_ATTR = "cdcdcdcdcdcdcdcdcdcdcd02";
+const deviceLink = (_id, code, name) => ({
+  attributeId: { _id, code, name, valueType: "string", scope: "device", options: [] },
+  required: false,
+});
+
+test("update: параметр, которого форма не знала, остаётся; пустой — снимается", async (t) => {
+  const { saved } = stubCatalog(t);
+  // Связка MAC появилась после открытия формы (синхронизация Mikrotik)
+  t.mock.method(DeviceTypeAttribute, "find", () =>
+    chain([deviceLink(IP_ATTR, "ip_address", "IP-адрес"), deviceLink(MAC_ATTR, "mac_address", "MAC-адрес")]),
+  );
+  const pc = existingPc();
+  pc.attributes = [
+    { attributeId: IP_ATTR, value: "10.0.0.1" },
+    { attributeId: MAC_ATTR, value: "AA:BB:CC:DD:EE:FF" },
+  ];
+  t.mock.method(ClientDevice, "findById", () => chain(pc));
+  const body = { companyId: COMPANY, deviceTypeId: PC, inventoryNumber: "PC-000001" };
+
+  const kept = await call(controller.update, {
+    params: { id: String(pc._id) },
+    body: { ...body, attributes: [{ attributeId: IP_ATTR, value: "10.0.0.2" }] },
+  });
+  assert.ifError(kept.error);
+  assert.deepEqual(
+    saved[0].attributes.map((v) => [String(v.attributeId), v.value]),
+    [
+      [IP_ATTR, "10.0.0.2"],
+      [MAC_ATTR, "AA:BB:CC:DD:EE:FF"],
+    ],
+  );
+
+  const cleared = await call(controller.update, {
+    params: { id: String(pc._id) },
+    body: { ...body, attributes: [{ attributeId: IP_ATTR, value: "" }] },
+  });
+  assert.ifError(cleared.error);
+  assert.deepEqual(
+    saved[1].attributes.map((v) => [String(v.attributeId), v.value]),
+    [[MAC_ATTR, "AA:BB:CC:DD:EE:FF"]],
+  );
 });

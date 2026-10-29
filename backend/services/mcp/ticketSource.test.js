@@ -68,7 +68,8 @@ const ticketModel = fakeModel(ticketRows);
 stubModule("@/models/ticket", { Ticket: ticketModel, ticketDefaultFieldsSchema: {}, initializeCounter: async () => {} });
 const commentModel = fakeModel();
 const workModel = fakeModel();
-const deviceModel = fakeModel();
+const deviceRows = [];
+const deviceModel = fakeModel(deviceRows);
 stubModule("@/models/comment", commentModel);
 stubModule("@/models/work", workModel);
 stubModule("@/models/user", fakeModel());
@@ -78,6 +79,15 @@ stubModule("@/models/inventory/clientDevice", deviceModel);
 stubModule("@/models/inventory/deviceModel", {});
 stubModule("@/models/inventory/vendor", {});
 stubModule("@/models/inventory/deviceType", {});
+// Системные атрибуты устройства (systemDeviceAttributes.systemIds)
+stubModule(
+  "@/models/inventory/deviceAttribute",
+  fakeModel([
+    { _id: "os1", code: "operatingsystem", name: "Операционная система" },
+    { _id: "ip1", code: "ip_address", name: "IP-адрес" },
+    { _id: "mac1", code: "mac_address", name: "MAC-адрес" },
+  ]),
+);
 stubModule("@/models/routineTask", {});
 
 const ticketSource = require("./ticketSource");
@@ -165,7 +175,7 @@ const SEARCH_SELECT = "num title description source state isClosed categoryId co
 const DETAIL_SELECT = `${SEARCH_SELECT} processedAt startedAt deadline routineTask relatedClientDeviceId comments responsibles._id responsibles.firstName responsibles.lastName customFields.name customFields.type customFields.value checklist.description checklist.checked`;
 const COMMENT_SELECT = "content createdBy createdAt";
 const WORK_SELECT = "description visitRequired startedAt finishedAt finishedBy._id finishedBy.firstName finishedBy.lastName executor._id executor.firstName executor.lastName";
-const DEVICE_SELECT = "deviceModelId deviceTypeId serialNumber inventoryNumber status operatingSystem";
+const DEVICE_SELECT = "deviceModelId deviceTypeId serialNumber inventoryNumber status attributes";
 const STATS_SELECT = "categoryId company._id applicantId source createdAt finishedAt isClosed";
 
 // «applicant » с пробелом — легаси-поле заявки; «applicantId» разрешён
@@ -216,4 +226,25 @@ test("loadWorkDescriptions asks only for the description and the ticket ids", as
   await ticketSource.loadWorkDescriptions(["t1"]);
 
   assertSelect(workModel.calls[0], "description tickets", "loadWorkDescriptions");
+});
+
+test("loadTicketDetail: ОС устройства — из атрибута, остальные значения (IP, MAC) не отдаются", async () => {
+  ticketRows.length = 0;
+  ticketRows.push({ _id: "t1", num: 1, comments: [], relatedClientDeviceId: "d1" });
+  deviceRows.length = 0;
+  deviceRows.push({
+    _id: "d1",
+    attributes: [
+      { attributeId: "os1", value: "Windows 11 Pro" },
+      { attributeId: "ip1", value: "10.5.5.5" },
+      { attributeId: "mac1", value: "AA:BB:CC:DD:EE:FF" },
+    ],
+  });
+
+  const detail = await ticketSource.loadTicketDetail(1, { devices: true, applicantIsSystem: () => false });
+
+  assert.equal(detail.devices[0].operatingSystem, "Windows 11 Pro");
+  assert.equal(detail.devices[0].attributes, undefined);
+  assert.ok(!JSON.stringify(detail.devices).includes("10.5.5.5"));
+  deviceRows.length = 0;
 });

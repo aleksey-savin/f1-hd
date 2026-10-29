@@ -3,6 +3,20 @@ const DeviceType = require("@/models/inventory/deviceType");
 const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
 const { AppError } = require("@/middleware/errorHandling");
 const { uniqueAttributeCode } = require("@/services/attributeCode");
+const DeviceConfiguration = require("@/models/inventory/deviceConfiguration");
+const ClientDevice = require("@/models/inventory/clientDevice");
+const { scopeChangeError } = require("@/services/inventory/attributeScope");
+const { systemAttributeChangeError } = require("@/services/inventory/systemDeviceAttributes");
+
+// Сколько значений держит атрибут на каждом уровне: форма атрибута по нему
+// запирает выбор уровня, update — отказывает в смене.
+const valuesInUse = async (attributeId) => {
+  const [configValues, deviceValues] = await Promise.all([
+    DeviceConfiguration.countDocuments({ "values.attributeId": attributeId }),
+    ClientDevice.countDocuments({ "attributes.attributeId": attributeId }),
+  ]);
+  return { configValues, deviceValues };
+};
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -31,7 +45,10 @@ exports.getOne = async (req, res, next) => {
         ),
       );
     }
-    res.status(200).json(deviceAttribute);
+    res.status(200).json({
+      ...deviceAttribute.toObject(),
+      inUse: await valuesInUse(deviceAttribute._id),
+    });
   } catch (error) {
     next(
       new AppError(
@@ -46,7 +63,7 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { name, valueType, unit, options, isActive } = req.body;
+    const { name, valueType, unit, options, isActive, scope } = req.body;
 
     // Наименование уникально и по смыслу, и по устаревшему индексу name_1 на
     // старых базах; код занятым быть не может — подбирается свободный.
@@ -64,6 +81,7 @@ exports.add = async (req, res, next) => {
       code,
       name,
       valueType,
+      scope,
       unit,
       options,
       isActive,
@@ -89,7 +107,7 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { name, valueType, unit, options, isActive } = req.body;
+    const { name, valueType, unit, options, isActive, scope } = req.body;
 
     const deviceAttribute = await DeviceAttribute.findById(req.params.id);
     if (!deviceAttribute) {
@@ -99,6 +117,21 @@ exports.update = async (req, res, next) => {
           404,
         ),
       );
+    }
+
+    // IP, MAC, ОС: на них завязаны Mikrotik, агент и проверка формата
+    const system = systemAttributeChangeError(deviceAttribute, { scope, code: req.body.code, valueType });
+    if (system) return next(new AppError(system, 409));
+
+    // Уровень не шлют — прежний; смена при значениях на прежнем уровне — 409
+    if (scope && scope !== deviceAttribute.scope) {
+      const blocked = scopeChangeError(
+        deviceAttribute,
+        scope,
+        await valuesInUse(deviceAttribute._id),
+      );
+      if (blocked) return next(new AppError(blocked, 409));
+      deviceAttribute.scope = scope;
     }
 
     // Форма кода не шлёт — тогда он прежний; явный код (API) меняет его
@@ -244,6 +277,9 @@ exports.delete = async (req, res, next) => {
         ),
       );
     }
+
+    const system = systemAttributeChangeError(deviceAttribute, null);
+    if (system) return next(new AppError(system, 409));
 
     // TODO: Check if attribute is used in any device types or device models
     // For now, allow deletion

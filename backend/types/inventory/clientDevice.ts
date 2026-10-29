@@ -23,6 +23,8 @@ export interface IInstalledSoftware {
 
 export interface IClientDevice {
   configurationId?: Types.ObjectId;
+  /** Значения атрибутов уровня устройства (deviceAttributes.js) */
+  attributes?: { attributeId?: Types.ObjectId; value?: string }[];
   deviceModelId?: Types.ObjectId;
   // Сборка-шаблон «своего» ПК; только при deviceTypeId без модели.
   buildId?: Types.ObjectId | null;
@@ -43,10 +45,7 @@ export interface IClientDevice {
   lastMaintenanceDate?: Date;
   nextMaintenanceDate?: Date;
   maintenanceInterval: number;
-  // Technical specifications
-  ipAddress?: string;
-  macAddress?: string;
-  operatingSystem?: string;
+  // Technical specifications (IP, MAC, ОС — в attributes)
   // Сетевое имя ПК (hostname); уникально в пределах компании.
   hostname?: string;
   // Стабильный идентификатор реальной машины под агента; глобально уникален.

@@ -5,6 +5,13 @@ const { parseMultiValue } = require("./assemblyKeySpecs");
 
 const BOOLEANS = new Set(["true", "false", "да", "нет", "1", "0"]);
 
+// Дата хранится строкой YYYY-MM-DD; день должен существовать (не 30 февраля).
+const isCalendarDay = (text) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
+};
+
 /** Значение конфигурации подходит атрибуту? Пустое значение — «не задано», это не ошибка. */
 const isValidValue = (attr, value) => {
   const text = String(value ?? "").trim();
@@ -15,6 +22,8 @@ const isValidValue = (attr, value) => {
       return Number.isFinite(Number(text.replace(",", ".")));
     case "boolean":
       return BOOLEANS.has(text.toLowerCase());
+    case "date":
+      return isCalendarDay(text);
     case "select":
       return options.includes(text);
     case "multiselect":

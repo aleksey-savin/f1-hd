@@ -9,6 +9,8 @@ import Combobox from "@/components/app/Combobox";
 import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
 import { DEVICE_STATUS_OPTIONS } from "@/components/app/device-status";
+import SpecFields from "../DeviceConfiguration/SpecFields";
+import { laterHint, paramsForStep } from "./device-params";
 
 // Группы полей устройства — ОДИН набор на мастер создания и на плоскую правку.
 // Форк «мини-формы» под каждый режим и есть тот случай, когда правила
@@ -442,6 +444,7 @@ export const PurchaseFields = ({
   onChange,
   options,
   onInlineCreate,
+  isEdit = false,
 }) => (
   <>
     <div className="grid gap-x-3 md:grid-cols-2">
@@ -497,91 +500,90 @@ export const PurchaseFields = ({
           captionLayout="dropdown"
         />
       </Field>
+      {/* Обслуживание — жизнь устройства, не закупка: только в правке */}
+      {isEdit && (
+        <Field label="Последнее обслуживание" htmlFor="device-maintenance">
+          <DateField
+            id="device-maintenance"
+            value={values.lastMaintenanceDate}
+            onChange={(next) => onChange("lastMaintenanceDate", next)}
+            captionLayout="dropdown"
+          />
+        </Field>
+      )}
     </div>
   </>
 );
 
 /**
- * Сеть и система. У вендора с управлением Mikrotik блок сжимается до имени:
- * серийник, прошивку и адреса устройство отдаст само при подключении.
+ * Параметры устройства — атрибуты уровня «device» эффективного типа (значения
+ * в `attributes`) и имя в сети. Имя — только у типов-устройств (showHostname).
+ * В мастере (mode="wizard") — только обязательные, остальные названы
+ * подсказкой «… — потом, в карточке устройства.»; в правке — все. У вендора с
+ * управлением Mikrotik остальное отдаст само устройство при подключении.
  */
-export const TechFields = ({ values, onChange, mikrotikMode }) => (
-  <>
-    <div className="grid gap-x-3 md:grid-cols-2">
-      <Field
-        label="Имя устройства"
-        htmlFor="device-hostname"
-        hint={
-          mikrotikMode
-            ? "Остальное заполнится с устройства при подключении к мониторингу."
-            : undefined
-        }
-      >
-        <Input
-          id="device-hostname"
-          value={values.hostname}
-          onChange={(event) => onChange("hostname", event.target.value)}
-          placeholder="PC-01"
-          className="font-mono"
-        />
-      </Field>
-      {!mikrotikMode && (
-        <Field label="Операционная система" htmlFor="device-os">
-          <Input
-            id="device-os"
-            value={values.operatingSystem}
-            onChange={(event) =>
-              onChange("operatingSystem", event.target.value)
-            }
-            placeholder="Windows 11, Ubuntu 22.04"
-          />
-        </Field>
-      )}
-    </div>
-
-    {!mikrotikMode && (
-      <>
-        <div className="grid gap-x-3 md:grid-cols-2">
-          <Field label="IP-адрес" htmlFor="device-ip">
-            <Input
-              id="device-ip"
-              value={values.ipAddress}
-              onChange={(event) => onChange("ipAddress", event.target.value)}
-              placeholder="192.168.1.100"
-              className="font-mono"
-            />
-          </Field>
-          <Field label="MAC-адрес" htmlFor="device-mac">
-            <Input
-              id="device-mac"
-              value={values.macAddress}
-              onChange={(event) => onChange("macAddress", event.target.value)}
-              placeholder="AA:BB:CC:DD:EE:FF"
-              className="font-mono"
-            />
-          </Field>
-        </div>
-        <div className="grid gap-x-3 md:grid-cols-2">
-          <Field label="Последнее обслуживание" htmlFor="device-maintenance">
-            <DateField
-              id="device-maintenance"
-              value={values.lastMaintenanceDate}
-              onChange={(next) => onChange("lastMaintenanceDate", next)}
-              captionLayout="dropdown"
-            />
-          </Field>
-        </div>
-      </>
-    )}
-
-    <Field label="Заметки" htmlFor="device-notes">
-      <Textarea
-        id="device-notes"
-        rows={3}
-        value={values.notes}
-        onChange={(event) => onChange("notes", event.target.value)}
-        placeholder="Дополнительные заметки об устройстве…"
+export const DeviceParamsFields = ({
+  values,
+  onChange,
+  links = [],
+  attributes = [],
+  onAttributesChange,
+  showHostname = false,
+  mode = "wizard",
+  errors = {},
+  mikrotikMode = false,
+}) => {
+  const { shown, laterNames } = paramsForStep(links, mode);
+  if (!showHostname && shown.length === 0) return null;
+  const hostname = showHostname && (
+    <Field
+      label="Имя устройства"
+      htmlFor="device-hostname"
+      hint={
+        mikrotikMode
+          ? "Остальное заполнится с устройства при подключении к мониторингу."
+          : undefined
+      }
+    >
+      <Input
+        id="device-hostname"
+        value={values.hostname}
+        onChange={(event) => onChange("hostname", event.target.value)}
+        placeholder="PC-01"
+        className="font-mono"
       />
     </Field>
-  </>
+  );
+  const hint = mikrotikMode ? "" : laterHint(laterNames);
+  return (
+    <>
+      {shown.length > 0 ? (
+        <SpecFields
+          links={shown}
+          values={attributes}
+          onChange={onAttributesChange}
+          errors={errors}
+          lead={hostname}
+        />
+      ) : (
+        <div className="grid gap-x-4 sm:grid-cols-2">{hostname}</div>
+      )}
+      {hint && (
+        <p className="-mt-1 mb-4 text-xs text-muted-foreground">{hint}</p>
+      )}
+    </>
+  );
+};
+
+/** Заметки — своя секция правки. */
+export const NotesFields = ({ values, onChange }) => (
+  <Field label="Заметки" htmlFor="device-notes">
+    <Textarea
+      id="device-notes"
+      rows={3}
+      value={values.notes}
+      onChange={(event) => onChange("notes", event.target.value)}
+      placeholder="Дополнительные заметки об устройстве…"
+    />
+  </Field>
 );

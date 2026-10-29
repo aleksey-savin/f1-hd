@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import Field from "@/components/app/Field";
+import DateField from "@/components/app/DateField";
 import Combobox from "@/components/app/Combobox";
 import FilterChip from "@/components/app/FilterChip";
 import {
@@ -15,18 +16,34 @@ import {
 // «Характеристики» в режиме одной конфигурации). Значения — массив
 // { attributeId, value }; состояние держит форма, сюда приходит готовое,
 // наверх — следующий массив целиком. Без связок не рендерит ничего:
-// пояснение «у типа нет характеристик» у каждой формы своё.
-const SpecFields = ({ links = [], values = [], onChange }) => {
+// пояснение «у типа нет характеристик» у каждой формы своё. Те же поля — у
+// параметров устройства (значения ClientDevice.attributes); errors — причина
+// у поля по id атрибута (незаполненный обязательный).
+const idOf = (ref) => String(ref?._id ?? ref ?? "");
+
+// lead — поле, которое встаёт первым в сетку первой группы (имя устройства в
+// паре с первым параметром, как в макете)
+const SpecFields = ({
+  links = [],
+  values = [],
+  onChange,
+  errors = {},
+  lead = null,
+}) => {
   const getValue = (attributeId) => {
-    const val = values.find((v) => v.attributeId === attributeId);
+    const val = values.find((v) => idOf(v.attributeId) === idOf(attributeId));
     return val?.value ?? "";
   };
 
   const handleValueChange = (attributeId, value) => {
-    const existing = values.find((v) => v.attributeId === attributeId);
+    const existing = values.find(
+      (v) => idOf(v.attributeId) === idOf(attributeId),
+    );
     onChange(
       existing
-        ? values.map((v) => (v.attributeId === attributeId ? { ...v, value } : v))
+        ? values.map((v) =>
+            idOf(v.attributeId) === idOf(attributeId) ? { ...v, value } : v,
+          )
         : [...values, { attributeId, value }],
     );
   };
@@ -124,6 +141,16 @@ const SpecFields = ({ links = [], values = [], onChange }) => {
         );
       }
 
+      case "date":
+        return (
+          <DateField
+            id={inputId}
+            value={String(value || "")}
+            onChange={(next) => handleValueChange(attrId, next)}
+            captionLayout="dropdown"
+          />
+        );
+
       case "text":
         return (
           <Textarea
@@ -143,6 +170,7 @@ const SpecFields = ({ links = [], values = [], onChange }) => {
             value={value}
             onChange={(e) => handleValueChange(attrId, e.target.value)}
             placeholder="Введите значение"
+            aria-invalid={errors[attrId] ? true : undefined}
           />
         );
     }
@@ -169,6 +197,7 @@ const SpecFields = ({ links = [], values = [], onChange }) => {
             </h5>
           )}
           <div className="grid gap-x-4 sm:grid-cols-2">
+            {index === 0 && lead}
             {group.links.map((attr) => {
               const attrData =
                 typeof attr.attributeId === "object" ? attr.attributeId : null;
@@ -183,6 +212,7 @@ const SpecFields = ({ links = [], values = [], onChange }) => {
                   className={wide ? "sm:col-span-2" : undefined}
                   htmlFor={`attr-${attrId}`}
                   required={attr.required}
+                  error={errors[attrId]}
                   label={
                     <>
                       {attrData.name || "Атрибут"}

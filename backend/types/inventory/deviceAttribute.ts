@@ -6,12 +6,17 @@ export type DeviceAttributeValueType =
   | "boolean"
   | "select"
   | "multiselect"
-  | "text";
+  | "text"
+  | "date";
+
+/** «model» — значение в конфигурации модели, «device» — у каждого устройства. */
+export type DeviceAttributeScope = "model" | "device";
 
 export interface IDeviceAttribute {
   code: string;
   name: string;
   valueType: DeviceAttributeValueType;
+  scope: DeviceAttributeScope;
   unit?: string;
   /** Options for select/multiselect value types. */
   options?: { value?: string; label?: string }[];

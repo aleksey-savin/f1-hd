@@ -10,12 +10,11 @@ const MIKROTIK_VENDOR_NAME = "MikroTik";
 // Код атрибута «Год выпуска».
 const MANUFACTURE_YEAR_CODE = "manufactureyear";
 
-// Определения нужных атрибутов — на случай, если в базе их ещё нет. Коды
-// `portspeed` и `operatingsystem` общие с каталожным сидом
-// (scripts/seeds/2026-10-19-inventoryCatalog.js), и для общих кодов главный —
-// он: здесь атрибут ищется по коду или имени, а не создаётся заново. Если
-// каталожный сид прошёл первым, `operatingsystem` — строковый атрибут, и
-// значения ("routeros") хранятся как написаны, без подписей вариантов.
+// Определения нужных атрибутов — на случай, если в базе их ещё нет. Код
+// `portspeed` общий с каталожным сидом (scripts/seeds/2026-10-19-inventoryCatalog.js),
+// и для общих кодов главный — он: здесь атрибут ищется по коду или имени, а не
+// создаётся заново. Операционной системы здесь нет: это атрибут уровня
+// устройства (services/inventory/systemDeviceAttributes), её снимает синхронизация.
 const ATTRIBUTE_DEFINITIONS = [
   { code: MANUFACTURE_YEAR_CODE, name: "Год выпуска", valueType: "number" },
   { code: "portcount", name: "Количество портов", valueType: "number" },
@@ -34,19 +33,6 @@ const ATTRIBUTE_DEFINITIONS = [
     ],
   },
   { code: "poesupport", name: "Поддержка PoE", valueType: "boolean" },
-  {
-    code: "operatingsystem",
-    name: "Операционная система",
-    valueType: "select",
-    options: [
-      { value: "ios", label: "iOS" },
-      { value: "android", label: "Android" },
-      { value: "windows", label: "Windows" },
-      { value: "macos", label: "macOS" },
-      { value: "linux", label: "Linux" },
-      { value: "routeros", label: "RouterOS" },
-    ],
-  },
 ];
 
 // Категория модели → имя типа устройства. Имена типов совпадают строкой с
@@ -64,7 +50,6 @@ const NEEDED_ATTR_CODES = [
   "portcount",
   "portspeed",
   "poesupport",
-  "operatingsystem",
 ];
 
 // Каталог MikroTik на июль 2026 (сверено с mikrotik.com/products и mikrosearch.com).
@@ -226,12 +211,10 @@ async function ensureAttributes() {
   return attrMap;
 }
 
-// Значения конфигурации модели (code → строковое значение). Для CHR — только год + ОС.
+// Значения конфигурации модели (code → строковое значение). Для CHR — только год.
 function buildValueCodes(model) {
   const values = [{ code: MANUFACTURE_YEAR_CODE, value: String(model.year) }];
-  if (model.category === "chr") {
-    values.push({ code: "operatingsystem", value: "routeros" });
-  } else {
+  if (model.category !== "chr") {
     if (model.ports > 0) {
       values.push({ code: "portcount", value: String(model.ports) });
     }

@@ -50,6 +50,11 @@ const {
   deriveSyncValues,
 } = require("../../services/mikrotik/reconciliation");
 const {
+  FIELD_BY_KEY,
+  applySystemValues,
+  systemIds,
+} = require("../../services/inventory/systemDeviceAttributes");
+const {
   loadFirmwareContext,
   evaluateFirmware,
 } = require("../../services/mikrotik/firmware");
@@ -1040,7 +1045,9 @@ exports.getRecordOne = async (req, res, next) => {
       lastUpgrade,
       record,
       // Стоячее предупреждение о расхождениях карточки с устройством.
-      reconciliation: device ? computeReconciliation(device, record) : null,
+      reconciliation: device
+        ? computeReconciliation(device, record, await systemIds())
+        : null,
       // Связанная запись — координаты карточки для строки hero; standalone —
       // тот же блок «Инвентарь», что у шага после проверки (кандидат по
       // серийнику и право создать карточку), чтобы связать можно было и со
@@ -1101,13 +1108,29 @@ exports.getFirmwareReleases = async (req, res, next) => {
 
 // Fields the sync-inventory endpoint may write to the ClientDevice card. Values
 // are always derived server-side from the stored record (deriveSyncValues) — the
-// client only chooses WHICH fields to apply, never their values.
+// client only chooses WHICH fields to apply, never their values. OS and IP are
+// system attributes of the device (systemDeviceAttributes), not card fields.
 const SYNCABLE_FIELDS = [
   "hostname",
   "serialNumber",
   "operatingSystem",
   "ipAddress",
 ];
+const SYSTEM_FIELDS = new Set(Object.values(FIELD_BY_KEY));
+
+// Split sync values into plain card fields and system attribute values.
+const splitSystemValues = (values) => {
+  const fields = {};
+  const system = {};
+  for (const [field, value] of Object.entries(values)) {
+    (SYSTEM_FIELDS.has(field) ? system : fields)[field] = value;
+  }
+  return { fields, system };
+};
+
+// Effective device type for attribute links: the model's type, else the direct one.
+const deviceTypeOf = (device) =>
+  device.deviceModelId?.deviceTypeId ?? device.deviceTypeId ?? null;
 
 // Apply device-derived values to the inventory card (reconciliation step of the
 // parameters modal / the standing warning on the device page).
@@ -1132,7 +1155,7 @@ exports.syncInventory = async (req, res, next) => {
 
     const device = await ClientDevice.findById(record.clientDevice).populate(
       "deviceModelId",
-      "name",
+      "name deviceTypeId",
     );
     if (!device) {
       return next(new AppError("Карточка устройства не найдена", 404));
@@ -1168,7 +1191,10 @@ exports.syncInventory = async (req, res, next) => {
       }
     }
 
-    Object.assign(device, updates);
+    const ids = await systemIds();
+    const { fields, system } = splitSystemValues(updates);
+    Object.assign(device, fields);
+    await applySystemValues(device, system, { typeId: deviceTypeOf(device), ids });
     device.updatedBy = req.userId;
     try {
       await device.save();
@@ -1191,7 +1217,7 @@ exports.syncInventory = async (req, res, next) => {
     res.status(200).json({
       message: "Карточка устройства обновлена",
       updated: Object.keys(updates),
-      reconciliation: computeReconciliation(device, record),
+      reconciliation: computeReconciliation(device, record, ids),
     });
   } catch (error) {
     next(
@@ -1452,7 +1478,7 @@ exports.linkInventory = async (req, res, next) => {
     res.status(200).json({
       message: "Карточка связана",
       clientDeviceId: device._id,
-      reconciliation: computeReconciliation(device, record),
+      reconciliation: computeReconciliation(device, record, await systemIds()),
     });
   } catch (error) {
     next(
@@ -1507,7 +1533,7 @@ exports.createInventoryCard = async (req, res, next) => {
         isMikrotikManagementEnabled: true,
       }).distinct("_id");
       const models = await DeviceModel.find({ vendorId: { $in: vendorIds } })
-        .select("name")
+        .select("name deviceTypeId")
         .lean();
       const boardNorm = board.toLowerCase();
       model =
@@ -1519,7 +1545,7 @@ exports.createInventoryCard = async (req, res, next) => {
         null;
     }
 
-    const values = deriveSyncValues(record);
+    const { fields: values, system } = splitSystemValues(deriveSyncValues(record));
     // Модель вне режима нескольких конфигураций — устройство на её единственной
     const configurationId = model ? await soleConfigurationId(model._id) : null;
     const device = new ClientDevice({
@@ -1528,14 +1554,12 @@ exports.createInventoryCard = async (req, res, next) => {
       companyId: record.companyId || undefined,
       ...(values.hostname ? { hostname: values.hostname } : {}),
       ...(serial ? { serialNumber: serial } : {}),
-      ...(values.operatingSystem
-        ? { operatingSystem: values.operatingSystem }
-        : {}),
-      ...(values.ipAddress ? { ipAddress: values.ipAddress } : {}),
       status: "deployed",
       createdBy: req.userId,
       updatedBy: req.userId,
     });
+    // ОС и IP — системные атрибуты; типу модели без связок они добавятся
+    await applySystemValues(device, system, { typeId: model?.deviceTypeId ?? null });
     try {
       await device.save();
     } catch (error) {

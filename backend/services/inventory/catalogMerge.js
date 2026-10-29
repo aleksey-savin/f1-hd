@@ -45,6 +45,8 @@
 //   dropLinks({ ids, field, source, userId }) -> число удалённых (только где field = источник)
 //   addOptions(attributeId, [{ value, label }], userId) — только недостающие варианты
 //   dropValues({ ids, source, userId }) -> число: значение атрибута-источника убрано
+//   deviceValues({ ids, attributeId }) -> [{ _id, value }] — значения атрибута у устройств ids
+//   rewriteDeviceValue(id, attributeId, oldValue, newValue, userId) -> записано ли (условно на прежнее)
 //   moveValues({ ids, source, target, from, to, userId }) -> число: значение from
 //     атрибута-источника стало значением to цели (пустое значение цели снято;
 //     документ с непустым значением цели не трогается)
@@ -436,6 +438,26 @@ const liveStore = () => {
         n += result.modifiedCount;
       }
       return n;
+    },
+    deviceValues: async ({ ids, attributeId }) => {
+      const docs = await MODELS.ClientDevice()
+        .find({ _id: { $in: ids.map(oid) }, "attributes.attributeId": oid(attributeId) })
+        .select("attributes")
+        .lean();
+      return docs.flatMap((doc) =>
+        doc.attributes
+          .filter((v) => String(v.attributeId) === String(attributeId))
+          .map((v) => ({ _id: String(doc._id), value: v.value })),
+      );
+    },
+    rewriteDeviceValue: async (id, attributeId, oldValue, newValue, userId) => {
+      const attr = oid(attributeId);
+      const result = await MODELS.ClientDevice().updateOne(
+        { _id: oid(id), attributes: { $elemMatch: { attributeId: attr, value: oldValue } } },
+        { $set: { "attributes.$[v].value": newValue, ...stampOf(userId) } },
+        { arrayFilters: [{ "v.attributeId": attr, "v.value": oldValue }] },
+      );
+      return result.modifiedCount > 0;
     },
     dropValues: async ({ ids, source, userId }) => {
       const src = oid(source);

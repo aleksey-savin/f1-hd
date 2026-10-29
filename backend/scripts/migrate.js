@@ -73,6 +73,9 @@ const MIGRATIONS = [
   // режим нескольких — моделям с двумя и больше, привязка устройств; ничего не
   // удаляет. См. singleModelConfigurations.js
   { id: "2026-10-27-singleModelConfigurations", script: "singleModelConfigurations.js", apply: true },
+  // IP, MAC и ОС устройства — из полей карточки в атрибуты уровня устройства;
+  // создаёт системные атрибуты и связки с типами. См. moveDeviceTechToAttributes.js
+  { id: "2026-10-29-moveDeviceTechToAttributes", script: "moveDeviceTechToAttributes.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

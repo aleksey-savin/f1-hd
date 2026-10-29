@@ -89,6 +89,11 @@ export const formatSpecValue = (
   const labelOf = (v: string) =>
     attr?.options?.find((o) => o.value === v)?.label ?? v;
   if (type === "select") return labelOf(text);
+  // Дата — день «YYYY-MM-DD», без пояса (как formatDayKey в util/format-date)
+  if (type === "date") {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    return match ? `${match[3]}.${match[2]}.${match[1]}` : text;
+  }
   if (type === "multiselect") {
     // Не JSON-массив — показываем как есть, без подмены подписями.
     try {

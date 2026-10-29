@@ -30,6 +30,7 @@ const mongoose = require("mongoose");
 const SEEDS = [
   { id: "2026-10-19-inventoryCatalog", module: "./seeds/2026-10-19-inventoryCatalog" },
   { id: "2026-10-19-systemUnitAssembly", module: "./seeds/2026-10-19-systemUnitAssembly" },
+  { id: "2026-10-29-deviceSystemAttributes", module: "./seeds/2026-10-29-deviceSystemAttributes" },
 ];
 
 const LEDGER = "seeds";

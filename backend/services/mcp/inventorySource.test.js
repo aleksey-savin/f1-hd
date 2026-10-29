@@ -38,3 +38,47 @@ test("ticketLinkFilter: служебные заявители не дают св
 test("loadDevice: битый id даёт null", async () => {
   assert.equal(await require("./inventorySource").loadDevice("nope"), null);
 });
+
+test("loadDevice: IP и ОС — из атрибутов устройства, MAC и сами attributes не отдаются", async (t) => {
+  const mongoose = require("mongoose");
+  mongoose.set("bufferCommands", false);
+  const ClientDevice = require("@/models/inventory/clientDevice");
+  const DeviceAttribute = require("@/models/inventory/deviceAttribute");
+  const OS = "aaaaaaaaaaaaaaaaaaaaaa01";
+  const IP = "aaaaaaaaaaaaaaaaaaaaaa02";
+  const MAC = "aaaaaaaaaaaaaaaaaaaaaa03";
+  const query = (value) => {
+    const q = { select: () => q, lean: async () => value };
+    return q;
+  };
+  let selected = "";
+  t.mock.method(ClientDevice, "findOne", () => {
+    const q = query({
+      _id: "66cc00000000000000000001",
+      hostname: "GW-01",
+      attributes: [
+        { attributeId: OS, value: "RouterOS 7.21.3 (stable)" },
+        { attributeId: IP, value: "10.0.0.1" },
+        { attributeId: MAC, value: "AA:BB:CC:DD:EE:FF" },
+      ],
+    });
+    q.select = (fields) => {
+      selected = fields;
+      return q;
+    };
+    return q;
+  });
+  t.mock.method(DeviceAttribute, "find", () =>
+    query([
+      { _id: OS, code: "operatingsystem", name: "Операционная система" },
+      { _id: IP, code: "ip_address", name: "IP-адрес" },
+      { _id: MAC, code: "mac_address", name: "MAC-адрес" },
+    ]),
+  );
+  const device = await require("./inventorySource").loadDevice("66cc00000000000000000001");
+  assert.equal(device.ipAddress, "10.0.0.1");
+  assert.equal(device.operatingSystem, "RouterOS 7.21.3 (stable)");
+  assert.equal(device.attributes, undefined);
+  assert.ok(!JSON.stringify(device).includes("AA:BB"), "MAC утёк");
+  assert.match(selected, /attributes/);
+});

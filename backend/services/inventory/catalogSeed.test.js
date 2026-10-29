@@ -203,6 +203,24 @@ test("атрибут подхватывается и по коду, если и�
   assert.ok(!plan.create.attributes.some((a) => a.key === "socket"));
 });
 
+test("уровень атрибута: задаётся только при создании, подхваченный не меняется", () => {
+  const withScope = {
+    ...catalog,
+    attributes: catalog.attributes.map((a) => (a.key === "diagonal" ? { ...a, scope: "device" } : a)),
+  };
+  const fresh = planCatalog(withScope, empty());
+  const created = fresh.create.attributes.find((a) => a.key === "diagonal");
+  assert.equal(created.scope, "device");
+  assert.equal(fresh.create.attributes.find((a) => a.key === "socket").scope, undefined);
+
+  const existing = empty();
+  existing.attributes.push({ _id: "a-diag", code: "screen_diagonal", name: "Диагональ", valueType: "number", scope: "model", options: [] });
+  const picked = planCatalog(withScope, existing);
+  assert.equal(picked.matched.attributes.diagonal, "a-diag");
+  assert.ok(!picked.create.attributes.some((a) => a.key === "diagonal"));
+  assert.deepEqual(picked.warnings, []);
+});
+
 test("select получает только недостающие варианты, сравнение без учёта регистра", () => {
   const existing = empty();
   existing.attributes.push({

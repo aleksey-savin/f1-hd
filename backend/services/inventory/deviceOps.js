@@ -9,6 +9,7 @@ const Counter = require("../../models/inventory/counter");
 const DeviceBuild = require("../../models/inventory/deviceBuild");
 const DeviceConfiguration = require("../../models/inventory/deviceConfiguration");
 const Location = require("../../models/inventory/location");
+const DeviceTypeAttribute = require("../../models/inventory/deviceTypeAttribute");
 const { isAttachableType } = require("./attachRules");
 const {
   configurationForDevice,
@@ -25,6 +26,18 @@ const {
   resolveParts,
 } = require("../../controllers/inventory/deviceBuild");
 const { AppError } = require("../../middleware/errorHandling");
+const {
+  normalizeDeviceAttributes,
+  missingRequired,
+  loadDeviceLinks,
+} = require("./deviceAttributes");
+const {
+  FIELD_BY_KEY,
+  planSystemValues,
+  systemIds,
+  systemPatchOf,
+  systemValues,
+} = require("./systemDeviceAttributes");
 const logger = require("../../utils/logger");
 
 // Mongoose can't cast "" to ObjectId / Number / Date — turn blanks into
@@ -54,9 +67,6 @@ const buildDevicePayload = (body) => ({
   supplierId: clean(body.supplierId),
   warrantyExpirationDate: clean(body.warrantyExpirationDate),
   lastMaintenanceDate: clean(body.lastMaintenanceDate),
-  ipAddress: clean(body.ipAddress),
-  macAddress: clean(body.macAddress),
-  operatingSystem: clean(body.operatingSystem),
   // Сетевое имя ПК. machineId здесь НЕ маппим намеренно: его проставляет агент
   // отдельным путём, а update делает Object.assign(payload) — иначе правка из
   // мастера (без machineId в теле) затёрла бы значение агента.
@@ -436,10 +446,27 @@ const refusal = (error) => ({
  * детали. Возвращает { ok:true, plan:{ payload, deviceTypeId, parts } } |
  * { ok:false, status, message }.
  */
-const checkNewDevice = async (body) => {
+// requireAttributes — обязательные атрибуты устройства проверяются только на
+// пути интерфейса: агент и автосоздание из Mikrotik ими не блокируются.
+const checkNewDevice = async (body, { requireAttributes = false } = {}) => {
   const checked = await validateNewDevice(buildDevicePayload(body));
   if (checked.error) return refusal(checked.error);
   const { payload, deviceTypeId } = checked;
+
+  const deviceLinks = await loadDeviceLinks(deviceTypeId);
+  const attrs = normalizeDeviceAttributes(body.attributes, deviceLinks);
+  if (attrs.error) return fail(400, attrs.error);
+  if (requireAttributes) {
+    const missing = missingRequired(deviceLinks, attrs.values);
+    if (missing.length) return fail(400, `Не заполнено: ${missing.join(", ")}`);
+  }
+  payload.attributes = attrs.values;
+  // ОС, IP и MAC агента (имена прежних полей) — в системные атрибуты; связки
+  // с типом пишутся вместе с устройством
+  const system = await planSystemValues(payload, systemPatchOf(body), {
+    typeId: deviceTypeId,
+  });
+  if (system) payload.attributes = system.attributes;
 
   // ПК своей сборки собираемого типа может прийти со сборкой-шаблоном и
   // деталями. Без них — обычное устройство, как раньше.
@@ -455,7 +482,10 @@ const checkNewDevice = async (body) => {
     if (prepared.error) return refusal(prepared.error);
     parts = prepared.parts;
   }
-  return { ok: true, plan: { payload, deviceTypeId, parts } };
+  return {
+    ok: true,
+    plan: { payload, deviceTypeId, parts, links: system?.links ?? [] },
+  };
 };
 
 // Записи нового устройства по проверенному плану. check — проверка, дающая
@@ -464,7 +494,7 @@ const writeDevice = async (check, { userId, stampUpdated = false } = {}) => {
   try {
     const checked = await check();
     if (!checked.ok) return checked;
-    const { payload, deviceTypeId, parts } = checked.plan;
+    const { payload, deviceTypeId, parts, links = [] } = checked.plan;
     const author = {
       createdBy: userId,
       ...(stampUpdated ? { updatedBy: userId } : {}),
@@ -486,6 +516,8 @@ const writeDevice = async (check, { userId, stampUpdated = false } = {}) => {
       });
       await clientDevice.save();
       host = clientDevice;
+      // Связки системных атрибутов с типом; при откате остаются — безвредны
+      for (const link of links) await new DeviceTypeAttribute(link).save();
 
       // Номер детали — по префиксу её типа.
       for (const part of parts) {
@@ -515,8 +547,8 @@ const writeDevice = async (check, { userId, stampUpdated = false } = {}) => {
  * { ok:true, device, parts:[device] } | { ok:false, status, message }.
  * При непредвиденном сбое (500) в результате есть error — исходная ошибка.
  */
-const createDevice = (body, { userId } = {}) =>
-  writeDevice(() => checkNewDevice(body), { userId });
+const createDevice = (body, { userId, requireAttributes = false } = {}) =>
+  writeDevice(() => checkNewDevice(body, { requireAttributes }), { userId });
 
 // ─── Путь агента: поля формы и правила, которых портал не проверяет ───────
 //
@@ -1018,6 +1050,8 @@ const PATCH_FIELDS = [
   "comment",
   "configurationId",
 ];
+// Из них ОС и IP пишутся в системные атрибуты (systemDeviceAttributes)
+const SYSTEM_FIELDS = Object.values(FIELD_BY_KEY);
 const PATCH_DATE_FIELDS = [
   "purchasedAt",
   "warrantyExpirationDate",
@@ -1108,12 +1142,35 @@ const planPatchDevice = async (deviceId, patch, { actorId } = {}) => {
     if (wrong) return wrong;
   }
 
+  // ОС и IP — системные атрибуты устройства, не поля документа
+  const systemPatch = {};
+  for (const field of SYSTEM_FIELDS) {
+    if (!(field in values)) continue;
+    systemPatch[field] = values[field] ?? "";
+    delete values[field];
+  }
+  const ids = Object.keys(systemPatch).length ? await systemIds() : null;
+  const current = ids ? systemValues(device, ids) : {};
+
   // Прежние значения — до записи в документ (сырые: ObjectId, Date, число)
-  const before = Object.fromEntries(
-    Object.keys(values).map((key) => [key, device[key]]),
-  );
+  const before = Object.fromEntries([
+    ...Object.keys(values).map((key) => [key, device[key]]),
+    ...Object.keys(systemPatch).map((key) => [key, current[key] ?? undefined]),
+  ]);
   Object.assign(device, values, { updatedBy: actorId });
-  return { ok: true, device, writes: [device], affected: [device], before };
+  const system = await planSystemValues(device, systemPatch, {
+    typeId: ids ? await getEffectiveTypeId(device) : null,
+    ids,
+  });
+  const links = (system?.links ?? []).map((link) => new DeviceTypeAttribute(link));
+  if (system) device.attributes = system.attributes;
+  return {
+    ok: true,
+    device,
+    writes: [device, ...links],
+    affected: [device],
+    before,
+  };
 };
 
 // snapshot: check-близнец отдаёт в affected { _id, updatedAt } (каскад).

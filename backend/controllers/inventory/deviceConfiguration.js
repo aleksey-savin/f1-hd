@@ -4,6 +4,7 @@ const {
   configAddError,
   configDeleteError,
 } = require("@/services/inventory/modelConfigurations");
+const { configValuesScopeError } = require("@/services/inventory/attributeScope");
 
 exports.getByDeviceModelId = async (req, res, next) => {
   try {
@@ -60,6 +61,9 @@ exports.getOne = async (req, res, next) => {
 exports.add = async (req, res, next) => {
   try {
     const { deviceModelId, values } = req.body;
+
+    const scoped = await configValuesScopeError(values);
+    if (scoped) return next(new AppError(scoped, 400));
 
     // Validate that device model exists
     const DeviceModel = require("@/models/inventory/deviceModel");
@@ -133,6 +137,8 @@ exports.update = async (req, res, next) => {
     }
 
     if (values) {
+      const scoped = await configValuesScopeError(values);
+      if (scoped) return next(new AppError(scoped, 400));
       deviceConfiguration.values = values;
     }
 

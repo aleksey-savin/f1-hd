@@ -259,6 +259,21 @@ const world = () => {
       }
       return n;
     },
+    deviceValues: async ({ ids, attributeId }) =>
+      ids
+        .map((id) => db.ClientDevice[id])
+        .filter(Boolean)
+        .flatMap((doc) =>
+          (doc.attributes ?? []).filter((v) => String(v.attributeId) === attributeId).map((v) => ({ _id: String(doc._id), value: v.value })),
+        ),
+    rewriteDeviceValue: async (id, attributeId, oldValue, newValue) => {
+      tick();
+      const el = db.ClientDevice[id]?.attributes?.find((v) => String(v.attributeId) === attributeId && v.value === oldValue);
+      if (!el) return false;
+      el.value = newValue;
+      mark("deviceValue", "ClientDevice", id);
+      return true;
+    },
     retire: async (model, id, { mode, name, set = {}, userId, now }) => {
       if (name !== undefined && state.nameTaken === name) throw Object.assign(new Error("E11000 duplicate key"), { code: 11000 });
       const doc = db[model][id];
@@ -913,6 +928,53 @@ test("mergeAttributes: связь с целью уже есть — связь �
   assert.equal(
     await again.merge.drift("DeviceAttribute", snap),
     "изменилось после предложения: у типа «Моноблок» появилась связь с «Объём ОЗУ»",
+  );
+});
+
+test("mergeAttributes: значения устройств переходят на цель; у кого цель уже есть — значение источника снято", async () => {
+  const w = attrWorld();
+  const D1 = oid("8", 1);
+  const D2 = oid("8", 2);
+  const v = (attributeId, value) => ({ attributeId, value });
+  Object.assign(w.db.ClientDevice, {
+    [D1]: { _id: D1, attributes: [v(ATTR_SRC, "16")] },
+    [D2]: { _id: D2, attributes: [v(ATTR_SRC, "8"), v(ATTR_TGT, "8")] },
+  });
+  const planned = await w.merge.plan("DeviceAttribute", ATTR_SRC, ATTR_TGT);
+  const applied = await w.merge.apply("DeviceAttribute", planned.refs, { userId: USER });
+  assert.equal(applied.ok, true, applied.error);
+  assert.deepEqual(w.db.ClientDevice[D1].attributes, [v(ATTR_TGT, "16")]);
+  assert.deepEqual(w.db.ClientDevice[D2].attributes, [v(ATTR_TGT, "8")]);
+});
+
+test("mergeAttributes: значения устройств — через optionMap", async () => {
+  const w = attrWorld();
+  const D1 = oid("8", 3);
+  const D2 = oid("8", 4);
+  const v = (attributeId, value) => ({ attributeId, value });
+  Object.assign(w.db.ClientDevice, {
+    [D1]: { _id: D1, attributes: [v(ATTR_MS, '["чёрный","синий"]')] },
+    // Значение цели уже есть — источник снят, значение цели не переписывается
+    [D2]: { _id: D2, attributes: [v(ATTR_MS, '["серый"]'), v(ATTR_MT, '["black"]')] },
+  });
+  const optionMap = { чёрный: "black", серый: "grey" };
+  const planned = await w.merge.plan("DeviceAttribute", ATTR_MS, ATTR_MT, { optionMap });
+  assert.equal(planned.ok, true, planned.error);
+  const applied = await w.merge.apply("DeviceAttribute", planned.refs, { userId: USER });
+  assert.equal(applied.ok, true, applied.error);
+  assert.deepEqual(w.db.ClientDevice[D1].attributes, [v(ATTR_MT, '["black","синий"]')]);
+  assert.deepEqual(w.db.ClientDevice[D2].attributes, [v(ATTR_MT, '["black"]')]);
+});
+
+test("mergeAttributes: атрибуты разного уровня — отказ", async () => {
+  const w = attrWorld();
+  w.db.DeviceAttribute[ATTR_SRC].scope = "device";
+  const planned = await w.merge.plan("DeviceAttribute", ATTR_SRC, ATTR_TGT);
+  assert.equal(planned.ok, false);
+  assert.equal(planned.status, 409);
+  assert.equal(
+    planned.error,
+    "Атрибуты разного уровня: «ОЗУ, ГБ» задаётся у каждого устройства, «Объём ОЗУ» — у модели",
   );
 });
 

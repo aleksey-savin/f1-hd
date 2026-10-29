@@ -16,6 +16,7 @@ const {
 const catalogSeed = require("./catalogSeed");
 // storedValue — значение, как его хранит конфигурация (общее с catalogEditOps)
 const { isValidValue, storedValue } = require("./attributeValue");
+const { isDeviceScoped, deviceScopedValueError } = require("./attributeScope");
 const { formatSpecValue } = require("./assemblyKeySpecs");
 const { hasForbiddenChars } = require("../mikrotik/changeRender");
 const {
@@ -210,6 +211,9 @@ const planConfiguration = async (params = {}, { userId } = {}) => {
     if (!linked.has(String(attr._id))) {
       return fail(400, `Атрибут «${attr.name}» не относится к типу «${type?.name ?? "—"}»`);
     }
+    if (isDeviceScoped(attr)) {
+      return fail(400, deviceScopedValueError([{ attributeId: attr._id }], new Map([[String(attr._id), attr]])));
+    }
     const value = storedValue(attr, raw);
     if (value === null) return fail(400, `Неверное значение атрибута «${attr.name}»`);
     if (!isValidValue(attr, value)) {
@@ -325,7 +329,7 @@ const RESERVED_KEYS = new Set([
   "valueof",
   "hasownproperty",
 ]);
-const VALUE_TYPES = ["string", "number", "boolean", "select", "multiselect", "text"];
+const VALUE_TYPES = ["string", "number", "boolean", "select", "multiselect", "text", "date"];
 const FLAGS = ["isComponent", "isConsumable", "isPeripheral"];
 const LIMITS = { groups: 30, types: 30, attributes: 100, typeAttributes: 60, options: 100, slots: 30, keySpecs: 60 };
 const MAX_TEXT = 100;

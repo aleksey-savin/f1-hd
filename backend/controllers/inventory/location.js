@@ -5,6 +5,13 @@ const Company = require("../../models/company");
 const ClientDevice = require("../../models/inventory/clientDevice");
 const DeviceType = require("../../models/inventory/deviceType");
 const { loadKeySpecs } = require("../../services/inventory/assemblyKeySpecs");
+const {
+  systemIds,
+  systemValues,
+} = require("../../services/inventory/systemDeviceAttributes");
+
+// MAC в окружение не выносится — только то, что было в DTO
+const pickSystem = ({ ipAddress, operatingSystem }) => ({ ipAddress, operatingSystem });
 const { ASSEMBLY_POPULATE } = require("./deviceType");
 const {
   ASSEMBLY_COMPONENT_POPULATE,
@@ -76,7 +83,7 @@ const ENV_DEVICE_POPULATE = [
 // лично за заявителем (бейдж «★»). Только не удалённые самостоятельные единицы.
 // keySpecs — ключевые характеристики ПК своей сборки, как в списке техники:
 // без них одинаковые «Системный блок» не различить.
-const toEnvDevice = (d, userId, mikroMap, keySpecsMap) => {
+const toEnvDevice = (d, userId, mikroMap, keySpecsMap, ids) => {
   const model = d.deviceModelId;
   const typeName = model?.deviceTypeId?.name || d.deviceTypeId?.name || null;
   const mikro = mikroMap?.get(String(d._id));
@@ -90,8 +97,8 @@ const toEnvDevice = (d, userId, mikroMap, keySpecsMap) => {
     serialNumber: d.serialNumber || null,
     inventoryNumber: d.inventoryNumber || null,
     status: d.status || null,
-    ipAddress: d.ipAddress || null,
-    operatingSystem: d.operatingSystem || null,
+    // IP и ОС — системные атрибуты устройства; ключи DTO прежние
+    ...pickSystem(systemValues(d, ids)),
     locationId: d.locationId?._id || d.locationId || null,
     locationName: d.locationId?.name || null,
     isPersonal: String(d.userId?._id || d.userId || "") === String(userId),
@@ -135,8 +142,9 @@ const buildEnvNode = async (location, userId, scope = null) => {
   }).populate(ENV_DEVICE_POPULATE);
   const mikroMap = await buildMikrotikStatusMap(devicesRaw.map((d) => d._id));
   const keySpecsMap = await envKeySpecs(devicesRaw, scope);
+  const ids = await systemIds();
   const devices = devicesRaw.map((d) =>
-    toEnvDevice(d, userId, mikroMap, keySpecsMap),
+    toEnvDevice(d, userId, mikroMap, keySpecsMap, ids),
   );
 
   const childrenDocs = await Location.find({
@@ -937,8 +945,9 @@ exports.getUserEnvironment = async (req, res, next) => {
       personalDevicesRaw.map((d) => d._id),
     );
     const personalKeySpecs = await envKeySpecs(personalDevicesRaw, scope);
+    const ids = await systemIds();
     const personalDevices = personalDevicesRaw.map((d) =>
-      toEnvDevice(d, userId, personalMikroMap, personalKeySpecs),
+      toEnvDevice(d, userId, personalMikroMap, personalKeySpecs, ids),
     );
 
     // Рабочее место (workplace с assignedUser=userId). populate parent/subdivision.
@@ -1050,8 +1059,9 @@ exports.getDeviceEnvironment = async (req, res, next) => {
 
     const mikroMap = await buildMikrotikStatusMap([device._id]);
     const keySpecsMap = await envKeySpecs([device], scope);
+    const ids = await systemIds();
     const deviceDto = {
-      ...toEnvDevice(device, null, mikroMap, keySpecsMap),
+      ...toEnvDevice(device, null, mikroMap, keySpecsMap, ids),
       deleted: !!device.deletedAt,
     };
 
@@ -1230,8 +1240,9 @@ exports.getCompanyTech = async (req, res, next) => {
 
     const mikroMap = await buildMikrotikStatusMap(devicesRaw.map((d) => d._id));
     const keySpecsMap = await envKeySpecs(devicesRaw, scope);
+    const systemAttrIds = await systemIds();
     const devices = devicesRaw.map((d) =>
-      toEnvDevice(d, null, mikroMap, keySpecsMap),
+      toEnvDevice(d, null, mikroMap, keySpecsMap, systemAttrIds),
     );
 
     // Порядковый номер каждой локации при DFS-обходе леса компании
@@ -1368,12 +1379,13 @@ exports.getUserTech = async (req, res, next) => {
       [...ownRaw, ...parentRaw].map((d) => d._id),
     );
     const keySpecsMap = await envKeySpecs([...ownRaw, ...parentRaw], scope);
+    const ids = await systemIds();
     const byName = (a, b) => (a.name || "").localeCompare(b.name || "", "ru");
     const own = ownRaw
-      .map((d) => toEnvDevice(d, userId, mikroMap, keySpecsMap))
+      .map((d) => toEnvDevice(d, userId, mikroMap, keySpecsMap, ids))
       .sort(byName);
     const nearby = parentRaw
-      .map((d) => toEnvDevice(d, userId, mikroMap, keySpecsMap))
+      .map((d) => toEnvDevice(d, userId, mikroMap, keySpecsMap, ids))
       .sort(byName);
 
     const groups = [];

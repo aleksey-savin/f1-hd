@@ -328,6 +328,11 @@ const fakeStore4 = (extra = {}) => {
       return true;
     },
     configValues: async (attributeId) => state.configValues[String(attributeId)] ?? [],
+    deviceValues: async (attributeId) => state.deviceValues?.[String(attributeId)] ?? [],
+    rewriteDeviceValue: async (id, attributeId, oldValue, newValue, userId) => {
+      (state.deviceRewrites ??= []).push({ id, oldValue, newValue, userId });
+      return true;
+    },
     rewriteValue: async (id, attributeId, oldValue, newValue, userId) => {
       const row = (state.configValues[String(attributeId)] ?? []).find((r) => r._id === id);
       if (!row || row.value !== oldValue) return false;
@@ -346,6 +351,7 @@ const fakeStore4 = (extra = {}) => {
     },
     keySpecOwners: async () => state.keyOwners,
     typeValueCount: async () => state.valueCount,
+    typeDeviceValueCount: async () => state.deviceValueCount ?? 0,
     attributesByCode: async (codes) => Object.values(docs.attribute).filter((a) => codes.includes(a.code)),
     linkedAttributeIds: async () => [ATTR, ATTR_MULTI, ATTR_NUM],
     // Правила сборки — те же parseBuildParts контроллера; ссылки моделей не проверяем
@@ -406,6 +412,24 @@ test("renameOptions: select — значения переписаны по сп�
     id: ATTR,
   });
   assert.equal(state.rewrites.length, 2);
+});
+
+test("renameOptions: атрибут устройства — переписаны значения устройств", async () => {
+  const { state, ops } = setup4({
+    deviceValues: {
+      [ATTR]: [
+        { _id: "dev1", value: "DDR-4" },
+        { _id: "dev2", value: "DDR5" },
+      ],
+    },
+  });
+  state.docs.attribute[ATTR].scope = "device";
+  const check = await ops.checkUpdateAttribute({ id: ATTR, renameOptions: RENAME });
+  assert.equal(check.ok, true);
+  assert.equal(state.deviceRewrites, undefined);
+  const applied = await ops.applyUpdateAttribute({ id: ATTR, renameOptions: RENAME }, { userId: USER, snapshot: check.refs });
+  assert.deepEqual(applied, { ok: true, id: ATTR });
+  assert.deepEqual(state.deviceRewrites, [{ id: "dev1", oldValue: "DDR-4", newValue: "DDR4", userId: USER }]);
 });
 
 test("renameOptions: multiselect — элемент массива, без дублей", async () => {
@@ -516,6 +540,17 @@ test("unlinkAttribute: в keySpecs — отказ", async () => {
   assert.equal(state.deleted.length, 0);
 });
 
+test("unlinkAttribute: значения у устройств типа — отказ", async () => {
+  const { ops, state } = setup4({ deviceValueCount: 15 });
+  assert.deepEqual(await ops.checkUnlinkAttribute({ type: TYPE, attribute: ATTR_NUM }), {
+    ok: false,
+    status: 409,
+    message: "У устройств типа «Ноутбук» есть значения атрибута «Объём ОЗУ» (15): сначала уберите их",
+  });
+  assert.equal((await ops.applyUnlinkAttribute({ type: TYPE, attribute: ATTR_NUM }, { userId: USER })).status, 409);
+  assert.equal(state.deleted.length, 0);
+});
+
 test("unlinkAttribute: есть значения — отказ; без значений — связь снимается", async () => {
   const { ops, state } = setup4({ valueCount: 2 });
   assert.deepEqual(await ops.checkUnlinkAttribute({ type: TYPE, attribute: ATTR_NUM }), {
@@ -531,6 +566,17 @@ test("unlinkAttribute: есть значения — отказ; без знач
   delete state.links[`${TYPE}:${ATTR_NUM}`];
   assert.equal((await ops.applyUnlinkAttribute({ type: TYPE, attribute: ATTR_NUM }, { userId: USER })).ok, true);
   assert.equal((await ops.checkUnlinkAttribute({ type: TYPE, attribute: ATTR_NUM })).status, 404);
+});
+
+test("updateConfiguration: атрибут уровня устройства — отказ, даже связанный", async () => {
+  const { ops, state } = setup4();
+  state.docs.attribute[ATTR_NUM].scope = "device";
+  assert.deepEqual(await ops.checkUpdateConfiguration({ id: CONF, setValues: [{ attribute: "ram_gb", value: "32" }] }), {
+    ok: false,
+    status: 400,
+    message: "Атрибут «Объём ОЗУ» задаётся у каждого устройства, а не у модели",
+  });
+  assert.equal(state.writes.length, 0);
 });
 
 test("updateConfiguration: значение не по options — отказ", async () => {

@@ -18,9 +18,16 @@ const deviceAttributeSchema = new Schema(
     },
     valueType: {
       type: String,
-      enum: ["string", "number", "boolean", "select", "multiselect", "text"],
+      enum: ["string", "number", "boolean", "select", "multiselect", "text", "date"],
       required: true,
       default: "string",
+    },
+    // Уровень: «model» — значение в конфигурации модели, «device» — своё у
+    // каждого экземпляра (ClientDevice.attributes). См. services/inventory/attributeScope.js
+    scope: {
+      type: String,
+      enum: ["model", "device"],
+      default: "model",
     },
     unit: {
       type: String,

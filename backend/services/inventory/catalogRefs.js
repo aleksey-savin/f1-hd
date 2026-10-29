@@ -50,6 +50,7 @@ const REF_TABLE = {
   DeviceAttribute: [
     ref("DeviceTypeAttribute", "attributeId", "single", false, "связей", LINK, "новая"),
     ref("DeviceConfiguration", "values.attributeId", "subdoc", true, "значений", VALUE, "новое"),
+    ref("ClientDevice", "attributes.attributeId", "subdoc", true, "значений устройств", VALUE, "новое"),
     ref("DeviceType", "assembly.keySpecs.attributeId", "subdoc", false, "характеристик", SPEC, "новая"),
   ],
   Vendor: [ref("DeviceModel", "vendorId", "single", true, "моделей", MODEL, "новая")],

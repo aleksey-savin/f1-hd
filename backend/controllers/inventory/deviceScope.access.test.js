@@ -142,6 +142,9 @@ const device = (fields) => {
   });
 };
 
+// Системные атрибуты (IP/ОС в DTO) этим тестам не нужны: их в «базе» нет
+require("@/models/inventory/deviceAttribute").find = () => query([]);
+
 const originals = {
   deviceFindById: ClientDevice.findById,
   deviceFind: ClientDevice.find,

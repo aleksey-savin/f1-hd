@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useSearchParams } from "react-router";
 
 import {
   RiAddLine,
@@ -36,13 +36,15 @@ const sameName = (name) => String(name || "").trim().toLocaleLowerCase("ru");
 const atomsLabel = (n) => plural(n, "атрибут", "атрибута", "атрибутов");
 
 // Пустая карточка нового атрибута: тот же объект, что ждёт
-// DeviceAttributeFormFields в `attribute` (там же он и правится)
-const blankDraft = (name) => ({
+// DeviceAttributeFormFields в `attribute` (там же он и правится). Уровень —
+// секции, из которой открыта шторка
+const blankDraft = (name, scope) => ({
   name,
   valueType: "string",
   unit: "",
   options: [],
   isActive: true,
+  scope,
 });
 
 // Отметка с номером очереди
@@ -141,7 +143,18 @@ const AttrRow = ({ attr, index, attached, onToggle, onEdit }) => {
 const AttributesAddForm = () => {
   const loaderData = useLoaderData();
   const deviceType = loaderData?.deviceType; // { _id, name }
-  const catalog = loaderData?.availableAttributes || [];
+  // ?scope=device — шторка секции «Атрибуты устройства»: каталог только этого
+  // уровня, новые создаются с ним
+  const [searchParams] = useSearchParams();
+  const scope = searchParams.get("scope") === "device" ? "device" : "model";
+  const title =
+    scope === "device" ? "Добавить атрибуты устройства" : "Добавить атрибуты";
+  const allCatalog = loaderData?.availableAttributes;
+  const catalog = useMemo(
+    () =>
+      (allCatalog || []).filter((attr) => (attr.scope || "model") === scope),
+    [allCatalog, scope],
+  );
   const usedIds = useMemo(
     () => new Set(loaderData?.usedAttributeIds || []),
     [loaderData],
@@ -161,7 +174,12 @@ const AttributesAddForm = () => {
     if (group) setGroupId(String(group._id));
   };
 
-  const all = useMemo(() => [...catalog, ...fresh], [catalog, fresh]);
+  // Имена уникальны во всём каталоге — совпадение ищем и среди атрибутов
+  // другого уровня, которых в этом списке нет
+  const all = useMemo(
+    () => [...(allCatalog || []), ...fresh],
+    [allCatalog, fresh],
+  );
   const q = sameName(query);
   const hit = (attr) => !q || sameName(attr.name).includes(q);
 
@@ -185,7 +203,7 @@ const AttributesAddForm = () => {
   const openCreate = () => {
     setDraftError("");
     setDraft({
-      attribute: blankDraft(query.trim()),
+      attribute: blankDraft(query.trim(), scope),
       editId: null,
       key: Date.now(),
     });
@@ -208,6 +226,7 @@ const AttributesAddForm = () => {
         valueType: data.valueType,
         unit: data.unit,
         isActive: data.isActive,
+        scope: data.scope,
         options: String(data.options || "")
           .split("\n")
           .map((line) => line.trim())
@@ -244,7 +263,9 @@ const AttributesAddForm = () => {
       setDraftError(
         clash.isNew
           ? `Атрибут «${clash.name}» уже создаётся здесь.`
-          : `Атрибут «${clash.name}» уже есть в каталоге — отметьте его в списке.`,
+          : (clash.scope || "model") !== scope
+            ? `Атрибут «${clash.name}» уже есть в каталоге — у ${scope === "device" ? "модели" : "каждого устройства"}.`
+            : `Атрибут «${clash.name}» уже есть в каталоге — отметьте его в списке.`,
       );
       return;
     }
@@ -296,7 +317,16 @@ const AttributesAddForm = () => {
       const attr = fresh.find((item) => item._id === id);
       if (!attr) return { attributeId: id };
       const { name, valueType, unit, options, isActive } = attr;
-      return { attribute: { name, valueType, unit, options, isActive } };
+      return {
+        attribute: {
+          name,
+          valueType,
+          unit,
+          options,
+          isActive,
+          scope: attr.scope || scope,
+        },
+      };
     }),
     groupId: groupId || null,
   });
@@ -310,13 +340,18 @@ const AttributesAddForm = () => {
 
   const nothingFound =
     !!q && !freshShown.length && !catalogShown.length && !attachedShown.length;
+  // Точное совпадение среди атрибутов другого уровня — создать нельзя (имена
+  // уникальны), объясняем почему
+  const otherScopeHit = nothingFound
+    ? (allCatalog || []).find((attr) => sameName(attr.name) === q)
+    : null;
 
   return (
     <FormWrapper
-      title="Добавить атрибуты"
+      title={title}
       header={
         <FormHeader
-          title="Добавить атрибуты"
+          title={title}
           subtitle={deviceType?.name ? `Тип: ${deviceType.name}` : null}
         >
           {/* Не app/SearchBar: тот — своя <form>, а здесь мы уже внутри формы */}
@@ -462,7 +497,9 @@ const AttributesAddForm = () => {
 
       {nothingFound && !draft && (
         <p className="mt-3 mb-0 text-sm text-muted-foreground">
-          В каталоге такого атрибута нет.
+          {otherScopeHit
+            ? `«${otherScopeHit.name}» есть в каталоге, но значение у него задаётся ${otherScopeHit.scope === "device" ? "у каждого устройства" : "у модели"}.`
+            : "В каталоге такого атрибута нет."}
         </p>
       )}
 

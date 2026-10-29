@@ -18,8 +18,12 @@ const deviceAttributeValidation = [
   body("valueType")
     .notEmpty()
     .withMessage("Value type is required")
-    .isIn(["string", "number", "boolean", "select", "multiselect", "text"])
+    .isIn(["string", "number", "boolean", "select", "multiselect", "text", "date"])
     .withMessage("Invalid value type"),
+  body("scope")
+    .optional()
+    .isIn(["model", "device"])
+    .withMessage("Уровень атрибута — model или device"),
   body("unit")
     .optional()
     .isString()

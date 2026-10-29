@@ -12,6 +12,7 @@ import { load } from "@/store/form-data";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import { visibleOptions } from "@/util/hidden-options";
+import { modelLinks } from "@/components/app/attribute-scope";
 import SpecFields from "../DeviceConfiguration/SpecFields";
 
 // Связки типа → атрибуты (populate attributeId) с группами
@@ -87,8 +88,9 @@ const DeviceModelFormFields = ({
     load(linksPath(deviceTypeId))
       .then((list) => {
         if (cancelled) return;
+        // Характеристики модели — только атрибуты уровня модели
         setLinks(
-          (Array.isArray(list) ? list : []).filter(
+          modelLinks(Array.isArray(list) ? list : []).filter(
             (link) => link.attributeId && typeof link.attributeId === "object",
           ),
         );

@@ -52,7 +52,11 @@ import {
 } from "@/components/app/Panel";
 import PropRow from "@/components/app/PropRow";
 import SpecSheet from "@/components/app/SpecSheet";
-import { buildSpecGroups, specSummary } from "@/components/app/spec-sheet";
+import {
+  buildSpecGroups,
+  formatSpecValue,
+  specSummary,
+} from "@/components/app/spec-sheet";
 import {
   buildAssemblyGroups,
   compactKeySpecsLine,
@@ -161,21 +165,24 @@ const ViewClientDevice = ({ device = {} }) => {
   const type = model?.deviceTypeId || device.deviceTypeId;
   const vendor = model?.vendorId;
   const isCustom = !model;
-  // «Сеть и система» — не у комплектующих, расходников и периферии: у них нет
-  // ни имени в сети, ни ОС. Заполненное (и заметки в той же панели) не прячем.
+  // Имя в сети — только у типов-устройств: у комплектующих, расходников и
+  // периферии его нет (поле в модели остаётся, здесь не показывается)
   const partLike = Boolean(
     type?.isComponent || type?.isConsumable || type?.isPeripheral,
   );
-  const showTech =
-    !partLike ||
-    [
-      device.hostname,
-      device.ipAddress,
-      device.macAddress,
-      device.operatingSystem,
-      device.machineId,
-      device.notes,
-    ].some(Boolean);
+  // «Параметры устройства» — атрибуты уровня «device» типа (getOne отдаёт
+  // deviceLinks и attributes), имя в сети и ID машины агента
+  const paramLinks = (device.deviceLinks || []).filter(
+    (link) => link.attributeId && typeof link.attributeId === "object",
+  );
+  const paramValue = (attributeId) =>
+    (device.attributes || []).find(
+      (entry) =>
+        String(entry.attributeId?._id ?? entry.attributeId) ===
+        String(attributeId),
+    )?.value;
+  const showParams =
+    !partLike || paramLinks.length > 0 || Boolean(device.machineId);
   const title =
     [vendor?.name, model?.name].filter(Boolean).join(" ") ||
     type?.name ||
@@ -388,7 +395,7 @@ const ViewClientDevice = ({ device = {} }) => {
         specGroups.length && !assembly
           ? { id: "specs", label: "Характеристики" }
           : null,
-        showTech ? { id: "tech", label: "Сеть и система" } : null,
+        showParams ? { id: "params", label: "Параметры устройства" } : null,
         ...(assembly
           ? [
               showConfig ? { id: "components", label: "Конфигурация" } : null,
@@ -405,6 +412,7 @@ const ViewClientDevice = ({ device = {} }) => {
                 : null,
             ]),
         { id: "purchase", label: "Закупка и гарантия" },
+        device.notes ? { id: "notes", label: "Заметки" } : null,
         showMonitoring ? { id: "monitoring", label: "Мониторинг" } : null,
         hasTickets ? { id: "tickets", label: "Заявки" } : null,
         effectivePhotos.length || canManage
@@ -414,7 +422,8 @@ const ViewClientDevice = ({ device = {} }) => {
       ].filter(Boolean),
     [
       specGroups.length,
-      showTech,
+      showParams,
+      Boolean(device.notes),
       showComponents,
       Boolean(assembly),
       showConfig,
@@ -764,61 +773,70 @@ const ViewClientDevice = ({ device = {} }) => {
               </>
             )}
 
-            {showTech && (
+            {showParams && (
               <Section>
                 <Eyebrow
-                  id="tech"
+                  id="params"
                   action={
                     canManage && (
                       <SectionEditLink
-                        to="update#tech"
-                        label="Сеть и система"
-                     
+                        to="update#params"
+                        label="Параметры устройства"
                       />
                     )
                   }
                 >
-                  Сеть и система
+                  Параметры устройства
                 </Eyebrow>
                 <Panel>
-                  <PropRow
-                    icon={<RiTerminalBoxLine size={17} />}
-                    label="Имя устройства"
-                  >
-                    {device.hostname ? (
-                      <span className="font-mono">{device.hostname}</span>
-                    ) : (
-                      dash
-                    )}
-                  </PropRow>
-                  <PropRow
-                    icon={<RiGlobalLine size={17} />}
-                    label="IP-адрес"
-                    copy={
-                      device.ipAddress
-                        ? { value: device.ipAddress, label: "IP-адрес" }
-                        : undefined
-                    }
-                  >
-                    {device.ipAddress ? (
-                      <span className="font-mono">{device.ipAddress}</span>
-                    ) : (
-                      dash
-                    )}
-                  </PropRow>
-                  <PropRow icon={<RiGlobalLine size={17} />} label="MAC-адрес">
-                    {device.macAddress ? (
-                      <span className="font-mono">{device.macAddress}</span>
-                    ) : (
-                      dash
-                    )}
-                  </PropRow>
-                  <PropRow
-                    icon={<RiCpuLine size={17} />}
-                    label="Операционная система"
-                  >
-                    {device.operatingSystem || dash}
-                  </PropRow>
+                  {!partLike && (
+                    <PropRow
+                      icon={<RiTerminalBoxLine size={17} />}
+                      label="Имя устройства"
+                    >
+                      {device.hostname ? (
+                        <span className="font-mono">{device.hostname}</span>
+                      ) : (
+                        dash
+                      )}
+                    </PropRow>
+                  )}
+                  {paramLinks.map((link) => {
+                    const attr = link.attributeId;
+                    const text = formatSpecValue(attr, paramValue(attr._id));
+                    const network =
+                      attr.code === "ip_address" || attr.code === "mac_address";
+                    return (
+                      <PropRow
+                        key={attr._id}
+                        icon={
+                          network ? (
+                            <RiGlobalLine size={17} />
+                          ) : attr.code === "operatingsystem" ? (
+                            <RiCpuLine size={17} />
+                          ) : attr.valueType === "date" ? (
+                            <RiCalendarLine size={17} />
+                          ) : (
+                            <RiPriceTag3Line size={17} />
+                          )
+                        }
+                        label={attr.name}
+                        copy={
+                          attr.code === "ip_address" && text
+                            ? { value: text, label: attr.name }
+                            : undefined
+                        }
+                      >
+                        {text ? (
+                          <span className={network ? "font-mono" : undefined}>
+                            {text}
+                          </span>
+                        ) : (
+                          dash
+                        )}
+                      </PropRow>
+                    );
+                  })}
                   {device.machineId && (
                     <PropRow
                       icon={<RiFingerprintLine size={17} />}
@@ -826,13 +844,6 @@ const ViewClientDevice = ({ device = {} }) => {
                     >
                       <span className="font-mono text-sm">
                         {device.machineId}
-                      </span>
-                    </PropRow>
-                  )}
-                  {device.notes && (
-                    <PropRow icon={<RiFileList2Line size={17} />} label="Заметки">
-                      <span className="font-normal whitespace-pre-line">
-                        {device.notes}
                       </span>
                     </PropRow>
                   )}
@@ -1007,6 +1018,26 @@ const ViewClientDevice = ({ device = {} }) => {
                 </PropRow>
               </Panel>
             </Section>
+
+            {device.notes && (
+              <Section>
+                <Eyebrow
+                  id="notes"
+                  action={
+                    canManage && (
+                      <SectionEditLink to="update#notes" label="Заметки" />
+                    )
+                  }
+                >
+                  Заметки
+                </Eyebrow>
+                <Panel>
+                  <p className="my-0 text-sm whitespace-pre-line">
+                    {device.notes}
+                  </p>
+                </Panel>
+              </Section>
+            )}
 
             {showMonitoring && (
               <>

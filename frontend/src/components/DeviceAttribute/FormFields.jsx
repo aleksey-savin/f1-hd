@@ -6,7 +6,15 @@ import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
 import Combobox from "@/components/app/Combobox";
+import Segmented from "@/components/app/Segmented";
+import { SCOPE_OPTIONS } from "@/components/app/attribute-scope";
 import { VALUE_TYPES } from "./value-types";
+
+const SCOPE_HINTS = {
+  model: "Одно значение на конфигурацию модели — заполняется в карточке модели.",
+  device:
+    "Своё значение у каждого экземпляра: имя в сети, IP, дата производства. Заполняется в карточке устройства.",
+};
 
 // Поля атрибута устройства. Рендерят `name`-атрибуты (для сабмита со страницы
 // через router action) и одновременно сообщают агрегированное состояние через
@@ -26,6 +34,15 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
   const [isActive, setIsActive] = useState(
     attribute ? attribute.isActive : true,
   );
+  // Уровень: «У модели» — значение конфигурации, «У каждого устройства» —
+  // экземпляра. Пока у атрибута есть значения на текущем уровне, не меняется
+  // (бэкенд отвечает 409) — сегмент гаснет заранее.
+  const [scope, setScope] = useState(attribute?.scope || "model");
+  const heldValues =
+    (attribute?.scope || "model") === "device"
+      ? attribute?.inUse?.deviceValues
+      : attribute?.inUse?.configValues;
+  const scopeLocked = heldValues > 0;
 
   const notifyChange = (data) => {
     if (onChange) {
@@ -36,7 +53,7 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
   const nameChangeHandler = (event) => {
     const newName = event.target.value;
     setName(newName);
-    notifyChange({ code, name: newName, valueType, unit, options, isActive });
+    notifyChange({ code, name: newName, valueType, unit, options, isActive, scope });
   };
 
   const valueTypeChangeHandler = (value) => {
@@ -49,13 +66,14 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
       unit,
       options,
       isActive,
+      scope,
     });
   };
 
   const unitChangeHandler = (event) => {
     const newUnit = event.target.value;
     setUnit(newUnit);
-    notifyChange({ code, name, valueType, unit: newUnit, options, isActive });
+    notifyChange({ code, name, valueType, unit: newUnit, options, isActive, scope });
   };
 
   const optionsChangeHandler = (event) => {
@@ -68,6 +86,7 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
       unit,
       options: newOptions,
       isActive,
+      scope,
     });
   };
 
@@ -81,7 +100,13 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
       unit,
       options,
       isActive: newIsActive,
+      scope,
     });
+  };
+
+  const scopeChangeHandler = (value) => {
+    setScope(value);
+    notifyChange({ code, name, valueType, unit, options, isActive, scope: value });
   };
 
   const showOptionsField =
@@ -151,6 +176,24 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
           />
         </Field>
       )}
+
+      <Field
+        label="Значение задаётся"
+        hint={
+          scopeLocked
+            ? "Уже есть значения — уровень не меняется"
+            : SCOPE_HINTS[scope]
+        }
+      >
+        <Segmented
+          ariaLabel="Значение задаётся"
+          options={SCOPE_OPTIONS}
+          value={scope}
+          onChange={scopeChangeHandler}
+          disabled={scopeLocked}
+        />
+        <input type="hidden" name="scope" value={scope} />
+      </Field>
 
       <SwitchField
         id="isActive"

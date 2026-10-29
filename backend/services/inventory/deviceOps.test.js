@@ -23,6 +23,15 @@ const COMPANY = "111111111111111111111111";
 const OTHER_COMPANY = "111111111111111111111112";
 const LOCATION = "222222222222222222222222";
 const USER = "333333333333333333333333";
+const OS = "666666666666666666666661";
+const IP = "666666666666666666666662";
+const MAC = "666666666666666666666663";
+const MADE = "666666666666666666666664";
+const SYSTEM_ATTRS = [
+  { _id: OS, code: "operatingsystem", name: "Операционная система" },
+  { _id: IP, code: "ip_address", name: "IP-адрес" },
+  { _id: MAC, code: "mac_address", name: "MAC-адрес" },
+];
 
 // Сборочная часть (слоты и модели) — из deviceBuild; её у себя не проверяем
 const build = require("@/controllers/inventory/deviceBuild");
@@ -42,6 +51,8 @@ const Counter = require("@/models/inventory/counter");
 const Location = require("@/models/inventory/location");
 const DeviceConfiguration = require("@/models/inventory/deviceConfiguration");
 const DeviceModel = require("@/models/inventory/deviceModel");
+const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
+const DeviceAttribute = require("@/models/inventory/deviceAttribute");
 const {
   createDevice,
   checkNewDevice,
@@ -75,6 +86,9 @@ const originals = {
   exists: ClientDevice.exists,
   location: Location.findById,
   config: DeviceConfiguration.findById,
+  typeLinks: DeviceTypeAttribute.find,
+  linkSave: DeviceTypeAttribute.prototype.save,
+  attrs: DeviceAttribute.find,
 };
 
 let saved;
@@ -114,6 +128,20 @@ test.beforeEach(() => {
     return Object.assign(Promise.resolve(doc), { select: async () => doc });
   };
   Counter.getNextSequence = async () => ++seq;
+  // Атрибутов уровня устройства у типов этих тестов нет
+  DeviceTypeAttribute.find = () => {
+    const c = { populate: () => c, select: () => c, lean: async () => [] };
+    return c;
+  };
+  DeviceTypeAttribute.prototype.save = async function save() {
+    saved.push(this);
+    return this;
+  };
+  // Системные атрибуты ОС/IP/MAC (systemDeviceAttributes.systemIds)
+  DeviceAttribute.find = () => {
+    const c = { select: () => c, lean: async () => SYSTEM_ATTRS };
+    return c;
+  };
 });
 
 test.afterEach(() => {
@@ -130,6 +158,9 @@ test.afterEach(() => {
   ClientDevice.exists = originals.exists;
   Location.findById = originals.location;
   DeviceConfiguration.findById = originals.config;
+  DeviceTypeAttribute.find = originals.typeLinks;
+  DeviceTypeAttribute.prototype.save = originals.linkSave;
+  DeviceAttribute.find = originals.attrs;
 });
 
 const body = (extra = {}) => ({
@@ -821,4 +852,52 @@ test("check-близнецы правки и статуса отдают пре�
   // запись прежнего не отдаёт: оно нужно только предложению
   const real = await setDeviceStatus(HOST, "inRepair", { actorId: USER, withComponents: false });
   assert.equal(real.before, undefined);
+});
+
+const pairs = (values) => values.map((v) => [String(v.attributeId), v.value]);
+const savedLinks = () =>
+  saved.filter((d) => d instanceof DeviceTypeAttribute).map((d) => [String(d.deviceTypeId), String(d.attributeId)]);
+
+test("patchDevice: IP агента — в атрибут, прочие значения целы, типу добавлена связка", async () => {
+  const { host } = setupAssembly();
+  host.attributes = [
+    { attributeId: OS, value: "Windows 11 Pro" },
+    { attributeId: MADE, value: "2026-06-18" },
+  ];
+  const res = await patchDevice(HOST, { ipAddress: "10.0.0.7" }, { actorId: USER });
+  assert.equal(res.ok, true, res.message);
+  assert.deepEqual(pairs(host.attributes), [
+    [OS, "Windows 11 Pro"],
+    [MADE, "2026-06-18"],
+    [IP, "10.0.0.7"],
+  ]);
+  assert.deepEqual(savedLinks(), [[TYPE, IP]]);
+  assert.deepEqual(res.affected.map(String), [HOST]);
+});
+
+test("checkPatchDevice: ОС — прежнее значение из атрибута, связки не пишутся", async () => {
+  const { host } = setupAssembly();
+  host.attributes = [{ attributeId: OS, value: "Windows 10" }];
+  const res = await checkPatchDevice(HOST, { operatingSystem: "Windows 11 Pro" }, { actorId: USER });
+  assert.equal(res.ok, true, res.message);
+  assert.deepEqual(res.before, { operatingSystem: "Windows 10" });
+  assert.equal(saved.length, 0);
+});
+
+test("createAgentDevice: ОС и IP агента — в атрибуты нового устройства", async () => {
+  stubTypes();
+  Location.findById = async () => ({ _id: LOCATION, company: COMPANY });
+  const res = await createAgentDevice(
+    body({ operatingSystem: "Linux", ipAddress: "10.0.0.8" }),
+    { userId: USER },
+  );
+  assert.equal(res.ok, true, res.message);
+  assert.deepEqual(pairs(res.device.attributes), [
+    [OS, "Linux"],
+    [IP, "10.0.0.8"],
+  ]);
+  assert.deepEqual(savedLinks(), [
+    [TYPE, OS],
+    [TYPE, IP],
+  ]);
 });

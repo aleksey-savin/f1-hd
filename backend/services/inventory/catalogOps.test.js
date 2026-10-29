@@ -24,6 +24,7 @@ const MODEL2 = "bbbbbbbbbbbbbbbbbbbbbbb2";
 const ATTR_RAM = "cccccccccccccccccccccc01";
 const ATTR_DDR = "cccccccccccccccccccccc02";
 const ATTR_FREE = "cccccccccccccccccccccc03";
+const ATTR_IP = "cccccccccccccccccccccc04";
 const USER = "333333333333333333333333";
 
 // Сборочная часть (слоты и модели) — из deviceBuild; её у себя не проверяем
@@ -119,9 +120,10 @@ test.beforeEach(() => {
         options: [{ value: "DDR4", label: "DDR4" }, { value: "DDR5", label: "DDR5" }],
       },
       { _id: ATTR_FREE, code: "free_attr", name: "Чужой", valueType: "string", options: [] },
+      { _id: ATTR_IP, code: "ip_address", name: "IP-адрес", valueType: "string", scope: "device", options: [] },
     ],
-    // Связаны с типом модели только первые два
-    links: [{ attributeId: ATTR_RAM }, { attributeId: ATTR_DDR }],
+    // Связаны с типом модели первые два и атрибут устройства
+    links: [{ attributeId: ATTR_RAM }, { attributeId: ATTR_DDR }, { attributeId: ATTR_IP }],
   };
   assemblySlots = [{ typeId: CPU, typeName: "Процессор", required: false, multiple: true }];
   Vendor.findOne = async () => null;
@@ -292,6 +294,14 @@ test("createConfiguration: атрибут не связан с типом мод
   assert.equal(result.ok, false);
   assert.equal(result.status, 400);
   assert.equal(result.message, "Атрибут «Чужой» не относится к типу «Ноутбук»");
+  assert.equal(saved.length, 0);
+});
+
+test("createConfiguration: атрибут уровня устройства — 400, даже если связан с типом", async () => {
+  const result = await createConfiguration(config([{ attribute: "ip_address", value: "10.0.0.1" }]), { userId: USER });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.equal(result.message, "Атрибут «IP-адрес» задаётся у каждого устройства, а не у модели");
   assert.equal(saved.length, 0);
 });
 
@@ -502,12 +512,12 @@ test("catalog: всё уже есть — 400 «Каталог не меняет
   assert.deepEqual(applied.ids, ids);
 });
 
-test("checkCatalogPatch: valueType date не проходит уже в check (enum модели)", async (t) => {
+test("checkCatalogPatch: неизвестный valueType не проходит уже в check (enum модели)", async (t) => {
   t.mock.method(catalogSeed, "loadExisting", async () => ({ groups: [], types: [], attributes: [], links: [] }));
   // Отказывает validateCatalog; validatePlanned (validate документов) — вторая линия с тем же enum
   const result = await checkCatalogPatch({
     ...miniCatalog,
-    attributes: [{ ...miniCatalog.attributes[0], valueType: "date" }],
+    attributes: [{ ...miniCatalog.attributes[0], valueType: "datetime" }],
   });
   assert.equal(result.ok, false);
   assert.equal(result.status, 400);
@@ -532,7 +542,7 @@ test("validateCatalog: все причины сразу, русский текс
     groups: "no",
     types: [{ key: "T", name: "" }, null],
     attributes: [
-      { key: "a", code: "BAD", name: "X", valueType: "date" },
+      { key: "a", code: "BAD", name: "X", valueType: "datetime" },
       { key: "a", code: "ok", name: "Y", valueType: "select", options: [] },
     ],
   });

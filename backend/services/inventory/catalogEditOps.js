@@ -40,10 +40,13 @@
 //   parseGroupName(raw) -> { name } | { error }
 //   configValues(attributeId) -> [{ _id, value, deletedAt? }] — конфигурации со значением
 //   rewriteValue(configId, attributeId, oldValue, newValue, userId) — только если значение прежнее
+//   deviceValues(attributeId) -> [{ _id, value }] устройств (и удалённых) со значением атрибута
+//   rewriteDeviceValue(deviceId, attributeId, oldValue, newValue, userId) — то же для устройства
 //   typeLink(typeId, attributeId) -> { _id, required, order, groupId, updatedAt } | null
 //   updateLink(linkId, patch, userId), deleteLink(linkId)
 //   keySpecOwners(typeId, attributeId) -> имена типов, где атрибут типа — ключевая характеристика
 //   typeValueCount(typeId, attributeId) -> живых конфигураций живых моделей типа со значением
+//   typeDeviceValueCount(typeId, attributeId) -> живых устройств типа (прямого или модели) со значением
 //   attributesByCode(codes) -> [атрибут], linkedAttributeIds(typeId) -> [id]
 //   buildFields(typeId, body) -> { parts } | { error: { status, message } } — правила createBuild
 const catalogSeed = require("./catalogSeed");
@@ -51,6 +54,7 @@ const { createCatalogRefs, plural } = require("./catalogRefs");
 const { isValidValue, storedValue, renameValue: renamed } = require("./attributeValue");
 const { formatSpecValue, parseMultiValue } = require("./assemblyKeySpecs");
 const { KIND_FLAGS, SEVERAL_KINDS_MESSAGE, hasSeveralKinds } = require("./typeKind");
+const { isDeviceScoped } = require("./attributeScope");
 
 const fail = (status, message) => ({ ok: false, status, message });
 const str = (value) => (typeof value === "string" ? value.trim() : "");
@@ -131,6 +135,25 @@ const liveStore = () => {
         value: doc.values.find((v) => String(v.attributeId) === String(attributeId))?.value ?? "",
       }));
     },
+    deviceValues: async (attributeId) => {
+      const docs = await lazy("../../models/inventory/clientDevice")()
+        .find({ "attributes.attributeId": attributeId })
+        .select("attributes")
+        .lean();
+      return docs.map((doc) => ({
+        _id: String(doc._id),
+        value: doc.attributes.find((v) => String(v.attributeId) === String(attributeId))?.value ?? "",
+      }));
+    },
+    rewriteDeviceValue: async (deviceId, attributeId, oldValue, newValue, userId) => {
+      const attr = oid(attributeId);
+      const result = await lazy("../../models/inventory/clientDevice")().updateOne(
+        { _id: deviceId, attributes: { $elemMatch: { attributeId: attr, value: oldValue } } },
+        { $set: { "attributes.$[v].value": newValue, ...(userId ? { updatedBy: userId } : {}) } },
+        { arrayFilters: [{ "v.attributeId": attr, "v.value": oldValue }] },
+      );
+      return result.modifiedCount > 0;
+    },
     // Одна конфигурация по id, с условием на прежнее значение: повтор — без записи
     rewriteValue: async (configId, attributeId, oldValue, newValue, userId) => {
       const attr = oid(attributeId);
@@ -165,6 +188,14 @@ const liveStore = () => {
         deviceModelId: { $in: models.map((m) => m._id) },
         deletedAt: null,
         values: { $elemMatch: { attributeId, value: { $nin: [null, ""] } } },
+      });
+    },
+    typeDeviceValueCount: async (typeId, attributeId) => {
+      const models = await MODELS.model().find({ deviceTypeId: typeId }).select("_id").lean();
+      return lazy("../../models/inventory/clientDevice")().countDocuments({
+        deletedAt: null,
+        $or: [{ deviceTypeId: typeId }, { deviceModelId: { $in: models.map((m) => m._id) } }],
+        attributes: { $elemMatch: { attributeId, value: { $nin: [null, ""] } } },
       });
     },
     attributesByCode: (codes) => MODELS.attribute().find({ code: { $in: codes } }).lean(),
@@ -465,6 +496,17 @@ const attributeOptions = async (store, doc, args, { allowNoop, snapshot }, acc) 
       }
     });
   }
+  // Значения устройств (атрибут уровня устройства) — тем же переименованием; без
+  // снимка: запись условна на прежнее значение, повтор ничего не пишет
+  if (doc.scope === "device" && (pending.length || done.length)) {
+    const map = new Map([...pending, ...done].map((p) => [p.from, p.to]));
+    acc.writes.push(async (userId) => {
+      for (const row of await store.deviceValues(doc._id)) {
+        const next = renamed(doc.valueType, row.value, map);
+        if (next !== row.value) await store.rewriteDeviceValue(row._id, doc._id, row.value, next, userId);
+      }
+    });
+  }
   return null;
 };
 
@@ -510,6 +552,7 @@ const configurationValues = async (store, doc, args, _options, acc) => {
     // Скрытый выбрать нельзя; снять его значение (clearValues) — можно
     if (attr.isActive === false) return fail(400, `Атрибут «${attr.name}» скрыт`);
     if (!linked.has(String(attr._id))) return fail(400, `Атрибут «${attr.name}» не относится к типу «${type?.name ?? "—"}»`);
+    if (isDeviceScoped(attr)) return fail(400, `Атрибут «${attr.name}» задаётся у каждого устройства, а не у модели`);
     const value = storedValue(attr, item.value);
     if (value === null) return fail(400, `Неверное значение атрибута «${attr.name}»`);
     if (!isValidValue(attr, value)) return fail(400, `Значение «${value}» не подходит атрибуту «${attr.name}»`);
@@ -632,6 +675,10 @@ const planUnlink = async (store, args = {}, { allowNoop = false } = {}) => {
   const count = await store.typeValueCount(type._id, attr._id);
   if (count > 0) {
     return fail(409, `У конфигураций моделей типа «${type.name}» есть значения атрибута «${attr.name}» (${count}): сначала уберите их`);
+  }
+  const devices = await store.typeDeviceValueCount(type._id, attr._id);
+  if (devices > 0) {
+    return fail(409, `У устройств типа «${type.name}» есть значения атрибута «${attr.name}» (${devices}): сначала уберите их`);
   }
   return { ok: true, link };
 };

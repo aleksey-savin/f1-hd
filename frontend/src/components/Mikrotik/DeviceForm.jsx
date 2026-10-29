@@ -197,11 +197,22 @@ const DeviceForm = () => {
           companyName:
             device.companyId?.alias || device.companyId?.fullTitle || null,
         });
+        // IP — системный атрибут устройства (код ip_address), связка — в deviceLinks
+        const ipLink = (device.deviceLinks || []).find(
+          (link) => link.attributeId?.code === "ip_address",
+        );
+        const ip = ipLink
+          ? (device.attributes || []).find(
+              (entry) =>
+                String(entry.attributeId?._id ?? entry.attributeId) ===
+                String(ipLink.attributeId._id),
+            )?.value
+          : null;
         setForm((prev) => ({
           ...prev,
           companyId: device.companyId?._id || prev.companyId,
           label: title,
-          host: prev.host || device.ipAddress || "",
+          host: prev.host || ip || "",
         }));
       } catch {
         // Не получилось прочитать карточку — форма остаётся обычной.

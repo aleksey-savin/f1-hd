@@ -8,9 +8,10 @@ const { AppError } = require("@/middleware/errorHandling");
 const { uniqueAttributeCode } = require("@/services/attributeCode");
 
 // Поля каталожного атрибута, нужные карточке и форме конфигурации.
-const ATTRIBUTE_FIELDS = "code name valueType unit options isActive";
+const ATTRIBUTE_FIELDS = "code name valueType unit options isActive scope";
 
 const VALUE_TYPES = DeviceAttribute.schema.path("valueType").enumValues;
+const SCOPES = DeviceAttribute.schema.path("scope").enumValues;
 const SELECT_TYPES = ["select", "multiselect"];
 const MAX_ITEMS = 100;
 
@@ -118,6 +119,10 @@ exports.parseAddItems = (items) => {
     if (!VALUE_TYPES.includes(attr.valueType)) {
       return { error: `У атрибута «${name}» неверный тип данных` };
     }
+    const scope = attr.scope ?? "model";
+    if (!SCOPES.includes(scope)) {
+      return { error: `У атрибута «${name}» неверный уровень` };
+    }
     const withOptions = SELECT_TYPES.includes(attr.valueType);
     const options = withOptions ? normalizeOptions(attr.options) : [];
     if (withOptions && options.length === 0) {
@@ -131,6 +136,7 @@ exports.parseAddItems = (items) => {
         unit: typeof attr.unit === "string" ? attr.unit.trim() : "",
         options,
         isActive: attr.isActive !== false,
+        scope,
       },
     });
   }

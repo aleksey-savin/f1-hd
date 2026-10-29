@@ -135,7 +135,7 @@ Counter (InventoryCounter)  →  generates ClientDevice.inventoryNumber
 |---|---|---|
 | **Vendor** (`vendor.js`) | `name` (unique), `isActive`, `isMikrotikManagementEnabled`, audit | Manufacturer. The Mikrotik flag drives the model lookup when a monitoring record builds a card, plus the creation wizard's Mikrotik branch. |
 | **DeviceType** (`deviceType.js`) | `name` (unique), `isActive`, `isComponent`, `isConsumable`, `isPeripheral`, `inventoryPrefix`, `configurationIds[]→DeviceConfiguration`, `attachableToTypeIds[]→DeviceType`, `assembly{enabled, slots[], keySpecs[]}` | Equipment class. The three boolean flags mark types that may be **attached** to a host device (parts / consumables / peripherals) and are therefore never root devices in their own right. `inventoryPrefix` drives auto inventory numbers. `attachableToTypeIds` restricts which hosts a component may join (empty = any). `assembly` — the type's own build: slots and key characteristics, see [§2.5](#25-self-built-types-and-builds). |
-| **DeviceAttribute** (`deviceAttribute.js`) | `code` (unique), `name`, `valueType` (`string\|number\|boolean\|select\|multiselect\|text`), `unit`, `options[{value,label}]`, `isActive` | Global spec catalog (e.g. `ram_gb`, `cpu_cores`). Only `code` is unique in the schema — the controller additionally rejects duplicate `name` (see [§7](#7-known-issues--gotchas)). |
+| **DeviceAttribute** (`deviceAttribute.js`) | `code` (unique), `name`, `valueType` (`string\|number\|boolean\|select\|multiselect\|text\|date`), `scope` (`model\|device`, default `model`), `unit`, `options[{value,label}]`, `isActive` | Global spec catalog (e.g. `ram_gb`, `cpu_cores`). Only `code` is unique in the schema — the controller additionally rejects duplicate `name` (see [§7](#7-known-issues--gotchas)). `scope` says where the value lives — see [§2.7](#27-attribute-scope-model-vs-device). `date` values are `YYYY-MM-DD` strings. |
 | **DeviceTypeAttribute** (`deviceTypeAttribute.js`) | `deviceTypeId`, `attributeId`, `groupId→AttributeGroup` (default `null`), `required`, `extendable`, `order`, `extendableFromIds[{deviceTypeId}]` | Join table: which attributes a type exposes, in what order, under which group, whether required / extendable. `order` orders rows **within** a group. |
 | **AttributeGroup** (`attributeGroup.js`) | `name` (unique case-insensitively — collation `ru`, strength 2), `order`, audit | Global catalogue of spec headings («Процессор», «Оперативная память»…). See [§2.4](#24-attribute-groups-and-the-catalogue-seed). |
 | **DeviceModel** (`deviceModel.js`) | `name`, `deviceTypeId` (req), `vendorId` (req), `compatibleWithModelIds[]→DeviceModel`, `notes`, `photos[]`, `multiConfig`, **soft-delete** (`deletedAt`/`deletedBy`) | A vendor's concrete model. Uniqueness checks respect `deletedAt: null`. `multiConfig` — the «several configurations» mode, see [§2.6](#26-model-configurations). |
@@ -174,8 +174,12 @@ vendor+type, optionally `configurationId`) **or** self-built (`deviceTypeId` dir
 - **Financial:** `price`, `purchasedAt`, `purchaseDocument`, `warrantyExpirationDate`,
   `depreciationRate` (%/yr, def 33.33), `currentValue` (defaults to `price`),
   `expectedLifespan` (months, def 36).
-- **Technical:** `ipAddress`, `macAddress`, `operatingSystem`,
+- **Technical:** `attributes[{attributeId, value}]` — values of the type's
+  device-scope attributes (IP, MAC, OS and any others, see
+  [§2.7](#27-attribute-scope-model-vs-device)),
   `installedSoftware[{name,version,licenseKey,installedDate}]`, free-form `comment`.
+  The former fields `ipAddress`, `macAddress`, `operatingSystem` are gone (moved by
+  the `2026-10-29-moveDeviceTechToAttributes` migration).
 - **Photos:** `photos[]` of the shared `models/inventory/devicePhoto.js` sub-schema —
   the same one `DeviceModel` uses. Only metadata is stored; `name` is the S3 object
   key *and* the path behind the public `/uploads/<name>` resolver. When an instance
@@ -368,6 +372,74 @@ Attribute values live only in `DeviceConfiguration`; the rules are in
   (`scripts/singleModelConfigurations.js`): creates an empty configuration for
   models without one, sets `multiConfig` on models with two or more, links
   devices to their model's only configuration. Inserts and guarded updates only.
+
+### 2.7 Attribute scope: model vs device
+
+An attribute's **scope** is a property of the attribute itself, not of the type link:
+an IP address is never a model characteristic, whatever the type.
+
+- `scope: "model"` (default) — one value per model configuration
+  (`DeviceConfiguration.values`), filled on the model card.
+- `scope: "device"` — each instance has its own value (`ClientDevice.attributes`),
+  filled on the device card. The type card shows two sections — «Атрибуты модели»
+  and «Атрибуты устройства» — split by the attribute's scope
+  (`services/inventory/attributeScope.splitLinks`, `frontend/src/components/app/attribute-scope.ts`).
+
+Guards (`services/inventory/attributeScope.js`):
+
+- configuration/model values never reference a device-scope attribute — 400
+  «Атрибут «X» задаётся у каждого устройства, а не у модели» (configuration
+  add/update, model add/update, `catalogOps`/`catalogEditOps` for the agent);
+- a device-scope attribute cannot be a key characteristic of an assembly;
+- scope cannot change while the attribute holds values at its current level — 409
+  «У атрибута «X» уже есть значения — уровень не меняется». `GET /device-attributes/:id`
+  returns `inUse: {configValues, deviceValues}` so the form locks the segment upfront.
+
+Device values (`services/inventory/deviceAttributes.js`): only attributes of the
+**effective** type's device-scope links are accepted (type of the model, else the
+device's own type); values are checked like configuration values
+(`attributeValue.isValidValue`), empty values are dropped. Required links
+(`link.required`) are enforced only on the UI path (`POST /client-devices/add`,
+`PUT /update/:id` → 400 «Не заполнено: …»); the MCP agent and the Mikrotik
+auto-create are never blocked by them. An update merges: sent values overwrite
+current ones, an explicit empty value clears one, values not sent stay (a link may
+have appeared after the form was opened — Mikrotik, the agent); values whose link
+vanished (type changed) are dropped either way. The form sends every shown
+parameter, empty ones as `""`. The device list search also matches
+`attributes.value`. Catalog ops know device values too: unlinking an attribute
+from a type is refused while devices of that type hold its values; merging
+attributes requires the same scope and moves device values to the target (a device
+that already has a target value loses the source one; select values go through the
+`optionMap`); hiding an attribute counts
+device values as references.
+
+**System attributes** (`services/inventory/systemDeviceAttributes.js`): the former
+card fields, found by `code` **or** name (stale `name_1` index, §7):
+`operatingsystem` «Операционная система», `ip_address` «IP-адрес», `mac_address`
+«MAC-адрес» — all `string`, `scope: "device"`. `ip_address`/`mac_address` keep the old
+format checks («Некорректный IP-адрес» / «…MAC-адрес»). Code that knows them —
+Mikrotik reconciliation and sync, the agent's `createDevice`/`updateDevice`
+parameters `ipAddress`/`macAddress`/`operatingSystem`, list/environment DTOs, MCP —
+goes through `systemIds()` / `systemValues()` / `withSystemValues()`; a write of a
+non-empty value also links the attribute to the device's type when the link is
+missing (`planSystemValues` / `applySystemValues`; Mikrotik and seed links are
+upserts by type+attribute, so parallel syncs don't duplicate them). `systemIds()`
+caches the ids for a minute. System attributes are locked by `code`
+(`systemAttributeChangeError`, attribute update/delete → 409): scope stays
+`device`, code and value type don't change, no deletion. The agent's `macAddress`
+goes through the same format check as the form (`FORMAT_BY_CODE`). Renaming
+options of a device-scope select (`renameOptions`) rewrites device values too.
+
+Rollout: seed `2026-10-29-deviceSystemAttributes` (creates IP/MAC, brings found ones
+to canon — system code for one found by name, `string` for a former select/text,
+device scope; it stops if OS already has configuration values or a value type that
+isn't text — and links all three
+to «Системный блок», «Ноутбук», «Моноблок», «Сервер», «Маршрутизатор»,
+«Коммутатор», «Точка доступа», «Cloud Hosted Router» when found by name) and
+migration `2026-10-29-moveDeviceTechToAttributes` (dry-run report without
+`--apply`; with it — links the needed attributes to each device's effective type,
+writes `attributes` guarded by `_id` + the read values, `$unset`s the old fields on
+every device; idempotent).
 
 ## 3. HTTP API
 
@@ -572,7 +644,8 @@ equipment live" view; one shared widget renders them (see [§6](#6-frontend-map)
   devices (`deletedAt: null, parentDeviceId: null, locationId`) plus its active
   children. `toEnvDevice(d, userId, mikroMap)` is the slim DTO used everywhere:
   `name` (model name → type name → «Устройство»), `typeName`, `vendorName`,
-  serial/inventory, `status`, `ipAddress`, `operatingSystem`, `locationId/Name`,
+  serial/inventory, `status`, `ipAddress`, `operatingSystem` (read from the system
+  attributes, keys unchanged), `locationId/Name`,
   `isPersonal` (device assigned to that user), plus a **Mikrotik overlay**
   (`mikrotikManaged`, `mikrotikStatus`, `mikrotikRecordId`,
   `mikrotikMonitoringEnabled`, `mikrotikLastSeenAt`) joined in one query for the whole

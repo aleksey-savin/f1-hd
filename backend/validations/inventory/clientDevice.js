@@ -1,4 +1,5 @@
 const { body } = require("express-validator");
+const { FORMAT_BY_CODE } = require("../../services/inventory/deviceAttributes");
 
 const STATUS_VALUES = [
   "readyForDeployment",
@@ -105,14 +106,21 @@ const clientDeviceValidation = [
     .isLength({ max: 1000 })
     .withMessage("Заметки не должны превышать 1000 символов")
     .trim(),
+  body("attributes")
+    .optional()
+    .isArray()
+    .withMessage("attributes должен быть массивом"),
+  // Параметры агента (changeOps createDevice/updateDevice) — прежние имена;
+  // deviceOps пишет их в системные атрибуты устройства
   body("ipAddress")
     .optional({ checkFalsy: true })
     .isIP()
     .withMessage("Некорректный IP-адрес"),
+  // Проверка поля формы (FORMAT_BY_CODE): иначе записанное агентом не сохранить в форме
   body("macAddress")
     .optional({ checkFalsy: true })
-    .isMACAddress()
-    .withMessage("Некорректный MAC-адрес"),
+    .custom((value) => FORMAT_BY_CODE.mac_address[0](String(value).trim()))
+    .withMessage(FORMAT_BY_CODE.mac_address[1]),
   body("operatingSystem")
     .optional({ checkFalsy: true })
     .isLength({ max: 100 })

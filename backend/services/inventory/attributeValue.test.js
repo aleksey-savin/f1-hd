@@ -17,6 +17,15 @@ test("isValidValue: по типу значения", () => {
   assert.equal(isValidValue({ valueType: "string" }, "что угодно"), true);
 });
 
+test("isValidValue: date — YYYY-MM-DD существующего дня", () => {
+  const date = { valueType: "date" };
+  assert.equal(isValidValue(date, "2026-06-18"), true);
+  assert.equal(isValidValue(date, "2024-02-29"), true);
+  assert.equal(isValidValue(date, "2026-02-30"), false);
+  assert.equal(isValidValue(date, "18.06.2026"), false);
+  assert.equal(isValidValue(date, ""), true);
+});
+
 test("isValidValue: пустое значение — «не задано», это не ошибка", () => {
   assert.equal(isValidValue({ valueType: "number" }, "  "), true);
   assert.equal(isValidValue({ valueType: "select", options: [] }, undefined), true);

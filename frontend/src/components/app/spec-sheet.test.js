@@ -188,3 +188,8 @@ test("multi value helpers", () => {
   assert.deepEqual(parseMultiValue(""), []);
   assert.equal(serializeMultiValue(["a"]), '["a"]');
 });
+
+test("formatSpecValue: дата — день по-русски, без пояса", () => {
+  assert.equal(formatSpecValue({ valueType: "date" }, "2026-06-18"), "18.06.2026");
+  assert.equal(formatSpecValue({ valueType: "date" }, "не дата"), "не дата");
+});

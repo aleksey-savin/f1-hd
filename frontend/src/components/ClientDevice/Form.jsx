@@ -25,6 +25,7 @@ import {
 import WizardStepper from "@/components/app/WizardStepper";
 import { liveAssembly } from "@/components/app/assembly-specs";
 import { specSummary } from "@/components/app/spec-sheet";
+import { deviceLinks, modelLinks } from "@/components/app/attribute-scope";
 import { load } from "@/store/form-data";
 import { toDayKey } from "@/components/app/date-value";
 import { visibleOptions } from "@/util/hidden-options";
@@ -34,10 +35,13 @@ import { cn } from "@/lib/utils";
 import { useFormSheet } from "@/components/app/FormOutlet";
 import {
   DeviceFields,
+  DeviceParamsFields,
+  NotesFields,
   PlacementFields,
   PurchaseFields,
-  TechFields,
 } from "./FormFields";
+import { paramsForStep } from "./device-params";
+import { kindOf } from "../DeviceType/kinds";
 import FormSummary from "./FormSummary";
 import PartsStep from "./PartsStep";
 import {
@@ -60,7 +64,6 @@ const STEPS = [
   { key: "device", label: "Устройство" },
   { key: "placement", label: "Размещение" },
   { key: "purchase", label: "Закупка" },
-  { key: "tech", label: "Сеть и система" },
 ];
 // Шаг «Комплектующие» — вторым, только при создании ПК своей сборки типа с
 // комплектующими (при правке детали правятся с карточки ПК)
@@ -72,6 +75,8 @@ const MANUAL_BUILD = "manual";
 
 // Поля, уходящие на сервер. Вендор — только навигация (нужен, чтобы выбрать
 // модель); тип уходит лишь у самосборки, у заводской он берётся из модели.
+// Обслуживание и заметки есть только в правке (EDIT_FIELDS). IP, MAC и ОС —
+// атрибуты устройства, уходят в `attributes`.
 const SUBMIT_FIELDS = [
   "companyId",
   "locationId",
@@ -87,13 +92,9 @@ const SUBMIT_FIELDS = [
   "purchaseDocument",
   "supplierId",
   "warrantyExpirationDate",
-  "ipAddress",
-  "macAddress",
-  "operatingSystem",
   "hostname",
-  "lastMaintenanceDate",
-  "notes",
 ];
+const EDIT_FIELDS = ["lastMaintenanceDate", "notes"];
 
 // ISO date → "yyyy-MM-dd" для app/DateField. Даты покупки/гарантии —
 // КАЛЕНДАРНЫЕ, в БД лежат UTC-полночью, поэтому здесь toISOString корректен
@@ -110,11 +111,13 @@ const optionsOf = (items, label = (item) => item.name) =>
 /**
  * Формы устройства: одно поле — одно место правки, две подачи.
  *
- * **Создание — мастер** (шторка lg): шаги «Устройство → Размещение → Закупка →
- * Сеть и система» + живая сводка справа; у своей сборки типа с комплектующими
- * вторым встаёт шаг «Комплектующие». **Правка — плоская форма** (шторка xl):
- * те же поля секциями с рейлом, без степпера; ярлык «Изменить» в метке секции
- * карточки открывает её хешем (`update#purchase`).
+ * **Создание — мастер** (шторка lg): шаги «Устройство → Размещение → Закупка»
+ * + живая сводка справа; у своей сборки типа с комплектующими вторым встаёт
+ * шаг «Комплектующие». Параметры устройства (атрибуты уровня «device» и имя в
+ * сети) — на первом шаге, только обязательные. **Правка — плоская форма**
+ * (шторка xl): те же поля секциями с рейлом, без степпера, плюс «Параметры
+ * устройства» целиком и «Заметки»; ярлык «Изменить» в метке секции карточки
+ * открывает её хешем (`update#purchase`, `update#params`).
  *
  * Комплектующие заводятся вместе с новым ПК своей сборки (поле «Сборка» и шаг
  * «Комплектующие»): ПК и все его детали сервер создаёт одним запросом
@@ -163,12 +166,16 @@ const ClientDeviceForm = ({ title }) => {
     supplierId: refId(data?.supplierId),
     warrantyExpirationDate: toDateInput(data?.warrantyExpirationDate),
     lastMaintenanceDate: toDateInput(data?.lastMaintenanceDate),
-    ipAddress: data?.ipAddress || "",
-    macAddress: data?.macAddress || "",
-    operatingSystem: data?.operatingSystem || "",
     hostname: data?.hostname || "",
     notes: data?.notes || "",
   });
+  // Значения атрибутов устройства: [{ attributeId, value }]
+  const [attributes, setAttributes] = useState(() =>
+    (data?.attributes || []).map((entry) => ({
+      attributeId: refId(entry.attributeId),
+      value: entry.value ?? "",
+    })),
+  );
 
   // Вид сборки: заводская (тип + вендор + модель) или своя (только тип).
   const [deviceKind, setDeviceKind] = useState(
@@ -280,24 +287,42 @@ const ClientDeviceForm = ({ title }) => {
     (c) => (c.deviceModelId?._id ?? c.deviceModelId) === form.deviceModelId,
   );
   const configMode = configFieldMode(modelConfigs);
-  const [typeLinks, setTypeLinks] = useState([]);
+  // Связки выбранного типа (тип модели или прямой у своей сборки): уровня
+  // модели — сводка единственной конфигурации, уровня устройства — параметры
+  // экземпляра. С id типа: до ответа на смену типа прежние не показываем
+  const [typeLinksOf, setTypeLinksOf] = useState({ typeId: "", links: [] });
   useEffect(() => {
-    if (configMode !== "summary" || !form.deviceTypeId) {
-      setTypeLinks([]);
-      return undefined;
-    }
+    if (!form.deviceTypeId) return undefined;
     let cancelled = false;
-    load(`/api/inventory/device-type-attributes/type/${form.deviceTypeId}`)
+    const typeId = form.deviceTypeId;
+    load(`/api/inventory/device-type-attributes/type/${typeId}`)
       .then((list) => {
-        if (!cancelled) setTypeLinks(Array.isArray(list) ? list : []);
+        if (!cancelled)
+          setTypeLinksOf({ typeId, links: Array.isArray(list) ? list : [] });
       })
       .catch(() => {
-        if (!cancelled) setTypeLinks([]);
+        if (!cancelled) setTypeLinksOf({ typeId, links: [], failed: true });
       });
     return () => {
       cancelled = true;
     };
-  }, [configMode, form.deviceTypeId]);
+  }, [form.deviceTypeId]);
+  const typeLinks =
+    typeLinksOf.typeId === form.deviceTypeId ? typeLinksOf.links : [];
+  // Связки текущего типа на руках — без них параметры не отправляются вовсе
+  // (пустой список в правке стёр бы значения на сервере)
+  const linksReady =
+    typeLinksOf.typeId === form.deviceTypeId && !typeLinksOf.failed;
+  const paramLinks = deviceLinks(typeLinks);
+  const paramsMode = isEdit ? "edit" : "wizard";
+  const paramsShown = paramsForStep(paramLinks, paramsMode).shown;
+  // Имя в сети — только у типов-устройств (не комплектующие, периферия,
+  // расходники); поле в модели остаётся, сервер его не чистит
+  const showHostname =
+    kindOf(deviceTypes.find((type) => type._id === form.deviceTypeId)) ===
+    "primary";
+  const showParams =
+    Boolean(form.deviceTypeId) && (showHostname || paramsShown.length > 0);
 
   // Слоты типа своей сборки и его сборки. Свежими, не из кэша: тип только
   // что могли перевести на комплектующие, сборку — завести. Смена типа (или
@@ -463,7 +488,12 @@ const ClientDeviceForm = ({ title }) => {
     configMode,
     modelSummary:
       configMode === "summary"
-        ? specSummary(typeLinks, modelConfigs[0]?.values || [], 4, " · ")
+        ? specSummary(
+            modelLinks(typeLinks),
+            modelConfigs[0]?.values || [],
+            4,
+            " · ",
+          )
         : "",
     configurations: useMemo(
       () =>
@@ -624,6 +654,24 @@ const ClientDeviceForm = ({ title }) => {
         if (!form.vendorId) errors.vendorId = "Выберите производителя";
         if (!form.deviceModelId) errors.deviceModelId = "Выберите модель";
       }
+      // Обязательные параметры устройства — у своего поля
+      const filled = new Set(
+        attributes
+          .filter((entry) => String(entry.value ?? "").trim())
+          .map((entry) => String(entry.attributeId)),
+      );
+      const missing = paramsShown.filter(
+        (link) =>
+          link.required && !filled.has(String(refId(link.attributeId))),
+      );
+      if (missing.length) {
+        errors.attributes = Object.fromEntries(
+          missing.map((link) => [
+            refId(link.attributeId),
+            "Обязательный параметр",
+          ]),
+        );
+      }
       // Комплектующие типа ещё не загружены — иначе ПК ушёл бы без деталей
       if (showBuildField && !assembly) {
         errors.buildId =
@@ -763,8 +811,24 @@ const ClientDeviceForm = ({ title }) => {
       }
     }
     const body = Object.fromEntries(
-      SUBMIT_FIELDS.map((field) => [field, payload[field] ?? ""]),
+      [...SUBMIT_FIELDS, ...(isEdit ? EDIT_FIELDS : [])].map((field) => [
+        field,
+        payload[field] ?? "",
+      ]),
     );
+    // Параметры — только показанные связки текущего типа (после смены типа
+    // прежние значения не уезжают), пустое — явной пустой строкой: сервер
+    // кладёт присланное поверх текущего, пустое снимает, а атрибут, которого
+    // форма не знала (связку добавили после открытия), не трогает
+    if (linksReady) {
+      const valueOf = new Map(
+        attributes.map((entry) => [String(entry.attributeId), entry.value]),
+      );
+      body.attributes = paramsShown.map((link) => {
+        const attributeId = String(refId(link.attributeId));
+        return { attributeId, value: valueOf.get(attributeId) ?? "" };
+      });
+    }
     // Новый ПК своей сборки — вместе с деталями, одним запросом. При правке
     // `buildId` не уходит вовсе: сервер сохраняет прежний
     if (partsEnabled) {
@@ -851,9 +915,19 @@ const ClientDeviceForm = ({ title }) => {
       showAssignee={!isEdit}
     />
   );
-  const purchaseStep = <PurchaseFields {...fieldProps} />;
-  const techStep = (
-    <TechFields {...fieldProps} mikrotikMode={isMikrotikVendor} />
+  const purchaseStep = <PurchaseFields {...fieldProps} isEdit={isEdit} />;
+  const paramsFields = showParams && (
+    <DeviceParamsFields
+      values={form}
+      onChange={handleFieldChange}
+      links={paramLinks}
+      attributes={attributes}
+      onAttributesChange={setAttributes}
+      showHostname={showHostname}
+      mode={paramsMode}
+      errors={stepErrors.attributes}
+      mikrotikMode={isMikrotikVendor}
+    />
   );
 
   const errorAlert = fetcher.data?.error && (
@@ -870,13 +944,26 @@ const ClientDeviceForm = ({ title }) => {
           headHeight={headHeight}
           sections={[
             { key: "device", title: "Устройство", body: deviceStep },
+            ...(paramsFields
+              ? [
+                  {
+                    key: "params",
+                    title: "Параметры устройства",
+                    body: paramsFields,
+                  },
+                ]
+              : []),
             { key: "placement", title: "Размещение", body: placementStep },
             {
               key: "purchase",
               title: "Закупка и гарантия",
               body: purchaseStep,
             },
-            { key: "tech", title: "Сеть и система", body: techStep },
+            {
+              key: "notes",
+              title: "Заметки",
+              body: <NotesFields {...fieldProps} />,
+            },
           ]}
         />
         <FormActions className="justify-end">
@@ -915,11 +1002,22 @@ const ClientDeviceForm = ({ title }) => {
 
       <div className="mt-6 flex flex-col gap-6 md:flex-row">
         <div className="min-w-0 flex-1">
-          {stepKey === "device" && deviceStep}
+          {stepKey === "device" && (
+            <>
+              {deviceStep}
+              {paramsFields && (
+                <div className="border-t border-border-soft pt-4">
+                  <div className="mb-3.5 text-xs font-bold tracking-wider text-faint uppercase">
+                    Параметры устройства
+                  </div>
+                  {paramsFields}
+                </div>
+              )}
+            </>
+          )}
           {stepKey === "parts" && partsStep}
           {stepKey === "placement" && placementStep}
           {stepKey === "purchase" && purchaseStep}
-          {stepKey === "tech" && techStep}
         </div>
         <div className="md:w-72 md:flex-none">
           <FormSummary

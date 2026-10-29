@@ -1,8 +1,13 @@
 // Reconciliation between an inventory ClientDevice card and the data polled from
 // its live Mikrotik device. Pure functions over STORED fields — no live session.
+// IP and OS live in the device's system attributes (systemDeviceAttributes):
+// the caller passes their ids (systemIds()); mismatch field names stay
+// ipAddress/operatingSystem — the client and sync-inventory speak them.
 // Used by the parameters-save response, by getOne (standing warning on the device
 // page) and by the sync-inventory endpoint (server-side value derivation — client
 // input is never trusted).
+
+const { systemValues } = require("../inventory/systemDeviceAttributes");
 
 const norm = (value) =>
   String(value ?? "")
@@ -49,10 +54,11 @@ const deriveSyncValues = (record) => {
 // Сравнение карточки с устройством. Возвращает { checkedAt, mismatches } или
 // null, когда записи нет. Пустое значение в карточке при заполненном на
 // устройстве — тоже расхождение (синхронизация заполнит поле).
-const computeReconciliation = (device, record) => {
+const computeReconciliation = (device, record, ids) => {
   if (!device || !record) return null;
 
   const mismatches = [];
+  const card = systemValues(device, ids);
 
   // Имя устройства (hostname) ↔ RouterOS identity.
   if (record.name && norm(device.hostname) !== norm(record.name)) {
@@ -84,11 +90,11 @@ const computeReconciliation = (device, record) => {
   // ОС ↔ версия RouterOS.
   if (record.currentFirmware) {
     const expected = `RouterOS ${record.currentFirmware}`;
-    if (norm(device.operatingSystem) !== norm(expected)) {
+    if (norm(card.operatingSystem) !== norm(expected)) {
       mismatches.push({
         field: "operatingSystem",
         label: "Операционная система",
-        cardValue: device.operatingSystem || null,
+        cardValue: card.operatingSystem,
         deviceValue: expected,
         syncable: true,
       });
@@ -101,13 +107,13 @@ const computeReconciliation = (device, record) => {
   const host = record.credentials?.host;
   if (isIpLiteral(host)) candidates.unshift(String(host).trim());
   if (candidates.length > 0) {
-    const cardIp = String(device.ipAddress ?? "").trim();
+    const cardIp = String(card.ipAddress ?? "").trim();
     const matches = cardIp && candidates.some((c) => c === cardIp);
     if (!matches) {
       mismatches.push({
         field: "ipAddress",
         label: "IP-адрес",
-        cardValue: device.ipAddress || null,
+        cardValue: card.ipAddress,
         deviceValue: suggestedIp(record),
         deviceValues: [...new Set(candidates)],
         syncable: true,

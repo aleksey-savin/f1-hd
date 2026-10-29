@@ -178,3 +178,15 @@ test("delete: у типа есть сборки — 409", async (t) => {
   assert.equal(error?.statusCode, 409);
   assert.equal(error.message, "У типа есть сборки");
 });
+
+test("ключевая характеристика — атрибут уровня устройства: отказ", () => {
+  const withDevice = { ...ctx(), deviceAttributeIds: new Set([A_SIZE]) };
+  const out = parseAssembly(
+    {
+      slots: [{ typeId: RAM, required: false, multiple: true }],
+      keySpecs: [{ typeId: RAM, source: "attribute", attributeId: A_SIZE, aggregate: "first" }],
+    },
+    withDevice,
+  );
+  assert.equal(out.error, "Ключевая характеристика не может быть атрибутом устройства");
+});

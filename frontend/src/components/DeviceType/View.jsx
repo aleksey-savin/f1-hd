@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Link,
-  useActionData,
-  useFetcher,
-} from "react-router";
+import { Link, useActionData, useFetcher } from "react-router";
 
 import {
   RiAddFill,
@@ -37,6 +33,7 @@ import { cn } from "@/lib/utils";
 
 import { photoUrl } from "@/components/app/PhotoGallery";
 import { groupLinks } from "@/components/app/spec-sheet";
+import { deviceLinks, modelLinks } from "@/components/app/attribute-scope";
 import { keySpecsLine, liveAssembly } from "@/components/app/assembly-specs";
 import { valueTypeLabel } from "../DeviceAttribute/value-types";
 import { formatShortDate } from "../../util/format-date";
@@ -88,10 +85,7 @@ const AttrActions = ({ link, label, index, count, onMove }) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link
-              to={`attributes/update/${link._id}`}
-             
-            >
+            <Link to={`attributes/update/${link._id}`}>
               <RiEdit2Line /> Изменить
             </Link>
           </DropdownMenuItem>
@@ -188,7 +182,9 @@ const Pill = ({ muted, children }) => (
   <span
     className={cn(
       "flex-none rounded-full px-2 py-0.5 text-xs font-semibold",
-      muted ? "bg-accent text-muted-foreground" : "bg-primary/15 text-accent-text",
+      muted
+        ? "bg-accent text-muted-foreground"
+        : "bg-primary/15 text-accent-text",
     )}
   >
     {children}
@@ -289,9 +285,25 @@ const ViewDeviceType = ({ deviceType = {}, models = [], builds = [] }) => {
   // внутри — по order связки, поэтому оптимистичный порядок ниже переписывает
   // order у локальных строк. Порядок групп общий для всех типов, здесь его не
   // меняют: перестановки — только внутри группы.
-  const groups = useMemo(() => groupLinks(items, "Без группы"), [items]);
-  // Подзаголовки — когда есть хоть одна группа; без групп список как прежде
-  const showGroupHeads = groups.some((group) => group.key !== "other");
+  // Две секции по уровню атрибута: «Атрибуты модели» и «Атрибуты устройства».
+  // Ключ группы — с уровнем: «Без группы» есть в обеих, перестановки — внутри
+  const sectionGroups = (links, scope) =>
+    groupLinks(links, "Без группы").map((group) => ({
+      ...group,
+      key: `${scope}:${group.key}`,
+    }));
+  const modelGroups = useMemo(
+    () => sectionGroups(modelLinks(items), "model"),
+    [items],
+  );
+  const deviceGroups = useMemo(
+    () => sectionGroups(deviceLinks(items), "device"),
+    [items],
+  );
+  const groups = [...modelGroups, ...deviceGroups];
+  // Подзаголовки — когда в секции есть хоть одна группа; без групп список как прежде
+  const withHeads = (list) =>
+    list.some((group) => !group.key.endsWith(":other"));
 
   // Только что добавленные (шторка «Добавить атрибуты») подсвечиваются
   // row-appear: новые id в свежих данных лоадера против прошлых. Анимация
@@ -391,8 +403,109 @@ const ViewDeviceType = ({ deviceType = {}, models = [], builds = [] }) => {
   const addModelTo = "models/add";
   const editTypeTo = "update";
   const attrCount = items.length;
+  const modelCount = modelGroups.reduce((n, g) => n + g.links.length, 0);
+  const deviceCount = deviceGroups.reduce((n, g) => n + g.links.length, 0);
   const modelsEmpty = models.length === 0;
   const filteredEmpty = !modelsEmpty && filteredModels.length === 0;
+
+  // Строки секции: одна панель, группы — подзаголовками внутри (имя · счётчик)
+  const renderRows = (sectionList) => {
+    const showHeads = withHeads(sectionList);
+    return (
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
+        {sectionList.map((group) => (
+          <div
+            key={group.key}
+            className="border-t border-border first:border-t-0"
+          >
+            {showHeads && (
+              <div className="flex items-center gap-2 px-4 pt-2.5 pb-1 text-sm font-semibold text-muted-foreground">
+                {group.name}
+                <span className="font-medium text-faint tabular-nums">
+                  · {group.links.length}
+                </span>
+              </div>
+            )}
+            {group.links.map((link, index) => {
+              const meta =
+                typeof link.attributeId === "object" ? link.attributeId : null;
+              const selectType =
+                meta?.valueType === "select" ||
+                meta?.valueType === "multiselect";
+              const options = selectType ? meta?.options || [] : [];
+              return (
+                <div
+                  key={link._id}
+                  ref={rowRef(link._id)}
+                  {...(canManage
+                    ? drag.rowProps(group.key, index, link._id)
+                    : {})}
+                  className={cn(
+                    "relative flex items-center gap-3 px-4 py-2.5",
+                    // разделитель — между строками группы, не под заголовком
+                    index > 0 && "border-t border-border-soft",
+                    freshIds.has(String(link._id)) && "row-appear",
+                    drag.draggingId === link._id && "opacity-50",
+                    // индикатор места вставки — акцентная линия там, куда
+                    // строка ляжет
+                    dropLineClass(drag.indicator(link._id)),
+                  )}
+                >
+                  {canManage && (
+                    <RiDraggable
+                      aria-hidden
+                      className="flex-none cursor-grab text-faint"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">
+                      {meta?.name || "Атрибут"}
+                      {meta?.unit && (
+                        <span className="font-normal text-faint">
+                          {" "}
+                          ({meta.unit})
+                        </span>
+                      )}
+                    </div>
+                    {options.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {options.map((option) => (
+                          <span
+                            key={option.value}
+                            className="rounded-md bg-accent px-1.5 py-px text-xs text-muted-foreground"
+                          >
+                            {option.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* На телефоне тип значения прячем — как в макете */}
+                  <span className="hidden flex-none text-sm text-muted-foreground sm:inline">
+                    {valueTypeLabel(meta?.valueType)}
+                  </span>
+                  {link.required && (
+                    <span className="flex-none rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-accent-text">
+                      обязательный
+                    </span>
+                  )}
+                  {canManage && (
+                    <AttrActions
+                      link={link}
+                      label={meta?.name || "Атрибут"}
+                      index={index}
+                      count={group.links.length}
+                      onMove={onMove(group.key)}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </section>
+    );
+  };
 
   return (
     <div className="mx-auto w-full max-w-4xl">
@@ -513,26 +626,25 @@ const ViewDeviceType = ({ deviceType = {}, models = [], builds = [] }) => {
         )}
       </Panel>
 
-      {/* Атрибуты — управляемая секция (добавить · изменить · порядок · удалить) */}
-      <div className="mt-6 mb-2.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
-          Атрибуты
-          {attrCount > 0 && (
-            <span className="font-semibold tracking-normal tabular-nums">
-              · {attrCount}
-            </span>
-          )}
-        </div>
-        {canManage && (
-          <Button asChild size="sm">
-            <Link to="attributes/add">
-              <RiAddFill /> Добавить атрибуты
-            </Link>
-          </Button>
-        )}
-      </div>
-
-      {attrCount === 0 ? (
+      {/* Атрибуты — две управляемые секции по уровню (добавить · изменить ·
+          порядок · удалить): модели — характеристики конфигураций, устройства —
+          параметры экземпляра */}
+      <SectionHead
+        title="Атрибуты модели"
+        count={modelCount}
+        hint="Одно значение на конфигурацию модели — заполняется в карточке модели."
+        action={
+          canManage && (
+            <Button asChild size="sm">
+              <Link to="attributes/add">
+                <RiAddFill /> Добавить атрибуты
+              </Link>
+            </Button>
+          )
+        }
+        className="mt-6"
+      />
+      {modelCount === 0 ? (
         <Panel>
           <div className="flex flex-col items-center gap-2 px-6 py-8 text-center">
             <RiPriceTag3Line
@@ -540,7 +652,9 @@ const ViewDeviceType = ({ deviceType = {}, models = [], builds = [] }) => {
               aria-hidden
               className="mb-1 text-faint"
             />
-            <div className="text-base font-semibold">У типа нет атрибутов</div>
+            <div className="text-base font-semibold">
+              У типа нет атрибутов модели
+            </div>
             <p className="my-0 max-w-md text-sm text-muted-foreground">
               Добавьте атрибуты — они станут характеристиками конфигураций
               моделей этого типа.
@@ -555,102 +669,25 @@ const ViewDeviceType = ({ deviceType = {}, models = [], builds = [] }) => {
           </div>
         </Panel>
       ) : (
-        // Одна панель, группы — подзаголовками внутри (имя · счётчик)
-        <section className="overflow-hidden rounded-xl border border-border bg-card">
-          {groups.map((group) => (
-            <div
-              key={group.key}
-              className="border-t border-border first:border-t-0"
-            >
-              {showGroupHeads && (
-                <div className="flex items-center gap-2 px-4 pt-2.5 pb-1 text-sm font-semibold text-muted-foreground">
-                  {group.name}
-                  <span className="font-medium text-faint tabular-nums">
-                    · {group.links.length}
-                  </span>
-                </div>
-              )}
-              {group.links.map((link, index) => {
-                const meta =
-                  typeof link.attributeId === "object"
-                    ? link.attributeId
-                    : null;
-                const selectType =
-                  meta?.valueType === "select" ||
-                  meta?.valueType === "multiselect";
-                const options = selectType ? meta?.options || [] : [];
-                return (
-                  <div
-                    key={link._id}
-                    ref={rowRef(link._id)}
-                    {...(canManage
-                      ? drag.rowProps(group.key, index, link._id)
-                      : {})}
-                    className={cn(
-                      "relative flex items-center gap-3 px-4 py-2.5",
-                      // разделитель — между строками группы, не под заголовком
-                      index > 0 && "border-t border-border-soft",
-                      freshIds.has(String(link._id)) && "row-appear",
-                      drag.draggingId === link._id && "opacity-50",
-                      // индикатор места вставки — акцентная линия там, куда
-                      // строка ляжет
-                      dropLineClass(drag.indicator(link._id)),
-                    )}
-                  >
-                    {canManage && (
-                      <RiDraggable
-                        aria-hidden
-                        className="flex-none cursor-grab text-faint"
-                      />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium">
-                        {meta?.name || "Атрибут"}
-                        {meta?.unit && (
-                          <span className="font-normal text-faint">
-                            {" "}
-                            ({meta.unit})
-                          </span>
-                        )}
-                      </div>
-                      {options.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {options.map((option) => (
-                            <span
-                              key={option.value}
-                              className="rounded-md bg-accent px-1.5 py-px text-xs text-muted-foreground"
-                            >
-                              {option.label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {/* На телефоне тип значения прячем — как в макете */}
-                    <span className="hidden flex-none text-sm text-muted-foreground sm:inline">
-                      {valueTypeLabel(meta?.valueType)}
-                    </span>
-                    {link.required && (
-                      <span className="flex-none rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-accent-text">
-                        обязательный
-                      </span>
-                    )}
-                    {canManage && (
-                      <AttrActions
-                        link={link}
-                        label={meta?.name || "Атрибут"}
-                        index={index}
-                        count={group.links.length}
-                        onMove={onMove(group.key)}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </section>
+        renderRows(modelGroups)
       )}
+
+      <SectionHead
+        title="Атрибуты устройства"
+        count={deviceCount}
+        hint="Своё значение у каждого экземпляра — заполняется в карточке устройства."
+        action={
+          canManage && (
+            <Button asChild size="sm" variant="outline">
+              <Link to="attributes/add?scope=device">
+                <RiAddFill /> Добавить атрибуты
+              </Link>
+            </Button>
+          )
+        }
+        className="mt-8"
+      />
+      {deviceCount > 0 && renderRows(deviceGroups)}
 
       {/* «Своя сборка» — из каких комплектующих собирается ПК и чем он
           описывается в списках (макет «Своя сборка ПК», разд. 1) */}
@@ -897,3 +934,23 @@ const ViewDeviceType = ({ deviceType = {}, models = [], builds = [] }) => {
 };
 
 export default ViewDeviceType;
+
+// Заголовок секции атрибутов: метка · счётчик, действие справа, подпись ниже
+function SectionHead({ title, count, hint, action, className }) {
+  return (
+    <div className={cn("mb-2.5", className)}>
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
+          {title}
+          {count > 0 && (
+            <span className="font-semibold tracking-normal tabular-nums">
+              · {count}
+            </span>
+          )}
+        </div>
+        {action}
+      </div>
+      <p className="my-0 text-sm text-muted-foreground">{hint}</p>
+    </div>
+  );
+}

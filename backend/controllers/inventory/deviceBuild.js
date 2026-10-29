@@ -9,6 +9,7 @@ require("@/models/inventory/vendor");
 require("@/models/inventory/deviceAttribute");
 const { AppError } = require("@/middleware/errorHandling");
 const { ASSEMBLY_POPULATE } = require("./deviceType");
+const { splitLinks } = require("@/services/inventory/attributeScope");
 
 const PARTS_POPULATE = [
   {
@@ -155,14 +156,15 @@ async function loadPartLinks(rawTypeIds) {
   const typeIds = [...new Set(rawTypeIds.filter(Boolean).map(String))];
   const links = typeIds.length
     ? await DeviceTypeAttribute.find({ deviceTypeId: { $in: typeIds } })
-        .populate("attributeId", "code name valueType unit options isActive")
+        .populate("attributeId", "code name valueType unit options isActive scope")
         .populate("groupId", "name order")
         .select("deviceTypeId attributeId groupId order createdAt")
         .sort({ order: 1, createdAt: 1 })
         .lean()
     : [];
   const partLinks = Object.fromEntries(typeIds.map((id) => [id, []]));
-  for (const link of links) {
+  // Значения конфигураций — только атрибуты уровня модели
+  for (const link of splitLinks(links).model) {
     partLinks[String(link.deviceTypeId)]?.push(link);
   }
   return partLinks;

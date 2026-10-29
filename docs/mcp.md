@@ -987,7 +987,10 @@ get a number. Sections, in order:
   hostname, license/purchase data, notes or photos
   (`ticketSource.js#DEVICE_FIELDS` is a positive projection:
   `deviceModelId deviceTypeId serialNumber inventoryNumber status
-  operatingSystem`, nothing else is ever read from Mongo).
+  attributes`, nothing else is ever read from Mongo; OS is the system
+  device attribute `operatingsystem` — only its value leaves, the rest of
+  `attributes` is dropped before the DTO, see
+  [inventory.md §2.7](inventory.md#27-attribute-scope-model-vs-device)).
 
 ### `find_similar_tickets`
 
@@ -1151,8 +1154,11 @@ the module switch applies. Companies are not narrowed per key.
 - Contacts of people never leave: a person is printed as «Фамилия Имя» only (no
   position, e-mail, phone); an id missing from the directory prints
   `unknown person`.
-- `installedSoftware[].licenseKey`, `macAddress` and `machineId` are **not
-  selected** (`DEVICE_FIELDS` in `inventorySource.js`); the card prints software
+- `installedSoftware[].licenseKey` and `machineId` are **not selected**
+  (`DEVICE_FIELDS` in `inventorySource.js`). IP, MAC and OS live in the device's
+  `attributes` (system attributes, [inventory.md §2.7](inventory.md#27-attribute-scope-model-vs-device));
+  `exposeSystem` turns them into `ipAddress`/`operatingSystem` and drops
+  `attributes` — so the MAC never reaches the agent. The card prints software
   as `name version` only, through the same masking, at most 50 lines
   (`Showing 50 of N.`). The card header prints `host: <hostname> · IP: <ipAddress> ·
   OS: <operatingSystem>` (each when set; a row prints `host <name>`); the MAC
@@ -1728,7 +1734,7 @@ never read from Mongo, regardless of what any formatter does with it later:
 | `User` (directory) | `firstName lastName position isEndUser isServiceAccount isCloudTelephony company._id` | `email`, `phone`, photos, `telegramBot`, `workStatus`, `finances`, `subdivision` |
 | `Company` (directory) | `alias fullTitle` | `phones`, `address`, `linkToMap`, `location`, `emailDomains`, `apiKeys`, `servicePlans`, `users`, `responsibles`, `clientsSideResponsibles` |
 | `Work` | `description visitRequired startedAt finishedAt finishedBy._id/firstName/lastName executor._id/firstName/lastName` | `finances`, `withinPlan` |
-| `ClientDevice` | `deviceModelId deviceTypeId serialNumber inventoryNumber status operatingSystem` (+ populated `name`/`vendorId.name`/`deviceTypeId.name`) | `ipAddress`, `macAddress`, `hostname`, `installedSoftware`, `price`, `currentValue`, `purchaseDocument`, `supplierId`, `notes`, `comment`, `photos`, `locationId` |
+| `ClientDevice` | `deviceModelId deviceTypeId serialNumber inventoryNumber status attributes` → only the OS value (+ populated `name`/`vendorId.name`/`deviceTypeId.name`) | IP and MAC (other `attributes` values), `hostname`, `installedSoftware`, `price`, `currentValue`, `purchaseDocument`, `supplierId`, `notes`, `comment`, `photos`, `locationId` |
 | `Comment` | `content createdBy createdAt` | `attachments`, `quotedText`, `notifications` |
 
 ### `maskText` — `services/mcp/maskText.js`

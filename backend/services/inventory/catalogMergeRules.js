@@ -52,6 +52,7 @@ const listLines = (lines) => [
 
 const CONFIG_KEY = "DeviceConfiguration:deviceModelId";
 const VALUES_KEY = "DeviceConfiguration:values.attributeId";
+const DEVICE_VALUES_KEY = "ClientDevice:attributes.attributeId";
 const blankValue = (value) => value === undefined || value === null || ["", "[]"].includes(String(value).trim());
 const filled = (config) => (config.values ?? []).filter((v) => !blankValue(v.value));
 const isEmptyConfig = (config) => filled(config).length === 0;
@@ -305,15 +306,24 @@ const createMergeRules = ({ refs, store, now, nameOf, adjusted, staying }) => {
     }
     return { values, conflicts };
   };
+  // Уровень атрибута: значения модели лежат в конфигурациях, устройства — в ClientDevice.attributes
+  const SCOPE_TEXT = { model: "у модели", device: "у каждого устройства" };
+  const scopeOf = (attr) => (attr.scope === "device" ? "device" : "model");
   const ATTRIBUTE = {
-    check: ({ src, tgt }) =>
-      src.valueType === tgt.valueType
-        ? null
-        : fail(
-            409,
-            `Атрибуты с разным видом значений: ${quoted(src.name)} — ${VALUE_TYPES[src.valueType] ?? src.valueType}, ` +
-              `${quoted(tgt.name)} — ${VALUE_TYPES[tgt.valueType] ?? tgt.valueType}`,
-          ),
+    check: ({ src, tgt }) => {
+      if (src.valueType !== tgt.valueType) {
+        return fail(
+          409,
+          `Атрибуты с разным видом значений: ${quoted(src.name)} — ${VALUE_TYPES[src.valueType] ?? src.valueType}, ` +
+            `${quoted(tgt.name)} — ${VALUE_TYPES[tgt.valueType] ?? tgt.valueType}`,
+        );
+      }
+      if (scopeOf(src) === scopeOf(tgt)) return null;
+      return fail(
+        409,
+        `Атрибуты разного уровня: ${quoted(src.name)} задаётся ${SCOPE_TEXT[scopeOf(src)]}, ${quoted(tgt.name)} — ${SCOPE_TEXT[scopeOf(tgt)]}`,
+      );
+    },
     plan: async ({ snapshot, src, tgt, sourceName, targetName, params }) => {
       const options = optionPlan(src, tgt, params.optionMap);
       if (options.ok === false) return options;
@@ -354,7 +364,12 @@ const createMergeRules = ({ refs, store, now, nameOf, adjusted, staying }) => {
     },
     own: (entry) => key(entry) === VALUES_KEY,
     // Та же характеристика уже по цели — характеристика источника снимается
-    rewire: (entry) => (key(entry) === "DeviceType:assembly.keySpecs.attributeId" ? { unique: ["typeId", "source"] } : {}),
+    // Значение устройства: у кого уже есть значение цели — значение источника снимается
+    rewire: (entry) => {
+      if (key(entry) === "DeviceType:assembly.keySpecs.attributeId") return { unique: ["typeId", "source"] };
+      if (key(entry) === DEVICE_VALUES_KEY) return { unique: [] };
+      return {};
+    },
     skip: (snapshot, entry) => new Set(key(entry) === VALUES_KEY ? (snapshot.values?.keep ?? []) : []),
     drift: async ({ snapshot, targetName }) => {
       const [src, tgt, sourceName] = await Promise.all([
@@ -389,7 +404,7 @@ const createMergeRules = ({ refs, store, now, nameOf, adjusted, staying }) => {
       return diff;
     },
     // Значения: убрать совпавшие, перенести остальные (по исходному значению — повтор не пишет дважды)
-    after: async ({ snapshot, userId }) => {
+    after: async ({ snapshot, src, userId }) => {
       const v = snapshot.values ?? { drop: [], move: [] };
       const { source, target } = snapshot;
       let n = 0;
@@ -401,6 +416,16 @@ const createMergeRules = ({ refs, store, now, nameOf, adjusted, staying }) => {
         groups.get(k).ids.push(m.id);
       }
       for (const g of groups.values()) n += await store.moveValues({ ...g, source, target, userId });
+      // Значения устройств уже у цели (rewire) — варианты источника переводятся картой;
+      // запись условна на прежнее значение, повтор ничего не пишет
+      const map = new Map(Object.entries(snapshot.optionMap ?? {}));
+      const devices = snapshot.refs.find((r) => key(r) === DEVICE_VALUES_KEY)?.ids ?? [];
+      if (map.size && devices.length) {
+        for (const row of await store.deviceValues({ ids: devices, attributeId: target })) {
+          const next = mappedValue(src.valueType, row.value, map);
+          if (next !== row.value && (await store.rewriteDeviceValue(row._id, target, row.value, next, userId))) n += 1;
+        }
+      }
       return n ? { значений: n } : {};
     },
     // Код освобождается вместе с именем

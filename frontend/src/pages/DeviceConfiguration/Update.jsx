@@ -1,5 +1,6 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import Form from "../../components/DeviceConfiguration/Form";
+import { modelLinks } from "@/components/app/attribute-scope";
 
 const UpdateDeviceConfigurationPage = () => {
 
@@ -39,7 +40,8 @@ export async function loader({ params }) {
       );
 
   const deviceType = await deviceTypeResponse.json();
-  const attributes = deviceType.attributes || [];
+  // Значения конфигурации — только атрибуты уровня модели
+  const attributes = modelLinks(deviceType.attributes || []);
 
   return {
     configuration,

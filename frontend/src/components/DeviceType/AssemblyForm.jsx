@@ -18,6 +18,7 @@ import Segmented from "@/components/app/Segmented";
 import { FormHeader } from "@/components/app/FormLayout";
 import { SubLabel } from "@/components/app/Panel";
 import { load } from "@/store/form-data";
+import { modelLinks } from "@/components/app/attribute-scope";
 import { cn } from "@/lib/utils";
 import {
   dropLineClass,
@@ -201,7 +202,8 @@ const AssemblyForm = () => {
       });
       load(linksPath(typeId))
         .then((links) => {
-          const attrs = (Array.isArray(links) ? links : [])
+          // Ключевая характеристика — только атрибут уровня модели
+          const attrs = modelLinks(Array.isArray(links) ? links : [])
             .map((link) => link.attributeId)
             .filter((attr) => attr && typeof attr === "object");
           setAttrsByType((prev) => ({ ...prev, [typeId]: attrs }));

@@ -13,12 +13,14 @@ const Company = require("@/models/company");
 const User = require("@/models/user");
 const mongoose = require("mongoose");
 const { loadKeySpecs } = require("@/services/inventory/assemblyKeySpecs");
+const { systemIds, systemValues } = require("@/services/inventory/systemDeviceAttributes");
 
 /**
  * Чтение инвентаря для MCP-инструментов. Единственное место с доступом к
  * Mongoose: всё отдаётся плоскими lean-объектами с id «как хранятся», без
  * populate — инструменты склеивают данные через Map, поэтому тесты обходятся
- * фейками. Секреты (licenseKey, macAddress, machineId) не выбираются никогда.
+ * фейками. Секреты (licenseKey, machineId) не выбираются никогда, MAC из
+ * attributes не отдаётся (exposeSystem).
  */
 
 const TYPE_FIELDS = "name isActive isComponent isConsumable isPeripheral attachableToTypeIds inventoryPrefix assembly updatedAt";
@@ -28,7 +30,8 @@ const MODEL_FIELDS = "name deviceTypeId vendorId compatibleWithModelIds notes up
 const CONFIG_FIELDS = "name deviceModelId values";
 const BUILD_FIELDS = "name deviceTypeId parts notes";
 
-// Секреты намеренно отсутствуют: installedSoftware.licenseKey, macAddress, machineId.
+// Секреты намеренно отсутствуют: installedSoftware.licenseKey, machineId; MAC —
+// значение в attributes, наружу его не пускает exposeSystem.
 const DEVICE_FIELDS = [
   "configurationId deviceModelId deviceTypeId parentDeviceId buildId quantity",
   "companyId userId locationId supplierId",
@@ -36,7 +39,7 @@ const DEVICE_FIELDS = [
   "comment notes purchaseDocument",
   "purchasedAt price warrantyExpirationDate deploymentDate retirementDate expectedLifespan",
   "lastMaintenanceDate nextMaintenanceDate maintenanceInterval",
-  "ipAddress operatingSystem",
+  "attributes",
   "installedSoftware.name installedSoftware.version",
   "createdAt updatedAt",
 ].join(" ");
@@ -102,16 +105,32 @@ const countBy = async (field) => {
 const countDevicesByModel = () => countBy("deviceModelId");
 const countDevicesByConfiguration = () => countBy("configurationId");
 
-const findDevices = (filter, { sort = { updatedAt: -1 }, skip = 0, limit = 50 } = {}) =>
-  ClientDevice.find(alive(filter)).select(DEVICE_FIELDS).sort(sort).skip(skip).limit(limit).lean();
+// IP и ОС — системные атрибуты устройства; агенту — прежними ключами. Сами
+// attributes (и MAC в них) из ответа убираются.
+const exposeSystem = async (found) => {
+  const list = Array.isArray(found) ? found : found ? [found] : [];
+  if (!list.length) return found;
+  const ids = await systemIds();
+  for (const device of list) {
+    const { ipAddress, operatingSystem } = systemValues(device, ids);
+    device.ipAddress = ipAddress;
+    device.operatingSystem = operatingSystem;
+    delete device.attributes;
+  }
+  return found;
+};
+
+const findDevices = async (filter, { sort = { updatedAt: -1 }, skip = 0, limit = 50 } = {}) =>
+  exposeSystem(await ClientDevice.find(alive(filter)).select(DEVICE_FIELDS).sort(sort).skip(skip).limit(limit).lean());
 
 const countDevices = (filter) => ClientDevice.countDocuments(alive(filter));
 
 // Битый id — это «не найдено», а не CastError.
-const loadDevice = (id) => !mongoose.Types.ObjectId.isValid(id) ? Promise.resolve(null) : ClientDevice.findOne(alive({ _id: id })).select(DEVICE_FIELDS).lean();
+const loadDevice = async (id) =>
+  !mongoose.Types.ObjectId.isValid(id) ? null : exposeSystem(await ClientDevice.findOne(alive({ _id: id })).select(DEVICE_FIELDS).lean());
 
-const loadComponents = (hostIds) =>
-  ClientDevice.find(alive({ parentDeviceId: { $in: hostIds } })).select(DEVICE_FIELDS).lean();
+const loadComponents = async (hostIds) =>
+  exposeSystem(await ClientDevice.find(alive({ parentDeviceId: { $in: hostIds } })).select(DEVICE_FIELDS).lean());
 
 const loadAssemblyIds = async () => {
   const ids = await ClientDevice.distinct("parentDeviceId", alive({ parentDeviceId: { $ne: null } }));

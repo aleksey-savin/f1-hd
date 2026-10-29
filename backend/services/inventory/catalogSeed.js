@@ -41,7 +41,7 @@
  *     types:      [{ key, name, flags?, attributes: [{ attr, group, required? }],
  *                    assembly?: { slots: [{ type, required?, multiple? }],
  *                                 keySpecs: [{ type, source, attr?, aggregate }] } }],
- *     attributes: [{ key, code, name, valueType, unit?, options? }] }
+ *     attributes: [{ key, code, name, valueType, unit?, options?, scope? }] }
  * `attr`/`group`/`type` — ключи из соседних списков; `group: null` — без
  * группы. `source` — "model" | "attribute" (тогда нужен `attr`), `aggregate` —
  * "first" | "sum" | "list". Вариант select можно задать строкой — это и
@@ -236,6 +236,8 @@ const planCatalog = (catalog, existing, { pickUpOnly = false, hiddenClash = "war
       const doc = { key: attr.key, code: attr.code, name: attr.name, valueType: attr.valueType };
       if (attr.unit) doc.unit = attr.unit;
       if (options.length) doc.options = options;
+      // Уровень — только при создании: подхваченный атрибут живёт своим
+      if (attr.scope) doc.scope = attr.scope;
       create.attributes.push(doc);
       continue;
     }

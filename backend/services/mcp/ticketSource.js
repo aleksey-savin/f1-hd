@@ -10,6 +10,7 @@ require("@/models/inventory/vendor");
 require("@/models/inventory/deviceType");
 require("@/models/routineTask");
 const { workDurationMs } = require("@/services/workSummary");
+const { systemIds, systemValues } = require("@/services/inventory/systemDeviceAttributes");
 
 /**
  * Чтение заявок для MCP-инструментов (ticketTools.js). Поля — только
@@ -20,7 +21,8 @@ const SEARCH_FIELDS = "num title description source state isClosed categoryId co
 const DETAIL_FIELDS = `${SEARCH_FIELDS} processedAt startedAt deadline routineTask relatedClientDeviceId comments responsibles._id responsibles.firstName responsibles.lastName customFields.name customFields.type customFields.value checklist.description checklist.checked`;
 const STATS_FIELDS = "categoryId company._id applicantId source createdAt finishedAt isClosed";
 const WORK_FIELDS = "description visitRequired startedAt finishedAt finishedBy._id finishedBy.firstName finishedBy.lastName executor._id executor.firstName executor.lastName";
-const DEVICE_FIELDS = "deviceModelId deviceTypeId serialNumber inventoryNumber status operatingSystem";
+// ОС — системный атрибут устройства: attributes выбираются, наружу уходит только она
+const DEVICE_FIELDS = "deviceModelId deviceTypeId serialNumber inventoryNumber status attributes";
 const DEVICE_POPULATE = [
   { path: "deviceModelId", select: "name vendorId deviceTypeId", populate: [{ path: "vendorId", select: "name" }, { path: "deviceTypeId", select: "name" }] },
   { path: "deviceTypeId", select: "name" },
@@ -81,12 +83,18 @@ exports.loadTicketDetail = async (num, { works, devices, applicantIsSystem }) =>
     : null;
 
   const [comments, workDocs, deviceDocs] = await Promise.all([commentsQuery, worksQuery, devicesQuery]);
+  const ids = deviceDocs?.length ? await systemIds() : null;
   return {
     ticket,
     routineTaskTitle: ticket.routineTask?.title || null,
     comments: comments.map((comment) => ({ ...comment, createdBy: authorId(comment.createdBy) })),
     works: workDocs ? workDocs.map((work) => ({ ...work, durationMs: workDurationMs(work) })) : null,
-    devices: deviceDocs,
+    devices: deviceDocs
+      ? deviceDocs.map(({ attributes, ...device }) => ({
+          ...device,
+          operatingSystem: systemValues({ attributes }, ids).operatingSystem,
+        }))
+      : deviceDocs,
   };
 };
 

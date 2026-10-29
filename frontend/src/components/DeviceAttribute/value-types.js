@@ -7,6 +7,7 @@ export const VALUE_TYPES = [
   { value: "select", label: "Выбор из списка" },
   { value: "multiselect", label: "Множественный выбор" },
   { value: "text", label: "Текст" },
+  { value: "date", label: "Дата" },
 ];
 
 export const valueTypeLabel = (value) =>

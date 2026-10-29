@@ -3,6 +3,7 @@ import { useLoaderData, redirect } from "react-router";
 
 import ViewDeviceModel from "../../components/DeviceModel/View";
 import { invalidate } from "@/store/form-data";
+import { modelLinks } from "@/components/app/attribute-scope";
 
 const ViewDeviceModelPage = () => {
   const { deviceModel, configurations, attributes } = useLoaderData();
@@ -54,7 +55,8 @@ export async function loader({ params }) {
     });
     if (typeResponse.ok) {
       const deviceType = await typeResponse.json();
-      attributes = deviceType.attributes || [];
+      // Спецификация модели — атрибуты уровня модели, параметры экземпляра не здесь
+      attributes = modelLinks(deviceType.attributes || []);
     }
   }
 

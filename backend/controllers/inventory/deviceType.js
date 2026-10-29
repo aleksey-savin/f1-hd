@@ -29,9 +29,16 @@ function buildsWord(n) {
 // всё, что нужно из БД, приходит в ctx (множества/карты строковых id).
 //  - componentTypeIds: id типов-комплектующих;
 //  - attributeIdsByType: тип → id атрибутов, связанных с ним;
-//  - valueTypeById: id атрибута → valueType.
+//  - valueTypeById: id атрибута → valueType;
+//  - deviceAttributeIds: id атрибутов уровня устройства (их значение у
+//    экземпляра, не у модели — ключевой характеристикой сборки быть не могут).
 function parseAssembly(body, ctx) {
-  const { componentTypeIds, attributeIdsByType, valueTypeById } = ctx;
+  const {
+    componentTypeIds,
+    attributeIdsByType,
+    valueTypeById,
+    deviceAttributeIds = new Set(),
+  } = ctx;
   const rawSlots = body?.slots;
   const rawKeySpecs = body?.keySpecs;
   if (!Array.isArray(rawSlots) || !Array.isArray(rawKeySpecs)) {
@@ -74,6 +81,11 @@ function parseAssembly(body, ctx) {
       });
     } else if (item.source === "attribute") {
       const attributeId = String(item.attributeId ?? "");
+      if (deviceAttributeIds.has(attributeId)) {
+        return {
+          error: "Ключевая характеристика не может быть атрибутом устройства",
+        };
+      }
       if (!attributeIdsByType.get(typeId)?.has(attributeId)) {
         return {
           error: "Ключевая характеристика: атрибут не привязан к типу слота",
@@ -164,7 +176,7 @@ exports.getOne = async (req, res, next) => {
     const deviceTypeAttributes = await DeviceTypeAttribute.find({
       deviceTypeId: req.params.id,
     })
-      .populate("attributeId", "code name valueType unit options isActive")
+      .populate("attributeId", "code name valueType unit options isActive scope")
       .populate("groupId", "name order")
       .sort({ order: 1, createdAt: 1 });
 
@@ -350,10 +362,11 @@ exports.updateAssembly = async (req, res, next) => {
     const links = await DeviceTypeAttribute.find({
       deviceTypeId: { $in: [...componentTypeIds] },
     })
-      .populate("attributeId", "valueType")
+      .populate("attributeId", "valueType scope")
       .select("deviceTypeId attributeId");
     const attributeIdsByType = new Map();
     const valueTypeById = new Map();
+    const deviceAttributeIds = new Set();
     for (const link of links) {
       if (!link.attributeId) continue;
       const typeKey = String(link.deviceTypeId);
@@ -363,12 +376,14 @@ exports.updateAssembly = async (req, res, next) => {
       }
       attributeIdsByType.get(typeKey).add(attrKey);
       valueTypeById.set(attrKey, link.attributeId.valueType);
+      if (link.attributeId.scope === "device") deviceAttributeIds.add(attrKey);
     }
 
     const parsed = parseAssembly(req.body, {
       componentTypeIds,
       attributeIdsByType,
       valueTypeById,
+      deviceAttributeIds,
     });
     if (parsed.error) {
       return next(new AppError(parsed.error, 400));

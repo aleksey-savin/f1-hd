@@ -37,6 +37,7 @@ export async function action({ request }) {
     unit: data.get("unit"),
     options: optionsArray,
     isActive: data.get("isActive") === "true",
+    scope: data.get("scope") === "device" ? "device" : "model",
   };
 
   const response = await fetch(

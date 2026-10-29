@@ -107,19 +107,8 @@ const clientDeviceSchema = new Schema(
       default: 365,
     },
 
-    // Technical specifications
-    ipAddress: {
-      type: String,
-      trim: true,
-    },
-    macAddress: {
-      type: String,
-      trim: true,
-    },
-    operatingSystem: {
-      type: String,
-      trim: true,
-    },
+    // Technical specifications. IP, MAC и ОС — системные атрибуты устройства
+    // в attributes (services/inventory/systemDeviceAttributes), не поля.
     // Сетевое имя машины (hostname, напр. "AG-WS001"). Опционально — нужно в
     // основном для ПК/ноутбуков. Ключ сопоставления при синхронизации с агентом
     // (в паре с companyId). Уникальность — составной партиал-индекс ниже.
@@ -141,6 +130,16 @@ const clientDeviceSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Значения атрибутов уровня устройства (DeviceAttribute.scope = "device"):
+    // та же форма, что DeviceConfiguration.values. Допустимы только атрибуты из
+    // связок эффективного типа; см. services/inventory/deviceAttributes.js
+    attributes: [
+      {
+        _id: false,
+        attributeId: { type: Schema.Types.ObjectId, ref: "DeviceAttribute" },
+        value: String,
+      },
+    ],
     // Снимки конкретного экземпляра (наклейка с серийником, скол, разъёмы).
     // Пока их нет, интерфейс показывает фотографии модели устройства.
     photos: [devicePhotoSchema],

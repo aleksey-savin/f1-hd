@@ -9,6 +9,7 @@ const {
   modeChangeError,
   relinkDevicesTo,
 } = require("@/services/inventory/modelConfigurations");
+const { configValuesScopeError } = require("@/services/inventory/attributeScope");
 
 // Каталожные снимки модели. Удаление модели мягкое, поэтому объекты в S3 при
 // нём остаются: восстановленная модель должна вернуться со своими фото.
@@ -94,6 +95,9 @@ exports.add = async (req, res, next) => {
       notes,
     } = req.body;
     const multiConfig = req.body.multiConfig === true;
+    // Характеристики формы — значения конфигурации: атрибуты устройства сюда нельзя
+    const scoped = await configValuesScopeError(req.body.values);
+    if (scoped) return next(new AppError(scoped, 400));
 
     // Check if name already exists (if name is provided)
     if (name) {
@@ -157,6 +161,9 @@ exports.update = async (req, res, next) => {
       name,      compatibleWithModelIds,
       notes,
     } = req.body;
+
+    const scoped = await configValuesScopeError(req.body.values);
+    if (scoped) return next(new AppError(scoped, 400));
 
     const deviceModel = await DeviceModel.findOne({
       _id: req.params.id,

@@ -32,10 +32,22 @@ test("порядок пачки сохраняется, повтор готов�
         unit: "Вт",
         options: [],
         isActive: true,
+        scope: "model",
       },
     },
     { attributeId: ID_A },
   ]);
+});
+
+test("новый атрибут: уровень из пачки, без него — model, чужой — ошибка", () => {
+  const { entries } = parseAddItems([
+    { attribute: { name: "Дата производства", valueType: "date", scope: "device" } },
+    { attribute: { name: "Цвет", valueType: "string" } },
+  ]);
+  assert.equal(entries[0].attribute.scope, "device");
+  assert.equal(entries[0].attribute.valueType, "date");
+  assert.equal(entries[1].attribute.scope, "model");
+  assert.ok(parseAddItems([{ attribute: { name: "X", valueType: "string", scope: "type" } }]).error);
 });
 
 test("битый id — ошибка", () => {
@@ -44,7 +56,7 @@ test("битый id — ошибка", () => {
 
 test("новый: нужно наименование и известный тип данных", () => {
   assert.ok(parseAddItems([{ attribute: { name: "  ", valueType: "string" } }]).error);
-  assert.ok(parseAddItems([{ attribute: { name: "X", valueType: "date" } }]).error);
+  assert.ok(parseAddItems([{ attribute: { name: "X", valueType: "datetime" } }]).error);
 });
 
 test("новый с тем же наименованием дважды (без учёта регистра) — ошибка", () => {

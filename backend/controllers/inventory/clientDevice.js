@@ -40,11 +40,23 @@ const {
   detachComponent,
   duplicateError,
   findTakenIdentity,
+  getEffectiveTypeId,
   planDeviceParts,
   validateAssembly,
 } = require("../../services/inventory/deviceOps");
 const { filterAttachable } = require("../../services/inventory/attachRules");
 const { ticketListFilter } = require("../../services/ticketScope");
+const { splitLinks } = require("../../services/inventory/attributeScope");
+const {
+  systemIds,
+  systemValues,
+} = require("../../services/inventory/systemDeviceAttributes");
+const {
+  normalizeDeviceAttributes,
+  mergeDeviceAttributes,
+  missingRequired,
+  loadDeviceLinks,
+} = require("../../services/inventory/deviceAttributes");
 const {
   attachableCompanyId,
   deviceComponentsFilter,
@@ -178,15 +190,9 @@ const LIST_POPULATE = [
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Собственные текстовые поля устройства (по связям ищем предзапросами ниже).
-const DEVICE_SEARCH_FIELDS = [
-  "inventoryNumber",
-  "serialNumber",
-  "hostname",
-  "ipAddress",
-  "macAddress",
-  "operatingSystem",
-];
+// Собственные текстовые поля устройства (по связям ищем предзапросами ниже);
+// IP, MAC и ОС — значения атрибутов устройства, их ищет attributes.value.
+const DEVICE_SEARCH_FIELDS = ["inventoryNumber", "serialNumber", "hostname"];
 
 const toIdList = (value) =>
   String(value || "")
@@ -206,7 +212,7 @@ const toValueList = (value) =>
 // типа (самосборные), тип — эффективный (модельный приоритетнее).
 const toListDevice = (
   device,
-  { componentCount = 0, mikro = null, keySpecs = "" } = {},
+  { componentCount = 0, mikro = null, keySpecs = "", systemIds: ids = null } = {},
 ) => {
   const model = device.deviceModelId;
   const type = model?.deviceTypeId || device.deviceTypeId;
@@ -220,7 +226,8 @@ const toListDevice = (
     inventoryNumber: device.inventoryNumber || null,
     serialNumber: device.serialNumber || null,
     hostname: device.hostname || null,
-    ipAddress: device.ipAddress || null,
+    // IP — системный атрибут устройства; ключ строки прежний
+    ipAddress: systemValues(device, ids).ipAddress,
     status: device.status || null,
     company: device.companyId
       ? {
@@ -417,6 +424,8 @@ const buildListMatch = async (query, authedUser) => {
     and.push({
       $or: [
         ...DEVICE_SEARCH_FIELDS.map((field) => ({ [field]: rx })),
+        // Значения атрибутов устройства: IP, ОС, дата производства…
+        { "attributes.value": rx },
         { deviceModelId: { $in: [...modelIds, ...modelsOfType.map((m) => m._id)] } },
         { deviceTypeId: { $in: typeIds } },
         { companyId: { $in: companies_.map((company) => company._id) } },
@@ -486,7 +495,7 @@ exports.getAll = async (req, res, next) => {
           inventoryNumber: 1,
           serialNumber: 1,
           hostname: 1,
-          ipAddress: 1,
+          attributes: 1,
           createdAt: 1,
           updatedAt: 1,
         },
@@ -607,11 +616,13 @@ exports.getAll = async (req, res, next) => {
         .sort((a, b) => a.label.localeCompare(b.label, "ru"));
     }
 
+    const systemAttrIds = rows.length ? await systemIds() : null;
     res.status(200).json({
       devices: rows.map((row) =>
         toListDevice(
           { ...row, parentDeviceId: visibleHost(viewer, row.parentDeviceId) },
           {
+            systemIds: systemAttrIds,
             componentCount: componentMap.get(String(row._id)) || 0,
             mikro: mikroMap.get(String(row._id)) || null,
             keySpecs: keySpecsMap.get(String(row._id)) || "",
@@ -893,21 +904,24 @@ exports.getOne = async (req, res, next) => {
 
     const locationPath = await buildLocationPath(device.locationId?._id);
 
-    // Связки эффективного типа (тип модели, иначе прямой) с группами — по ним
-    // карточка раскладывает значения конфигурации; без конфигурации не нужны.
+    // Связки эффективного типа (тип модели, иначе прямой) с группами. Уровня
+    // модели — по ним карточка раскладывает значения конфигурации (без
+    // конфигурации не нужны); уровня устройства — «Параметры устройства»,
+    // значения из device.attributes, нужны всегда.
     const typeId = populatedTypeId(device);
-    const specLinks =
-      device.configurationId && typeId
-        ? await DeviceTypeAttribute.find({ deviceTypeId: typeId })
-            .populate(
-              "attributeId",
-              "code name valueType unit options isActive",
-            )
-            .populate("groupId", "name order")
-            .select("attributeId groupId order createdAt")
-            .sort({ order: 1, createdAt: 1 })
-            .lean()
-        : [];
+    const typeLinks = typeId
+      ? await DeviceTypeAttribute.find({ deviceTypeId: typeId })
+          .populate(
+            "attributeId",
+            "code name valueType unit options isActive scope",
+          )
+          .populate("groupId", "name order")
+          .select("attributeId groupId order required createdAt")
+          .sort({ order: 1, createdAt: 1 })
+          .lean()
+      : [];
+    const { model: modelLinks, device: deviceLinks } = splitLinks(typeLinks);
+    const specLinks = device.configurationId ? modelLinks : [];
 
     // Mikrotik management overlay: connectivity + a link target for the panel,
     // present only when the device has a management record and the Mikrotik
@@ -941,6 +955,7 @@ exports.getOne = async (req, res, next) => {
       mikrotik,
       locationPath,
       specLinks,
+      deviceLinks,
     });
   } catch (error) {
     next(
@@ -1010,7 +1025,10 @@ exports.getTickets = async (req, res, next) => {
 };
 
 exports.add = async (req, res, next) => {
-  const result = await createDevice(req.body, { userId: req.userId });
+  const result = await createDevice(req.body, {
+    userId: req.userId,
+    requireAttributes: true,
+  });
   if (!result.ok) {
     return next(
       new AppError(result.message, result.status, true, result.error),
@@ -1118,6 +1136,25 @@ exports.update = async (req, res, next) => {
     }
 
     Object.assign(device, payload, { updatedBy: req.userId });
+
+    // Атрибуты устройства — по связкам эффективного типа ПОСЛЕ правки: присланное
+    // ложится поверх текущего, пустое значение снимает, не присланное остаётся
+    // (связку могли добавить после открытия формы — Mikrotik, агент). Атрибуты,
+    // которых у нового типа нет, выпадают.
+    const deviceLinks = await loadDeviceLinks(await getEffectiveTypeId(device));
+    let patch = [];
+    if ("attributes" in req.body) {
+      const attrs = normalizeDeviceAttributes(req.body.attributes, deviceLinks, { keepEmpty: true });
+      if (attrs.error) return next(new AppError(attrs.error, 400));
+      patch = attrs.values;
+    }
+    device.attributes = mergeDeviceAttributes(device.attributes, patch, deviceLinks);
+    if ("attributes" in req.body) {
+      const missing = missingRequired(deviceLinks, device.attributes);
+      if (missing.length) {
+        return next(new AppError(`Не заполнено: ${missing.join(", ")}`, 400));
+      }
+    }
     await device.save();
 
     res.status(200).json({
