@@ -152,7 +152,14 @@ export const groupLinks = <L extends SpecLink>(
   return result;
 };
 
-/** Строки спецификации по группам; пустые значения и пустые группы выкинуты. */
+/**
+ * Строки спецификации по группам; пустые значения и пустые группы выкинуты.
+ *
+ * Да/Нет без значения — «нет»: отсутствие свойства тоже характеристика
+ * («Регулировка по высоте — нет»), а форма показывает невключённый тумблер
+ * как «Нет» и ничего не сохраняет. Только если характеристики вообще
+ * заполнены: у пустой конфигурации «Wi-Fi — нет» было бы догадкой.
+ */
 export const buildSpecGroups = (
   links: SpecLink[],
   values: SpecValue[],
@@ -160,6 +167,9 @@ export const buildSpecGroups = (
 ): SpecGroup[] => {
   const byAttr = new Map<string, SpecValue>();
   for (const v of values) byAttr.set(idOf(v.attributeId), v);
+  const filled = values.some(
+    (v) => formatSpecValue(attrOf(v.attributeId), v.value) !== "",
+  );
 
   const seen = new Set<string>();
   const groups: SpecGroup[] = [];
@@ -168,9 +178,11 @@ export const buildSpecGroups = (
     for (const l of g.links) {
       const id = idOf(l.attributeId);
       const entry = byAttr.get(id);
-      if (!entry) continue;
-      const meta = attrOf(l.attributeId) ?? attrOf(entry.attributeId);
-      const value = formatSpecValue(meta, entry.value);
+      const meta = attrOf(l.attributeId) ?? (entry ? attrOf(entry.attributeId) : null);
+      const unsetBoolean =
+        filled && meta?.valueType === "boolean" && !formatSpecValue(meta, entry?.value);
+      if (!entry && !unsetBoolean) continue;
+      const value = unsetBoolean ? "нет" : formatSpecValue(meta, entry?.value);
       if (!value) continue;
       seen.add(id);
       rows.push({ id, label: meta?.name || "Атрибут", value });

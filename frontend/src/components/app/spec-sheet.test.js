@@ -117,6 +117,33 @@ test("buildSpecGroups: only orphan values create the leftover group from scratch
   assert.deepEqual(groups[0].rows.map((r) => r.label), ["Снят"]);
 });
 
+test("buildSpecGroups: незаполненный Да/Нет — «нет», если характеристики заполнены", () => {
+  const links = [
+    link(1, 1, attr("a1", "Диагональ"), gA),
+    link(2, 2, attr("a2", "Регулировка по высоте", { valueType: "boolean" }), gA),
+    link(3, 3, attr("a3", "Поворот", { valueType: "boolean" }), gA),
+    link(4, 4, attr("a4", "Динамики", { valueType: "boolean" }), gA),
+  ];
+  const values = [
+    { attributeId: "a1", value: "27" },
+    { attributeId: "a3", value: "" },
+    { attributeId: "a4", value: true },
+  ];
+  const groups = buildSpecGroups(links, values);
+  assert.deepEqual(
+    groups[0].rows.map((r) => [r.label, r.value]),
+    [
+      ["Диагональ", "27"],
+      ["Регулировка по высоте", "нет"],
+      ["Поворот", "нет"],
+      ["Динамики", "да"],
+    ],
+  );
+  // Пустая конфигурация — пустой лист, а не столбик «нет»
+  assert.deepEqual(buildSpecGroups(links, []), []);
+  assert.deepEqual(buildSpecGroups(links, [{ attributeId: "a1", value: "" }]), []);
+});
+
 test("groupLinks: group order, ungrouped last", () => {
   const links = [
     link(1, 1, attr("a1", "CPU"), null),
