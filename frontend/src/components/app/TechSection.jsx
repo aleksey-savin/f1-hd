@@ -31,7 +31,7 @@ import {
 } from "./device-status";
 import { Eyebrow, SubLabel } from "./Panel";
 import useHttp from "../../hooks/use-http";
-import { getLocalStorageData } from "../../util/auth";
+import { useAuthedUser } from "@/store/authed-user";
 import { plural } from "../../util/plural";
 
 // Выбранное представление помнится между карточками и сессиями.
@@ -230,7 +230,7 @@ const TechSection = ({
   // проверяет хозяин.
   addLink,
 }) => {
-  const { token } = getLocalStorageData();
+  const { _id: sessionUserId } = useAuthedUser();
   const { isLoading, error, sendRequest } = useHttp();
 
   const [view, setView] = useState(
@@ -264,7 +264,7 @@ const TechSection = ({
       { url, headers: {} },
       setData,
     );
-  }, [companyId, userId, self, token, sendRequest]);
+  }, [companyId, userId, self, sessionUserId, sendRequest]);
 
   // Единый формат: массив групп (у компании — одна безымянная)
   const groups = useMemo(() => {

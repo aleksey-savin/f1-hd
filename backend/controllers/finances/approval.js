@@ -16,6 +16,7 @@ const {
   buildPreview,
   normalizePlan,
   priceWorks,
+  loadBillingCalendar,
 } = require("@/services/servicePlanBilling");
 const TicketCategory = require("@/models/ticketCategory");
 const {
@@ -332,7 +333,9 @@ exports.getPreviewCard = async (req, res, next) => {
     const categoryById = new Map(
       categories.map((category) => [String(category._id), category]),
     );
+    const calendar = await loadBillingCalendar(works, zone, preferences);
     const priced = priceWorks({
+      calendar,
       plan: servicePlan,
       company,
       works,

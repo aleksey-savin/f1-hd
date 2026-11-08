@@ -16,9 +16,9 @@ const {
   staffAccessStatements,
 } = require("./access");
 
-test("dictionary has 17 groups and 61 actions in the agreed order", () => {
+test("dictionary has 17 groups and 66 actions in the agreed order", () => {
   assert.equal(GROUPS.length, 17);
-  assert.equal(ALL_ACTIONS.length, 61);
+  assert.equal(ALL_ACTIONS.length, 66);
   assert.deepEqual(ALL_ACTIONS.slice(0, 8), [
     "ticket.readCompanies",
     "ticket.readAll",

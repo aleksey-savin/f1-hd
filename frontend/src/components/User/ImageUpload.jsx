@@ -14,13 +14,14 @@ import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
 import useToastStore from "../../store/toast-store";
 
-import { getLocalStorageData } from "../../util/auth";
+import { useAuthedUser } from "@/store/authed-user";
 
 // Смена фото профиля (мигрированная страница «Мой аккаунт»): кнопка открывает
 // выбор файла, дальше — диалог с обрезкой 1:1 под плитку (ReactCrop; маска
 // повторяет скругление плитки — `crop-tile` в index.css) и загрузкой.
 // Механика легаси сохранена: canvas-кроп → POST add-profile-image.
 function ImageUpload({ userId, setProfileImage }) {
+  const authedUser = useAuthedUser();
   const { showToast } = useToastStore();
 
   const [imgSrc, setImgSrc] = useState("");
@@ -135,8 +136,7 @@ function ImageUpload({ userId, setProfileImage }) {
     setError(null);
 
     try {
-      const { token } = getLocalStorageData();
-      if (!token) {
+      if (!authedUser?._id) {
         throw new Error("Authentication token not found");
       }
 

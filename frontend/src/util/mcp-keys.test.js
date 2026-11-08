@@ -114,6 +114,7 @@ test("resources pair reading with writing only where writing exists", () => {
       ["Пользователи", "users", null],
       ["Инвентарь", "inventory", "inventoryChanges"],
       ["Mikrotik", "mikrotik", "mikrotikChanges"],
+      ["Proxmox", "proxmox", null],
     ],
   );
 });

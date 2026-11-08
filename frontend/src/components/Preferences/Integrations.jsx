@@ -142,6 +142,7 @@ const PrefsIntegrations = ({ prefs }) => {
         knowledgeModuleOn={Boolean(prefs.modules?.knowledgeBase?.isActive)}
         inventoryModuleOn={Boolean(prefs.modules?.inventory?.isActive)}
         mikrotikModuleOn={Boolean(prefs.modules?.mikrotik?.isActive)}
+        proxmoxModuleOn={Boolean(prefs.modules?.proxmox?.isActive)}
       />
 
       <AlertDialog

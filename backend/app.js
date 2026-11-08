@@ -26,6 +26,13 @@ const { internal, external, public } = require("./routes/index");
 
 const { initAuth, authRequestHandler } = require("./auth/bootstrap");
 const { authPathAllowList } = require("./middleware/authPathAllowList");
+const { browserOrigin } = require("./middleware/browserOrigin");
+const { authBodyLimit } = require("./middleware/authBodyLimit");
+const authConfig = require("./auth/config");
+const enforceBrowserOrigin = browserOrigin({
+  publicUrl: authConfig.baseURL,
+  allowedOrigins: authConfig.trustedOrigins,
+});
 
 // Сколько обратных прокси стоит перед бэкендом. ЧИСЛО, не `true`:
 // express-rate-limit@7 при `true` бросает ERR_ERL_PERMISSIVE_TRUST_PROXY и
@@ -33,7 +40,7 @@ const { authPathAllowList } = require("./middleware/authPathAllowList");
 // пир). Значение для прода надо ЗАМЕРИТЬ по числу адресов в X-Forwarded-For
 // реального запроса, а не угадать: занижение делает лимитер попыток входа
 // общим на всех, завышение позволяет клиенту подделать свой адрес.
-const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS || 0);
+const TRUST_PROXY_HOPS = authConfig.trustProxyHops;
 
 const { handleNewEmails } = require("./middleware/emailHandling");
 
@@ -123,7 +130,17 @@ app.use(compressionMiddleware);
 // Снаружи открыты только ручки из списка (middleware/authPathAllowList.js):
 // остальное — `/admin/*`, `/organization/*`, вход паролем мимо `/api/login` —
 // отвечает 404. Серверные вызовы `auth.api.*` через роутер не идут.
-app.all("/api/auth/*splat", authPathAllowList, authRequestHandler);
+app.all(
+  "/api/auth/*splat",
+  authPathAllowList,
+  enforceBrowserOrigin,
+  authBodyLimit(),
+  authRequestHandler,
+);
+
+// Изменения из браузера (включая вход и multipart) проверяются до любого
+// парсера тела. Raw auth выше сначала проверяет закрытый allow-list, сохраняя 404.
+app.use(enforceBrowserOrigin);
 
 // Разбор тела — с лимитом по классу маршрута: анонимные ручки 100 КБ,
 // редакторы с картинками 50 МБ, остальное 10 МБ (middleware/bodyParsers.js).
@@ -344,6 +361,11 @@ jobs.register(
  * повторно, когда истечёт аренда.
  */
 jobs.register("mail outbox", "*/20 * * * * *", sendPendingEmails, 110000);
+
+// Proxmox workers persist progress; the registry prevents overlapping ticks.
+jobs.register("Proxmox monitoring", "* * * * *", require("./services/proxmox/monitor").poll, 55000);
+jobs.register("Proxmox alerts", "* * * * *", require("./services/proxmox/monitor").alerts, 55000);
+jobs.register("Proxmox operations", "*/15 * * * * *", require("./services/proxmox/operations").tick, 14000);
 
 // Refresh connectivity status of monitored Mikrotik devices every 5 minutes.
 jobs.register(

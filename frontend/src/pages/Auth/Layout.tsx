@@ -1,6 +1,11 @@
 import { Outlet, redirect, useRouteLoaderData } from "react-router";
 
-import { getLocalStorageData } from "../../util/auth";
+import { ApiError } from "@/lib/api";
+import {
+  assertBrowserSessionCurrent,
+  browserSessionGeneration,
+} from "@/util/browser-session.js";
+import { loadBrowserIdentity } from "@/util/auth";
 import AuthShell from "../../components/Auth/AuthShell";
 import { API } from "./session";
 import { FALLBACK_PREFS, type AuthPrefs } from "./prefs";
@@ -40,9 +45,15 @@ export async function loader({ request }: { request: Request }) {
 
     // Вошедшего на форму входа не пускаем. Ссылку из письма — наоборот:
     // пароль меняют и не выходя из приложения
-    const { token } = getLocalStorageData();
-    if (token && token !== "EXPIRED") {
+    try {
+      const identity = loadBrowserIdentity(request.signal);
+      const expected = browserSessionGeneration();
+      await identity;
+      assertBrowserSessionCurrent(expected, request.signal);
       return redirect("/dashboard");
+    } catch (error: unknown) {
+      // Анонимным считается только отвергнутый сеанс. При сбоях состояние сохраняется.
+      if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
   }
 

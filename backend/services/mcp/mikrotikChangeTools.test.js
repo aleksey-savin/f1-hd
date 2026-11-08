@@ -188,14 +188,27 @@ test("get: applied request shows per-command results, backup time and the WireGu
       { path: "/d", action: "add", text: "/d add w=4", risk: "normal", result: { state: "skipped" } },
     ],
   });
-  const t = text(await build({ changes: [applied] }).tools.get({ change: "14" }, caller));
+  const originalNow = Date.now;
+  Date.now = () => new Date("2026-10-11T08:00:00.000Z").getTime();
+  let t;
+  try {
+    const { tools } = build({ changes: [applied] });
+    t = text(await tools.get({ change: "14" }, caller));
+    assert.match(t, /WireGuard configuration: https:\/\/hd\.example\.ru\/devices\/mikrotik\/changes\/66dd00000000000000000014 \(sign-in required, available until 2026-10-12T08:00Z\)/);
+
+    Date.now = () => new Date("2026-10-12T08:00:00.000Z").getTime();
+    const expired = text(await tools.get({ change: "14" }, caller));
+    assert.match(expired, /WireGuard configuration: no longer available \(the keys were erased 24 hours after applying\)/);
+    assert.ok(!expired.includes("available until"));
+  } finally {
+    Date.now = originalNow;
+  }
   assert.match(t, /status: applied/);
   assert.match(t, /1\. \/a add x=1\n\s+result: done/);
   assert.match(t, /2\. \/b add y=2\n\s+result: failed \(refused by the router\)\n\s+> failure: already have such entry/);
   assert.match(t, /result: rolled back/);
   assert.match(t, /result: not run/);
   assert.match(t, /backup: 2026-10-10T09:00Z/);
-  assert.match(t, /WireGuard configuration: https:\/\/hd\.example\.ru\/devices\/mikrotik\/changes\/66dd00000000000000000014 \(sign-in required, available until 2026-10-12T08:00Z\)/);
   for (const secret of [PRIVATE, PRESHARED]) assert.ok(!t.includes(secret));
 });
 

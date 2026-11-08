@@ -1,8 +1,6 @@
 import { load } from "@/store/form-data";
-import { redirect } from "react-router";
 
 import UserForm from "../../components/User/UserForm";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddUserPage = () => {
   return <UserForm />;
@@ -11,12 +9,6 @@ const AddUserPage = () => {
 export default AddUserPage;
 
 export async function loader() {
-  const { token } = getLocalStorageData();
-
-  if (!token) {
-    return redirect("/auth");
-  }
-
   // Справочники — из кэша (store/form-data); 401 обрабатывает lib/api
   const [companies, categories] = await Promise.all([
     load("/api/companies"),

@@ -354,6 +354,43 @@ test("a supplier's name is unique by construction", () => {
   assert.equal(leakFinder({ names: [a] }).size, 0);
 });
 
+test("a masked Proxmox copy drops its token and disables monitoring without changing endpoints", () => {
+  const connection = {
+    _id: ID,
+    name: "lab-cluster",
+    tokenId: "monitor@pve!helpdesk",
+    tokenSecret: "encrypted-synthetic-token",
+    monitoringEnabled: true,
+    endpoints: [{ host: "192.0.2.20", port: 8006, caCert: "synthetic-ca", fingerprint: "SHA256:synthetic" }],
+  };
+  const update = rewriteDocument("proxmoxconnections", connection, ctx);
+  assert.deepEqual(update, { $set: { monitoringEnabled: false }, $unset: { tokenSecret: "" } });
+  const masked = apply(connection, update);
+  assert.deepEqual(masked.endpoints, connection.endpoints);
+  assert.equal(masked.tokenId, connection.tokenId);
+  assert.equal(connection.tokenSecret, "encrypted-synthetic-token");
+  assert.equal(rewriteDocument("proxmoxconnections", masked, ctx), null);
+  // У исторической записи без поля схема включила бы мониторинг по умолчанию.
+  assert.deepEqual(rewriteDocument("proxmoxconnections", { _id: ID }, ctx), { $set: { monitoringEnabled: false } });
+  assert.equal(isMaskedPath("proxmoxconnections", "tokenSecret"), true);
+});
+
+test("a masked Proxmox operation cannot resume and unknown integration fields still require classification", () => {
+  const event = { _id: ID, operationData: { active: true, state: "running", upid: "synthetic-task", log: ["Recorded operation"] } };
+  const update = rewriteDocument("proxmoxevents", event, ctx);
+  assert.deepEqual(update, { $set: { operationData: { ...event.operationData, active: false } } });
+  assert.equal(event.operationData.active, true);
+  assert.equal(rewriteDocument("proxmoxevents", apply(event, update), ctx), null);
+  assert.equal(classifyPath("proxmoxconnections", "tokenSecret"), "structured");
+  assert.equal(classifyPath("proxmoxconnections", "endpoints[].host"), "label");
+  assert.equal(classifyPath("proxmoxconnections", "monitoringIssues.connection.lastError"), "free");
+  assert.equal(classifyPath("proxmoxevents", "operationData.log[]"), "free");
+  assert.equal(classifyPath("proxmoxconnections", "futureCredential"), "structured");
+  assert.equal(classifyPath("proxmoxresources", "futureCredential"), "structured");
+  assert.equal(classifyPath("inventorychanges", "operations[].params.notes"), "free");
+  assert.equal(classifyPath("inventorychanges", "operations[].targets[].model"), "label");
+});
+
 // --- Классы полей ---------------------------------------------------------------
 
 test("a field is a structured leftover, free text or a label", () => {

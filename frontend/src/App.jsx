@@ -1,3 +1,4 @@
+import { proxmoxRoutes } from "@/pages/Proxmox/routes";
 import { RouterProvider, createBrowserRouter, redirect } from "react-router";
 
 // Root
@@ -1416,6 +1417,7 @@ function App() {
               ],
             },
             // Devices
+            ...proxmoxRoutes,
             {
               path: "devices/mikrotik",
               handle: { module: "mikrotik", can: { mikrotik: ["read"] } },

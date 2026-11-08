@@ -10,7 +10,6 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import {
   admin,
-  bearer,
   emailOTP,
   magicLink,
   organization,
@@ -22,11 +21,40 @@ import {
   APIError,
   createAuthEndpoint,
   createAuthMiddleware,
+  getSessionFromCtx,
 } from "better-auth/api";
 import { deleteSessionCookie, setSessionCookie } from "better-auth/cookies";
 import { generateRandomString, verifyPassword } from "better-auth/crypto";
-import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
+import { toNodeHandler as toBetterAuthNodeHandler, fromNodeHeaders } from "better-auth/node";
 import bcrypt from "bcryptjs";
+import ratePolicy from "../services/authRatePolicy.js";
+import browserSession from "../services/browserSession.js";
+import impersonation from "../services/impersonation.js";
+
+const { browserSessionPayload, browserSessionResponse, forwardSessionCookies } = browserSession;
+const { SESSION_MAX_MS } = impersonation;
+
+// Последний плагин: twoFactor может отозвать предварительный вход в after hook.
+const browserSessionMetadata = () => ({
+  id: "hd-browser-session-metadata",
+  hooks: { after: [{
+    matcher: () => true,
+    handler: createAuthMiddleware(async (ctx) => {
+      const body = ctx.context.returned;
+      if (!body || body instanceof Response || body instanceof APIError || body.twoFactorRedirect || body.token?.startsWith?.("cookie.")) return;
+      const issued = ctx.context.newSession || ctx.context.session;
+      if (!issued?.session?.id || (!ctx.context.newSession && !body.token && !body.session)) return;
+      return ctx.json({
+        ...body,
+        browserSession: browserSessionPayload({
+          sessionId: issued.session.id,
+          expiresAt: issued.session.expiresAt,
+          userId: issued.session.userId,
+        }),
+      });
+    }),
+  }] },
+});
 
 /**
  * Проверка пароля с распознаванием унаследованных хешей.
@@ -159,28 +187,58 @@ const impersonationCookie = () => ({
     setImpersonationCookie: createAuthEndpoint.serverOnly(
       { method: "POST" },
       async (ctx) => {
-        const { token, maxAge } = ctx.body || {};
+        const { token } = ctx.body || {};
         const found = token
           ? await ctx.context.internalAdapter.findSession(token)
           : null;
         if (!found?.session?.impersonatedBy) {
           throw new APIError("NOT_FOUND", { message: "Сеанс подмены не найден" });
         }
-        // Срок cookie — остаток часа подмены, а не 14 суток обычного сеанса.
+        const expiresAt = new Date(Math.min(
+          new Date(found.session.expiresAt).getTime(),
+          new Date(found.session.createdAt).getTime() + SESSION_MAX_MS,
+        ));
+        const maxAge = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
+        if (!(maxAge > 0)) {
+          throw new APIError("NOT_FOUND", { message: "Сеанс подмены истёк" });
+        }
         await setSessionCookie(ctx, found, false, { maxAge });
-        return ctx.json({ ok: true });
+        return ctx.json(browserSessionPayload({
+          sessionId: found.session.id, expiresAt, userId: found.session.userId,
+        }));
       },
     ),
   },
 });
 
-export function createAuth({ db, client, config, hooks, statement }) {
+// Разрешаем личность в контексте установленной ручки, чтобы совпадали заданные
+// имена cookie, проверка подписи и поиск сеанса (включая настройку).
+// serverOnly не позволяет вызывать этот определитель личности через публичный HTTP.
+const factorRateIdentity = () => ({
+  id: "hd-factor-rate-identity",
+  endpoints: {
+    resolveFactorRateIdentity: createAuthEndpoint.serverOnly({ method: "POST" }, async (ctx) => {
+      const session = await getSessionFromCtx(ctx, { disableRefresh: true });
+      if (session?.session?.id) return ctx.json({ kind: "session", id: `${session.user.id}!${session.session.id}` });
+      if (!["/two-factor/verify-totp", "/two-factor/verify-backup-code", "/two-factor/verify-otp"].includes(ctx.body?.path)) return ctx.json(null);
+      const name = ctx.context.createAuthCookie("two_factor").name;
+      const challenge = await ctx.getSignedCookie(name, ctx.context.secret);
+      if (!challenge) return ctx.json(null);
+      const verification = await ctx.context.internalAdapter.findVerificationValue(challenge);
+      if (!verification || new Date(verification.expiresAt).getTime() <= Date.now()) return ctx.json(null);
+      const user = await ctx.context.internalAdapter.findUserById(verification.value);
+      return ctx.json(user ? { kind: "challenge", id: challenge } : null);
+    }),
+  },
+});
+
+export function createAuth({ db, client, database, config, hooks, statement, ratePolicy: requestRatePolicy = ratePolicy.authRatePolicy }) {
   // Словарь ресурсов и действий приходит из auth/access.js (CommonJS): его
   // читает и прикладной код, а держать две копии одного словаря — верный
   // способ их рассинхронизировать.
   const ac = createAccessControl(statement);
 
-  return betterAuth({
+  const auth = betterAuth({
     // transaction: false — ОБЯЗАТЕЛЬНО, пока MongoDB стоит standalone.
     // Передача `client` включает транзакции по умолчанию, а на сервере без
     // реплика-сета они падают с «Transaction numbers are only allowed on a
@@ -191,7 +249,7 @@ export function createAuth({ db, client, config, hooks, statement }) {
     // Правильное лекарство — перевести MongoDB в реплика-сет из одного узла:
     // это же откроет change streams и согласуется с плановым апгрейдом. Пока
     // сервер standalone, транзакции отключены.
-    database: mongodbAdapter(db, { client, transaction: false }),
+    database: database ?? mongodbAdapter(db, { client, transaction: false }),
 
     secret: config.secret,
     baseURL: config.baseURL,
@@ -237,7 +295,19 @@ export function createAuth({ db, client, config, hooks, statement }) {
       sendResetPassword: hooks.sendResetPassword,
     },
 
+    rateLimit: {
+      enabled: true,
+      // Счётчики приложения ниже учитывают raw auth по challenge/token и IP.
+      // Лимит плагина на IP блокировал бы несвязанных пользователей за NAT.
+      customRules: {
+        "/two-factor/*": false,
+        "/reset-password": false,
+        "/magic-link/verify": false,
+      },
+    },
+
     advanced: {
+      ipAddress: { ipAddressHeaders: [ratePolicy.AUTH_IP_HEADER], ipv6Subnet: 64 },
       // generateId НЕ переопределяем. Соблазн подсунуть свой генератор
       // ObjectId велик — в документации сказано, что ядро генерирует
       // не-ObjectId строки, — но mongodb-адаптер делает это сам и сам же
@@ -284,16 +354,16 @@ export function createAuth({ db, client, config, hooks, statement }) {
             if (refusal) {
               throw new APIError("FORBIDDEN", { message: refusal });
             }
+            // Для лимитов злоупотреблений библиотека нормализует IP до /64.
+            // Для личности сеанса и аудита сохраняем доверенный адрес Express.
+            const ip = ctx?.headers?.get(ratePolicy.AUTH_IP_HEADER);
+            if (ip) return { data: { ...session, ipAddress: ratePolicy.normalizeIp(ip) } };
           },
         },
       },
     },
 
     plugins: [
-      // Переходный транспорт: пока часть экранов фронта шлёт Authorization,
-      // токен сессии принимается и заголовком. Снимается в уборке.
-      bearer(),
-
       // Отключение учётки, чужие сеансы и вход под пользователем.
       //
       // Главное здесь — `banned`: плагин вешает хук на создание сеанса, где
@@ -487,8 +557,14 @@ export function createAuth({ db, client, config, hooks, statement }) {
         // заводится миграцией.
         allowUserToCreateOrganization: false,
       }),
+      factorRateIdentity(),
+      browserSessionMetadata(),
     ],
   });
+  const handler = auth.handler;
+  auth.handler = async (request) => browserSessionResponse(await requestRatePolicy.rawRequest(request, handler, (headers, path) =>
+    auth.api.resolveFactorRateIdentity({ headers, body: { path } })));
+  return auth;
 }
 
 /**
@@ -515,4 +591,21 @@ export const authorizeFor = (statements) => {
  * сырой scrypt, который на унаследованном bcrypt-хеше не возвращает `false`, а
  * бросает, — вход отвечал 500 всем, кто пароль ни разу не менял.
  */
-export { toNodeHandler, fromNodeHeaders };
+// Node-адаптер better-call заменяет Set-Cookie. Сначала добавляем cookie общим
+// помощником, затем позволяем адаптеру обычно передать остальные заголовки и тело.
+export const toNodeHandler = (auth) => (req, res) => {
+  ratePolicy.setAuthClientIp(req);
+  return toBetterAuthNodeHandler(async (request) => {
+    const response = await auth.handler(request);
+    forwardSessionCookies(response.headers, res);
+    const headers = new Headers(response.headers);
+    headers.delete("set-cookie");
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  })(req, res);
+};
+
+export { fromNodeHeaders };

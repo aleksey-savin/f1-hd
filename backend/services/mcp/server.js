@@ -569,6 +569,7 @@ const toolFamilies = ({ scopes, modules }) => ({
   users: scopes.includes("users"),
   inventory: scopes.includes("inventory") && Boolean(modules.inventory),
   inventoryChanges: scopes.includes("inventoryChanges") && Boolean(modules.inventory),
+  proxmox: scopes.includes("proxmox") && Boolean(modules.proxmox),
   mikrotik: scopes.includes("mikrotik") && Boolean(modules.mikrotik),
   mikrotikChanges: scopes.includes("mikrotikChanges") && Boolean(modules.mikrotik),
 });
@@ -630,6 +631,7 @@ const buildHdServer = ({ tools, caller, context, log }) => {
     ...(families.inventoryChanges ? INSTRUCTIONS.inventoryChanges : []),
     ...(families.inventoryChanges && !families.inventory ? INSTRUCTIONS.inventoryChangesOnly : []),
     ...(families.mikrotik ? INSTRUCTIONS.mikrotik : []),
+    ...(families.proxmox ? ["Proxmox tools only read. A guest tenant and its physical node owner are independent companies. Unknown or stale state is not evidence of downtime. Use resource ids from list_proxmox_resources; never infer tenant from placement."] : []),
     ...(families.mikrotikChanges ? INSTRUCTIONS.mikrotikChanges : []),
     ...(families.mikrotikChanges && !families.mikrotik ? INSTRUCTIONS.mikrotikChangesOnly : []),
   ].join("\n");
@@ -699,6 +701,16 @@ const buildHdServer = ({ tools, caller, context, log }) => {
     register("propose_inventory_change", "Propose an inventory change", INVENTORY_PROPOSE_DESCRIPTION, INVENTORY_CHANGE_SCHEMAS.propose, tools.inventoryChanges.propose, INVENTORY_PROPOSE_ANNOTATIONS);
     register("get_inventory_change", "Read an inventory proposal", "Status of a proposal by id: the result of every operation, expiry and the decision.", INVENTORY_CHANGE_SCHEMAS.get, tools.inventoryChanges.get);
     register("list_inventory_changes", "List inventory proposals", "List proposals made by agents, newest first, optionally by status: id, title, status and creation time.", INVENTORY_CHANGE_SCHEMAS.list, tools.inventoryChanges.list);
+  }
+
+  if (families.proxmox) {
+    const schema = (properties, required = []) => fromJsonSchema({ type: "object", properties, required, additionalProperties: false });
+    const id = { type: "string", pattern: "^[a-fA-F0-9]{24}$" };
+    const paging = { page: { type: "integer", minimum: 1, maximum: 1000 }, pageSize: { type: "integer", minimum: 1, maximum: 100 } };
+    register("list_proxmox_resources", "List Proxmox resources", "List nodes, guests or storage with independent ownership, resource usage and freshness.", schema({ kind: STATUS(["node", "guest", "storage"], "Resource kind"), search: NAME("Name or VMID"), companyId: id, ...paging }, ["kind"]), tools.proxmox.list);
+    register("get_proxmox_resource", "Read Proxmox resource", "Read a resource by id, including its current and last known status.", schema({ id }, ["id"]), tools.proxmox.detail);
+    register("get_proxmox_metrics", "Read Proxmox metrics", "Read RRD series. Missing samples remain unknown; this does not test applications inside guests.", schema({ id, timeframe: STATUS(["hour", "day", "week", "month", "year"], "RRD period") }, ["id"]), tools.proxmox.metrics, READ_ONLY_OPEN);
+    register("get_proxmox_events", "Read Proxmox events", "Read the resource event history.", schema({ id, ...paging }, ["id"]), tools.proxmox.events);
   }
 
   if (families.mikrotik) {

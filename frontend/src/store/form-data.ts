@@ -1,4 +1,13 @@
+import { ensureBrowserIdentity } from "@/util/auth";
 import { api } from "@/lib/api";
+import {
+  assertBrowserSessionCurrent,
+  browserSessionGeneration,
+  browserSessionNeedsConfirmation,
+  browserSessionKey,
+  checkingBrowserSession,
+  onBrowserSessionChange,
+} from "@/util/browser-session.js";
 
 /**
  * Кэш справочных данных форм — `form-data`, каталоги для селектов.
@@ -14,30 +23,46 @@ import { api } from "@/lib/api";
  *   • отсутствующая или слишком старая — ждём ответ;
  *   • параллельные запросы одного пути склеиваются в один.
  *
- * Ключ включает токен сеанса: выход, вход под другим человеком и подмена
+ * Ключ включает подтверждённого пользователя и сеанс: выход, вход под другим человеком и подмена
  * пользователя никогда не получат чужие списки.
  *
  * Сущности (заявка, устройство, компания) здесь не кэшируются никогда: их
  * правят многие и часто, форма правки обязана видеть свежее.
  */
-type Entry = { data: unknown; fetchedAt: number; inflight: Promise<unknown> | null };
+type Entry = {
+  data: unknown;
+  fetchedAt: number;
+  inflight: Promise<unknown> | null;
+  generation: number;
+};
 
 const entries = new Map<string, Entry>();
 
-const keyOf = (path: string) => `${localStorage.getItem("token") ?? ""}|${path}`;
+onBrowserSessionChange(() => entries.clear());
+const keyOf = (path: string) => `${browserSessionKey()}|${path}`;
 
 function refresh<T>(key: string, path: string): Promise<T> {
+  const generation = browserSessionGeneration();
   const current = entries.get(key);
-  if (current?.inflight) return current.inflight as Promise<T>;
+  if (current?.inflight && current.generation === generation)
+    return current.inflight as Promise<T>;
 
   const inflight = api<T>(path)
     .then((data) => {
-      entries.set(key, { data, fetchedAt: Date.now(), inflight: null });
+      assertBrowserSessionCurrent(generation);
+      if (entries.get(key)?.inflight === inflight) {
+        entries.set(key, {
+          data,
+          fetchedAt: Date.now(),
+          inflight: null,
+          generation,
+        });
+      }
       return data;
     })
     .catch((error: unknown) => {
       const entry = entries.get(key);
-      if (entry) entry.inflight = null;
+      if (entry?.inflight === inflight) entry.inflight = null;
       throw error;
     });
 
@@ -45,6 +70,7 @@ function refresh<T>(key: string, path: string): Promise<T> {
     data: current?.data,
     fetchedAt: current?.fetchedAt ?? 0,
     inflight,
+    generation,
   });
   return inflight;
 }
@@ -60,6 +86,14 @@ export async function load<T = unknown>(
   path: string,
   { maxAge = 60_000, staleMax = 10 * 60_000 }: LoadOptions = {},
 ): Promise<T> {
+  if (browserSessionNeedsConfirmation()) await ensureBrowserIdentity();
+  // Первичные дочерние загрузчики могут идти параллельно проверке корня; не кэшируем их.
+  if (checkingBrowserSession() || !browserSessionKey()) {
+    const generation = browserSessionGeneration();
+    const data = await api<T>(path);
+    assertBrowserSessionCurrent(generation);
+    return data;
+  }
   const key = keyOf(path);
   const entry = entries.get(key);
   const age =

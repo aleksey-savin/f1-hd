@@ -118,3 +118,5 @@ build-info.json
 
 # Local Claude Code settings (per developer)
 .claude/settings.local.json
+.worktrees/
+.superpowers/

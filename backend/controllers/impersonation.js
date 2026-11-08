@@ -1,3 +1,4 @@
+const { forwardSessionCookies } = require("@/services/browserSession");
 const User = require("@/models/user");
 
 const { AppError } = require("@/middleware/errorHandling");
@@ -6,7 +7,6 @@ const {
   issue,
   claim,
   CODE_TTL_MS,
-  SESSION_MAX_MS,
 } = require("@/services/impersonation");
 const authConfig = require("@/auth/config");
 
@@ -119,22 +119,15 @@ exports.claim = async (req, res, next) => {
       "firstName lastName email isEndUser isAdmin",
     );
 
-    // Сеанс уезжает и cookie, как при обычном входе: экраны на голом fetch
-    // заголовка с токеном не шлют (подробности — в auth/instance.mjs). Срок
-    // cookie тот же, что у `expiryDate` ниже; настоящий предел держит
-    // attachSession.
-    const { headers } = await getAuth().api.setImpersonationCookie({
-      body: { token: found.sessionToken, maxAge: SESSION_MAX_MS / 1000 },
+    // Серверная ручка вычисляет оставшийся срок по времени создания сеанса.
+    const { headers, response } = await getAuth().api.setImpersonationCookie({
+      body: { token: found.sessionToken },
       returnHeaders: true,
     });
-    res.setHeader("Set-Cookie", headers.getSetCookie());
+    forwardSessionCookies(headers, res);
 
     res.status(200).json({
-      token: found.sessionToken,
-      userId: user?._id,
-      // Не `session.expiresAt`: его better-auth продлевает, а настоящий предел
-      // — час от начала подмены (см. services/impersonation.js).
-      expiryDate: new Date(Date.now() + SESSION_MAX_MS),
+      ...response,
       user,
       // Минуты жизни ссылки нужны интерфейсу, чтобы объяснить отказ.
       ttlMinutes: Math.round(CODE_TTL_MS / 60000),

@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import useToastStore from "@/store/toast-store";
 
-import { getLocalStorageData } from "../../../util/auth";
+import { useAuthedUser } from "@/store/authed-user";
 import CompanyLogo from "../CompanyLogo";
 
 // Логотип hero карточки компании: плитка (глиф раздела без файла); у менеджеров —
@@ -35,6 +35,7 @@ const centerAspectCrop = (mediaWidth, mediaHeight) => {
 };
 
 const HeroLogo = ({ company, canEdit }) => {
+  const authedUser = useAuthedUser();
   const [preview, setPreview] = useState(undefined);
   const [imgSrc, setImgSrc] = useState("");
   const [crop, setCrop] = useState();
@@ -121,8 +122,7 @@ const HeroLogo = ({ company, canEdit }) => {
     setBusy(true);
     setError(null);
     try {
-      const { token } = getLocalStorageData();
-      if (!token) throw new Error("Токен авторизации не найден");
+      if (!authedUser?._id) throw new Error("Токен авторизации не найден");
 
       const blob = await createCroppedBlob();
       if (!blob) throw new Error("Не удалось обрезать изображение");

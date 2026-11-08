@@ -82,7 +82,6 @@ import useInitialPrefsStore from "../../store/prefs";
 import { warm } from "@/store/form-data";
 import useToastStore from "../../store/toast-store";
 import useViewTicketStore from "../../store/view-ticket";
-import { getLocalStorageData } from "../../util/auth";
 import { useCan } from "@/store/authed-user";
 
 // Карточка заявки: hero (номер · тема · статус фразой · одно действие по
@@ -859,7 +858,8 @@ export default ViewTicket;
 export async function loader({ params }) {
   setDocTitle(`Заявка ${params.ticketNum}`);
 
-  const { userId } = getLocalStorageData();
+  const { user: ownUser } = await api("/api/me");
+  const userId = String(ownUser._id);
   // Заголовков не осталось: сеанс едет cookie, и объект пустой лишь потому,
   // что ниже он передаётся в несколько fetch подряд.
   const headers = {};

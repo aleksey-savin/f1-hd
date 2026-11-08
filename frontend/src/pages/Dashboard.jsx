@@ -1,6 +1,5 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useContext, useEffect } from "react";
-import { redirect } from "react-router";
 import { MobileView } from "react-device-detect";
 
 import FormOutlet from "@/components/app/FormOutlet";
@@ -26,7 +25,6 @@ import useDashboardTicketsStore from "../store/dashboard-tickets";
 import useDashboardTemplatesStore from "../store/dashboard-templates";
 import { warm } from "@/store/form-data";
 import useInitialPrefsStore from "../store/prefs";
-import { getLocalStorageData } from "../util/auth";
 
 /**
  * Главная — ролевой лендинг.
@@ -225,10 +223,6 @@ const Dashboard = () => {
 // Главная открыта всем вошедшим: рубильник `user.dashboard.isActive` и шесть
 // флагов блоков удалены — состав страницы считают права и наличие данных.
 export function loader() {
-  const { token } = getLocalStorageData();
-  if (!token) {
-    return redirect("/auth");
-  }
   setDocTitle("Главная");
   return null;
 }

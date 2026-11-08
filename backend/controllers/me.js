@@ -1,3 +1,4 @@
+const { forwardSessionCookies, browserSessionPayload } = require("@/services/browserSession");
 const Preferences = require("@/models/preferences");
 
 const { AppError } = require("@/middleware/errorHandling");
@@ -144,6 +145,16 @@ exports.getMe = async (req, res, next) => {
       // Идентификатор текущего сеанса нужен разделу «Активные сеансы», чтобы
       // пометить «это устройство».
       sessionId: session?.id || null,
+      ...(session?.id ? browserSessionPayload({
+        sessionId: session.id,
+        expiresAt: session.impersonatedBy
+          ? new Date(Math.min(
+              new Date(session.expiresAt).getTime(),
+              new Date(session.createdAt).getTime() + SESSION_MAX_MS,
+            ))
+          : session.expiresAt,
+        userId: String(user._id),
+      }) : {}),
       /**
        * Подмена — состояние ВКЛАДКИ, а не человека, поэтому едет вместе с
        * профилем: полосу «вы под учётной записью такого-то» рисует оболочка, и
@@ -286,10 +297,11 @@ exports.telegramPairingCode = async (req, res, next) => {
  */
 exports.logout = async (req, res, next) => {
   try {
-    await getAuth().api.signOut({
+    const { headers } = await getAuth().api.signOut({
       headers: getFromNodeHeaders()(req.headers),
-      asResponse: false,
+      returnHeaders: true,
     });
+    forwardSessionCookies(headers, res);
     res.status(200).json({ message: "Сеанс завершён" });
   } catch (error) {
     next(new AppError("Не удалось завершить сеанс", 500, true, error));

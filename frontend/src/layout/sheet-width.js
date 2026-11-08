@@ -93,6 +93,17 @@ const MIGRATED_ROUTES = [
   // Страница запроса ИИ-агента (max-w-5xl, как запись) — тоже раньше списка
   { path: "/devices/mikrotik/changes", maxWidth: 1072 },
   { path: "/devices/mikrotik", maxWidth: 1328 },
+  ...[
+    "guests",
+    "nodes",
+    "storages",
+    "connections",
+    "companies",
+  ].map((kind) => ({
+    path: `/devices/proxmox/${kind}/`,
+    maxWidth: 1072,
+  })),
+  { path: "/devices/proxmox", maxWidth: 1328 },
   // Настройки системы: рейл + секции, как «Мой аккаунт»
   { path: "/preferences", maxWidth: 944 },
   // Отчёт «Компании»: сводка и карточки — один каркас

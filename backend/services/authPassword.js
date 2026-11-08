@@ -1,4 +1,18 @@
 const mongoose = require("mongoose");
+const { randomBytes } = require("node:crypto");
+
+// Один случайный фиктивный хеш на инициализированный контекст пароля, включая
+// параллельные проверки неизвестного пользователя. Не хешировать ввод атакующего для его создания.
+const dummyHashes = new WeakMap();
+const verifyDummyPassword = async (ctx, password) => {
+  if (!dummyHashes.has(ctx.password)) {
+    const pending = ctx.password.hash(randomBytes(32).toString("hex"));
+    dummyHashes.set(ctx.password, pending);
+    pending.catch(() => dummyHashes.delete(ctx.password));
+  }
+  await ctx.password.verify({ hash: await dummyHashes.get(ctx.password), password });
+  return false;
+};
 
 const { getAuth } = require("@/auth/bootstrap");
 
@@ -119,13 +133,14 @@ const verifyUserPassword = async (userId, plainPassword) => {
   if (!plainPassword) return false;
 
   const ctx = await getAuth().$context;
+  if (userId == null) return verifyDummyPassword(ctx, plainPassword);
   const accounts =
     (await ctx.internalAdapter.findAccounts(String(userId))) || [];
   const credential = accounts.find(
     (account) => account.providerId === "credential" && account.password,
   );
 
-  if (!credential) return false;
+  if (!credential) return verifyDummyPassword(ctx, plainPassword);
 
   // Только `ctx.password.verify` — в контексте лежит наша
   // `verifyWithLegacyBcrypt` (`create-context.mjs`: `verify:

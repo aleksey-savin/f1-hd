@@ -1,3 +1,7 @@
+import {
+  assertBrowserSessionCurrent,
+  browserSessionGeneration,
+} from "@/util/browser-session.js";
 import { clearSession } from "@/pages/Auth/session";
 
 /**
@@ -39,18 +43,6 @@ export function setUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler;
 }
 
-/**
- * Переходный транспорт. Пока часть экранов не переехала на этот клиент, вход
- * кладёт токен сеанса в localStorage, и его же шлём заголовком: плагин
- * `bearer` на бэкенде принимает и его, и cookie — обе дороги ведут в один
- * серверный сеанс. Снимается вместе с плагином, когда мигрирует последний
- * экран.
- */
-function bearerHeader(): Record<string, string> {
-  const token = localStorage.getItem("token");
-  return token && token !== "EXPIRED" ? { Authorization: `Bearer ${token}` } : {};
-}
-
 type Options = {
   method?: string;
   body?: unknown;
@@ -60,22 +52,35 @@ type Options = {
   raw?: boolean;
 };
 
-export async function api<T = unknown>(path: string, options: Options = {}): Promise<T> {
+export async function api<T = unknown>(
+  path: string,
+  options: Options = {},
+): Promise<T> {
   const { method = "GET", body, headers, signal, raw = false } = options;
+  const generation = browserSessionGeneration();
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
 
-  const response = await fetch(`${BASE}${path.startsWith("/") ? path : `/${path}`}`, {
-    method,
-    signal,
-    headers: {
-      ...(body !== undefined && !isForm ? { "Content-Type": "application/json" } : {}),
-      ...bearerHeader(),
-      ...headers,
+  const response = await fetch(
+    `${BASE}${path.startsWith("/") ? path : `/${path}`}`,
+    {
+      method,
+      signal,
+      headers: {
+        ...(body !== undefined && !isForm
+          ? { "Content-Type": "application/json" }
+          : {}),
+        ...headers,
+      },
+      body: isForm
+        ? body
+        : body !== undefined
+          ? JSON.stringify(body)
+          : undefined,
     },
-    body: isForm ? body : body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  );
 
   if (response.status === 401) {
+    assertBrowserSessionCurrent(generation, signal);
     clearSession();
     onUnauthorized();
     throw new ApiError(401, null, "Требуется вход");

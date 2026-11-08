@@ -120,6 +120,11 @@ const ticketDefaultFieldsSchema = new Schema({
 
 const ticketSchema = new Schema(
   {
+    proxmoxSource: { type:new Schema({
+      key:String,activeKey:String,connectionId:{type:Schema.Types.ObjectId,ref:"ProxmoxConnection"},
+      resourceId:{type:Schema.Types.ObjectId,ref:"ProxmoxResource"},type:String,startedAt:Date,
+      recoveredAt:Date,recoveryCommentAt:Date,recoveryClaimAt:Date,
+    },{_id:false}),select:false },
     num: {
       type: Number,
       unique: true,
@@ -514,6 +519,8 @@ ticketSchema.pre("save", async function () {
 });
 
 // Add database indexes for better query performance
+ticketSchema.index({"proxmoxSource.key":1},{unique:true,partialFilterExpression:{"proxmoxSource.key":{$type:"string"}}});
+ticketSchema.index({"proxmoxSource.activeKey":1},{unique:true,partialFilterExpression:{"proxmoxSource.activeKey":{$type:"string"}}});
 ticketSchema.index({ isClosed: 1, _id: -1 }); // For getAllOpened query
 ticketSchema.index({ isClosed: 1, "company._id": 1 }); // For company-specific queries
 ticketSchema.index({ "responsibles._id": 1 }); // For responsible user queries

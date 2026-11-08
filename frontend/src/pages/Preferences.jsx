@@ -1,6 +1,11 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
-import { useBlocker, useFetcher, useLoaderData, useLocation } from "react-router";
+import {
+  useBlocker,
+  useFetcher,
+  useLoaderData,
+  useLocation,
+} from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
 import SettingsSection from "@/components/app/SettingsSection";
@@ -17,6 +22,7 @@ import PrefsChannels from "../components/Preferences/Channels";
 import PrefsNotifications from "../components/Preferences/Notifications";
 import PrefsModules from "../components/Preferences/Modules";
 import PrefsIntegrations from "../components/Preferences/Integrations";
+import PrefsProxmox from "../components/Preferences/Proxmox";
 import PrefsMikrotik from "../components/Preferences/Mikrotik";
 import PrefsAi from "../components/Preferences/Ai";
 import PrefsKnowledgeBase from "../components/Preferences/KnowledgeBase";
@@ -110,14 +116,16 @@ const PreferencesCanvas = ({ sections }) => {
       </h1>
       <BrowserView>
         <div className="flex items-start gap-7">
-          <AnchorRail
-            sections={sections.map(({ id, label, rail }) => ({
-              id,
-              label: rail ?? label,
-              dirty: dirtyIds.has(id),
-            }))}
-            ariaLabel="Разделы настроек"
-          />
+          <div className="hidden md:contents">
+            <AnchorRail
+              sections={sections.map(({ id, label, rail }) => ({
+                id,
+                label: rail ?? label,
+                dirty: dirtyIds.has(id),
+              }))}
+              ariaLabel="Разделы настроек"
+            />
+          </div>
           <div className="min-w-0 flex-1">{panels}</div>
         </div>
       </BrowserView>
@@ -232,6 +240,13 @@ const Preferences = () => {
         rail: "Mikrotik",
         element: <PrefsMikrotik prefs={prefs} />,
       },
+    general &&
+      modules.proxmox?.isActive && {
+        id: "proxmox",
+        label: "Мониторинг Proxmox",
+        rail: "Proxmox",
+        element: <PrefsProxmox prefs={prefs} />,
+      },
     // Календарь нужен норме часов и переработкам, поэтому модулем не закрыт:
     // отпуска и графики ведутся и без учёта времени
     general && {
@@ -256,10 +271,22 @@ const Preferences = () => {
 
 export default Preferences;
 
-export async function loader() {
+export async function loader({ request } = {}) {
   setDocTitle("Настройки системы");
 
-  return api(`/api/preferences`);
+  const prefs = await api("/api/preferences", { signal: request?.signal });
+  if (!prefs.modules?.proxmox?.isActive) return prefs;
+  const [accounts, categories] = await Promise.all([
+    api("/api/form-data/service-accounts", { signal: request?.signal }),
+    api("/api/ticket-categories", { signal: request?.signal }),
+  ]);
+  return {
+    ...prefs,
+    proxmoxOptions: {
+      accounts: Array.isArray(accounts) ? accounts : [],
+      categories: Array.isArray(categories) ? categories : [],
+    },
+  };
 }
 
 // Сохранение черновика: JSON-тело уходит на частичный POST /api/preferences —

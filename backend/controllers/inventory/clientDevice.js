@@ -1051,6 +1051,10 @@ exports.update = async (req, res, next) => {
     }
 
     const payload = buildDevicePayload(req.body);
+    if (payload.companyId && String(payload.companyId) !== String(device.companyId)) {
+      const linked = await require('../../models/proxmox').Resource.exists({clientDeviceId:device._id,archived:false});
+      if (linked) return next(new AppError('Сначала отвяжите ресурс Proxmox от карточки инвентаря',409));
+    }
 
     const takenInventory = await findTakenIdentity({
       inventoryNumber:

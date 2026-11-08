@@ -189,6 +189,7 @@ const preferencesSchema = new Schema({
     // От «Учёта техники» не зависит; связь записи с карточкой устройства
     // требует обоих модулей. До 2026-09-14 жил рубильником `mikrotik.isActive`
     mikrotik: { isActive: { type: Boolean, default: false } },
+    proxmox: { isActive: { type: Boolean, default: false } },
     // «Диалоги»: переписка из Telegram, WhatsApp, MAX и формы сайта в HD
     messaging: { isActive: { type: Boolean, default: false } },
   },
@@ -280,6 +281,12 @@ const preferencesSchema = new Schema({
     graceUntil: { type: Date, default: null },
   },
 
+  proxmox: {
+    cpuThreshold: { type: Number, default: 90 }, memoryThreshold: { type: Number, default: 90 },
+    storageWarning: { type: Number, default: 85 }, storageCritical: { type: Number, default: 95 },
+    thresholdMinutes: { type: Number, default: 5 }, autoTickets: { type: Boolean, default: false },
+    applicantId: { type: Schema.Types.ObjectId, ref: "User" }, categoryId: { type: Schema.Types.ObjectId, ref: "TicketCategory" },
+  },
   // Настройки модуля «Мониторинг Mikrotik»; сам рубильник — modules.mikrotik.
   mikrotik: {
     // Сервисный аккаунт-автор всех машинных заявок и комментариев модуля

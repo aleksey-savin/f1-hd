@@ -21,7 +21,7 @@ exports.issueMcpKey = () => {
 // (inventoryChanges), к Mikrotik и к запросам на изменение Mikrotik
 // (mikrotikChanges). Ключи, выданные до появления доступов, в базе без поля —
 // они читают только базу знаний, как и раньше.
-const MCP_SCOPES = Object.freeze(["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "inventoryChanges", "mikrotik", "mikrotikChanges"]);
+const MCP_SCOPES = Object.freeze(["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "inventoryChanges", "mikrotik", "mikrotikChanges", "proxmox"]);
 
 const normalizeScopes = (scopes) => {
   const given = Array.isArray(scopes) ? scopes : [];

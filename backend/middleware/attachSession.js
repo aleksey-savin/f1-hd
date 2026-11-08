@@ -1,3 +1,4 @@
+const { forwardSessionCookies } = require("@/services/browserSession");
 const User = require("@/models/user");
 const { getAuth, getFromNodeHeaders } = require("@/auth/bootstrap");
 const { buildAuthContext, isDeniedAccount } = require("@/services/authContext");
@@ -14,11 +15,13 @@ const { SESSION_MAX_MS } = require("@/services/impersonation");
  * заново поднимал пользователя.
  */
 
-/** Серверная сессия better-auth — cookie или bearer. */
-const identifyBySession = async (req) => {
-  const session = await getAuth().api.getSession({
+/** Серверная сессия better-auth — подписанная cookie. */
+const identifyBySession = async (req, res) => {
+  const { response: session, headers } = await getAuth().api.getSession({
     headers: getFromNodeHeaders()(req.headers),
+    returnHeaders: true,
   });
+  forwardSessionCookies(headers, res);
   return session?.user?.id
     ? { userId: String(session.user.id), session: session.session || null }
     : null;
@@ -26,7 +29,7 @@ const identifyBySession = async (req) => {
 
 module.exports = async (req, res, next) => {
   try {
-    const identity = await identifyBySession(req);
+    const identity = await identifyBySession(req, res);
 
     if (!identity) {
       return next();

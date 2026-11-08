@@ -1,5 +1,6 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
+const { authRatePolicy, pairKey, accountKey, challengeKey, abuseIp, setAuthClientIp } = require("../../services/authRatePolicy");
 const { formatInTimeZone, getTimezoneOffset } = require("date-fns-tz");
 
 const { DEFAULT_TIMEZONE } = require("@/utils/datetime");
@@ -14,7 +15,10 @@ const authValidation = require("@/validations/auth");
 
 const Preferences = require("@/models/preferences");
 
+const { getAuth, getFromNodeHeaders } = require("../../auth/bootstrap");
+
 const router = express.Router();
+router.use(["/login", "/login-code"], setAuthClientIp);
 
 async function formatResetTime(resetTimeMs) {
   // Таймзона приложения; смещение от Москвы считаем через date-fns-tz (вместо
@@ -54,13 +58,12 @@ async function formatResetTime(resetTimeMs) {
   return `${timeString} (${offsetString})`;
 }
 
-const authLimiter = rateLimit({
+const authLimiter = authRatePolicy.middleware({
+  key: (req) => `ip:${abuseIp(req.ip)}`,
   windowMs: 60 * 60 * 1000, // 60 minutes
-  max: 50, // limit each IP to 50 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
+  limit: 50, // limit each IP to 50 requests per windowMs
   handler: async (req, res, _next, options) => {
-    const resetTime = Date.now() + options.windowMs;
+    const resetTime = req.authRateLimit.resetAt;
     const formattedResetTime = await formatResetTime(resetTime, req);
 
     res.status(options.statusCode).json({
@@ -70,25 +73,20 @@ const authLimiter = rateLimit({
   },
 });
 
-const loginLimiter = rateLimit({
+const loginLimiter = authRatePolicy.middleware({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // limit to 10 login attempts per hour per IP+email combination
-  standardHeaders: true,
-  legacyHeaders: false,
+  limit: 10, // failed attempts per 15 minutes per IP+email
   // Count attempts by IP + normalized email
-  keyGenerator: (req) => {
-    const email = (req.body.email || "").toLowerCase().trim();
-    return `${req.ip}:${email}`;
-  },
+  key: (req) => pairKey("password", req.ip, req.body?.email),
   // Log failed attempts
   handler: async (req, res, _next, options) => {
-    const resetTime = Date.now() + options.windowMs;
+    const resetTime = req.authRateLimit.resetAt;
     const formattedResetTime = await formatResetTime(resetTime, req);
 
     logger.logDirect("warn", "Too many login attempts", {
       ip: req.ip,
-      email: req.body.email,
-      attempts: 5,
+      email: req.body?.email,
+      attempts: 10,
       userAgent: req.headers["user-agent"],
       resetTime: new Date(resetTime).toISOString(),
     });
@@ -100,7 +98,7 @@ const loginLimiter = rateLimit({
       resetTime: formattedResetTime,
     });
   },
-  skipSuccessfulRequests: true, // Don't count successful logins against the limit
+  failureOnly: true, // Don't count successful logins against the limit
 });
 
 
@@ -113,12 +111,10 @@ const loginLimiter = rateLimit({
  * осмысленного: код живёт пятнадцать минут, и четвёртое письмо за час
  * означает не спешку, а чужие руки.
  */
-const loginCodeLimiter = rateLimit({
+const loginCodeLimiter = authRatePolicy.middleware({
   windowMs: 60 * 60 * 1000,
-  max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => String(req.body?.email || "").toLowerCase().trim(),
+  limit: 3,
+  key: (req) => `issue:${accountKey(req.body?.email)}`,
   // Ответ ТОТ ЖЕ, что у успеха: разный ответ на «часто просят» и «адреса
   // нет» опять сделал бы из ручки проверялку чужих адресов.
   handler: (req, res) =>
@@ -134,20 +130,15 @@ const loginCodeLimiter = rateLimit({
  * нужен новый (`allowedAttempts` в `auth/instance.mjs`). Лимитер здесь — как
  * у пароля, по паре адрес+IP, и только против объёма запросов.
  */
-const loginCodeVerifyLimiter = rateLimit({
+const loginCodeVerifyLimiter = authRatePolicy.middleware({
   windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const email = (req.body?.email || "").toLowerCase().trim();
-    return `code:${req.ip}:${email}`;
-  },
-  message: {
+  limit: 10,
+  key: (req) => pairKey("code", req.ip, req.body?.email),
+  handler: (_req, res) => res.status(429).json({
     error: true,
     message: "Слишком много попыток. Запросите новый код позже.",
-  },
-  skipSuccessfulRequests: true,
+  }),
+  failureOnly: true,
 });
 
 /**
@@ -208,20 +199,17 @@ router.post(
  * запасным ключом для запросов вообще без cookie — таких, которые проверять
  * нечем.
  */
-const twoFactorLimiter = rateLimit({
+const twoFactorLimiter = authRatePolicy.middleware({
   windowMs: 10 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const cookie = String(req.headers.cookie || "");
-    const match = cookie.match(/(?:^|;\s*)[\w.-]*two_factor=([^;]+)/);
-    return match ? `2fa:${match[1]}` : `ip:${req.ip}`;
-  },
-  message: {
+  limit: 30,
+  key: async (req) => challengeKey(req.ip, await getAuth().api.resolveFactorRateIdentity({
+    headers: getFromNodeHeaders()(req.headers),
+    body: { path: req.body?.backup ? "/two-factor/verify-backup-code" : "/two-factor/verify-totp" },
+  })),
+  handler: (_req, res) => res.status(429).json({
     error: true,
     message: "Слишком много попыток. Начните вход заново.",
-  },
+  }),
 });
 
 router.post("/login/two-factor", twoFactorLimiter, authController.verifyTwoFactor);

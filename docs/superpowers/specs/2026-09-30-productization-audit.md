@@ -947,6 +947,8 @@ the offer, and disclose or allow switching off each outbound flow per instance:
 
 Each workstream becomes its own spec, then plan, then implementation.
 
+W5 status,2026-11-07: W5a is implemented and independently reviewed in an isolated checkout. It covers cookie-only browser transport, compatible old-tab metadata/cookie renewal, a durable staff-only session cutover, Origin protection, bounded raw auth bodies and proxy-aware login limits. The corrected Mongo/browser/fake-bot rehearsal passed. This is partial delivery of W5, not closure of the combined S9/S16 findings or the whole row below: verification/integration-token changes, SSRF, authorized attachments, remaining authorization, permission-based MFA and runtime hardening remain separate work. The four original-baseline test failures were corrected on 2026-11-07 (3279 backend tests pass, zero fail, one opt-in skip); dependency-audit findings remain release qualifications; the implementation has not been transferred or deployed by the agent.
+
 | Gate | Workstream | Findings | Size |
 |---|---|---|---|
 | **0 · Now** | **W1 Security hot-fixes** — S1–S6 and S10–S12 in code; rotate the credentials from S14; multer and mailparser upgrades; the S7/S8 path allow-list (cheap now); O6 key carry-over and 422; O7 leases, drain and dedup; the C2 spec correction | S1–S8, S10–S12, S14, S15 (part), O6, O7, C2 | mostly S, a few M |

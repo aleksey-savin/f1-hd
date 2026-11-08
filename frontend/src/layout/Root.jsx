@@ -41,7 +41,6 @@ import Transitions from "../animations/Transition";
 
 import MobileBottomNavbar from "./MobileBottomNavbar";
 
-import { getLocalStorageData, getTokenDuration } from "../util/auth";
 import useInitialPrefsStore from "../store/prefs";
 import useWorkStatusesStore from "../store/work-statuses";
 import { ThemeContext } from "../store/theme-context";
@@ -50,7 +49,6 @@ import { useNavWait } from "@/components/app/nav-wait";
 import { layoutPathname, resolveSheetWidth } from "./sheet-width";
 
 const RootLayout = () => {
-  const { token } = getLocalStorageData();
   const {
     appVersion: loadedAppVersion,
     userData,
@@ -204,24 +202,7 @@ const RootLayout = () => {
   }, [userData?.plainCanvas]);
 
   const submit = useSubmit();
-  const isLoggedIn = !!token;
-
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-
-    if (token === "EXPIRED") {
-      submit(null, { action: "/logout", method: "POST" });
-      return;
-    }
-
-    const tokenDuration = getTokenDuration();
-
-    setTimeout(() => {
-      submit(null, { action: "/logout", method: "POST" });
-    }, tokenDuration);
-  }, [token, submit]);
+  const isLoggedIn = Boolean(userData?._id);
 
   return (
     <AuthedUserContext.Provider

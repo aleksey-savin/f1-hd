@@ -100,6 +100,13 @@ What is rewritten:
   cannot reach the devices of the installation it was copied from - that is the
   point; an installation of your own is copied with `--raw`. Addresses, logins
   and pinned TLS/SSH fingerprints stay as part of the device record.
+- Proxmox: the connection token secret is removed and monitoring is explicitly
+  disabled, including on old records without that field. Copied VM operations
+  become inactive so the worker cannot resume them. Hosts, token identifiers,
+  CA certificates, pinned fingerprints and resource references are kept;
+  operation logs, errors and maintenance reasons remain free text. New schema
+  fields still need explicit classification rather than an exemption for the
+  entire integration.
 
 Signing in: any account that had a password, with its masked e-mail
 (`u<id>@example.com` - look it up in the user list or in `users`) and

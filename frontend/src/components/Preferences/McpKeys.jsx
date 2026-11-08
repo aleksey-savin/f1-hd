@@ -70,6 +70,7 @@ const copyText = async (text) => {
 
 // Подсказки по доступам: у чтения — что агент видит, у записи — что делает.
 const SCOPE_HINTS = {
+  proxmox: "Узлы, ВМ, метрики и события. Только чтение; секреты скрыты.",
   knowledge: "Проверенные заметки без найденных секретов и черновики агентов.",
   knowledgeWrite:
     "Агент создаёт заметки и правит свои. Они ждут проверки модератором.",
@@ -90,6 +91,7 @@ const SCOPE_HINTS = {
 
 // Доступ есть, а читать нечего: модуль выключен.
 const MODULE_OFF_HINTS = {
+  proxmox: "Модуль Proxmox выключен — данные агенту недоступны.",
   knowledge:
     "Модуль «База знаний» выключен — пока его не включат, заметки агенту не видны.",
   inventory:
@@ -190,11 +192,13 @@ const McpKeys = ({
   knowledgeModuleOn,
   inventoryModuleOn,
   mikrotikModuleOn,
+  proxmoxModuleOn,
 }) => {
   const modulesOn = {
     knowledge: knowledgeModuleOn,
     inventory: inventoryModuleOn,
     mikrotik: mikrotikModuleOn,
+    proxmox: proxmoxModuleOn,
   };
   const showToast = useToastStore((state) => state.showToast);
 

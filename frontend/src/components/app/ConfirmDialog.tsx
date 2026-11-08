@@ -25,7 +25,11 @@ const ConfirmDialog = ({
   cancelLabel = "Отмена",
   isLoading = false,
   onConfirm,
+  children,
+  confirmDisabled = false,
 }: {
+  children?: ReactNode;
+  confirmDisabled?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: ReactNode;
@@ -44,6 +48,7 @@ const ConfirmDialog = ({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         <AlertDialogFooter className="mt-4">
           <AlertDialogCancel type="button" disabled={isLoading}>
             {cancelLabel}
@@ -51,7 +56,7 @@ const ConfirmDialog = ({
           <Button
             type="button"
             variant={confirmVariant}
-            disabled={isLoading}
+            disabled={isLoading || confirmDisabled}
             onClick={onConfirm}
           >
             {confirmIcon}

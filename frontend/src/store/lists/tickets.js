@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { api } from "@/lib/api";
 import { phoneMatches } from "@/util/phone";
 
-import { getLocalStorageData } from "../../util/auth";
+import { confirmedUserId } from "@/util/browser-session.js";
 import {
   DEFAULT_QUEUE,
   TICKET_QUEUES,
@@ -164,7 +164,7 @@ const matchesFacets = (ticket, state, userId) => {
 };
 
 const applyFilter = (state) => {
-  const { userId } = getLocalStorageData();
+  const userId = confirmedUserId();
   return (state.originalList ?? []).filter(
     (ticket) =>
       matchesFacets(ticket, state, userId) &&
@@ -173,7 +173,7 @@ const applyFilter = (state) => {
 };
 
 const countQueues = (state) => {
-  const { userId } = getLocalStorageData();
+  const userId = confirmedUserId();
   const base = (state.originalList ?? []).filter((ticket) =>
     matchesFacets(ticket, state, userId),
   );

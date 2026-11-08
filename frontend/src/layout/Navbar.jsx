@@ -38,7 +38,6 @@ import { AuthedUserContext } from "../store/authed-user-context";
 import { useCan } from "../store/authed-user";
 import { ThemeContext } from "../store/theme-context";
 import useInitialPrefs from "../store/prefs";
-import { getLocalStorageData } from "../util/auth";
 import NavDrawer from "./NavDrawer";
 import { buildMenu } from "./Navigation/menu";
 
@@ -220,10 +219,8 @@ const UserMenu = ({ trigger, align = "end" }) => {
 };
 
 const NavigationBar = ({ embedded = false }) => {
-  const { token } = getLocalStorageData();
-  const isLoggedIn = !!token;
-
   const authedUser = useContext(AuthedUserContext);
+  const isLoggedIn = Boolean(authedUser?._id);
   const can = useCan();
   const { modules } = useInitialPrefs();
   const [drawerOpen, setDrawerOpen] = useState(false);

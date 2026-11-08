@@ -808,11 +808,16 @@ const classifyJumpError = (error) => {
 
 // SSH leg to the transit router: its own knock, its own host-key TOFU pin.
 // Failures come back classified (MIKROTIK_JUMP_*).
-const openJumpConnection = async (jump) => {
+const openJumpConnection = async (jump, { priority = 0 } = {}) => {
+  const release = await require('./transitQueue').acquire(`${jump.host}:${jump.sshPort || 22}`, priority);
   try {
     await knockDevice(jump.host, jump.knockSequence);
-    return await connectSshClient(jump);
+    const session = await connectSshClient(jump);
+    session.conn.once('close', release);
+    session.conn.once('error', release);
+    return session;
   } catch (error) {
+    release();
     throw classifyJumpError(error);
   }
 };
@@ -1123,6 +1128,8 @@ const describeConnectionError = (error) => {
 };
 
 module.exports = {
+  openJumpConnection,
+  openForwardChannel,
   encryptSecret,
   decryptSecret,
   decodeKnockSequence,

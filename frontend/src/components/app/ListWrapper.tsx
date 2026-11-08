@@ -131,6 +131,8 @@ type ListWrapperProps = {
   defaultSearchValue?: string;
   /** Плейсхолдер поиска — переопределяет дефолтный «Поиск…» из SearchBar. */
   searchPlaceholder?: string;
+  /** Some server lists provide pagination without a search endpoint. */
+  showSearch?: boolean;
   showSortAndCount?: boolean;
   /** Пункты под вариантами сортировки, за разделителем в том же меню
    *  (галочка «Группы по статусу» у заявок): настройка вида списка живёт рядом
@@ -178,6 +180,7 @@ const ListWrapper = ({
   showRefreshButton = false,
   defaultSearchValue = "",
   searchPlaceholder,
+  showSearch = true,
   showSortAndCount = true,
   sortExtra,
   emptyTitle,
@@ -376,22 +379,24 @@ const ListWrapper = ({
       <Button
         onClick={onAddClick}
         size={iconOnly ? "icon" : "default"}
+        className={!iconOnly ? "max-sm:size-10 max-sm:p-0" : undefined}
         title={addLabel}
         aria-label={addLabel}
       >
         <RiAddFill />
-        {!iconOnly && addLabel}
+        {!iconOnly && <span className="hidden sm:inline">{addLabel}</span>}
       </Button>
     ) : (
       <Button
         asChild
         size={iconOnly ? "icon" : "default"}
+        className={!iconOnly ? "max-sm:size-10 max-sm:p-0" : undefined}
         title={addLabel}
         aria-label={addLabel}
       >
         <Link to={addRoute || "add"}>
           <RiAddFill />
-          {!iconOnly && addLabel}
+          {!iconOnly && <span className="hidden sm:inline">{addLabel}</span>}
         </Link>
       </Button>
     ));
@@ -416,12 +421,14 @@ const ListWrapper = ({
           className="mb-4"
           title={titleBlock}
           search={
-            <SearchBar
-              key={searchResetKey}
-              onChange={searchHandler}
-              defaultValue={initialSearch}
-              placeholder={searchPlaceholder}
-            />
+            showSearch && (
+              <SearchBar
+                key={searchResetKey}
+                onChange={searchHandler}
+                defaultValue={initialSearch}
+                placeholder={searchPlaceholder}
+              />
+            )
           }
           sort={sortDropdown}
           controls={
@@ -439,15 +446,17 @@ const ListWrapper = ({
           {titleBlock}
           <div className="ms-auto">{addButton(true)}</div>
         </div>
-        <div className="mb-3">
-          <SearchBar
-            key={searchResetKey}
-            onChange={searchHandler}
-            defaultValue={initialSearch}
-            placeholder={searchPlaceholder}
-            size="lg"
-          />
-        </div>
+        {showSearch && (
+          <div className="mb-3">
+            <SearchBar
+              key={searchResetKey}
+              onChange={searchHandler}
+              defaultValue={initialSearch}
+              placeholder={searchPlaceholder}
+              size="lg"
+            />
+          </div>
+        )}
         {(toolbar || filter || showSortAndCount) && (
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {toolbar}
@@ -469,9 +478,7 @@ const ListWrapper = ({
             <SheetHeader className="border-b border-border">
               <SheetTitle>Фильтр</SheetTitle>
             </SheetHeader>
-            <div className="flex-1 overflow-y-auto px-4 pb-4">
-              {filter}
-            </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-4">{filter}</div>
           </SheetContent>
         </Sheet>
       )}

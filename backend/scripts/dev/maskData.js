@@ -465,6 +465,28 @@ const OWN_FIELDS = {
       }
     },
   },
+  // Копия сохраняет узлы и TLS-параметры Proxmox, но не токен исходной
+  // установки. Явный false нужен и старым записям: схема по умолчанию
+  // включает опрос, если поля monitoringEnabled в документе ещё нет.
+  proxmoxconnections: {
+    fields: ["tokenSecret", "monitoringEnabled"],
+    masks: ["tokenSecret"],
+    apply(doc) {
+      delete doc.tokenSecret;
+      doc.monitoringEnabled = false;
+    },
+  },
+  // Операции ВМ хранятся внутри событий; скопированное задание не должно
+  // возобновляться воркером. Сам журнал и его ссылки остаются для диагностики.
+  proxmoxevents: {
+    fields: ["operationData"],
+    masks: ["operationData.active"],
+    apply(doc) {
+      if (isPlain(doc.operationData) && doc.operationData.active === true) {
+        doc.operationData.active = false;
+      }
+    },
+  },
   // Ключи WireGuard, выпущенные под запрос на изменение. Само приложение по
   // истечении срока снимает их тем же $unset (changeWorker, purgeKeys).
   mikrotikchanges: {
@@ -606,12 +628,21 @@ const FREE_TEXT = {
   checklisttemplates: ["title", "items[].description"],
   comments: ["content", "quotedText", "attachments"],
   conversations: ["lastMessage.preview"],
+  devicebuilds: ["notes"],
   inappnotifications: ["title", "text", "ticketTitle"],
+  // Описания и параметры предложенного пакета — такой же свободный текст,
+  // как описания устройств и команды в журнале; это не снимки пользователей.
+  inventorychanges: ["title", "reason", "operations[].params", "operations[].text", "operations[].page", "operations[].result.error", "decision.comment", "timeline[].text"],
   // secretsScan и serviceExpiry — выписки сканеров из текста самой заметки
   knowledgenotes: ["title", "content", "plainText", "secretsScan", "serviceExpiry"],
   messages: ["text", "form", "attachments", "revisions", "error"],
   // Готовый текст уведомления во всех его видах
   notifications: ["title", "text", "html", "richMessage", "replyMarkup"],
+  // Ключи карты monitoringIssues динамические, поэтому классифицируется карта
+  // целиком. Токен подключения находится отдельно и удаляется OWN_FIELDS.
+  proxmoxconnections: ["lastError", "maintenance.reason", "monitoringIssues"],
+  proxmoxresources: ["lastError", "configError", "lastBackupError", "maintenance.reason", "monitoringIssues"],
+  proxmoxevents: ["message", "operationData.error", "operationData.log", "operationData.reviewReason"],
   routinetasks: ["title", "description", "checklist"],
   serviceplanreports: ["parts[].comment", "timeline[].comment"],
   suppliers: ["notes"],
@@ -632,8 +663,10 @@ const FREE_TEXT = {
  * отчёт показывает отдельной группой и провалом не считает.
  */
 const LABELS = {
+  attributegroups: ["name"],
   clientdevices: ["*"],
   deviceattributes: ["*"],
+  devicebuilds: ["name"],
   deviceconfigurations: ["*"],
   deviceconfigurationrecommendations: ["*"],
   devicemodels: ["*"],
@@ -659,15 +692,22 @@ const LABELS = {
   companies: ["users[].position", "users[].role", "responsibles[].position", "responsibles[].role", "clientsSideResponsibles[].position", "clientsSideResponsibles[].role", "workSchedule", "timezone"],
   conversations: ["handled.how", "lastMessage.direction", "lastMessage.origin"],
   inappnotifications: ["link"],
-  knowledgenotes: ["categories[].title"],
+  inventorychanges: ["requestedVia.keyName", "operations[].kind", "operations[].ref", "operations[].targets[].model", "operations[].componentRefs", "operations[].refs", "operations[].result.created", "operations[].result.moved", "decision.channel", "timeline[].kind"],
+  knowledgenotes: ["categories[].title", "agent.keyName"],
   messages: ["event.kind"],
   notifications: ["to.messageThreadId", "leaseId"],
   pro32connections: ["clientOs"],
+  // Поля перечислены явно: новое поле интеграции снова потребует решения,
+  // а не попадёт автоматически в исключение вместе с учётными данными.
+  proxmoxconnections: ["name", "endpoints[].host", "endpoints[].caCert", "endpoints[].fingerprint", "tokenId", "status", "version", "clusterIdentity", "clusterName"],
+  proxmoxresources: ["externalId", "name", "nodeName", "guestIdentity", "status", "storageType", "storageContent", "disks[].name", "disks[].storage", "version", "clusterIdentity", "clusterName"],
+  proxmoxevents: ["kind", "operationData.operation", "operationData.storage", "operationData.idempotencyKey", "operationData.state", "operationData.nodeName", "operationData.upid"],
+  proxmoxobservations: ["state"],
   routinetasks: ["category.title", "cronSchedule", "responsibles[].position", "responsibles[].role", "sourceTemplate.title"],
   serviceplans: ["title", "customProvisionSchedule", "ticketCategories[].title"],
   serviceplanreports: ["snapshot", "invoice.number"],
   subdivisions: ["timezone"],
-  tickets: ["applicant.position", "applicant.role", "responsibles[].position", "responsibles[].role"],
+  tickets: ["applicant.position", "applicant.role", "responsibles[].position", "responsibles[].role", "proxmoxSource.key", "proxmoxSource.activeKey", "proxmoxSource.type"],
   ticketcategories: ["title", "description", "servicePlans[].title"],
   users: ["position", "role", "categories[].title", "timezone", "workSchedules", "workSchedule", "notifications.lastAction"],
   works: ["notifications"],

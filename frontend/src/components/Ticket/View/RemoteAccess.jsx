@@ -10,7 +10,7 @@ import { useCan } from "@/store/authed-user";
 import useInitialPrefsStore from "../../../store/prefs";
 import usePro32ConnectStore from "../../../store/pro32-connect";
 import useToastStore from "../../../store/toast-store";
-import { getLocalStorageData } from "../../../util/auth";
+import { useAuthedUser } from "@/store/authed-user";
 
 /**
  * Удалённое подключение к экрану заявителя (Pro32 Connect) — tw-двойник
@@ -25,7 +25,7 @@ import { getLocalStorageData } from "../../../util/auth";
  * сервиса «Пригласить» читается как приглашение коллеги в заявку.
  */
 const RemoteAccess = ({ ticket }) => {
-  const { token } = getLocalStorageData();
+  const { _id: sessionUserId } = useAuthedUser();
   const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
   const { getScreen } = useInitialPrefsStore();
@@ -48,7 +48,7 @@ const RemoteAccess = ({ ticket }) => {
           inviteUrl: data?._id ? data.inviteUrl : "",
         }),
     );
-  }, [active, fetchConnection, setConnectionState, ticket.num, token]);
+  }, [active, fetchConnection, setConnectionState, ticket.num, sessionUserId]);
 
   useEffect(() => {
     load();

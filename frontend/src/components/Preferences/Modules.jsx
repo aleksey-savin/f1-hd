@@ -95,6 +95,9 @@ const PrefsModules = ({ prefs }) => {
           onCheckedChange={(value) => toggle("mikrotik", value)}
         />
       </SettingRow>
+      <SettingRow title="Proxmox VE" hint="Мониторинг серверов и виртуальных машин" htmlFor="prefs-module-proxmox" className="py-3">
+        <Switch id="prefs-module-proxmox" checked={modules.proxmox} onCheckedChange={(value) => toggle("proxmox", value)} />
+      </SettingRow>
       {/* Пояснение устройства — той же полосой, что состояние канала:
           заливная плашка была третьим видом одного и того же сообщения */}
       <HealthRow

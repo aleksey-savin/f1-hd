@@ -34,6 +34,9 @@ const { createMikrotikEventTools, mongoEventStore } = require("@/services/mcp/mi
  * — в docs/knowledge-base.md «Agent access (MCP)».
  */
 
+const { createProxmoxTools } = require("@/services/mcp/proxmoxTools");
+const proxmoxSource = require("@/services/mcp/proxmoxSource");
+
 const log = (level, message, meta) => logger.logDirect(level, message, meta);
 
 // Контекст запроса: модули, пояс организации и системные учётки — одно чтение
@@ -48,6 +51,7 @@ const loadContext = async () => {
       timeTracking: Boolean(prefs?.modules?.timeTracking?.isActive),
       inventory: Boolean(prefs?.modules?.inventory?.isActive),
       mikrotik: Boolean(prefs?.modules?.mikrotik?.isActive),
+      proxmox: Boolean(prefs?.modules?.proxmox?.isActive),
     },
     timezone: resolveTimezone(prefs),
     systemAccounts: {
@@ -70,6 +74,7 @@ module.exports = buildMcpRouter({
   }),
   handle: createMcpRequestHandler({
     tools: {
+      proxmox: createProxmoxTools({ source: proxmoxSource }),
       knowledge: createKnowledgeTools({ ...knowledgeSource, baseUrl: process.env.ADDRESS, log }),
       knowledgeWrite: createKnowledgeWriteTools({ source: knowledgeWriteSource, baseUrl: process.env.ADDRESS, log }),
       tickets: createTicketTools({ source: ticketSource, baseUrl: process.env.ADDRESS, log }),

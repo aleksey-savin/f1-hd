@@ -2,6 +2,8 @@
 // ESM-острове (auth/instance.mjs), куда module-alias и наши require не достают,
 // поэтому всё прикладное передаётся туда параметрами отсюда.
 
+const { parseTrustProxyHops } = require("../services/authRatePolicy");
+
 const asList = (value) =>
   String(value || "")
     .split(",")
@@ -11,6 +13,7 @@ const asList = (value) =>
 const publicUrl = process.env.APP_PUBLIC_URL || process.env.ADDRESS || "";
 
 module.exports = {
+  trustProxyHops: parseTrustProxyHops(process.env.TRUST_PROXY_HOPS),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: publicUrl,
   basePath: "/api/auth",

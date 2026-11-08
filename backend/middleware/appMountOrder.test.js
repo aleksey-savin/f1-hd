@@ -28,13 +28,41 @@ const lineOf = (text) => {
   return found[0];
 };
 
-const AUTH = 'app.all("/api/auth/*splat", authPathAllowList, authRequestHandler);';
+const AUTH_ROUTE = '"/api/auth/*splat",';
+const AUTH_ALLOW_LIST = "authPathAllowList,";
+const AUTH_ORIGIN = "enforceBrowserOrigin,";
+const AUTH_BODY_LIMIT = "authBodyLimit(),";
+const AUTH_HANDLER = "authRequestHandler,";
+const TRUST_PROXY = 'app.set("trust proxy", TRUST_PROXY_HOPS);';
 const PARSERS = 'require("./middleware/bodyParsers").mountBodyParsers(app);';
 const CORS = 'app.use(require("./middleware/cors"));';
 const GUARD = "app.use(OPERATOR_GUARD_PATHS, rejectOperatorKeys);";
 
-test("better-auth, behind its allow-list, comes before the body parsers", () => {
-  assert.ok(lineOf(AUTH) < lineOf(PARSERS));
+test("better-auth keeps its allow-list, Origin check and raw-body limit before parsing", () => {
+  const route = lineOf("app.all(");
+  const allowList = lineOf(AUTH_ALLOW_LIST);
+  const origin = lineOf(AUTH_ORIGIN);
+  const bodyLimit = lineOf(AUTH_BODY_LIMIT);
+  const handler = lineOf(AUTH_HANDLER);
+  const parsers = lineOf(PARSERS);
+
+  assert.ok(route < lineOf(AUTH_ROUTE));
+  assert.ok(lineOf(AUTH_ROUTE) < allowList);
+  assert.ok(allowList < origin);
+  assert.ok(origin < bodyLimit);
+  assert.ok(bodyLimit < handler);
+  assert.ok(handler < parsers);
+});
+
+test("canonical Express IP is configured before application handlers are mounted", () => {
+  assert.ok(lineOf(TRUST_PROXY) < lineOf("app.all("));
+  assert.ok(lineOf(TRUST_PROXY) < lineOf('app.use("/api", internal);'));
+  assert.ok(lineOf(TRUST_PROXY) < lineOf('app.use("/api", external);'));
+});
+
+test("the application Origin guard runs before body parsers", () => {
+  const origin = lineOf("app.use(enforceBrowserOrigin);");
+  assert.ok(origin < lineOf(PARSERS));
 });
 
 test("no parser is mounted beside the route-class limits", () => {
@@ -54,7 +82,7 @@ test("the operator guard follows the parsers and cors", () => {
 
 test("every /api route but better-auth is mounted after the guard", () => {
   const guard = lineOf(GUARD);
-  const auth = lineOf(AUTH);
+  const auth = lineOf("app.all(");
   const early = lines
     .map((line, index) => ({ line, number: index + 1 }))
     .filter(({ line }) =>

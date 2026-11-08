@@ -6,6 +6,7 @@ const TicketCategory = require("@/models/ticketCategory");
 const {
   normalizePlan,
   priceWorks,
+  loadBillingCalendar,
 } = require("@/services/servicePlanBilling");
 const { buildSubdivisionIndex } = require("@/services/subdivisionTree");
 const {
@@ -381,8 +382,9 @@ const restrictCard = (card, rawParts, viewer) => {
  * Только для отчётов, сформированных до появления снимка и не сошедшихся с ним
  * (scripts/snapshotReports.js): новые отчёты сюда не попадают.
  */
-const liveMoney = ({ report, zone, categories, subdivisionOf }) => {
+const liveMoney = ({ report, zone, categories, subdivisionOf, calendar }) => {
   const priced = priceWorks({
+    calendar,
     plan: report.servicePlan,
     company: report.company,
     works: report.works,
@@ -437,6 +439,7 @@ const buildReportCard = async ({ report, scope, viewer }) => {
   const money = frozen
     ? cardFromSnapshot(frozen, report.works, attribution.subdivisionOf)
     : liveMoney({
+        calendar: await loadBillingCalendar(report.works, zone, preferences),
         report,
         zone,
         categories,

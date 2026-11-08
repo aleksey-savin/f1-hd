@@ -216,3 +216,61 @@ test("пакет часов: перебор остаётся на своей с�
   // Дороже пакета 48 ч быть не может — иначе смысл сравнения теряется
   assert.ok(over.price < 48 * 900);
 });
+
+const productionCalendar = {
+  isActive: true,
+  classify: (key) => {
+    if (["2026-06-12", "2026-05-11"].includes(key)) {
+      return { kind: "holiday", source: "calendar", title: "Нерабочий день" };
+    }
+    if (key === "2025-11-01") return { kind: "work", source: "calendar" };
+    const weekend = [0, 6].includes(new Date(`${key}T12:00:00Z`).getUTCDay());
+    return { kind: weekend ? "weekend" : "work", source: "weekday" };
+  },
+};
+
+for (const date of ["2026-06-12", "2026-05-11", "2026-06-13", "2026-06-14"]) {
+  test(`Календарь: ${date} целиком вне графика, в том числе 24/7`, () => {
+    const work = { _id: "holiday-work", startedAt: at(`${date} 10:00`), finishedAt: at(`${date} 12:00`) };
+    for (const schedule of [SCHEDULES.standard, SCHEDULES.always]) {
+      assert.equal(minutes(calcSingleWorkOvertime(schedule, work, PERIOD, ZONE, productionCalendar).actualOvertime), 120);
+      assert.equal(calcWorkTime(schedule, [work], PERIOD, ZONE, productionCalendar).worktime, 0);
+      const { priceWorks } = require("./servicePlanBilling");
+      const priced = priceWorks({
+        plan: { type: "fixed", fixedPrice: 1000, tariffingPeriod: 15, pricePerHourNonWorking: 600, companyWorkSchedule: true },
+        company: { workSchedule: schedule }, works: [work], zone: ZONE, calendar: productionCalendar,
+      });
+      assert.equal(priced.overtimeMinutes, 120);
+      assert.equal(priced.additionalPrice, 1200);
+      assert.equal(priced.worktimeWorks.length, 0);
+    }
+  });
+}
+
+test("Ночная смена: праздничная часть после полуночи вне графика", () => {
+  const work = { startedAt: at("2026-06-11 22:00"), finishedAt: at("2026-06-12 06:00") };
+  assert.equal(minutes(calcSingleWorkOvertime(SCHEDULES.night, work, PERIOD, ZONE, productionCalendar).actualOvertime), 360);
+  assert.equal(calcWorkTime(SCHEDULES.night, [work], PERIOD, ZONE, productionCalendar).worktime, 120);
+});
+
+test("Перенесённая рабочая суббота использует окно рабочего дня", () => {
+  const work = { startedAt: at("2025-11-01 10:00"), finishedAt: at("2025-11-01 12:00") };
+  assert.equal(minutes(calcSingleWorkOvertime(SCHEDULES.standard, work, PERIOD, ZONE, productionCalendar).actualOvertime), 0);
+  assert.equal(calcWorkTime(SCHEDULES.standard, [work], PERIOD, ZONE, productionCalendar).worktime, 120);
+});
+
+test("Выключенный календарь и явное withinPlan сохраняют прежние правила", () => {
+  const work = { startedAt: at("2026-06-12 10:00"), finishedAt: at("2026-06-12 12:00") };
+  assert.equal(calcWorkTime(SCHEDULES.standard, [work], PERIOD, ZONE, { ...productionCalendar, isActive: false }).worktime, 120);
+  work.withinPlan = true;
+  assert.equal(minutes(calcSingleWorkOvertime(SCHEDULES.standard, work, PERIOD, ZONE, productionCalendar).actualOvertime), 0);
+  assert.equal(calcWorkTime(SCHEDULES.standard, [work], PERIOD, ZONE, productionCalendar).worktime, 120);
+});
+
+test("Подсказка работы использует календарь биллинга", () => {
+  const { describeOvertime } = require("./workPreview");
+  const work = { startedAt: at("2026-06-12 10:00"), finishedAt: at("2026-06-12 12:00") };
+  const reason = describeOvertime(SCHEDULES.standard, work, ZONE, productionCalendar);
+  assert.equal(reason.kind, "nonWorkingDay");
+  assert.match(reason.text, /Нерабочий день/);
+});

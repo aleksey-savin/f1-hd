@@ -5,7 +5,7 @@ import { isBrowser } from "react-device-detect";
 import { cn } from "@/lib/utils";
 import { formatPhone, phoneHref } from "@/util/phone";
 import useInitialPrefs from "../store/prefs";
-import { getLocalStorageData } from "../util/auth";
+import { useAuthedUser } from "@/store/authed-user";
 import { ThemeContext } from "../store/theme-context";
 
 // Футер оболочки: контакты компании и служебная строка. ОБЯЗАТЕЛЬНО relative:
@@ -18,13 +18,13 @@ import { ThemeContext } from "../store/theme-context";
 // контента, ни здесь. На телефоне его нет никогда: там канва спокойнее, а
 // ширины на поля вокруг листа всё равно нет.
 const Footer = () => {
-  const { token } = getLocalStorageData();
+  const user = useAuthedUser();
   const { contacts, brand, hasHelp } = useInitialPrefs();
   const { plainCanvas } = useContext(ThemeContext);
 
   const sheet = isBrowser && !plainCanvas;
 
-  if (!token) return null;
+  if (!user?._id) return null;
 
   // Телефон и почта — одной строкой, адрес — своей: факт не переносится
   // посередине, и строка не начинается с точки-разделителя (так было на

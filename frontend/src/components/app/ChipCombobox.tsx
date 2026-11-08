@@ -69,6 +69,7 @@ const ChipCombobox = ({
           ref={triggerRef}
           type="button"
           role="combobox"
+          aria-label={selected ? selected.label : placeholder}
           aria-expanded={open}
           className={cn(
             "inline-flex h-10 cursor-pointer appearance-none items-center gap-2 rounded-full border border-input bg-transparent px-4 text-sm font-semibold whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50",

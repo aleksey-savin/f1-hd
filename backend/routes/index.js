@@ -144,6 +144,7 @@ internalRoutes.use(hideStaffContactsFromClients);
 externalRoutes.use(hideStaffContactsFromClients);
 
 // Mount internal routes
+internalRoutes.use("/proxmox", require("./internal/proxmox"));
 internalRoutes.use("/", appVersionRoutes);
 internalRoutes.use("/", meRoutes);
 internalRoutes.use("/", authRoutes);

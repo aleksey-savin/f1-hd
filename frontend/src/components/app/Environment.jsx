@@ -25,7 +25,7 @@ import EnvironmentDeviceRow from "./EnvironmentDeviceRow";
 import EnvironmentDeviceSheet from "./EnvironmentDeviceSheet";
 import useHttp from "../../hooks/use-http";
 import useSemanticZoom from "../../hooks/useSemanticZoom";
-import { getLocalStorageData } from "../../util/auth";
+import { useAuthedUser } from "@/store/authed-user";
 import { plural } from "../../util/plural";
 import { TYPE_LABEL, TYPE_ICON } from "../Location/type-meta";
 
@@ -507,7 +507,7 @@ const Environment = ({
   /** Метка устройства режима «по устройству» в списке. */
   targetLabel = "устройство заявки",
 }) => {
-  const { token } = getLocalStorageData();
+  const { _id: sessionUserId } = useAuthedUser();
   const reduceMotion = useReducedMotion();
   const { isLoading, error, sendRequest } = useHttp();
   const { isLoading: isDiving, sendRequest: fetchNode } = useHttp();
@@ -590,7 +590,7 @@ const Environment = ({
         }
       },
     );
-  }, [mode, userId, deviceId, companyId, token, sendRequest]);
+  }, [mode, userId, deviceId, companyId, sessionUserId, sendRequest]);
 
   // Id узлов цепочки субъекта — по ним помечаем ветку «здесь», оставляя
   // кликабельными ВСЕ дочерние узлы. В режиме компании цепочки нет.
@@ -639,7 +639,7 @@ const Environment = ({
         },
       );
     },
-    [isDiving, focusIndex, path, fetchNode, token, userId, mode],
+    [isDiving, focusIndex, path, fetchNode, sessionUserId, userId, mode],
   );
 
   useSemanticZoom({

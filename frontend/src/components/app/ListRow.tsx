@@ -51,6 +51,8 @@ type ListRowProps = {
    *  View, а не в шторке правки). Доступно всем, кто видит список. */
   detailTo?: string;
   extraActions?: ReactNode;
+  /** Explicit permission gate for custom actions without standard CRUD. */
+  showExtraActions?: boolean;
   customDeleteMessage?: ReactNode;
   /** Постоянный контент справа перед «⋯» (напр. статус доступа). */
   trailing?: ReactNode;
@@ -74,6 +76,7 @@ const ListRow = ({
   openUpdateOnClick = true,
   detailTo,
   extraActions,
+  showExtraActions = false,
   customDeleteMessage,
   trailing,
   column,
@@ -170,7 +173,7 @@ const ListRow = ({
         )}
       </div>
       {column}
-      {(trailing || canManage) && (
+      {(trailing || canManage || showExtraActions) && (
         <div className="ml-auto flex flex-none items-center gap-2">
           {trailing && (
             <span onClick={(e) => e.stopPropagation()}>{trailing}</span>
@@ -178,7 +181,7 @@ const ListRow = ({
           {/* Гнездо «⋯» — как у строки заявки: постоянная ширина, воздух от
               края и приглушённый, а не блёклый глиф — вплотную к рамке его
               не замечали */}
-          {canManage && (
+          {(canManage || showExtraActions) && (
             <div
               className="flex w-14 flex-none items-center justify-center pe-4"
               onClick={(e) => e.stopPropagation()}
@@ -197,17 +200,21 @@ const ListRow = ({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {extraActions}
-                  <DropdownMenuItem asChild>
-                    <Link to={updateTo}>
-                      <RiEdit2Line /> Изменить
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => setDeleteOpen(true)}
-                  >
-                    <RiDeleteBinLine /> Удалить
-                  </DropdownMenuItem>
+                  {canManage && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link to={updateTo}>
+                          <RiEdit2Line /> Изменить
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => setDeleteOpen(true)}
+                      >
+                        <RiDeleteBinLine /> Удалить
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
               <DeleteDialog

@@ -38,6 +38,51 @@ export type Section = {
 };
 
 export const SECTIONS: Section[] = [
+  {
+    key: "proxmox-guests",
+    listTo: "/devices/proxmox/guests",
+    label: "ВМ и LXC",
+    can: { proxmox: ["read"] },
+    acc: "виртуальную машину",
+    pronoun: "её",
+    backLabel: "К виртуальным машинам",
+  },
+  {
+    key: "proxmox-nodes",
+    listTo: "/devices/proxmox/nodes",
+    label: "Узлы Proxmox",
+    can: { proxmox: ["read"] },
+    acc: "узел",
+    pronoun: "его",
+    backLabel: "К узлам",
+  },
+  {
+    key: "proxmox-storages",
+    listTo: "/devices/proxmox/storages",
+    label: "Хранилища Proxmox",
+    can: { proxmox: ["read"] },
+    acc: "хранилище",
+    pronoun: "его",
+    backLabel: "К хранилищам",
+  },
+  {
+    key: "proxmox-connections",
+    listTo: "/devices/proxmox/connections",
+    label: "Подключения Proxmox",
+    can: { proxmox: ["read"] },
+    acc: "подключение",
+    pronoun: "его",
+    backLabel: "К подключениям",
+  },
+  {
+    key: "proxmox-companies",
+    listTo: "/devices/proxmox/companies",
+    label: "Мощности компаний",
+    can: { proxmox: ["read"] },
+    acc: "компанию",
+    pronoun: "её",
+    backLabel: "К компаниям",
+  },
   { key: "dashboard", listTo: "/dashboard", label: "Главная" },
 
   {

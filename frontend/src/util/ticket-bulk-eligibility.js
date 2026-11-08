@@ -8,15 +8,15 @@ const numbers = (items) => items.map((t) => `#${t.num}`).join(", ");
 const isResponsible = (ticket, userId) =>
   ticket.responsibles?.some((r) => r._id?.toString() === userId?.toString());
 
-// Принять в работу: все заявки в статусе «Не в работе», и текущий пользователь —
+// Принять в работу: все заявки в статусах «Новая» или «Не в работе», и текущий пользователь —
 // ответственный либо вправе присоединяться к чужим заявкам (`ticket.join`, у
 // ведущего заявки — всегда). То же правило на сервере: requireJoinableTickets.
 export const takeToWorkReason = (selectedItems, { userId, can }) => {
   if (!selectedItems.length) return "Не выбрано ни одной заявки";
 
-  const wrongState = selectedItems.filter((t) => t.state !== "Не в работе");
+  const wrongState = selectedItems.filter((t) => !["Новая", "Не в работе"].includes(t.state));
   if (wrongState.length) {
-    return `Принять в работу можно только заявки в статусе «Не в работе». Не подходят: ${numbers(wrongState)}`;
+    return `Принять в работу можно только заявки в статусах «Новая» или «Не в работе». Не подходят: ${numbers(wrongState)}`;
   }
 
   const canJoin = can({ ticket: ["join"] }) || can({ ticket: ["manage"] });

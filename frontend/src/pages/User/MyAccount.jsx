@@ -1,6 +1,7 @@
+import { api } from "@/lib/api";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
-import { redirect, useBlocker, useFetcher, useLoaderData } from "react-router";
+import { useBlocker, useFetcher, useLoaderData } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
 import SettingsSection from "@/components/app/SettingsSection";
@@ -17,7 +18,6 @@ import Integrations from "../../components/User/AccountSettings/Integrations";
 import Security from "../../components/User/AccountSettings/Security";
 
 import useToastStore from "../../store/toast-store";
-import { getLocalStorageData } from "../../util/auth";
 
 // Рейл ведёт только по реально отрисованным секциям: у клиента нет графика
 const buildSections = (showSchedule) => [
@@ -176,38 +176,13 @@ const MyAccount = () => {
 export default MyAccount;
 
 export async function loader() {
-  const { token, userId } = getLocalStorageData();
-
-  if (!token) {
-    return redirect("/auth");
-  }
-
   setDocTitle("Мой аккаунт");
-
-  const userResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
-  );
-
-  const initialPrefsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
-  );
-
-  if (!userResponse.ok) {
-    if (userResponse.status === 401 || userResponse.status === 402) {
-      return redirect("/auth");
-    }
-    throw Response.json(
-      { message: userResponse.message },
-      {
-        status: userResponse.status,
-      },
-    );
-  } else {
-    return {
-      user: await userResponse.json(),
-      initialPrefs: await initialPrefsResponse.json(),
-    };
-  }
+  const [user, initialPrefs] = await Promise.all([
+    // /me определяет владельца cookie; сохраняем полный профильный DTO для настроек.
+    api("/api/me").then((me) => api(`/api/users/${me.user._id}`)),
+    api("/api/preferences-initial"),
+  ]);
+  return { user, initialPrefs };
 }
 
 const updateAccount = async (profile) =>

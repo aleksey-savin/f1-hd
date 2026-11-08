@@ -41,6 +41,7 @@ const useInitialPrefsStore = create((set) => ({
     timeTracking: { isActive: false },
     knowledgeBase: { isActive: false },
     mikrotik: { isActive: false },
+    proxmox: { isActive: false },
     messaging: { isActive: false },
   },
   // Функции ИИ приходят из /api/me уже сведёнными с главным рубильником

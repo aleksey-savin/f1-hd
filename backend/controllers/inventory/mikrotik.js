@@ -304,6 +304,8 @@ const resolveJumpForSave = async (body, existing) => {
 // мониторинг молча осиротел бы (висячая ссылка). Возвращает AppError 409 с
 // именами зависимых или null.
 const dependentsConflict = async (record) => {
+  const proxmox = await require('../../models/proxmox').Connection.findOne({archived:false, 'endpoints.mikrotikRecordId':record._id}).select('name');
+  if (proxmox) return new AppError(`Через устройство подключён Proxmox «${proxmox.name}». Сначала измените его подключение.`,409);
   const dependents = await Mikrotik.find({ jumpRecordId: record._id })
     .select("name label credentials.host")
     .lean();
@@ -1306,6 +1308,11 @@ exports.connectRecord = (req, res, next) =>
 // Выключить фоновый мониторинг и пометить устройство офлайн.
 const disconnectByFilter = async (filter, req, res, next) => {
   try {
+    const existing = await Mikrotik.findOne(filter);
+    if (existing) {
+      const proxmox = await require('../../models/proxmox').Connection.exists({archived:false,monitoringEnabled:true,'endpoints.mikrotikRecordId':existing._id});
+      if (proxmox) return next(new AppError('Сначала отключите или перенесите зависимые подключения Proxmox',409));
+    }
     const record = await Mikrotik.findOneAndUpdate(
       filter,
       {

@@ -1,8 +1,6 @@
 import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
-import { redirect } from "react-router";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import UserForm from "../../components/User/UserForm";
 
@@ -13,11 +11,6 @@ const UpdateUserPage = () => {
 export default UpdateUserPage;
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
-  if (!token) {
-    return redirect("/auth");
-  }
-
   // Пользователь — всегда свежий; справочники — из кэша (store/form-data),
   // 401 обрабатывает lib/api. includeInactive: у пользователя отключённой
   // компании селект «Компания» обязан находить её опцию — иначе сохранение

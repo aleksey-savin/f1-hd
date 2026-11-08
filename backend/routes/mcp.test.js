@@ -1,3 +1,4 @@
+const { createProxmoxTools } = require("../services/mcp/proxmoxTools");
 // node --test routes/mcp.test.js
 require("module-alias/register");
 const { test } = require("node:test");
@@ -172,6 +173,7 @@ const buildApp = ({
   rateLimitMax = 100,
   logs = [],
   source = ticketSource,
+  proxmoxAuthorized = true,
 } = {}) => {
   const log = (level, message, meta) => logs.push(meta);
   const knowledge = createKnowledgeTools({
@@ -225,6 +227,8 @@ const buildApp = ({
     log,
   });
 
+  const proxmox = createProxmoxTools({ source: { authorize: async () => proxmoxAuthorized, list: async () => ({ items: [{ status: "unknown" }] }) } });
+
   const router = buildMcpRouter({
     requireKey: createRequireMcpKey({
       findKeyByHash: async (hash) =>
@@ -235,7 +239,7 @@ const buildApp = ({
       log: () => {},
     }),
     handle: createMcpRequestHandler({
-      tools: { knowledge, knowledgeWrite, tickets, directory, inventory, inventoryChanges, mikrotik, mikrotikChanges },
+      tools: { knowledge, knowledgeWrite, tickets, directory, inventory, inventoryChanges, mikrotik, mikrotikChanges, proxmox },
       loadContext: async () => ({ modules, timezone: "Asia/Vladivostok", systemAccounts: { unidentifiedId: null, robotIds: [] } }),
       onError: () => {},
       log,
@@ -822,4 +826,26 @@ test("instructions: the first line names what the key can write; inventory rules
   assert.match(inventory, /Specs of parts come only from their model's configuration/);
   assert.match(inventory, /Inventory tools only read; nothing in the inventory can be changed through them\./);
   assert.ok(!(await instructionsFor(["knowledge"])).includes("Inventory:"));
+});
+
+
+test("Proxmox tools require scope and module and enforce owner authorization on calls", async () => {
+  const modules = { ...MODULES_ON, proxmox: true };
+  await withServer(buildApp({ scopes: ["proxmox"], modules }), async (base) => {
+    const response = await rpc(base, "tools/list", {});
+    const tools = response.message.result.tools;
+    assert.equal(tools.length, 4);
+    assert.ok(!tools.some((tool) => /proxmox_(tasks|incidents)/.test(tool.name)));
+    assert.ok(tools.every((tool) => tool.annotations.readOnlyHint));
+    assert.ok(tools.every((tool) => !/start|discover|shutdown|backup/.test(tool.name)));
+    const call = await rpc(base, "tools/call", { name: "list_proxmox_resources", arguments: { kind: "guest" } });
+    assert.equal(JSON.parse(call.message.result.content[0].text).items[0].status, "unknown");
+  });
+  await withServer(buildApp({ scopes: ["proxmox"], modules, proxmoxAuthorized: false }), async (base) => {
+    const call = await rpc(base, "tools/call", { name: "list_proxmox_resources", arguments: { kind: "guest" } });
+    assert.equal(call.message.result.isError, true);
+  });
+  await withServer(buildApp({ scopes: ["proxmox"], modules: { ...modules, proxmox: false } }), async (base) => {
+    assert.equal((await rpc(base, "tools/list", {})).status, 403);
+  });
 });

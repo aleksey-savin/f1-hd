@@ -26,6 +26,7 @@ export const MCP_RESOURCES: McpResource[] = [
   { key: "users", label: "Пользователи", dative: "пользователям", read: "users" },
   { key: "inventory", label: "Инвентарь", dative: "инвентарю", read: "inventory", write: "inventoryChanges" },
   { key: "mikrotik", label: "Mikrotik", dative: "Mikrotik", read: "mikrotik", write: "mikrotikChanges" },
+  { key:"proxmox",label:"Proxmox",dative:"Proxmox",read:"proxmox" },
 ];
 
 const SCOPE_ORDER: McpScope[] = MCP_RESOURCES.flatMap(({ read, write }) => (write ? [read, write] : [read]));

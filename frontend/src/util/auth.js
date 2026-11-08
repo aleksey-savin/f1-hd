@@ -2,39 +2,20 @@ import { redirect } from "react-router";
 
 import { api, ApiError } from "@/lib/api";
 import { clearSession } from "@/pages/Auth/session";
+import {
+  assertBrowserSessionCurrent,
+  browserSessionGeneration,
+  beginBrowserSessionCheck,
+  confirmBrowserSession,
+} from "./browser-session.js";
 import { adoptBrand } from "@/store/prefs";
 
-export function getTokenDuration() {
-  const storedExpiryDate = localStorage.getItem("expiryDate");
-  const expiryDate = new Date(storedExpiryDate);
-  const now = new Date();
-  const duration = expiryDate - now;
-  return duration;
-}
-
 export function getLocalStorageData() {
-  const token = localStorage.getItem("token");
-  const expiryDate = localStorage.getItem("expiryDate");
-  const userId = localStorage.getItem("userId");
   const darkMode = localStorage.getItem("darkMode");
   const theme = localStorage.getItem("theme");
   const timezone = localStorage.getItem("timezone");
   const personalTimezone = localStorage.getItem("personalTimezone");
-
-  if (!token || !expiryDate) {
-    return { token: null };
-  }
-
-  const tokenDuration = getTokenDuration();
-
-  if (tokenDuration < 0) {
-    return { token: "EXPIRED" };
-  }
-
   return {
-    token: token,
-    expiryDate: expiryDate,
-    userId: userId,
     darkMode: darkMode === "true",
     theme: theme,
     timezone: timezone,
@@ -53,12 +34,40 @@ export function getLocalStorageData() {
  * `_id` и прав, и приложение рисовало «залогиненную» оболочку со всем
  * выключенным вместо того, чтобы отправить на вход.
  */
-export async function authDataLoader() {
+// Используем общий запрос только для текущей личности; новая загрузка корня заменяет старые.
+let pendingIdentity = null;
+
+export function loadBrowserIdentity(signal) {
+  const check = beginBrowserSessionCheck(signal);
+  const promise = api("/api/me", { signal })
+    .then((me) => {
+      confirmBrowserSession(me, localStorage, check);
+      return me;
+    })
+    .finally(() => {
+      check.finish();
+      if (pendingIdentity?.generation === check.generation)
+        pendingIdentity = null;
+    });
+  pendingIdentity = { generation: check.generation, promise };
+  return promise;
+}
+
+export function ensureBrowserIdentity() {
+  if (pendingIdentity?.generation === browserSessionGeneration())
+    return pendingIdentity.promise;
+  return loadBrowserIdentity();
+}
+
+export async function authDataLoader({ request } = {}) {
+  const identity = loadBrowserIdentity(request?.signal);
+  const expected = browserSessionGeneration();
   try {
     const [appVersion, me] = await Promise.all([
-      api("/api/app-version"),
-      api("/api/me"),
+      api("/api/app-version", { signal: request?.signal }),
+      identity,
     ]);
+    assertBrowserSessionCurrent(expected, request?.signal);
 
     // Бренд применяется в загрузчике, до отрисовки оболочки: акцент и название
     // портала известны раньше, чем появится первый экран
@@ -96,12 +105,16 @@ export async function authDataLoader() {
  * выданный токен жил свои четырнадцать дней.
  */
 export async function logoutLoader() {
+  clearSession();
+  const expected = browserSessionGeneration();
   try {
     await api("/api/logout", { method: "POST" });
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401)
+      return redirect("/auth");
     // Сеанс мог уже истечь или быть отозван администратором — на клиенте это
     // всё равно выход.
   }
-  clearSession();
+  assertBrowserSessionCurrent(expected);
   return redirect("/auth");
 }

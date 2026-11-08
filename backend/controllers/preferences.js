@@ -476,6 +476,7 @@ exports.update = async (req, res, next) => {
         inventory: { isActive: !!modules.inventory?.isActive },
         knowledgeBase: { isActive: !!modules.knowledgeBase?.isActive },
         mikrotik: { isActive: !!modules.mikrotik?.isActive },
+        proxmox: { isActive: !!modules.proxmox?.isActive },
         messaging: { isActive: !!modules.messaging?.isActive },
       };
     }
@@ -511,6 +512,19 @@ exports.update = async (req, res, next) => {
       const mikrotik = { ...(body.mikrotik || {}) };
       delete mikrotik.isActive;
       preferences.mikrotik = mikrotik;
+    }
+
+    if (has("proxmox")) {
+      let validated;
+      try {
+        validated = await require("../services/proxmox/settings").validateSettings(
+          body.proxmox, preferences.proxmox,
+        );
+      } catch (error) {
+        return next(error);
+      }
+      for (const [key, value] of Object.entries(validated.changes))
+        preferences.set(`proxmox.${key}`, value);
     }
 
     // Табло статусов: из веба приходит только isActive; служебные поля

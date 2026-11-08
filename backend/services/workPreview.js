@@ -19,6 +19,7 @@ const {
   MS_PER_MINUTE,
   DAYS_OF_WEEK,
   dayWindow,
+  loadBillingCalendar,
   eachDay,
   isZeroLength,
   calcSingleWorkOvertime,
@@ -112,7 +113,7 @@ const describeScheduleLine = (schedule) => {
  * (общий `eachDay`), и называет причину словами: цифру, которую нечем
  * проверить, спора не выдерживает — графика услуги в форме не видно.
  */
-const describeOvertime = (schedule, work, zone) => {
+const describeOvertime = (schedule, work, zone, calendar) => {
   const kinds = new Set();
   let firstNonWorkingDay = null;
   let openAt = null;
@@ -124,8 +125,8 @@ const describeOvertime = (schedule, work, zone) => {
     }
 
     // Хвост вчерашней смены накрывает утро: окно предыдущего дня тоже считается
-    const window = dayWindow(schedule, dateKey, zone);
-    const tail = dayWindow(schedule, shiftDayKey(dateKey, -1), zone);
+    const window = dayWindow(schedule, dateKey, zone, calendar);
+    const tail = dayWindow(schedule, shiftDayKey(dateKey, -1), zone, calendar);
     const coveredByTail = tail && tail.workEnd > dayStart && tail.workStart <= dayStart;
 
     if (!window) {
@@ -133,7 +134,9 @@ const describeOvertime = (schedule, work, zone) => {
         continue;
       }
       kinds.add("nonWorkingDay");
-      firstNonWorkingDay = firstNonWorkingDay ?? DAY_TITLES[dayNameOfKey(dateKey)];
+      firstNonWorkingDay = firstNonWorkingDay ??
+        (calendar?.isActive ? calendar.classify(dateKey).title : null) ??
+        DAY_TITLES[dayNameOfKey(dateKey)];
       continue;
     }
 
@@ -164,7 +167,7 @@ const describeOvertime = (schedule, work, zone) => {
   if (kind === "nonWorkingDay") {
     return {
       kind,
-      text: `${firstNonWorkingDay} — нерабочий день по графику обслуживания`,
+      text: `${firstNonWorkingDay} — нерабочий день по календарю и графику обслуживания`,
     };
   }
 
@@ -205,7 +208,7 @@ const findPlan = async (company, categoryIds) => {
  * Компания, услуга, график и пояс — один раз на набор заявок. Возвращает null,
  * если тарифицировать нечем: у компании нет подходящей услуги.
  */
-const loadContext = async (tickets) => {
+const loadContext = async (tickets, works) => {
   const categoryIds = new Set(
     tickets.map((ticket) => String(ticket.categoryId)).filter(Boolean),
   );
@@ -225,6 +228,7 @@ const loadContext = async (tickets) => {
   const preferences = await Preferences.findOne({}).lean();
 
   return {
+    calendar: await loadBillingCalendar(works, resolveTimezone(preferences), preferences),
     tariff: normalizePlan(plan),
     schedule: resolveSchedule(plan, company),
     zone: resolveTimezone(preferences),
@@ -252,6 +256,7 @@ const calcFor = ({ context, work, canSeeMoney }) => {
     work,
     tariff.tariffingPeriod,
     zone,
+    context.calendar,
   );
 
   if (actualOvertime <= 0) {
@@ -332,7 +337,7 @@ const previewWork = async ({
   const exempt = await loadAlwaysWithinPlan(categoryIds);
   const exemptCategory = [...exempt.values()][0] || null;
 
-  const context = await loadContext(tickets);
+  const context = await loadContext(tickets, [{ startedAt, finishedAt }]);
   if (!context) {
     return { ...empty, alwaysWithinPlan: Boolean(exemptCategory) };
   }
@@ -362,7 +367,7 @@ const previewWork = async ({
 
   base.overtime = {
     ...overtime,
-    reason: describeOvertime(context.schedule, work, context.zone),
+    reason: describeOvertime(context.schedule, work, context.zone, context.calendar),
   };
 
   return base;
@@ -401,7 +406,7 @@ const annotateWorks = async ({ works, canSeeMoney = false }) => {
   );
   const exempt = await loadAlwaysWithinPlan(new Set(categoryByTicket.values()));
 
-  const context = await loadContext(tickets);
+  const context = await loadContext(tickets, finished);
   if (!context) {
     return {};
   }

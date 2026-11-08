@@ -446,6 +446,7 @@ const ViewCompany = ({
       />
 
       {/* Правка компании и мастер «Новой услуги» — вложенные маршруты в шторке */}
+      {modules?.proxmox?.isActive && can({proxmox:["read"]}) && <Panel><Button asChild variant="outline"><Link to={`/devices/proxmox/companies/${company._id}`}>Серверные мощности Proxmox</Link></Button></Panel>}
       <FormOutlet />
 
       {canReadLogs && (

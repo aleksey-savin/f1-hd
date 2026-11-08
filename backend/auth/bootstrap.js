@@ -9,6 +9,7 @@
 const mongoose = require("mongoose");
 
 const config = require("./config");
+const { getAuthBodyRequest } = require("../middleware/authBodyLimit");
 
 let auth = null;
 let handler = null;
@@ -40,6 +41,7 @@ module.exports.initAuth = async () => {
     // Словарь прав — оттуда же: его читает и прикладной код.
     statement: require("./access").STATEMENT,
   });
+  // Обёртка приложения сохраняет cookie, уже установленные вышестоящим middleware.
   handler = module_.toNodeHandler(auth);
   fromNodeHeaders = module_.fromNodeHeaders;
   authorizeFor = module_.authorizeFor;
@@ -92,5 +94,9 @@ module.exports.authRequestHandler = (req, res, next) => {
       message: "Авторизация ещё не готова",
     });
   }
-  return Promise.resolve(handler(req, res)).catch(next);
+  const request = getAuthBodyRequest(req, res);
+  // Task4 повторно передаёт байты через обычный Readable без Express-геттера IP.
+  // Переносим только канонический адрес, определённый в исходном req.
+  if (request !== req) request.ip = req.ip;
+  return Promise.resolve(handler(request, res)).catch(next);
 };

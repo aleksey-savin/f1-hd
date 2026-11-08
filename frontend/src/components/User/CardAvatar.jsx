@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import useToastStore from "@/store/toast-store";
 
-import { getLocalStorageData } from "../../util/auth";
+import { useAuthedUser } from "@/store/authed-user";
 import UserAvatar from "./UserAvatar";
 
 // Аватар карточки: та же плитка с кольцом-присутствием, что в списке, только
@@ -39,6 +39,7 @@ const centerAspectCrop = (mediaWidth, mediaHeight) => {
 };
 
 const CardAvatar = ({ user, ringColor, canEdit }) => {
+  const authedUser = useAuthedUser();
   const [preview, setPreview] = useState(
     user.profileImagePath ? `${API}/uploads/${user.profileImagePath}` : null,
   );
@@ -127,8 +128,7 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
     setBusy(true);
     setError(null);
     try {
-      const { token } = getLocalStorageData();
-      if (!token) throw new Error("Токен авторизации не найден");
+      if (!authedUser?._id) throw new Error("Токен авторизации не найден");
 
       const blob = await createCroppedBlob();
       if (!blob) throw new Error("Не удалось обрезать изображение");

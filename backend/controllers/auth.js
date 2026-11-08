@@ -6,41 +6,16 @@ const { getAuth, getFromNodeHeaders } = require("../auth/bootstrap");
 // Проверка пароля без создания сеанса — там же, где и его запись: обе
 // операции работают с credential-аккаунтом и обе обходят обёртки плагинов.
 const { verifyUserPassword } = require("../services/authPassword");
+const { authRatePolicy, authHeaders, normalizeAccount } = require("../services/authRatePolicy");
 const { isBanned } = require("../services/authBan");
 const { bindChat } = require("../services/telegramActor");
 
-/**
- * Перенос заголовков сеанса из ответа better-auth на наш ответ.
- *
- * getSetCookie отдаёт КАЖДУЮ куку отдельной строкой; конкатенация через
- * headers.get("set-cookie") склеила бы их в одну и сломала разбор в браузере.
- *
- * @returns {string|null} токен сеанса из `set-auth-token`, если он был
- */
-const forwardAuthHeaders = (response, res) => {
-  const cookies = response.headers.getSetCookie?.() || [];
-  if (cookies.length) {
-    res.setHeader("Set-Cookie", cookies);
-  }
-  const bearer = response.headers.get("set-auth-token");
-  if (bearer) {
-    res.setHeader("set-auth-token", bearer);
-    res.setHeader("Access-Control-Expose-Headers", "set-auth-token");
-  }
-  return bearer || null;
-};
+const { forwardSessionCookies } = require("../services/browserSession");
 
-/**
- * Ответ состоявшегося входа: одинаков у второго фактора и у кода из письма —
- * форма ждёт от любого последнего шага одно и то же (токен, срок, профиль).
- * Токен сеанса уже уехал заголовками; поле `token` — для ещё не мигрированных
- * экранов, которые шлют его как `Authorization: Bearer`.
- */
-const sessionResponse = (res, user, token) =>
+/** Одинаковые публичные метаданные для каждого завершённого входа после последнего фактора. */
+const sessionResponse = (res, user, metadata) =>
   res.status(200).json({
-    token: token || null,
-    expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-    userId: user._id,
+    ...metadata,
     firstName: user.firstName,
     lastName: user.lastName,
     email: user.email,
@@ -58,7 +33,7 @@ const sessionResponse = (res, user, token) =>
 const signInViaBetterAuth = async (req, res, email, password) => {
   const response = await getAuth().api.signInEmail({
     body: { email, password },
-    headers: getFromNodeHeaders()(req.headers),
+    headers: getFromNodeHeaders()(authHeaders(req)),
     asResponse: true,
   });
 
@@ -77,30 +52,38 @@ const signInViaBetterAuth = async (req, res, email, password) => {
     return { refused: body?.message || null };
   }
 
-  forwardAuthHeaders(response, res);
+  forwardSessionCookies(response.headers, res);
 
   return response.json().catch(() => ({}));
 };
 
 exports.login = async (req, res, next) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  const email = normalizeAccount(req.body?.email);
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: normalizeAccount(email) });
 
     // ПОРЯДОК ЗДЕСЬ ЗНАЧИМ. Сначала проверяем пароль, НЕ создавая сеанс, потом
     // применяем наши правила отказа, и только затем выдаём сеанс. Обратный
     // порядок оставлял отключённой учётке рабочую cookie при ответе 401.
-    const isEqual = user ? await verifyUserPassword(user._id, password) : false;
+    const isEqual = await verifyUserPassword(user?._id ?? null, password);
 
     if (!user || user.isServiceAccount || !isEqual) {
+      const throttled = !authRatePolicy.cooldown(email).allowed;
+      const failure = authRatePolicy.credentialFailure(email);
+      res.setHeader("Retry-After", Math.max(1, Math.ceil((failure.resetAt - Date.now()) / 1000)));
       return next(
         // «логина» в приложении нет — входят почтой
-        new AppError("Неверная почта или пароль.", 401, true, null, {
+        new AppError("Неверная почта или пароль.", throttled ? 429 : 401, true, null, {
           attemptedEmail: email,
         }),
       );
     }
+
+    // Пауза применяется только после ошибок: верный пароль всегда снимает
+    // навязанную атакующим блокировку аккаунта. Отдельные лимиты пары и IP остаются.
+    authRatePolicy.credentialSuccess(email);
 
     // Статус 401, а не 403: форма входа показывает инлайн только сообщения со
     // статусами из своего списка, 403 уронит error boundary. Отключение
@@ -161,15 +144,8 @@ exports.login = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save();
 
-    // Токен сеанса уехал заголовками Set-Cookie и set-auth-token. Тот же токен
-    // кладём в поле `token` тела: ещё не мигрированный фронтенд положит его в
-    // localStorage и будет слать как `Authorization: Bearer`, а плагин bearer
-    // это принимает. Так старый клиент работает без единой правки, а переход
-    // на куки превращается из условия переезда в уборку.
     res.status(200).json({
-      token: res.getHeader("set-auth-token") || null,
-      expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      userId: user._id,
+      ...issued.browserSession,
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
@@ -217,7 +193,7 @@ exports.verifyTwoFactor = async (req, res, next) => {
 
     const response = await verify({
       body: { code: String(code || "") },
-      headers: getFromNodeHeaders()(req.headers),
+      headers: getFromNodeHeaders()(authHeaders(req)),
       asResponse: true,
     });
 
@@ -231,7 +207,7 @@ exports.verifyTwoFactor = async (req, res, next) => {
       );
     }
 
-    const bearer = forwardAuthHeaders(response, res);
+    forwardSessionCookies(response.headers, res);
 
     const body = await response.json().catch(() => ({}));
     const userId = body?.user?.id || body?.session?.userId;
@@ -243,7 +219,7 @@ exports.verifyTwoFactor = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save();
 
-    sessionResponse(res, user, bearer);
+    sessionResponse(res, user, body.browserSession);
   } catch (error) {
     next(new AppError("Не удалось завершить вход", 500, true, error));
   }
@@ -350,7 +326,7 @@ exports.requestLoginCode = async (req, res, next) => {
         email,
         type: user.isEndUser !== false ? "sign-in" : "forget-password",
       },
-      headers: getFromNodeHeaders()(req.headers),
+      headers: getFromNodeHeaders()(authHeaders(req)),
     });
 
     return same();
@@ -416,7 +392,7 @@ exports.verifyLoginCode = async (req, res, next) => {
       );
     }
 
-    const headers = getFromNodeHeaders()(req.headers);
+    const headers = getFromNodeHeaders()(authHeaders(req));
     // Незнакомый адрес идёт дорогой клиента: там плагин сам ответит
     // «неверный код», и ручка не различит адреса.
     const account = await User.findOne({ email }).select("isEndUser").lean();
@@ -452,7 +428,7 @@ exports.verifyLoginCode = async (req, res, next) => {
       );
     }
 
-    const bearer = forwardAuthHeaders(response, res);
+    forwardSessionCookies(response.headers, res);
     const body = await response.json().catch(() => ({}));
 
     // Код принят, но у человека включён второй фактор: сеанса ещё нет, cookie
@@ -473,7 +449,7 @@ exports.verifyLoginCode = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save();
 
-    sessionResponse(res, user, bearer);
+    sessionResponse(res, user, body.browserSession);
   } catch (error) {
     next(
       new AppError("Не удалось завершить вход", 500, true, error, {
@@ -527,7 +503,7 @@ exports.resetPasswordByCode = async (req, res, next) => {
     try {
       response = await getAuth().api.resetPasswordEmailOTP({
         body: { email, otp, password },
-        headers: getFromNodeHeaders()(req.headers),
+        headers: getFromNodeHeaders()(authHeaders(req)),
         asResponse: true,
       });
     } catch (error) {

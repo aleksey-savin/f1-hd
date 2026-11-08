@@ -111,7 +111,7 @@ test("scopes: known values in a fixed order, a key without scopes reads knowledg
 });
 
 test("knowledgeWrite is a known scope, ordered right after knowledge", () => {
-  assert.deepEqual([...MCP_SCOPES], ["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "inventoryChanges", "mikrotik", "mikrotikChanges"]);
+  assert.deepEqual([...MCP_SCOPES], ["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "inventoryChanges", "mikrotik", "mikrotikChanges", "proxmox"]);
   assert.deepEqual(normalizeScopes(["mikrotik", "knowledgeWrite", "knowledge"]), ["knowledge", "knowledgeWrite", "mikrotik"]);
 });
 

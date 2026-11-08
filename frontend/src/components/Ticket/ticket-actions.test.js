@@ -273,3 +273,17 @@ test("«Взять на себя» makes sense only with someone else responsibl
     true,
   );
 });
+
+test("new unassigned ticket can be taken with perform and join", () => {
+  const ticket = { state: "Новая", title: "Помощь", company: { _id: "c1" }, categoryId: "cat1", responsibles: [] };
+  for (const permissions of [["perform", "join"], ["perform", "join", "manage"]]) {
+    const actions = ticketActions(ticket, ctx({ ticket: permissions }));
+    assert.equal(actions.primary?.key, "takeToWork");
+    assert.equal(keys(actions.menu).includes("process"), permissions.includes("manage"));
+  }
+  for (const permissions of [["perform"], ["join"]]) {
+    assert.equal(ticketActions(ticket, ctx({ ticket: permissions })).primary, null);
+  }
+  assert.equal(ticketActions({ ...ticket, isArchived: true }, ctx({ ticket: ["perform", "join"] })).primary, null);
+  assert.equal(ticketActions(ticket, ctx({ ticket: ["perform", "join"] }, { isEndUser: true })).primary, null);
+});

@@ -73,6 +73,12 @@ services:
     depends_on:
       - backend
 
+networks:
+  default:
+    driver_opts:
+      # Match the development VPN MTU so forwarded TLS traffic is not lost.
+      com.docker.network.driver.mtu: "1420"
+
 volumes:
   hd_data:
     external: true

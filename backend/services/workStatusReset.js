@@ -96,12 +96,23 @@ const runWorkStatusReset = async () => {
   // Штатных ночь возвращает в «не на работе» — это правда про 2:30; «не указан»
   // остаётся тем, чьё время не ведётся по графику (свободные и исключённые).
   const settled = [...LONG_LIVED_WORK_STATUSES, "unset", "offshift"];
+  // Ручные offshift/unset тоже освобождаем: иначе auto: false навсегда
+  // запрещает автоматике по графику вернуть человека на работу.
+  const resetFilter = {
+    $or: [
+      { "workStatus.code": { $nin: settled } },
+      {
+        "workStatus.code": { $in: ["unset", "offshift"] },
+        "workStatus.auto": false,
+      },
+    ],
+  };
 
   const resetScheduled = await User.updateMany(
     {
       ...staffFilter,
       workTimeMode: { $nin: ["free", "none"] },
-      "workStatus.code": { $nin: settled },
+      ...resetFilter,
     },
     {
       $set: {
@@ -114,7 +125,7 @@ const runWorkStatusReset = async () => {
     {
       ...staffFilter,
       workTimeMode: { $in: ["free", "none"] },
-      "workStatus.code": { $nin: settled },
+      ...resetFilter,
     },
     {
       $set: {

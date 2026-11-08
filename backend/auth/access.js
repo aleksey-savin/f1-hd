@@ -419,6 +419,11 @@ const GROUPS = [
         audience: "staff",
         hint: "Раздел мониторинга: записи, адреса, состояние, отчёт «Сети».",
       },
+      { id: "proxmox.read", label: "Видеть Proxmox", audience: "staff" },
+      { id: "proxmox.manage", label: "Управлять Proxmox", audience: "staff" },
+      { id: "proxmox.power", label: "Управлять питанием ВМ Proxmox", audience: "staff" },
+      { id: "proxmox.backup", label: "Запускать резервное копирование Proxmox", audience: "staff" },
+      { id: "proxmox.discover", label: "Запускать обнаружение узлов Proxmox", audience: "staff" },
       { id: "mikrotik.manage", label: "Изменять устройства Mikrotik", audience: "staff" },
       {
         id: "mikrotik.manageConfigs",

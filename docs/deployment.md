@@ -173,6 +173,62 @@ location / {
 }
 ```
 
+`TRUST_PROXY_HOPS` is validated as a nonnegative integer at auth config load;
+invalid, fractional, negative and empty values stop startup. An unset value
+remains `0` (direct backend); `.env.example` supplies `1` for built-in nginx
+only. Preserve the operator's configured value: use `2` for the chain above.
+The backend must only be reachable through that exact-length trusted chain.
+A shorter bypass path with too many trusted hops lets callers select an IP;
+additional hops with too few trusted hops collapse clients onto a proxy IP.
+
+Express `req.ip` is the canonical auth identity. The Node auth adapter and
+application login/code wrappers replace `x-hd-auth-client-ip` with that value;
+better-auth 1.6.26 reads only this internal header. Canonical identity and new
+session audit records retain the exact trusted address. Abuse counters group
+native IPv6 addresses by **/64** (`ipv6Subnet: 64` in the library); the session
+create hook restores the exact internal-header address for audit data.
+IPv4-mapped IPv6 shares the corresponding IPv4 abuse key. Caller-supplied
+internal headers, `X-Real-IP` and extra leftmost forwarding entries do not
+override it. nginx needs no
+change. Do not expose the better-auth handler through another HTTP adapter
+without the same overwrite.
+
+Login/code pair budgets allow 10 failed checks per 15 minutes, normalized by
+trimmed lower-case account and abuse IP (native IPv6 /64); code verification
+and password reset by code share their pair counter. `/api/login-code` issues at most 3
+codes per normalized account per hour, across IPs, retaining its generic reply.
+The existing broad budget of 50 requests/hour/abuse IP covers login and
+mail-code routes and also protects raw reset/magic verification from token rotation.
+Password failures add an account cooldown (1s doubling to at most 30s); retries
+inside that interval return the existing generic credential error with 429 and
+`Retry-After` without moving its deadline. Password verification still runs:
+a correct password clears cooldown and proceeds through existing ban/TOTP
+checks, subject to independent pair/IP budgets. No active sessions are revoked.
+
+Second-factor attempts share 30 requests/10 minutes using authenticated
+identity. A live configured signed session takes precedence, keyed by user ID
+and session ID, including setup/enable/disable. Only challenge-capable
+verification paths may fall back to the configured signed two-factor cookie,
+with a live persisted verification and an existing user. Invalid, expired,
+orphaned or unrelated cookies fall back to abuse IP (native IPv6 /64), rather
+than creating arbitrary buckets. Changing IP does not reset an authenticated
+factor budget; independent NAT sessions/challenges have separate budgets. The
+plugin's own 5-attempt challenge protection remains.
+
+Raw reset allows 10 failures/15 minutes per abuse IP + reset token. Raw magic
+verification counts **all** requests, up to 5/minute per abuse IP + token,
+including success and error redirects (302). Redirects do not release these
+reservations; the fixed window expires after 60 seconds. The shared broad
+50/hour/abuse-IP budget also prevents bypass by rotating tokens. Original
+responses, Location, cookies and callback/token-expiry behaviour are retained;
+reset-password reservation-release rules remain separate.
+These raw paths use application counters instead of better-auth's shared
+per-IP plugin buckets. The public auth allow-list is unchanged. Auth policy
+state is process-local, expires in fixed windows (idle cooldown after 15
+minutes), and is capped at 10,000 entries with oldest-entry eviction; restarts
+or eviction clear those counters. Multiple backend processes need a shared
+bounded store before treating these as installation-wide limits.
+
 After TLS is on, set `APP_PUBLIC_URL=https://…` and run `./deploy.sh` again.
 
 ### Telegram
@@ -284,6 +340,78 @@ Any script can still be run by hand inside the container:
 `docker compose run --rm backend node scripts/<name>.js [--apply]`, then
 `./deploy.sh migrate mark <id>`.
 
+### W5a browser-session cutover
+
+This is an incremental update of an installation already using better-auth;
+do not repeat the historical JWT/user/role migrations. Keep
+`BETTER_AUTH_SECRET`, `APP_PUBLIC_URL`, cookie prefix/name/attributes, user IDs,
+passwords, TOTP data and integration credentials unchanged. Changing the secret
+would invalidate clients and make existing encrypted TOTP data unreadable.
+
+The migration entry `2026-11-07-cutoverStaffSessions` runs
+`scripts/cutoverStaffSessions.js --apply`. In the **candidate** backend image,
+`node scripts/cutoverStaffSessions.js` without arguments is a read-only dry run:
+it prints counts for staff sessions, staff impersonations, preserved client
+sessions and impersonation codes, with no tokens or user details. An unrecognised
+argument fails. Record these counts in the release record; counts read while
+writers are active are estimates until the maintenance window.
+
+Use the normal deployment backup and stopped-writer migration lifecycle. With
+backend and tg-service stopped and MongoDB running, the apply step saves a
+majority-acknowledged `authCutovers` snapshot before deleting its selected IDs.
+Staff means **exactly** `isEndUser === false`; client-manager/client-admin roles
+and missing/null `isEndUser` remain client-scoped. Staff-owned sessions,
+staff-to-client impersonation sessions and affected unclaimed impersonation
+codes are revoked. Independent client cookies and saved bot links survive.
+Retries use the saved native Mongo IDs, so a staff login issued after the
+cutover is not selected by a retry. Retain `authCutovers` and the migration
+ledger. Staff sign in again after the update.
+
+Before release, verify an already-open old client tab can read, create a ticket,
+comment, upload and receive Pulse changes through the candidate backend. Open
+the new frontend in a second tab and verify both tabs. Existing cookies carry
+identity; compatibility `cookie.<session-id>` values are public cache markers,
+never credentials. Keep shared legacy keys available for old tabs. Their
+existing localStorage expiry timer still bounds an old loaded tab; do not
+invent a later deadline, force an auth-migration reload, or bypass intentional
+logout. Test the existing outage-recovery reload separately, and confirm renewed
+Set-Cookie headers actually reach the browser. Bearer-only browser requests
+must fail; dedicated MCP/company/bot credentials keep their own transports.
+
+For Telegram, check an existing client binding without `linkedAt`: photo plus
+caption creates a ticket and its notification goes to the same saved chat.
+Browser revocation must not require re-pairing. A service token without a saved
+actor must not create a ticket, and browser cookies must not supply that actor.
+Never start a second polling process with a live bot token. A local fake
+Telegram transport verifies application routing/outbox behaviour, **not real
+Telegram API delivery**.
+
+The opt-in synthetic rehearsal is in
+`backend/auth/w5aContinuity.integration.test.js`; its helper/browser/bot sources
+are under Docker-excluded `backend/auth/__tests__/`. From `backend`, after the
+Task2/4/5 review barriers and scoped Docker/HTTP/Chromium permission:
+
+```sh
+ulimit -c 0
+W5A_REHEARSAL=1 W5A_BROWSER=1 node --test auth/w5aContinuity.integration.test.js
+```
+
+It requires the read-only `/tmp/hd-w5a-baseline` source snapshot, existing
+backend/frontend/tg-service dependencies, a locally installed Playwright
+Chromium, and the existing `mongo:8` image. It never installs or pulls. It
+creates a uniquely named `codex-w5a-mongo-*` disposable container with tmpfs
+data and a random loopback port, synthetic Mongo records, temporary uploads and
+bot SQLite, and fresh browser contexts. It removes only its own fixture objects.
+Ordinary test runs skip it. Without `W5A_BROWSER=1`, browser coverage is skipped
+and must not be reported as passed. The fixture mounts real route/controller
+components rather than starting app.js or deployment nginx; the deployment
+stack and proxy chain still require the final container gate and smoke checks.
+
+Preparation is not a release gate result: record actual commands, counts,
+failures and skipped coverage after execution. In particular, the Node26 host
+rehearsal does not replace the final Node24 checks. Run the complete `check.sh`
+gate only after all review barriers are released.
+
 ## Seeds
 
 Catalogue seeds are the starting data of the inventory catalogue (attribute
@@ -394,6 +522,13 @@ Rehearse steps 4–5 on the new host before the real switch: it is empty, and
 - Data: `./deploy.sh restore backups/<timestamp>` with the backup taken right
   before the migrations. A data rollback always goes together with a code
   rollback.
+
+For W5a, roll application images back with the same secret and cookie identity.
+Do **not** restore the database just to undo the staff-session cutover: deleted
+staff/impersonation sessions remain revoked, while client activity and saved
+Telegram bindings must remain intact. Do not remove the cutover snapshot or
+migration ledger to reselect sessions. A full disaster restore is a separate,
+deliberate data rollback; it is not the W5a runtime rollback procedure.
 
 ### Mikrotik changes proposed by AI agents
 

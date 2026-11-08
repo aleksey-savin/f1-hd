@@ -33,7 +33,7 @@ const { resolveTimezone } = require("@/utils/datetime");
  *
  * СЕМАНТИКА ПЕРЕНЕСЕНА 1:1 (см. docs/ux-ui-guide.md и память проекта:
  * переработки во всех отчётах обязаны считаться одинаково). Осознанных
- * отступлений ровно два, оба — исправления, а не «улучшения расчёта»:
+ * отступления описаны ниже:
  *
  *  1. ТАЙМЗОНА. Оригинал резолвил день и часы графика через new Date(...)
  *     .getHours()/.getDay(), то есть в поясе браузера оператора. На сервере
@@ -52,7 +52,11 @@ const { resolveTimezone } = require("@/utils/datetime");
  *     с пустым временем при isWorking) считается рабочим целиком.
  *     В dev-базе таких дней нет, на прод — проверить перед выкаткой.
  *
- * Всё остальное сохранено дословно, включая странности: `withinPlan` выключает
+ *  3. ПРОИЗВОДСТВЕННЫЙ КАЛЕНДАРЬ. При включённом календаре праздники и
+ *     выходные целиком относятся к нерабочему времени, даже при графике 24/7.
+ *     Рабочий перенос использует окно первого рабочего дня графика.
+ *
+ * Остальные правила сохранены: `withinPlan` выключает
  * и нарезку по графику, и переработку; признак alwaysWithinPlan берётся у
  * категории ПЕРВОЙ заявки работы; у почасового тарифа доп. оплаты не бывает;
  * packagesNonWorkingCalcMethod/Coefficient в расчёте не участвуют.
@@ -84,15 +88,33 @@ const isZeroLength = (work) =>
   !hasBothMarks(work) ||
   new Date(work.startedAt).getTime() === new Date(work.finishedAt).getTime();
 
+const calendarDayOff = (calendar, dateKey) =>
+  calendar?.isActive && ["holiday", "weekend"].includes(calendar.classify(dateKey).kind);
+
+// Загружаем все годы работ, включая предыдущие сутки для ночной смены.
+const loadBillingCalendar = async (works, zone, preferences) => {
+  const keys = works.flatMap((work) => [work.startedAt, work.finishedAt])
+    .filter((value) => value && dayjs(value).isValid())
+    .map((value) => dayjs(value).tz(zone).format("YYYY-MM-DD")).sort();
+  if (!keys.length) return null;
+  const { buildCalendarContext } = require("@/services/productionCalendar");
+  return buildCalendarContext(shiftDayKey(keys[0], -1), keys[keys.length - 1], preferences);
+};
+
 /**
- * План дня по недельному графику: окно в минутах от полуночи дня.
+ * План дня по недельному графику и производственному календарю: окно в минутах от полуночи дня.
  * null — день нерабочий или окна нет (в оригинале: `daySchedule && daySchedule.isWorking`).
  *
  * Круглосуточный день и день с пустым временем при isWorking считаются рабочими
  * целиком — осознанное отступление 2 из шапки файла.
  */
-const schedulePlanner = (schedule) => (dateKey) => {
-  const day = schedule?.[dayNameOfKey(dateKey)];
+const schedulePlanner = (schedule, calendar) => (dateKey) => {
+  if (calendarDayOff(calendar, dateKey)) return null;
+  let day = schedule?.[dayNameOfKey(dateKey)];
+  const classified = calendar?.isActive ? calendar.classify(dateKey) : null;
+  if (classified?.kind === "work" && classified.source !== "weekday" && !day?.isWorking) {
+    day = DAYS_OF_WEEK.map((name) => schedule?.[name]).find((value) => value?.isWorking);
+  }
   if (!day?.isWorking) {
     return null;
   }
@@ -101,15 +123,20 @@ const schedulePlanner = (schedule) => (dateKey) => {
   }
   // Нулевое окно (в проде есть тариф со всеми днями 00:00–00:00) даёт null —
   // численно это то же самое, чем было окно нулевой длины.
-  return windowMinutes(day.start, day.end);
+  const window = windowMinutes(day.start, day.end);
+  // Хвост рабочей смены не делает праздничные/выходные сутки рабочими.
+  if (window && window.end > MINUTES_PER_DAY && calendarDayOff(calendar, shiftDayKey(dateKey, 1))) {
+    return { ...window, end: MINUTES_PER_DAY };
+  }
+  return window;
 };
 
 /**
  * Окно графика на конкретный календарный день, инстантами.
  * Окно через полночь заканчивается в следующих сутках.
  */
-const dayWindow = (schedule, dateKey, zone) => {
-  const plan = schedulePlanner(schedule)(dateKey);
+const dayWindow = (schedule, dateKey, zone, calendar) => {
+  const plan = schedulePlanner(schedule, calendar)(dateKey);
   if (!plan) {
     return null;
   }
@@ -162,7 +189,7 @@ const eachDay = function* (work, zone) {
  * суткам рвала непрерывный час на два: 23:40–00:40 давали 30 + 45 = 75 минут
  * к тарификации при 60 фактических.
  */
-const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone) => {
+const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone, calendar) => {
   if (isZeroLength(work) || work.withinPlan) {
     return { actualOvertime: 0, roundUpOvertime: 0 };
   }
@@ -173,7 +200,7 @@ const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone) => {
   const started = dayjs(work.startedAt).tz(zone);
   const finished = dayjs(work.finishedAt).tz(zone);
   const windows = buildWindows(
-    schedulePlanner(schedule),
+    schedulePlanner(schedule, calendar),
     shiftDayKey(started.format("YYYY-MM-DD"), -1),
     finished.format("YYYY-MM-DD"),
     zone,
@@ -192,7 +219,7 @@ const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone) => {
 };
 
 /** Порт calculateOvertime: сумма переработки набора, в минутах. */
-const calcOvertime = (schedule, works, tariffingPeriod, zone) => {
+const calcOvertime = (schedule, works, tariffingPeriod, zone, calendar) => {
   let overtime = 0;
   const overtimeWorks = [];
 
@@ -205,6 +232,7 @@ const calcOvertime = (schedule, works, tariffingPeriod, zone) => {
       work,
       tariffingPeriod,
       zone,
+      calendar,
     );
     overtime += roundUpOvertime / MS_PER_MINUTE;
     if (roundUpOvertime > 0 && !work.withinPlan) {
@@ -224,7 +252,7 @@ const calcOvertime = (schedule, works, tariffingPeriod, zone) => {
  * длительность), в минутах; roundedWorktime округляет каждую работу вверх до
  * периода тарификации.
  */
-const calcWorkTime = (schedule, works, tariffingPeriod, zone) => {
+const calcWorkTime = (schedule, works, tariffingPeriod, zone, calendar) => {
   const periodMs = tariffingPeriod * MS_PER_MINUTE;
   let worktime = 0;
   let roundedWorktime = 0;
@@ -243,7 +271,7 @@ const calcWorkTime = (schedule, works, tariffingPeriod, zone) => {
       const started = dayjs(work.startedAt).tz(zone);
       const finished = dayjs(work.finishedAt).tz(zone);
       const windows = buildWindows(
-        schedulePlanner(schedule),
+        schedulePlanner(schedule, calendar),
         shiftDayKey(started.format("YYYY-MM-DD"), -1),
         finished.format("YYYY-MM-DD"),
         zone,
@@ -391,14 +419,14 @@ const resolveSchedule = (plan, company) =>
  * работы одним списком с фасетом, и обе группы ей нужны отсюда, а не из
  * повторного счёта на клиенте.
  */
-const priceWorks = ({ plan, company, works, zone, categoryById }) => {
+const priceWorks = ({ plan, company, works, zone, categoryById, calendar }) => {
   const tariff = normalizePlan(plan);
   const schedule = resolveSchedule(plan, company);
 
   const workingTimeMinutes =
     tariff.type === "hourly"
       ? overallRoundedWorktimeMs(works, tariff.tariffingPeriod) / MS_PER_MINUTE
-      : calcWorkTime(schedule, works, tariff.tariffingPeriod, zone)
+      : calcWorkTime(schedule, works, tariff.tariffingPeriod, zone, calendar)
           .roundedWorktime;
 
   let price = 0;
@@ -434,6 +462,7 @@ const priceWorks = ({ plan, company, works, zone, categoryById }) => {
           billableForOvertime,
           tariff.tariffingPeriod,
           zone,
+          calendar,
         );
 
   const additionalPrice =
@@ -459,7 +488,7 @@ const priceWorks = ({ plan, company, works, zone, categoryById }) => {
                 periodMs,
               ) / MS_PER_MINUTE,
           }))
-      : calcWorkTime(schedule, works, tariff.tariffingPeriod, zone)
+      : calcWorkTime(schedule, works, tariff.tariffingPeriod, zone, calendar)
           .worktimeWorks;
 
   const rate = tariff.pricePerHourNonWorking || 0;
@@ -554,6 +583,7 @@ const buildPreview = async ({ from = null, to = null, companyIds = null } = {}) 
     financeStatuses: [null, "preview"],
   });
 
+  const calendar = await loadBillingCalendar(works, orgZone, preferences);
   const worksByCompany = new Map();
   for (const work of works) {
     const key = String(work.company);
@@ -639,6 +669,7 @@ const buildPreview = async ({ from = null, to = null, companyIds = null } = {}) 
           plan,
           company,
           works: planWorks,
+          calendar,
           zone,
           categoryById,
         });
@@ -702,6 +733,7 @@ module.exports = {
   isZeroLength,
   dayWindow,
   schedulePlanner,
+  loadBillingCalendar,
   eachDay,
   calcSingleWorkOvertime,
   calcOvertime,

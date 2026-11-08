@@ -76,6 +76,8 @@ const MIGRATIONS = [
   // IP, MAC и ОС устройства — из полей карточки в атрибуты уровня устройства;
   // создаёт системные атрибуты и связки с типами. См. moveDeviceTechToAttributes.js
   { id: "2026-10-29-moveDeviceTechToAttributes", script: "moveDeviceTechToAttributes.js", apply: true },
+  // Снимок ID записывается один раз: повторы сохраняют созданные позднее сеансы сотрудников.
+  { id: "2026-11-07-cutoverStaffSessions", script: "cutoverStaffSessions.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

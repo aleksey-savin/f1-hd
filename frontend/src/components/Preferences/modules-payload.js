@@ -13,6 +13,7 @@ export const MODULE_KEYS = [
   "finances",
   "inventory",
   "mikrotik",
+  "proxmox",
 ];
 
 /** Свитчи из настроек: отсутствие ключа — «выключен». */

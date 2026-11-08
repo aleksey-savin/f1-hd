@@ -18,6 +18,7 @@ import {
   RiMapPinLine,
   RiPriceTag3Line,
   RiPulseLine,
+  RiRouterLine,
   RiServerLine,
   RiShieldKeyholeLine,
   RiSettings3Line,
@@ -27,7 +28,8 @@ import {
 // Конфиг главной навигации — единый источник для десктопного бара, его
 // дропдаунов и мобильного бургер-Sheet. Структура — по согласованному макету
 // реорганизации меню (2026-07): «Компании» и «Пользователи» видны всем ролям с
-// доступом и не прыгают в «Администрирование», «Мониторинг» — прямая ссылка,
+// доступом и не прыгают в «Администрирование», MikroTik и Proxmox — внутри
+// «Управления» (раздел сохраняется и с одним доступным модулем),
 // «Архив» (заявки + работы, /archive) — последний пункт, «Настройки системы»
 // живут в меню аватара. Раздел виден, если виден хотя бы один его пункт.
 // У клиента меню короче: «Главная» (она же его список заявок), «Устройства»,
@@ -325,6 +327,14 @@ export function buildMenu({
   ].filter((group) => group.items.length > 0);
 
   const administration = [...accessGroup, ...adminGroups];
+  const managementItems = [
+    mikrotik &&
+      canReadMikrotik &&
+      link("mikrotik", "MikroTik", RiRouterLine, "/devices/mikrotik"),
+    modules?.proxmox?.isActive &&
+      can({ proxmox: ["read"] }) &&
+      link("proxmox", "Proxmox", RiServerLine, "/devices/proxmox"),
+  ].filter(Boolean);
 
   return [
     link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
@@ -384,9 +394,12 @@ export function buildMenu({
       icon: RiDraftLine,
       groups: reportGroups,
     },
-    mikrotik &&
-      canReadMikrotik &&
-      link("monitoring", "Мониторинг", RiPulseLine, "/devices/mikrotik"),
+    managementItems.length > 0 && {
+      key: "management",
+      label: "Управление",
+      icon: RiPulseLine,
+      groups: [{ items: managementItems }],
+    },
     administration.length > 0 && {
       key: "admin",
       // Без короткой подписи намеренно: «Админ» читалось как роль, а не раздел

@@ -3,7 +3,7 @@
  * шторки предпросмотра из списка.
  *
  * Главное действие ровно одно, и его выбирает **состояние заявки**, а не
- * порядок в разметке: «Новая» → обработать, «Не в работе» → принять, «В работе»
+ * порядок в разметке: «Новая» / «Не в работе» → принять, «В работе»
  * у ответственного → закрыть, у остальных → присоединиться, «Закрыта» → вернуть.
  *
  * «Своя» заявка — та, где человек в ответственных: работа с ней (закрыть,
@@ -136,10 +136,8 @@ export const ticketActions = (
   const closed = state === "Закрыта" || state === "Выполнена";
 
   let primary = null;
-  if (state === "Новая" && (canManageTickets || isAdmin)) {
-    primary = { key: "process", label: "Обработать" };
-  } else if (
-    state === "Не в работе" &&
+  if (
+    (state === "Новая" || state === "Не в работе") &&
     canPerformTickets &&
     (mine || canJoin)
   ) {
@@ -148,6 +146,8 @@ export const ticketActions = (
     // `canPerformTickets` обязателен: все ручки принятия и присоединения стоят
     // за `ticket.perform`, и без него кнопка обещала бы то, что даст 403
     primary = { key: "takeToWork", label: "Принять в работу" };
+  } else if (state === "Новая" && (canManageTickets || isAdmin)) {
+    primary = { key: "process", label: "Обработать" };
   } else if (state === "В работе" && mine) {
     // Пока работ нет, «Закрыть» всё равно упрётся в запрет — предлагаем то,
     // чего не хватает, а не действие, которое не сработает. Держателю права
@@ -182,6 +182,10 @@ export const ticketActions = (
   // главное действие занято работами
   if (primary?.key === "addWork" && !worksMissing(ticket, { works, can })) {
     push({ key: "close", label: "Закрыть заявку", group: "work" });
+  }
+
+  if (state === "Новая" && primary?.key !== "process" && (canManageTickets || isAdmin)) {
+    push({ key: "process", label: "Обработать", group: "ticket" });
   }
 
   // Работа с заявкой — доступна ответственному, пока заявка живая

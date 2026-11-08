@@ -4,7 +4,6 @@ import { useShallow } from "zustand/react/shallow";
 
 import { useSheetOpen } from "@/components/app/FormOutlet";
 import useLiveRouteRevalidate from "@/hooks/use-live-route-revalidate";
-import { getLocalStorageData } from "../../util/auth";
 import useWorkStatusesStore from "../../store/work-statuses";
 
 import ViewUser from "../../components/User/View";
@@ -61,11 +60,6 @@ async function refusal(response, fallback) {
 }
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
-  if (!token) {
-    return redirect("/auth");
-  }
-
   const userResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/${params.id}`,
       );

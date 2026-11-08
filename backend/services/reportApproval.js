@@ -27,6 +27,7 @@ const {
   calcWorkTime,
   normalizePlan,
   priceWorks,
+  loadBillingCalendar,
   resolveSchedule,
 } = require("@/services/servicePlanBilling");
 const { buildSnapshot } = require("@/services/reportSnapshot");
@@ -207,7 +208,7 @@ const pushEvent = (report, event) => {
  * Остаток от округления забирает последняя часть, чтобы Σ частей была равна
  * итогу отчёта до копейки.
  */
-const buildParts = async ({ works, plan, company, zone, categoryById, priced }) => {
+const buildParts = async ({ works, plan, company, zone, categoryById, priced, calendar }) => {
   const subdivisions = await Subdivision.find({ company: company._id })
     .select("name parent company manager")
     .lean();
@@ -245,7 +246,7 @@ const buildParts = async ({ works, plan, company, zone, categoryById, priced }) 
                 MS_PER_MINUTE,
             0,
           )
-        : calcWorkTime(schedule, bucketWorks, tariff.tariffingPeriod, zone)
+        : calcWorkTime(schedule, bucketWorks, tariff.tariffingPeriod, zone, calendar)
             .roundedWorktime;
 
     const billableForOvertime = bucketWorks.filter((work) => {
@@ -265,6 +266,7 @@ const buildParts = async ({ works, plan, company, zone, categoryById, priced }) 
             billableForOvertime,
             tariff.tariffingPeriod,
             zone,
+            calendar,
           );
 
     minutesTotal += minutes;
@@ -590,7 +592,9 @@ const createReport = async ({
     context;
   const attachment = context.attachment;
 
+  const calendar = await loadBillingCalendar(works, zone, preferences);
   const priced = priceWorks({
+    calendar,
     plan: servicePlan,
     company,
     works,
@@ -629,6 +633,7 @@ const createReport = async ({
           zone,
           categoryById,
           priced,
+          calendar,
         })
       : [],
     attempt: 1,
@@ -1000,7 +1005,9 @@ const resubmit = async ({ report, workIds, authedUser }) => {
   const { company, servicePlan, preferences, works, zone, categoryById } =
     context;
 
+  const calendar = await loadBillingCalendar(works, zone, preferences);
   const priced = priceWorks({
+    calendar,
     plan: servicePlan,
     company,
     works,
@@ -1044,6 +1051,7 @@ const resubmit = async ({ report, workIds, authedUser }) => {
       zone,
       categoryById,
       priced,
+      calendar,
     });
     // Подписи, которые уже стоят, сохраняются: повторно беспокоить
     // руководителя, который свою часть подписал, нечестно

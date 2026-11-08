@@ -139,6 +139,12 @@ services:
         condition: service_healthy
     logging: *logging
 
+networks:
+  default:
+    driver_opts:
+      # Keep forwarded TLS traffic within the VPN MTU.
+      com.docker.network.driver.mtu: "1420"
+
 volumes:
   # Data volumes are external: deploy.sh creates them once, and `docker compose
   # down -v` can never take them away.

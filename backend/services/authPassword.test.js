@@ -1,0 +1,32 @@
+require('module-alias/register');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const Module = require('node:module');
+const { fixture, PASSWORD } = require('../auth/__tests__/browserSession.fixture.cjs');
+let auth;
+const id = require.resolve('../auth/bootstrap');
+const stub = new Module(id);
+Object.assign(stub, { filename: id, loaded: true, exports: { getAuth: () => auth } });
+require.cache[id] = stub;
+const { verifyUserPassword } = require('./authPassword');
+
+test('unknown user and missing credential use installed verifier with a cached dummy hash, without sessions', async (t) => {
+  const f = await fixture();
+  auth = f.auth;
+  const actualVerify = f.ctx.password.verify;
+  const actualHash = f.ctx.password.hash;
+  const calls = [];
+  let hashes = 0;
+  t.mock.method(f.ctx.password, 'hash', async (password) => { hashes++; return actualHash(password); });
+  t.mock.method(f.ctx.password, 'verify', async (args) => { calls.push(args); return actualVerify(args); });
+  assert.equal(await verifyUserPassword(null, PASSWORD), false);
+  assert.equal(await verifyUserPassword(undefined, 'wrong-password'), false);
+  assert.equal(await verifyUserPassword('missing-credential', PASSWORD), false);
+  assert.equal(calls.length, 3);
+  assert.equal(hashes, 1);
+  assert.equal(calls[0].hash, calls[2].hash);
+  assert.equal(calls[0].password, PASSWORD);
+  assert.equal(f.data.authSessions.length, 0);
+  assert.equal(await verifyUserPassword(f.user.id, PASSWORD), true);
+  assert.equal(await verifyUserPassword(f.user.id, 'wrong-password'), false);
+});

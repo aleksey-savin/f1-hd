@@ -79,3 +79,5 @@ module.exports.aiFeatureIsActive = (feature) => async (req, res, next) => {
     next(error);
   }
 };
+
+module.exports.proxmoxIsActive = moduleGate("modules.proxmox.isActive", 'Модуль "Proxmox" отключен.');

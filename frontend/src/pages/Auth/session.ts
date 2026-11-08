@@ -1,7 +1,12 @@
-// Сеанс в localStorage: одно место, которое его заводит и одно, которое чистит.
+// Совместимые метаданные в localStorage; сам сеанс живёт только в cookie.
 // Раньше запись жила в экшене страницы входа, а очистка — в экшене выхода, и
 // списки ключей успели разойтись.
 
+import {
+  acknowledgeBrowserSessionStorage,
+  clearBrowserSession,
+  storeCompatibilitySession,
+} from "@/util/browser-session.js";
 import { clearAllDrafts } from "@/components/Ticket/ticket-draft";
 
 export const API = import.meta.env.VITE_API_ADDRESS;
@@ -51,16 +56,8 @@ const SESSION_KEYS = [
  * из localStorage форматтеры дат (`orgTimezone`) и виджеты контактов ещё до
  * того, как отработает загрузчик корня.
  */
-export async function storeSession(data: AuthResponse, response?: Response) {
-  // Сеанс живёт на сервере, и браузер уже получил его cookie. Токен в
-  // localStorage — переходный транспорт для экранов, ещё не переехавших на
-  // api()-клиент: они шлют его заголовком, плагин `bearer` принимает.
-  // Приоритет у заголовка `set-auth-token`; поле `token` тела — то же
-  // значение, оставлено ради совместимости и уйдёт вместе с bearer.
-  const token = response?.headers.get("set-auth-token") || data.token;
-  localStorage.setItem("token", token);
-  localStorage.setItem("expiryDate", new Date(data.expiryDate).toISOString());
-  localStorage.setItem("userId", String(data.userId));
+export async function storeSession(data: AuthResponse, _response?: Response) {
+  storeCompatibilitySession(data);
 
   try {
     const response = await fetch(`${API}/api/preferences-initial`);
@@ -87,7 +84,9 @@ export async function storeSession(data: AuthResponse, response?: Response) {
 }
 
 export function clearSession() {
+  clearBrowserSession();
   SESSION_KEYS.forEach((key) => localStorage.removeItem(key));
+  acknowledgeBrowserSessionStorage();
   // Черновики заявок лежат по ключу на человека, а компьютер бывает общим:
   // чужой набросок после выхода оставаться не должен
   clearAllDrafts();
@@ -135,7 +134,11 @@ export async function authFailure(
     return inlineError(response, fallback);
   }
 
-  console.error("auth: сервер ответил", response.status, await responseText(response));
+  console.error(
+    "auth: сервер ответил",
+    response.status,
+    await responseText(response),
+  );
 
   return {
     message:
@@ -196,9 +199,7 @@ export async function signIn(
     return { status: "password-reset" };
   }
 
-  // Ответ передаём целиком: токен сеанса приезжает заголовком
-  // `set-auth-token`, а поле `token` тела оставлено для совместимости.
-  await storeSession(payload, response);
+  await storeSession(payload);
   return { status: "session" };
 }
 

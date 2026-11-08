@@ -3,6 +3,10 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const net = require("node:net");
 const express = require("express");
+const { browserOrigin } = require("./browserOrigin");
+const { authBodyLimit, getAuthBodyRequest } = require("./authBodyLimit");
+const ORIGIN = "https://hd.example.com";
+const originGuard = browserOrigin({ publicUrl: ORIGIN });
 
 const {
   authPathAllowList,
@@ -36,7 +40,8 @@ const harness = () => {
   const app = express();
   // Как в app.js: список в том же маршруте, прямо перед обработчиком
   // better-auth. Заглушка читает тело сама, сырым потоком, — как better-auth.
-  app.all("/api/auth/*splat", authPathAllowList, (req, res) => {
+  app.all("/api/auth/*splat", authPathAllowList, originGuard, authBodyLimit(), (originalReq, res) => {
+    const req = getAuthBodyRequest(originalReq, res);
     const chunks = [];
     req.on("data", (chunk) => chunks.push(chunk));
     req.on("end", () => {
@@ -60,7 +65,7 @@ const request = async (app, path, init) => {
   try {
     const response = await fetch(
       `http://127.0.0.1:${server.address().port}${path}`,
-      init,
+      { ...init, headers: { origin: ORIGIN, ...init?.headers } },
     );
     const text = await response.text();
     return { status: response.status, body: text ? JSON.parse(text) : null };
@@ -314,13 +319,15 @@ const BAD_REQUEST = {
 
 /** Как в instance.mjs, но с заглушкой: better-auth — ESM, грузим через import(). */
 const realHandlerHarness = async () => {
-  const { toNodeHandler } = await import("better-auth/node");
+  const { toNodeHandler } = await import("../auth/instance.mjs");
   const seen = [];
   const app = express();
   app.all(
     "/api/auth/*splat",
     authPathAllowList,
-    toNodeHandler({
+    originGuard,
+    authBodyLimit(),
+    (req, res) => toNodeHandler({
       handler: async (request) => {
         const url = new URL(request.url);
         seen.push({
@@ -331,7 +338,7 @@ const realHandlerHarness = async () => {
         });
         return new Response(url.pathname);
       },
-    }),
+    })(getAuthBodyRequest(req, res), res),
   );
   app.use((req, res) => res.status(404).json({ fallthrough: true }));
   return { app, seen };
@@ -352,7 +359,7 @@ const withServer = async (app, run) => {
 const rawRequest = (port, lines) =>
   new Promise((resolve, reject) => {
     const socket = net.connect(port, "127.0.0.1", () =>
-      socket.write([...lines, "Connection: close", "", ""].join("\r\n")),
+      socket.write([...lines, `Origin: ${ORIGIN}`, "Connection: close", "", ""].join("\r\n")),
     );
     let data = "";
     socket.setEncoding("utf8");

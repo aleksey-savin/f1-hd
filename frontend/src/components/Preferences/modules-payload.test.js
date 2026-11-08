@@ -23,6 +23,7 @@ test("отсутствующие в настройках модули читаю
     finances: false,
     inventory: false,
     mikrotik: false,
+    proxmox: false,
   });
 });
 
