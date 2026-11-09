@@ -315,6 +315,37 @@ const runNext = async (staff, now, absences = []) => {
     })], new Date("2026-07-27T21:05:00.000Z")),
     null);
 
+  console.log("\nМесто работы внутри смены и ручной выбор до ночного сброса");
+  const mixedWeek = { ...WEEK, Monday: { ...WEEK.Monday, end: "19:00", intervals: [
+    { start: "09:00", end: "11:00", place: "remote" },
+    { start: "11:00", end: "19:00", place: "office" },
+  ] } };
+  const mixedPerson = (over = {}) => person({
+    workSchedules: [{ effectiveFrom: null, schedule: mixedWeek, followProductionCalendar: false }],
+    workStatus: { code: "offshift", note: "", updatedAt: at("02:30"), auto: true },
+    ...over,
+  });
+  check("09:00 — удалёнка по первому интервалу", await run([mixedPerson()], at("06:00")), "remote");
+  check("11:00 — офис по второму интервалу", await run([mixedPerson({ workStatus: { code: "remote", auto: true } })], at("08:00")), "office");
+  check("19:00 — автоматический статус гаснет", await run([mixedPerson({ workStatus: { code: "office", auto: true } })], at("16:00")), "offshift");
+  for (const [label, now] of [["11:00", at("08:00")], ["19:05", at("16:05")], ["00:30", new Date("2026-07-27T21:30:00Z")]]) {
+    check(`${label} — ручная удалёнка сохраняется`, await run([mixedPerson({ workStatus: { code: "remote", note: "", auto: false, updatedAt: at("07:30") } })], now), null);
+  }
+  check("после ночного сброса снова действует расписание", await run([mixedPerson()], at("06:05")), "remote");
+  const nightMixed = nightPerson({
+    workSchedules: [{ effectiveFrom: null, followProductionCalendar: false, schedule: {
+      ...NIGHT_WEEK,
+      Monday: { ...NIGHT_WEEK.Monday, intervals: [
+        { start: "22:00", end: "01:00", place: "office" },
+        { start: "01:00", end: "06:00", place: "remote" },
+      ] },
+    } }],
+    workStatus: { code: "office", auto: true, updatedAt: at("19:00") },
+  });
+  check("01:00 — удалёнка по хвосту вчерашней смены", await run([nightMixed], new Date("2026-07-27T22:00:00Z")), "remote");
+  check("remoteOnly не допускает офис из интервала", await run([mixedPerson({ remoteOnly: true })], at("08:00")), "remote");
+  check("подтверждённый отпуск имеет приоритет над интервалами", await run([mixedPerson()], at("08:00"), [absence("vacation")]), "vacation");
+
   console.log(failures === 0 ? "\nВсе проверки прошли" : `\nПРОВАЛЕНО: ${failures}`);
   process.exitCode = failures ? 1 : 0;
 })();

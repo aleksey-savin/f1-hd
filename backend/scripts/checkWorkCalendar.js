@@ -123,6 +123,22 @@ const run = async () => {
   check("май с командировкой: часов", hours(trip.normMinutes), 151);
   check("май с командировкой: дней отсутствия", trip.absenceDays, 0);
 
+  const mixedSchedule = weekSchedule({ start: "09:00", end: "19:00" });
+  mixedSchedule.Monday.intervals = [
+    { start: "09:00", end: "11:00", place: "remote" },
+    { start: "11:00", end: "19:00", place: "office" },
+  ];
+  const mixedPlanner = await plannerFor(staffUser({ workSchedule: mixedSchedule }), "2026-07-27", "2026-07-27");
+  check("место работы не меняет норму: 10 ч минус перерыв", mixedPlanner.dayPlan("2026-07-27").minutes, 540);
+  const shortSchedule = weekSchedule({ start: "09:00", end: "19:00" });
+  shortSchedule.Thursday.intervals = [
+    { start: "09:00", end: "15:00", place: "office" },
+    { start: "15:00", end: "19:00", place: "remote" },
+  ];
+  const intervalShortPlanner = await plannerFor(staffUser({ workSchedule: shortSchedule }), "2026-04-30", "2026-04-30");
+  check("сокращённый день обрезает последний интервал", intervalShortPlanner.dayPlan("2026-04-30").placeIntervals.at(-1).end, 18 * 60);
+  check("сокращённый день вычитает перерыв один раз", intervalShortPlanner.dayPlan("2026-04-30").minutes, 480);
+
   console.log(
     "\nТаймзона: инженер во Владивостоке при организации в Москве",
   );

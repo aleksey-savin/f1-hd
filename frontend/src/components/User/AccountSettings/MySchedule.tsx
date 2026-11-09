@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import AlertMessage from "@/components/app/AlertMessage";
-import ScheduleView from "@/components/app/ScheduleView";
+import WorkScheduleView from "../WorkScheduleView";
 import SettingRow from "@/components/app/SettingRow";
 import Spinner from "@/components/app/Spinner";
 import { Button } from "@/components/ui/button";
@@ -83,7 +83,7 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
 
       {data.hasPersonalSchedule && (
         <div className="px-4 pb-4">
-          <ScheduleView schedule={data.schedule} />
+          <WorkScheduleView schedule={data.schedule} remoteOnly={data.remoteOnly} />
         </div>
       )}
 

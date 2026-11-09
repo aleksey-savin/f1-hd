@@ -22,10 +22,12 @@ import {
 import { scrollToSection } from "@/components/app/AnchorRail";
 import { OverlayScrollContext } from "@/components/app/overlay-context";
 import { SubLabel } from "@/components/app/Panel";
-import ScheduleEditor, {
+import {
   emptyDay,
   SCHEDULE_DAYS,
 } from "@/components/app/ScheduleEditor";
+import WorkScheduleEditor from "./WorkScheduleEditor";
+import { dayIntervalsError, scheduleForSave } from "@/util/work-schedule";
 import { cn } from "@/lib/utils";
 import { verdictAllows } from "@/lib/password";
 import { api } from "@/lib/api";
@@ -394,6 +396,12 @@ const UserForm = ({ onCreated, successTo } = {}) => {
       return null;
     }
     if (key === "org" && !form.company) return "Выберите компанию";
+    if (key === "schedule" && workTimeMode === "scheduled") {
+      for (const [label, name] of SCHEDULE_DAYS) {
+        const error = dayIntervalsError(schedule.week[name]);
+        if (error) return `${label}: ${error}`;
+      }
+    }
     // Роль обязательна: без неё у человека нет прав, и «Далее»/«Сохранить»
     // не пускают дальше, пока не выбрана хотя бы одна
     if (key === "rights" && showRoles && form.roles.length === 0)
@@ -440,7 +448,7 @@ const UserForm = ({ onCreated, successTo } = {}) => {
           remoteOnly: schedule.remoteOnly,
           timezone: schedule.timezone || null,
           followProductionCalendar: schedule.followProductionCalendar,
-          schedule: schedule.week,
+          schedule: scheduleForSave(schedule.week),
           effectiveFrom: schedule.effectiveFrom || null,
         };
 
@@ -448,6 +456,7 @@ const UserForm = ({ onCreated, successTo } = {}) => {
     // Форма открыта только на графике: остальных секций нет, и валидировать
     // нечего — уходим на endpoint графика
     if (!canManageUsers) {
+      if (stepError("schedule")) { setAttempted(true); return; }
       if (!scheduleDirty) return handleClose();
       fetcher.submit(
         { workSchedule: scheduleBlock() },
@@ -1147,9 +1156,10 @@ const UserForm = ({ onCreated, successTo } = {}) => {
                     </>
                   )}
                 </p>
-                <ScheduleEditor
+                <WorkScheduleEditor
                   schedule={schedule.week}
                   onChange={(week) => patchSchedule({ week })}
+                  remoteOnly={schedule.remoteOnly}
                 />
               </>
             )}

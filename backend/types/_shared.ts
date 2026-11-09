@@ -25,6 +25,7 @@ export interface IAttachment {
 
 /** A single day within a weekly work schedule. */
 export interface IDaySchedule {
+  intervals?: { start: string; end: string; place: "office" | "remote" }[];
   isWorking: boolean;
   is24hours: boolean;
   start: string;

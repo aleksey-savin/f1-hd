@@ -11,7 +11,7 @@ import AlertMessage from "../app/AlertMessage";
 import { Eyebrow, Panel, Section, SectionEditLink } from "../app/Panel";
 import PropRow from "../app/PropRow";
 import { SCHEDULE_DAYS } from "../app/ScheduleEditor";
-import ScheduleView from "../app/ScheduleView";
+import WorkScheduleView from "./WorkScheduleView";
 import Spinner from "../app/Spinner";
 import { Button } from "../ui/button";
 import { useCan } from "../../store/authed-user";
@@ -242,7 +242,7 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                   Время — по поясу организации (
                   {tzCity(data.organizationTimezone || DEFAULT_TIMEZONE)})
                 </p>
-                <ScheduleView schedule={data.schedule} />
+                <WorkScheduleView schedule={data.schedule} remoteOnly={data.remoteOnly} />
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">

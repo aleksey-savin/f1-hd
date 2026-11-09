@@ -6,12 +6,19 @@ export type DayKind = "work" | "short" | "holiday" | "weekend" | "absence";
 
 export type AbsenceStatus = "pending" | "approved" | "rejected" | "cancelled";
 
+export type ScheduleInterval = {
+  start: string;
+  end: string;
+  place: "office" | "remote";
+};
+
 export type ScheduleDay = {
   isWorking: boolean;
   is24hours: boolean;
   start: string;
   end: string;
   breakMinutes?: number;
+  intervals?: ScheduleInterval[];
 };
 
 export type WeekSchedule = Record<string, ScheduleDay>;
@@ -116,6 +123,7 @@ export type TeamScheduleResponse = {
 };
 
 export type UserScheduleResponse = {
+  remoteOnly: boolean;
   user: {
     _id: string;
     firstName: string;

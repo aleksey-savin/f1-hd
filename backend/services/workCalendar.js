@@ -9,6 +9,7 @@ const { resolveTimezone } = require("@/utils/datetime");
 const { reducesNorm } = require("@/utils/absenceTypes");
 const { buildCalendarContext } = require("@/services/productionCalendar");
 const { DEFAULT_OVERTIME_SETTINGS } = require("@/utils/overtimeDefaults");
+const { workScheduleIntervals } = require("@/utils/workScheduleIntervals");
 
 /**
  * Единственный источник правды о том, какой у сотрудника день.
@@ -262,6 +263,7 @@ const makePlanner = (user, ctx, overtimeSettings) => {
         crossesMidnight: false,
         minutes: MINUTES_PER_DAY,
         is24hours: true,
+        placeIntervals: workScheduleIntervals(effective),
         holidayTitle: null,
         absence: absence || null,
       };
@@ -292,6 +294,9 @@ const makePlanner = (user, ctx, overtimeSettings) => {
       crossesMidnight: end > MINUTES_PER_DAY,
       minutes: Math.max(0, length - breakMinutes),
       is24hours: false,
+      placeIntervals: workScheduleIntervals(effective)
+        .map((interval) => ({ ...interval, end: Math.min(interval.end, end) }))
+        .filter((interval) => interval.start < interval.end),
       holidayTitle: short ? cal.title : null,
       absence: absence || null,
     };

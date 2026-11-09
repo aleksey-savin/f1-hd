@@ -21,12 +21,9 @@ dayjs.extend(timezone);
  * Автостатусы по графику: начало смены — «в офисе» (у remoteOnly «на
  * удалёнке»), окончание — «не на работе».
  *
- * РУЧНОЙ ВЫБОР ДЕРЖИТСЯ ДО КОНЦА ДНЯ, и для этого не понадобилось поле
- * «кто поставил»:
- *   • утром автомат трогает только тех, у кого сейчас «не на работе» или
- *     «не указан» — уже выбранная человеком «удалёнка» переживёт начало смены;
- *   • вечером переводит в «не на работе» только если статус не меняли уже
- *     ПОСЛЕ окончания смены — поставленное в 18:40 доживёт до ночного сброса.
+ * Ручной выбор (auto: false) действует до ночного сброса: ни граница
+ * интервала места работы, ни окончание смены его не отменяют.
+ * Для записей без флага сохраняется прежнее поведение по времени изменения.
  *
  * Работает только для workTimeMode === "scheduled": «свободные» ведут статусы
  * сами, исключённых из календаря автоматика не касается.
@@ -250,9 +247,12 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
       continue;
     }
 
+    // Подтверждённое отсутствие имеет приоритет; остальные ручные статусы
+    // освобождает только ночной сброс, в том числе после полуночи.
+    if (user.workStatus?.auto === false) continue;
+
     // Отсутствие кончилось, а долгий статус остался — снимаем. Но не сразу:
-    // отпуск/больничный админ вправе поставить руками как форс-мажор, без
-    // заявки, и такой выбор живёт до конца суток — как и любой ручной.
+    // для старых записей без флага происхождения учитываем время изменения.
     // Свободному графику «не на работе» не подходит: смены у него нет.
     const changedAtAway = user.workStatus?.updatedAt
       ? dayjs(user.workStatus.updatedAt)
@@ -276,7 +276,7 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
     if ((AWAY_STATUS_CODES.includes(code) && !heldToday) || staleOffshift) {
       const released = planner.isScheduled ? "offshift" : "unset";
       await User.updateOne(
-        { _id: user._id },
+        { _id: user._id, "workStatus.auto": { $ne: false } },
         { $set: { workStatus: { code: released, note: "", updatedAt: new Date(), auto: true } } },
       );
       ended += 1;
@@ -295,15 +295,19 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
         continue; // человек уже выбрал себе статус — не трогаем
       }
       // Командировка задаёт рабочий статус вместо «в офисе»
-      const next = wanted || (user.remoteOnly ? "remote" : "office");
+      const shiftMinutes = minutesNow + (active.key !== dateKey ? MINUTES_PER_DAY : 0);
+      const place = active.plan.placeIntervals?.find(
+        (interval) => shiftMinutes >= interval.start && shiftMinutes < interval.end,
+      )?.place;
+      const next = wanted || (user.remoteOnly ? "remote" : place || "office");
       if (code === next) {
         continue;
       }
-      await User.updateOne(
-        { _id: user._id },
+      const result = await User.updateOne(
+        { _id: user._id, "workStatus.auto": { $ne: false } },
         { $set: { workStatus: { code: next, note: "", updatedAt: new Date(), auto: true } } },
       );
-      started += 1;
+      started += result.modifiedCount;
       continue;
     }
 
@@ -332,11 +336,11 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
       continue;
     }
 
-    await User.updateOne(
-      { _id: user._id },
+    const result = await User.updateOne(
+      { _id: user._id, "workStatus.auto": { $ne: false } },
       { $set: { workStatus: { code: "offshift", note: "", updatedAt: new Date(), auto: true } } },
     );
-    ended += 1;
+    ended += result.modifiedCount;
   }
 
   if (started || ended || awayApplied) {

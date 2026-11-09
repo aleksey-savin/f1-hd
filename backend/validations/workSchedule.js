@@ -16,6 +16,7 @@ const {
 } = require("../services/workWindow");
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const { workScheduleIntervals } = require("../utils/workScheduleIntervals");
 
 /** Окно дня в минутах или null, если дня в графике нет. */
 const windowOf = (day) => {
@@ -66,6 +67,33 @@ const checkWeekSchedule = (value, { requireAllDays }) => {
       const brk = Number(day.breakMinutes);
       if (!Number.isFinite(brk) || brk < 0 || brk > 480) {
         throw new Error(`У дня «${name}» перерыв вне диапазона 0–480 минут`);
+      }
+    }
+
+    if (day.intervals !== undefined) {
+      if (!Array.isArray(day.intervals) || !day.intervals.length || day.intervals.length > 24) {
+        throw new Error(`У дня «${name}» должен быть от 1 до 24 интервалов`);
+      }
+      for (const interval of day.intervals) {
+        if (!interval || !TIME_RE.test(interval.start) || !TIME_RE.test(interval.end)) {
+          throw new Error(`У дня «${name}» некорректное время интервала`);
+        }
+        if (!["office", "remote"].includes(interval.place)) {
+          throw new Error(`У дня «${name}» неизвестное место работы в интервале`);
+        }
+      }
+      if (day.isWorking) {
+        const window = windowOf(day);
+        let cursor = window.start;
+        for (const interval of workScheduleIntervals(day)) {
+          if (interval.start !== cursor || interval.end > window.end) {
+            throw new Error(`Интервалы дня «${name}» должны покрывать смену без разрывов и пересечений`);
+          }
+          cursor = interval.end;
+        }
+        if (cursor !== window.end) {
+          throw new Error(`Интервалы дня «${name}» должны покрывать всю смену`);
+        }
       }
     }
   }

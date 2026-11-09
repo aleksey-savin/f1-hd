@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
 
+const intervalSchema = new Schema({
+  start: { type: String, required: true },
+  end: { type: String, required: true },
+  place: { type: String, enum: ["office", "remote"], required: true },
+}, { _id: false });
+
 const dayScheduleSchema = new Schema({
   isWorking: {
     type: Boolean,
@@ -19,6 +25,8 @@ const dayScheduleSchema = new Schema({
     type: String,
     default: "17:00",
   },
+  // Не задано у старых графиков: вся смена в офисе (или remoteOnly).
+  intervals: { type: [intervalSchema], default: undefined },
   // Неоплачиваемый перерыв, минут. Влияет ТОЛЬКО на норму часов сотрудника
   // (services/workCalendar): окно 09:00–18:00 — это 9 часов присутствия, а
   // производственный календарь считает 8, и без вычета норма никогда с ним не

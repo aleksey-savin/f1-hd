@@ -6,6 +6,45 @@ const assert = require("node:assert/strict");
 
 const { isWeekSchedule } = require("./workSchedule");
 
+const mixed = () => w("09:00", "19:00", { intervals: [
+  { start: "09:00", end: "11:00", place: "remote" },
+  { start: "11:00", end: "19:00", place: "office" },
+] });
+
+test("места работы покрывают смену без разрывов и пересечений", () => {
+  assert.equal(isWeekSchedule(week({ Monday: mixed() })), true);
+  for (const [start, end] of [["12:00", "19:00"], ["10:00", "19:00"], ["11:00", "18:00"]]) {
+    const day = mixed();
+    day.intervals[1] = { start, end, place: "office" };
+    assert.throws(() => isWeekSchedule(week({ Monday: day })), /интервал/i);
+  }
+});
+
+test("неизвестное место, пустые и битые интервалы отвергаются", () => {
+  for (const intervals of [[], null, {}, [{ start: "09:00", end: "19:00", place: "lunch" }], [{ start: "9:00", end: "19:00", place: "office" }]]) {
+    assert.throws(() => isWeekSchedule(week({ Monday: w("09:00", "19:00", { intervals }) })), /интервал|место/i);
+  }
+});
+
+test("интервалы ночной смены и суток принимаются в порядке времени смены", () => {
+  assert.equal(isWeekSchedule(week({ Monday: w("22:00", "06:00", { intervals: [
+    { start: "22:00", end: "01:00", place: "office" },
+    { start: "01:00", end: "06:00", place: "remote" },
+  ] }) })), true);
+  assert.equal(isWeekSchedule(week({ Monday: { isWorking: true, is24hours: true, intervals: [
+    { start: "00:00", end: "12:00", place: "office" },
+    { start: "12:00", end: "00:00", place: "remote" },
+  ] } })), true);
+});
+
+test("модель пользователя сохраняет интервалы и не дописывает их старым графикам", () => {
+  const User = require("../models/user");
+  const user = new User({ workSchedules: [{ schedule: week({ Monday: mixed() }) }] });
+  const schedule = user.toObject().workSchedules[0].schedule;
+  assert.deepEqual(schedule.Monday.intervals, mixed().intervals);
+  assert.equal(schedule.Tuesday.intervals, undefined);
+});
+
 const DAYS = [
   "Monday",
   "Tuesday",
