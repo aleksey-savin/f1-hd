@@ -72,6 +72,7 @@ import { formatPrice } from "../../util/format-string";
 import CardAvatar from "./CardAvatar";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import ToggleActiveDialog from "./ToggleActiveDialog";
+import RestoreUserButton from "./RestoreUserButton";
 import LinkAdDialog from "./LinkAdDialog";
 import { useCan, usePermissionCatalogue } from "@/store/authed-user";
 
@@ -132,7 +133,8 @@ const ViewUser = ({ user, tickets }) => {
   const authedUser = useContext(AuthedUserContext);
   const can = useCan();
   const catalogue = usePermissionCatalogue();
-  const canManageUsers = can({ user: ["manage"] });
+  const canRestoreUser = can({ user: ["manage"] });
+  const canManageUsers = canRestoreUser && !user.deletedAt;
   // Правка финансов — та же форма пользователя, но секция под своим правом
   // user.manageFinances (как в UserForm): без него карандаш вёл бы в форму,
   // где секции нет. report.employees — это отчёт и ничего, кроме отчёта.
@@ -140,7 +142,7 @@ const ViewUser = ({ user, tickets }) => {
     canManageUsers && Boolean(can({ user: ["manageFinances"] }));
   // Пароли, сеансы и второй фактор — это ДОСТУП, а не карточка человека:
   // право своё, и кнопки показываем по нему, иначе сервер отобьёт нажатие.
-  const canManageUserAccess = can({ user: ["manageAccess"] });
+  const canManageUserAccess = !user.deletedAt && can({ user: ["manageAccess"] });
   const canManageCompanies = can({ company: ["manage"] });
   // Вход под пользователем — своё право, а не следствие управления людьми.
   const canImpersonate = can({ user: ["impersonate"] });
@@ -173,6 +175,7 @@ const ViewUser = ({ user, tickets }) => {
     isCloudTelephony,
     isAdmin,
     banned,
+    deletedAt,
     twoFactorEnabled,
     banReason,
     banExpires,
@@ -315,7 +318,7 @@ const ViewUser = ({ user, tickets }) => {
         <CardAvatar
           user={user}
           ringColor={presence.ringColor}
-          canEdit={canManageUsers}
+          canEdit={canManageUsers && !deletedAt}
         />
         <div className="min-w-0 flex-1">
           <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight break-words">
@@ -374,7 +377,7 @@ const ViewUser = ({ user, tickets }) => {
             )}
           </div>
         </div>
-        {canManageUsers && (
+        {canManageUsers && !deletedAt && (
           /* На мобильном имя не делит строку с кнопками (flex-basis имени — 0,
              перенос сам не случается, и длинное имя уезжает под кнопки):
              блок действий занимает свою строку во всю ширину, с sm — как был */
@@ -436,7 +439,10 @@ const ViewUser = ({ user, tickets }) => {
             </DropdownMenu>
           </div>
         )}
+        {canRestoreUser && deletedAt && <RestoreUserButton userId={String(user._id)} name={fullName} />}
       </div>
+
+      {deletedAt && <div className="mt-5 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Пользователь удалён {formatDate(deletedAt)}. Заявки, работы и история сохранены. Доступ отключён.</div>}
 
       {/* Разделы одним скроллом; слева — липкий рейл-якорь (только десктоп:
           на мобайле window не скроллится, рейл не рендерится) */}
@@ -953,6 +959,7 @@ const ViewUser = ({ user, tickets }) => {
         item={{ ...user, title: fullName }}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
+        customDeleteMessage="Пользователь исчезнет из рабочих списков и не сможет войти. Заявки, работы и история сохранятся. Запись можно восстановить."
       />
       {!isServiceAccount && (
         <ResetPasswordDialog

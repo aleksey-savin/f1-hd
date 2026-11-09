@@ -610,11 +610,14 @@ const EMPTIED = [
   "authSessions", "authVerifications", "mcpkeys", "mikrotikdownloadcodes", "impersonationCodes", "telegramPairingCodes",
   // Секреты двухфакторной проверки и личности в мессенджерах
   "authTwoFactors", "channelidentities",
+  // Корпоративные поездки и личности Яндекса не переносятся на стенд:
+  // локальный токен принадлежит другому кабинету.
+  "taxitrips", "taxiemployees",
 ];
 
 // Свои коллекции машины разработчика: синхронизация их не копирует (KEEP_LOCAL),
 // поэтому и здесь они не правятся и в отчёт не входят
-const KEPT_LOCAL = ["preferences", "channels", "channeljobs"];
+const KEPT_LOCAL = ["preferences", "channels", "channeljobs", "taxisettings"];
 
 /**
  * Свободный текст: прежние адреса, телефоны и имена там ожидаемы и не правятся
@@ -652,6 +655,10 @@ const FREE_TEXT = {
   ticketlogs: ["event", "files"],
   tickettemplates: ["title", "description", "customFields", "checklist"],
   users: ["banReason", "workStatus.note"],
+  // Выписки из заявок и ручные сопоставления содержат тот же свободный текст,
+  // что исходные заявки; синхронизация сохраняет его по общей политике.
+  userreviewanalyses: ["events", "error"],
+  userreviewproposals: ["evidence", "manualBindings", "reason", "analysisReason"],
   works: ["description"],
 };
 
@@ -663,6 +670,7 @@ const FREE_TEXT = {
  * отчёт показывает отдельной группой и провалом не считает.
  */
 const LABELS = {
+  absences: ["timeRange.start", "timeRange.end"],
   attributegroups: ["name"],
   clientdevices: ["*"],
   deviceattributes: ["*"],
@@ -710,6 +718,8 @@ const LABELS = {
   tickets: ["applicant.position", "applicant.role", "responsibles[].position", "responsibles[].role", "proxmoxSource.key", "proxmoxSource.activeKey", "proxmoxSource.type"],
   ticketcategories: ["title", "description", "servicePlans[].title"],
   users: ["position", "role", "categories[].title", "timezone", "workSchedules", "workSchedule", "notifications.lastAction"],
+  userreviewanalyses: ["fingerprint", "inputFingerprint", "leaseToken"],
+  userreviewproposals: ["key"],
   works: ["notifications"],
 };
 

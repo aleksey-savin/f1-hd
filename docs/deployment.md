@@ -314,6 +314,14 @@ migration never races the previous version of the code. If an entry fails the
 application stays stopped: fix the cause and run `./deploy.sh` again (it
 resumes at that entry), or skip the entry with `migrate mark`.
 
+The migration step also stops the deployment if application writers cannot be
+stopped. Taxi defaults are ledger-backed migrations, including
+`2026-11-09-repairTaxiAdminPermissions`: administrative staff roles receive
+`taxi.*` even when unrelated module rights are missing. The repair has its own
+entry so an already recorded initial grant cannot skip it. Fresh installations
+use the admin role catalogue. Grants are not rerun on every deployment, so later
+intentional role edits remain in effect.
+
 Rules the runner enforces:
 
 - empty database → `up` records the whole list as baseline and runs nothing;
@@ -474,6 +482,27 @@ The two `LEGACY_BRAND_*` lines can be removed from `.env` after the deploy.
 A dev machine working on a copy of real data sets `MAIL_MODE=sandbox` and
 `MAIL_SANDBOX_RECIPIENT=<your address>`, then recreates the containers
 (`docker compose up -d --force-recreate`); until then its mail is off.
+
+## User review and retained user identities
+
+The user-review feature is opt-in under Settings → «Проверка пользователей».
+Text analysis uses the configured AI connection; inactivity and known disabled-age
+rules work independently of the AI provider. History analysis is started manually.
+No account is disabled or deleted without a person's decision.
+
+The deployment migration `2026-11-09-upgradeUserReviewRoles` preserves full access
+for roles that held the entire previous staff dictionary. Restricted roles do not
+receive the new review rights automatically. `2026-11-09-backfillUserActivity`
+advances cached activity from the latest applicant ticket, including legacy
+applicant references. Existing newer activity is retained, even when the linked
+ticket is absent from the current database copy.
+The corresponding scripts default to dry-run when launched manually; the migration
+runner applies them once through its ledger.
+
+User deletion retains the document, membership, credentials and historical
+references while denying access. Restoring a user keeps the account disabled.
+Existing disabled users without `disabledAt` remain undated and are excluded from
+age-based deletion proposals. Do not infer this date from a profile update.
 
 ## Backup and restore
 

@@ -22,8 +22,8 @@ exports.loadCompanies = async () => {
 };
 
 exports.loadUsers = async () => {
-  const users = await User.find({})
-    .select("firstName lastName position isEndUser isServiceAccount isCloudTelephony company._id subdivision banned banExpires telegramBot.isActive telegramBot.chatId")
+  const users = await User.find({ deletedAt: null })
+    .select("firstName lastName position isEndUser isServiceAccount isCloudTelephony company._id subdivision deletedAt banned banExpires telegramBot.isActive telegramBot.chatId")
     .lean();
   return users.map((u) => ({
     _id: String(u._id),

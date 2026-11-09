@@ -19,6 +19,7 @@ const SELF_EDITABLE_FIELDS = [
   "timezone",
   "fontScale",
   "plainCanvas",
+  "dashboardLayout",
 ];
 
 /**

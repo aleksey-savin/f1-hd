@@ -3,8 +3,26 @@ const mongoose = require("mongoose");
 const { WORK_STATUS_CODES } = require("../utils/workStatuses");
 const { toCanonicalPhone } = require("../services/phone");
 const workScheduleSchema = require("./workSchedule");
+const { DASHBOARD_WIDGET_IDS } = require("../services/dashboardLayout");
 
 const Schema = mongoose.Schema;
+const dashboardLayoutSchema = new Schema(
+  {
+    customOrder: { type: Boolean, required: true },
+    widgets: {
+      type: [new Schema(
+        {
+          id: { type: String, enum: DASHBOARD_WIDGET_IDS, required: true },
+          zone: { type: String, enum: ["top", "main", "aside"], required: true },
+          visible: { type: Boolean, required: true },
+        },
+        { _id: false },
+      )],
+      default: [],
+    },
+  },
+  { _id: false },
+);
 
 const userSchema = new Schema(
   {
@@ -143,6 +161,12 @@ const userSchema = new Schema(
     // человеком на другое устройство. Фоновое изображение при этом НЕ
     // стирается — человек его выключил, а не удалил.
     plainCanvas: { type: Boolean, default: false },
+    // Отдельные композиции сохраняются при смене типа учётной записи.
+    // Отсутствие значения означает стандартную раскладку, без миграции всех людей.
+    dashboardLayout: {
+      staff: { type: dashboardLayoutSchema, default: undefined },
+      client: { type: dashboardLayoutSchema, default: undefined },
+    },
     /**
      * Как ведётся рабочее время человека.
      *   scheduled — штат: статус присутствия меняет автоматика по графику,
@@ -210,6 +234,7 @@ const userSchema = new Schema(
         reportDecision: { type: Boolean, default: true },
         mikrotikChange: { type: Boolean, default: true },
         inventoryChange: { type: Boolean, default: true },
+        userReview: { type: Boolean, default: true },
       },
       byEmail: {
         newTicket: { type: Boolean, default: true },
@@ -229,6 +254,7 @@ const userSchema = new Schema(
         reportDecision: { type: Boolean, default: true },
         mikrotikChange: { type: Boolean, default: true },
         inventoryChange: { type: Boolean, default: true },
+        userReview: { type: Boolean, default: true },
       },
       // Канал «в приложении» (колокольчик, services/inAppNotifications). Те же
       // ключи; у уже сохранённых людей поля нет — отсутствие значит «включено»
@@ -245,6 +271,7 @@ const userSchema = new Schema(
         reportDecision: { type: Boolean, default: true },
         mikrotikChange: { type: Boolean, default: true },
         inventoryChange: { type: Boolean, default: true },
+        userReview: { type: Boolean, default: true },
         conversationMessage: { type: Boolean, default: true },
       },
     },
@@ -270,7 +297,7 @@ const userSchema = new Schema(
     //
     // ПОЛЯРНОСТЬ ОБРАТНАЯ остальным сущностям: у категорий и компаний
     // `isActive: true` значит «работает», здесь «не работает» — `banned:
-    // true`. Отсюда фильтры вида `{ banned: { $ne: true } }`, а не `true`:
+    // true`. Отсюда фильтры вида `{ deletedAt: null, banned: { $ne: true } }`, а не `true`:
     // поля может не быть вовсе, и его отсутствие значит «работает».
     //
     // `required` нет намеренно: better-auth пишет пользователя нативным
@@ -286,6 +313,9 @@ const userSchema = new Schema(
     // Пусто = бессрочно. После срока отключение не действует (`isBanned`), а
     // флаг с документа снимает `liftExpiredBans` раз в минуту.
     banExpires: Date,
+    disabledAt: Date,
+    deletedAt: { type: Date, default: null, index: true },
+    deletedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     lastLogin: {
       type: Date,
     },
@@ -327,6 +357,8 @@ const userSchema = new Schema(
       // Ручной живёт до конца суток, автоматический можно менять свободно —
       // и при смене режима учёта он сбрасывается, а ручной остаётся
       auto: { type: Boolean, default: false },
+      source: { type: String, enum: ["schedule", "manual", "taxi"] },
+      taxiTripId: { type: Schema.Types.ObjectId, ref: "TaxiTrip", default: null },
     },
     // Ближайшее начало смены по графику (UTC). Считает автоматика статусов
     // каждый прогон; бар показывает отсутствующим «до 04.09 09:00» вместо

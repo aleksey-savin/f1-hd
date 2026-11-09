@@ -1,0 +1,33 @@
+/* Components which return null leave no holes in the role-specific landing.
+   :empty also removes the attention group when all its children disappear. */
+[data-dashboard-editing="false"] .dashboard-region:not(:has(> :not(:empty))),
+[data-dashboard-editing="false"]
+  .dashboard-columns:not(:has(> .dashboard-region > :not(:empty))) {
+  display: none;
+}
+
+@media (min-width: 1280px) {
+  [data-dashboard-editing="true"] .dashboard-columns,
+  .dashboard-columns:has(> .dashboard-main > :not(:empty)):has(
+      > .dashboard-aside > :not(:empty)
+    ) {
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  }
+}
+
+.dashboard-widget {
+  outline: 1px dashed var(--border);
+  outline-offset: 5px;
+}
+.dashboard-widget-body > section > div:first-child {
+  margin-top: 0;
+}
+.dashboard-widget-empty {
+  display: none;
+}
+.dashboard-widget-body:empty + .dashboard-widget-empty {
+  display: block;
+}
+.dashboard-drop-before {
+  box-shadow: 0 -4px var(--primary);
+}

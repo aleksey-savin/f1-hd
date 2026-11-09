@@ -24,14 +24,14 @@ const checkLimiter = rateLimit({
   },
 });
 
-router.get("/preferences", isAuth, canManageSettings, preferencesController.get);
+router.get("/preferences", isAuth, preferencesController.get);
 router.get("/preferences-initial", isAuth, preferencesController.getInitial);
 router.get("/preferences-auth", preferencesController.getAuth);
-// Настройки — одно право: секции по правам не делятся (спека 2026-09-11).
+// GET/POST проверяют права по группам в контроллере: taxiBusiness — taxi.configure,
+// остальные настройки — settings.manage. Отдельные действия ниже сохраняют свои гейты.
 router.post(
   "/preferences",
   isAuth,
-  canManageSettings,
   preferencesValidation.update,
   checkValidationResult,
   preferencesController.update,

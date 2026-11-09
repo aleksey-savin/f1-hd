@@ -2,6 +2,7 @@ const { body, query, param } = require("express-validator");
 
 const { ABSENCE_TYPE_CODES, ABSENCE_STATUSES } = require("../utils/absenceTypes");
 const { isWeekSchedule } = require("./workSchedule");
+const { validateAbsenceTimeRange } = require("../utils/absencePeriod");
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -76,6 +77,7 @@ exports.absenceAdd = [
   body("type").isIn(ABSENCE_TYPE_CODES).withMessage("Неизвестный тип отсутствия"),
   body("from").matches(DATE_RE).withMessage("Некорректная дата начала"),
   body("to").matches(DATE_RE).withMessage("Некорректная дата окончания"),
+  body("timeRange").custom((value, { req }) => validateAbsenceTimeRange(value, req.body.from, req.body.to)),
   body("comment").optional({ values: "falsy" }).isLength({ max: 300 }),
 ];
 
@@ -89,4 +91,7 @@ exports.absenceImpact = [
   query("user").isMongoId(),
   query("from").matches(DATE_RE),
   query("to").matches(DATE_RE),
+  query("timeRange").custom((value, { req }) => validateAbsenceTimeRange(
+    typeof value === "string" ? JSON.parse(value) : value, req.query.from, req.query.to,
+  )),
 ];

@@ -1,6 +1,6 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { RiStackLine } from "react-icons/ri";
 
@@ -10,6 +10,8 @@ import ListWrapper from "@/components/app/ListWrapper";
 import Pager from "@/components/app/Pager";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useCan } from "@/store/authed-user";
 
 import useUserFilterStore from "../../store/lists/users";
 import useWorkStatusesStore from "../../store/work-statuses";
@@ -32,6 +34,7 @@ const ACTIVITY_LABEL = {
 };
 
 const Users = () => {
+  const can = useCan();
   const location = useLocation();
   const s = useUserFilterStore();
 
@@ -137,6 +140,8 @@ const Users = () => {
 
   const toolbar = (
     <>
+      {can({ userReview: ["read"] }) && <Button asChild variant="outline"><Link to="/users/review">Проверка</Link></Button>}
+      {can({ user: ["manage"] }) && <Button asChild variant="ghost"><Link to="/users/deleted">Удалённые</Link></Button>}
       <Segmented
         options={AUDIENCE_OPTIONS}
         value={s.audience}

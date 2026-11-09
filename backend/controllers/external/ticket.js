@@ -54,7 +54,7 @@ exports.createTicket = async (req, res, next) => {
       }
 
       applicant = await User.findById(prefs.defaultApplicant._id);
-      if (!applicant) {
+      if (!applicant || applicant.deletedAt) {
         return next(
           new AppError(
             "Пользователь по умолчанию не найден в базе данных",

@@ -86,6 +86,7 @@ rolesService.assertNotLastFullAccessHolder = async (...args) => {
 };
 const authSessions = require("@/services/authSessions");
 authSessions.revokeAllForUser = record("revokeAllForUser", 1);
+authSessions.revokeImpersonationsForUser = record("revokeImpersonationsForUser", 1);
 authSessions.revokeOthersForUser = record("revokeOthersForUser", 1);
 authSessions.listForUser = record("listForUser", [{ id: "session-1" }]);
 
@@ -1130,6 +1131,7 @@ test("toggleActive: a ban is checked before the write, switching back on is not"
     "assertNoOrphanedStaffActions",
     "save",
     "revokeAllForUser",
+    "revokeImpersonationsForUser",
   ]);
   assert.deepEqual(
     holderChange().map((account) => account.id),
@@ -1217,4 +1219,26 @@ test("delete: a refused check answers 409 before anything is removed", async () 
     holderChange().map((account) => account.id),
     [ADMIN._id],
   );
+});
+
+test("update refuses all ordinary changes to deleted accounts before reading related records", async () => {
+  stored({ ...STAFF, deletedAt: new Date() });
+  const { failure, sent } = await call(controller.update, { params: { id: STAFF._id }, body: { banned: false }, auth: actor({ actions: ["user.manage", "user.manageAccess"] }) });
+  assert.equal(failure?.statusCode, 409);
+  assert.equal(sent, null);
+  assert.deepEqual(steps(), []);
+});
+
+test("update records a fresh disable period when an expired ban is explicitly applied again", async () => {
+  const { doc, failure } = await edit({ target: { ...PERSON, banned: true, banExpires: new Date("2000-01-01"), disabledAt: new Date("1999-01-01") }, body: { banned: true } });
+  assert.equal(failure, null);
+  assert.ok(doc.disabledAt > new Date("2020-01-01"));
+  assert.equal(doc.banExpires, undefined);
+});
+
+test("update cannot hide last-holder loss behind an expired ban timestamp", async () => {
+  holderState = { accounts: [{ ...holder(STAFF._id, ["engineer"]), banned: true, banExpires: new Date("2000-01-01") }], catalogue: new Map([["engineer", { audience: "staff", statements: { ticket: ["perform"] } }]]) };
+  const { failure, saved } = await edit({ target: { ...STAFF, banned: true, banExpires: new Date("2000-01-01") }, body: { banned: true } });
+  assert.equal(failure?.statusCode, 409);
+  assert.equal(saved, null);
 });

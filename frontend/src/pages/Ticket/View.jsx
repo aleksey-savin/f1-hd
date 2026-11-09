@@ -1,3 +1,4 @@
+import TicketExpenses from "@/components/Taxi/TicketExpenses";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useContext, useEffect, useMemo, useState } from "react";
 
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import AiGuideSection from "../../components/Ticket/View/AiGuideSection";
+import UserReviewSection from "../../components/Ticket/View/UserReviewSection";
 import { AI_ACCESS } from "../../components/Ticket/View/ai-access";
 import AiMark from "../../components/Ticket/View/AiMark";
 import AttachmentStrip, {
@@ -639,6 +641,8 @@ const ViewTicket = () => {
             }
           />
 
+          <UserReviewSection ticketId={String(ticket._id)} />
+
           {showAi && <AiGuideSection canEditChecklist={canEditChecklist} />}
 
           {/* Секция появляется вместе с содержимым: пустой чек-лист — это блок,
@@ -752,6 +756,7 @@ const ViewTicket = () => {
             </Section>
           )}
 
+          {ticket.isClosed && !isEndUser && <TicketExpenses ticketId={ticket._id} />}
           {showWorks && (
             <WorksSection
               works={works}

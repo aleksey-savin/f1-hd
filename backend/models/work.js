@@ -64,6 +64,10 @@ const workSchema = new Schema(
       ref: "Company",
       required: true,
     },
+    // Ссылки, а не копии расходов: одна поездка может относиться к нескольким
+    // работам и заявкам, но в отчёте компании учитывается ровно один раз.
+    taxiTripIds: [{ type: Schema.Types.ObjectId, ref: "TaxiTrip" }],
+    taxiDecision: { type: String, enum: ["pending", "none", "linked"], default: "pending" },
     withinPlan: {
       type: Boolean,
       required: false,
@@ -141,6 +145,7 @@ workSchema.index({ tickets: 1, scheduled: 1, finishedAt: 1 });
 // выборка по компаниям
 workSchema.index({ finishedAt: -1, _id: -1 });
 workSchema.index({ company: 1, finishedAt: -1 });
+workSchema.index({ taxiTripIds: 1 });
 
 // Живые обновления: работа двигает свои заявки и согласование (см. services/pulseTopics.js)
 workSchema.plugin(require("../services/pulsePlugin"), { model: "Work" });

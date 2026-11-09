@@ -178,6 +178,22 @@ test("/me returns the existing public session identity and capped impersonation 
   assert.equal(body.expiryDate, body.impersonation.until);
 });
 
+test("/me restores only the current audience's dashboard layout across requests", async (t) => {
+  const { login, send } = await harness(t);
+  const client = { customOrder: true, widgets: [{ id: "workplace", zone: "main", visible: false }] };
+  const staff = { customOrder: true, widgets: [{ id: "report", zone: "top", visible: true }] };
+  current.user.dashboardLayout = { client, staff };
+  const cookie = cookieFrom(await login());
+  const first = await (await send("/me", null, cookie)).json();
+  assert.deepEqual(first.user.dashboardLayout, client);
+  current.user.isEndUser = false;
+  const second = await (await send("/me", null, cookie)).json();
+  assert.deepEqual(second.user.dashboardLayout, staff);
+  current.user.dashboardLayout = undefined;
+  const defaults = await (await send("/me", null, cookie)).json();
+  assert.equal(defaults.user.dashboardLayout, null);
+});
+
 test("claim refuses expired and ordinary sessions without issuing a session cookie", async (t) => {
   const { ctx, user, send } = await harness(t);
   for (const overrides of [{}, { impersonatedBy: "staff-id" }]) {

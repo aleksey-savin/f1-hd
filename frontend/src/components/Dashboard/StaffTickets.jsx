@@ -209,7 +209,7 @@ const StaffTickets = () => {
     count,
   }));
   return (
-    <section>
+    <section className="@container">
       <Eyebrow
         count={tabs.length > 1 ? tickets.length : current.count}
         action={
@@ -220,7 +220,7 @@ const StaffTickets = () => {
               value={current.value}
               onChange={setSelected}
               options={options}
-              className="max-md:hidden"
+              className="@max-2xl:hidden"
             />
           ) : undefined
         }
@@ -236,7 +236,7 @@ const StaffTickets = () => {
         <div
           role="group"
           aria-label="Какие заявки"
-          className="-mx-3 mb-2.5 flex gap-1.5 overflow-x-auto px-3 scrollbar-none md:hidden"
+          className="-mx-3 mb-2.5 flex gap-1.5 overflow-x-auto px-3 scrollbar-none @2xl:hidden"
         >
           {tabs.map((tab) => (
             <FilterChip

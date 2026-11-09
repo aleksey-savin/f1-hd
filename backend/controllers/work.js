@@ -11,10 +11,17 @@ const TicketCategory = require("../models/ticketCategory");
 const { AppError } = require("../middleware/errorHandling");
 const { previewWork } = require("../services/workPreview");
 const { assertTicketsAccessible } = require("../services/ticketAccess");
+const { validateWorkTaxiLinks } = require("../services/taxi/integration");
 const { ticketTier, ticketListFilter } = require("@/services/ticketScope");
 
 /** Суммы и условия тарифа — своё право, а не сочетание двух (спека 2026-09-11). */
 const canSeeMoney = (req) => req.auth.can({ work: ["readCost"] });
+const taxiDecision = (ids, requested, previous = "pending") => {
+  if (requested !== undefined && !["pending", "none", "linked"].includes(requested)) {
+    throw new AppError("Некорректное решение о поездке", 400);
+  }
+  return ids.length ? "linked" : (requested ?? previous) === "none" ? "none" : "pending";
+};
 
 /**
  * Можно ли править эту работу. Своими считаем троих, а не одного автора:
@@ -181,7 +188,7 @@ exports.getAdditionalData = async (req, res, next) => {
       }
     }
 
-    res.status(200).json({ limitWorksDateFrom });
+    res.status(200).json({ limitWorksDateFrom, taxiCompanyId: String(ticket.company._id) });
   } catch (error) {
     next(
       new AppError(
@@ -258,6 +265,10 @@ exports.add = async (req, res, next) => {
       },
     });
 
+    work.taxiTripIds = await validateWorkTaxiLinks({
+      auth: req.auth, work, taxiTripIds: req.body.taxiTripIds,
+    }) ?? [];
+    work.taxiDecision = work.visitRequired && work.startedAt && work.finishedAt ? taxiDecision(work.taxiTripIds, req.body.taxiDecision) : "pending";
     await work.save();
 
     // добавляем запись в лог по каждой привязанной заявке: одна работа может
@@ -281,6 +292,7 @@ exports.add = async (req, res, next) => {
       work: work,
     });
   } catch (error) {
+    if (error instanceof AppError) return next(error);
     next(new AppError(`Failed to add work`, 500, true, error));
   }
 };
@@ -301,6 +313,7 @@ exports.schedule = async (req, res, next) => {
 
     const ticket = await Ticket.findById(tickets[0]);
     const executor = await User.findById(req.body.executor);
+    if (executor?.deletedAt) return next(new AppError("Нельзя назначить работу удалённому сотруднику", 409));
     const alwaysWithinPlan = await isAlwaysWithinPlan(tickets);
 
     const work = new Work({
@@ -362,6 +375,7 @@ exports.update = async (req, res, next) => {
     const authedUser = await User.findById(userId);
 
     const work = await Work.findById(req.params.workId);
+    const hadActualVisit = Boolean(work?.visitRequired && work.startedAt && work.finishedAt);
 
     if (!work) {
       return next(new AppError(`Work not found`, 404));
@@ -386,6 +400,7 @@ exports.update = async (req, res, next) => {
 
     const finishedBy = await User.findById(req.body.finishedBy);
     const executor = await User.findById(req.body.executor);
+    if (executor?.deletedAt) return next(new AppError("Нельзя назначить работу удалённому сотруднику", 409));
     let notifications = work.notifications;
 
     // Дефолты берутся из САМОЙ работы, а не из нулей: тело обновления бывает
@@ -437,6 +452,14 @@ exports.update = async (req, res, next) => {
 
     work.notifications = notifications;
     work.updatedBy = authedUser;
+
+    // Проверяем итоговую компанию/исполнителя даже при правке без поля такси:
+    // иначе смена компании оставила бы привязанной поездку другого клиента.
+    work.taxiTripIds = await validateWorkTaxiLinks({
+      auth: req.auth, work,
+      taxiTripIds: req.body.taxiTripIds ?? work.taxiTripIds ?? [],
+    });
+    work.taxiDecision = work.visitRequired && work.startedAt && work.finishedAt ? taxiDecision(work.taxiTripIds, req.body.taxiDecision, hadActualVisit ? work.taxiDecision : "pending") : "pending";
 
     await work.save();
 

@@ -12,11 +12,11 @@
 const linkCandidate = async (network, sender, deps) => {
   if (network === "telegram") {
     const user = await deps.findUserByTelegramId(String(sender.id));
-    if (user) return { user, method: "tgBot" };
+    if (user && !user.deletedAt) return { user, method: "tgBot" };
   }
   const phone = deps.normalizePhone(sender.phone || "");
   if (phone) {
-    const users = await deps.findUsersByPhone(phone);
+    const users = (await deps.findUsersByPhone(phone)).filter((user) => !user.deletedAt);
     // Телефон на двоих (муж и жена, сменные операторы одной линии) — не
     // твёрдое основание: связываем только когда номер выводит ровно на одного
     if (users.length === 1) return { user: users[0], method: "phone" };
@@ -67,7 +67,7 @@ const modelDeps = () => {
         { upsert: true, returnDocument: "after" },
       ).lean(),
     findUserByTelegramId: (id) =>
-      User.findOne({ "telegramBot.chatId": String(id), isServiceAccount: { $ne: true } }).select(USER_FIELDS).lean(),
+      User.findOne({ "telegramBot.chatId": String(id), deletedAt: null, isServiceAccount: { $ne: true } }).select(USER_FIELDS).lean(),
     // Та же выборка, что у опознания звонков (services/callerIdentityService):
     // живой человек из действующей компании, не больше двух кандидатов —
     // linkCandidate связывает, только если он один

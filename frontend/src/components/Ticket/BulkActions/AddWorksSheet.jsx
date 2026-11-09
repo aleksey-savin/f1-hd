@@ -63,6 +63,7 @@ const AddWorksForm = ({ selectedItems, onHide, onConfirm }) => {
     mode: "bulk",
     ticketIds,
     currentUserId: userId,
+    companyId: String(selectedItems[0]?.company?._id || ""),
   });
 
   return (

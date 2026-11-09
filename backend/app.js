@@ -285,6 +285,12 @@ const jobs = createCronRegistry({
   isDbReady: () => mongoose.connection.readyState === 1 && isAuthReady(),
 });
 
+// Persisted incremental discovery and bounded analysis; both functions enforce
+// the feature switch and the global AI switch before touching the queue.
+const userReview = require("./services/userReview");
+jobs.register("user review discovery", "17 */5 * * * *", () => userReview.refreshCandidates(), 0);
+jobs.register("user review analysis", "37 * * * * *", () => userReview.analyzePending(), 0);
+
 // check email for new tickets
 // Запас: нормальный прогон занимает секунды. Сторож только кричит в журнал —
 // замок держится, пока handleNewEmails не закончится: второй разбор ящика
@@ -366,6 +372,9 @@ jobs.register("mail outbox", "*/20 * * * * *", sendPendingEmails, 110000);
 jobs.register("Proxmox monitoring", "* * * * *", require("./services/proxmox/monitor").poll, 55000);
 jobs.register("Proxmox alerts", "* * * * *", require("./services/proxmox/monitor").alerts, 55000);
 jobs.register("Proxmox operations", "*/15 * * * * *", require("./services/proxmox/operations").tick, 14000);
+// Настройки такси задают частоту опроса; persisted lease защищает несколько
+// экземпляров backend, общий registry — повторный запуск внутри процесса.
+jobs.register("Corporate taxi", "*/30 * * * * *", require("./services/taxi/integration").runTaxiSync, 240000);
 
 // Refresh connectivity status of monitored Mikrotik devices every 5 minutes.
 jobs.register(

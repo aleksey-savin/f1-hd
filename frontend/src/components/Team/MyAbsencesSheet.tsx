@@ -1,3 +1,6 @@
+import type { AbsenceTimeRange } from "@/util/absence-period";
+import { formatAbsencePeriod } from "@/util/absence-period";
+import { formatDayKey } from "@/util/format-date";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -28,16 +31,12 @@ type Absence = {
   typeLabel: string;
   from: string;
   to: string;
+  timeRange?: AbsenceTimeRange | null;
   status: "pending" | "approved" | "rejected" | "cancelled";
   comment: string;
   decisionComment: string;
   decidedBy: { firstName: string; lastName: string } | null;
 };
-
-const humanDate = (key: string) => key.split("-").reverse().join(".");
-
-const range = (from: string, to: string) =>
-  from === to ? humanDate(from) : `${humanDate(from)} — ${humanDate(to)}`;
 
 const STATUS_TONE: Record<Absence["status"], string> = {
   pending: "text-warning",
@@ -85,7 +84,7 @@ const Row = ({
         <span className="font-medium">{absence.typeLabel}</span>
         <span className="text-muted-foreground">
           {" · "}
-          {range(absence.from, absence.to)}
+          {formatAbsencePeriod(absence, formatDayKey)}
         </span>
         {absence.status === "rejected" && absence.decisionComment && (
           <span className="block text-xs text-muted-foreground">

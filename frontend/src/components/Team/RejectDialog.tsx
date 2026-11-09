@@ -1,3 +1,5 @@
+import { formatAbsencePeriod } from "@/util/absence-period";
+import { formatDayKey } from "@/util/format-date";
 import { useEffect, useState } from "react";
 
 import {
@@ -55,8 +57,10 @@ const RejectDialog = ({ request, open, onOpenChange, onConfirm }: Props) => {
           <AlertDialogTitle>Отклонить запрос</AlertDialogTitle>
           <AlertDialogDescription>
             {request ? fullName(request.user) : ""}
-            {request ? ` — ${request.typeLabel.toLowerCase()}` : ""}. Причина
-            уйдёт заявителю уведомлением.
+            {request
+              ? ` — ${request.typeLabel.toLowerCase()} · ${formatAbsencePeriod(request, formatDayKey)}`
+              : ""}
+            . Причина уйдёт заявителю уведомлением.
           </AlertDialogDescription>
         </AlertDialogHeader>
 

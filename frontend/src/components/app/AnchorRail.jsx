@@ -1,4 +1,10 @@
-import { useContext, useEffect, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { isBrowser } from "react-device-detect";
 
 import { OverlayScrollContext } from "@/components/app/overlay-context";
@@ -59,11 +65,40 @@ const AnchorRail = ({
   style,
 }) => {
   const scroller = useContext(OverlayScrollContext);
+  const railRef = useRef(null);
+  const [availableHeight, setAvailableHeight] = useState(undefined);
   const [active, setActive] = useState(sections[0]?.id);
   // Набор секций собирается по условиям — сравниваем по составу id, а не по
   // ссылке на массив, иначе эффект пересоздавался бы каждый рендер.
   const ids = sections.map((section) => section.id).join("|");
   const spy = offset ?? (scroller ? SHEET_OFFSET : PAGE_OFFSET);
+
+  // The same rail is used on pages and inside form sheets. Its height must
+  // follow the actual scroll viewport, including the form's sticky header.
+  useLayoutEffect(() => {
+    const rail = railRef.current;
+    if (!rail || !isBrowser) return undefined;
+    const target = scroller ?? window;
+    const resize = () => {
+      const bottom = Math.min(
+        window.innerHeight,
+        scroller?.getBoundingClientRect().bottom ?? window.innerHeight,
+      );
+      setAvailableHeight(
+        Math.max(32, bottom - rail.getBoundingClientRect().top - 16),
+      );
+    };
+    resize();
+    target.addEventListener("scroll", resize, { passive: true });
+    window.addEventListener("resize", resize);
+    const observer = new ResizeObserver(resize);
+    if (scroller) observer.observe(scroller);
+    return () => {
+      target.removeEventListener("scroll", resize);
+      window.removeEventListener("resize", resize);
+      observer.disconnect();
+    };
+  }, [scroller, style?.top, ids]);
 
   useEffect(() => {
     if (!isBrowser || !ids) return undefined;
@@ -107,10 +142,11 @@ const AnchorRail = ({
 
   return (
     <nav
+      ref={railRef}
       aria-label={ariaLabel}
-      style={style}
+      style={{ maxHeight: availableHeight, ...style }}
       className={cn(
-        "sticky top-28 flex w-48 flex-none flex-col gap-0.5",
+        "sticky top-28 flex min-h-0 w-48 flex-none flex-col gap-0.5 overflow-y-auto overscroll-contain [&>a]:shrink-0",
         className,
       )}
     >

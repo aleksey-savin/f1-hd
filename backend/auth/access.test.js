@@ -16,9 +16,9 @@ const {
   staffAccessStatements,
 } = require("./access");
 
-test("dictionary has 17 groups and 66 actions in the agreed order", () => {
-  assert.equal(GROUPS.length, 17);
-  assert.equal(ALL_ACTIONS.length, 66);
+test("dictionary keeps the agreed order and adds corporate taxi actions", () => {
+  assert.equal(GROUPS.length, 19);
+  assert.equal(ALL_ACTIONS.length, 72);
   assert.deepEqual(ALL_ACTIONS.slice(0, 8), [
     "ticket.readCompanies",
     "ticket.readAll",
@@ -44,12 +44,20 @@ test("dictionary has 17 groups and 66 actions in the agreed order", () => {
   );
 });
 
+test("corporate taxi rights cannot leak into client roles", () => {
+  const rights = { taxi: ["read", "allocate", "configure"] };
+  assert.deepEqual(stripStatementsForAudience(rights, "client"), {});
+  assert.deepEqual(stripStatementsForAudience(rights, "staff"), rights);
+  for (const action of rights.taxi) assert.equal(audienceOfAction(`taxi.${action}`), "staff");
+  assert.deepEqual(staffAccessStatements().taxi, ["read", "allocate", "configure"]);
+});
+
 test("every action has an audience; clientHint only on both", () => {
   for (const group of GROUPS) {
     for (const action of group.actions) {
       assert.ok(["staff", "client", "both"].includes(action.audience), action.id);
       if (action.clientHint) assert.equal(action.audience, "both", action.id);
-      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Утверждать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться|Отвечать|Обновлять) /, action.id);
+      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Утверждать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться|Отвечать|Обновлять|Заказывать) /, action.id);
     }
   }
 });
@@ -137,4 +145,13 @@ test("isFullAccess ignores client-only actions but not staff ones", () => {
     isFullAccess({ ...staff, ticket: staff.ticket.slice(1) }),
     false,
   );
+});
+
+test('user review remains staff-only and requires explicit grants on restricted roles', () => {
+ const rights={userReview:['read','manage','analyze']};
+ assert.deepEqual(stripStatementsForAudience(rights,'client'),{});
+ assert.deepEqual(stripStatementsForAudience(rights,'staff'),rights);
+ const restricted={user:['read','manage']};
+ assert.equal(isFullAccess(restricted),false);
+ assert.equal(fullAccessStatements().userReview?.includes('analyze'),true);
 });

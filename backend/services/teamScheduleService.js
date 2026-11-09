@@ -1,7 +1,8 @@
 const User = require("@/models/user");
 const Absence = require("@/models/absence");
 
-const { resolveTimezone } = require("@/utils/datetime");
+const { resolveTimezone, dayKeyToUtcMidnight } = require("@/utils/datetime");
+const { shiftDayKey } = require("@/services/workWindow");
 const { getAbsenceType } = require("@/utils/absenceTypes");
 const {
   WORK_STATUS_BY_CODE,
@@ -86,7 +87,7 @@ const buildTeamSchedule = async ({
   const query = {
     isEndUser: false,
     isServiceAccount: false,
-    banned: { $ne: true },
+    deletedAt: null, banned: { $ne: true },
     workTimeMode: { $ne: "none" },
     // Сотрудники сторонних компаний, которым портал — хаб для своих заявок:
     // время им вести можно, но нашей смены они не часть
@@ -158,7 +159,18 @@ const buildTeamSchedule = async ({
         : null;
 
       const offDuty = plan.kind === "weekend" || plan.kind === "holiday";
-      const away = plan.kind === "absence";
+      const partialAbsences = planner.partialAbsencesOn(dateKey).map((item) => ({
+        type: item.type,
+        label: getAbsenceType(item.type)?.label ?? item.type,
+        status: item.status,
+        away: Boolean(getAbsenceType(item.type)?.reducesNorm),
+        from: item.fromKey,
+        to: item.toKey,
+        timeRange: item.timeRange,
+      }));
+      const away = plan.kind === "absence" || (
+        planner.isScheduled && plan.start !== null && partialAbsences.some((item) => item.away) && !planner.availabilityWindows(dateKey).length
+      );
       const bucket = availability.get(dateKey);
       if (away) {
         bucket.absent += 1;
@@ -176,6 +188,7 @@ const buildTeamSchedule = async ({
         away,
         holidayTitle: plan.holidayTitle,
         absence,
+        partialAbsences,
       });
     }
 
@@ -218,7 +231,8 @@ const buildTeamSchedule = async ({
   // ── запросы, ждущие решения ───────────────────────────────────────────
   const pendingDocs = await Absence.find({
     status: "pending",
-    to: { $gte: fromDay.toDate() },
+    // Хвост ночного запроса может начинаться в последнем дне прошлого месяца.
+    to: { $gte: dayKeyToUtcMidnight(shiftDayKey(fromKey, -1)) },
   })
     .populate("user", "firstName lastName position")
     .populate("requestedBy", "firstName lastName")
@@ -227,7 +241,10 @@ const buildTeamSchedule = async ({
     .lean();
 
   const pending = pendingDocs
-    .filter((doc) => doc.user)
+    .filter((doc) => doc.user && (
+      dayjs.utc(doc.to).format("YYYY-MM-DD") >= fromKey ||
+      (doc.timeRange && doc.timeRange.end < doc.timeRange.start && doc.timeRange.end !== "00:00")
+    ))
     .map((doc) => ({
       _id: doc._id,
       user: toPerson(doc.user),
@@ -236,6 +253,7 @@ const buildTeamSchedule = async ({
       away: Boolean(getAbsenceType(doc.type)?.reducesNorm),
       from: dayjs(doc.from).utc().format("YYYY-MM-DD"),
       to: dayjs(doc.to).utc().format("YYYY-MM-DD"),
+      timeRange: doc.timeRange || null,
       comment: doc.comment || "",
       requestedBy: doc.requestedBy
         ? { firstName: doc.requestedBy.firstName, lastName: doc.requestedBy.lastName }

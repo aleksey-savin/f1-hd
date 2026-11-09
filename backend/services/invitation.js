@@ -59,7 +59,7 @@ const extendMagicLink = async (email) => {
  */
 const invite = async (user, req) => {
   // Служебной учётке входить нечем и незачем.
-  if (user.isServiceAccount || !user.email) return false;
+  if (user.deletedAt || user.isServiceAccount || !user.email) return false;
 
   const headers = getFromNodeHeaders()(req.headers);
   const byLink = user.isEndUser !== false && !user.twoFactorEnabled;

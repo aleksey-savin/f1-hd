@@ -106,6 +106,8 @@ const checkPasswordBreach = async (password) => {
  * страница отдаёт его обратно в `POST /api/auth/reset-password`.
  */
 const sendResetPassword = async ({ user, token }) => {
+  const account = await require("@/models/user").findById(user.id).select("deletedAt").lean();
+  if (account?.deletedAt) return;
   const url = `${config.baseURL}/reset-password/${token}`;
   const first = await isFirstAccess(user.id);
 
@@ -137,11 +139,12 @@ const sessionRefusal = async (userId, path = null) => {
   const User = require("@/models/user");
   const user = await User.findById(userId)
     .select(
-      "isServiceAccount isAdmin isEndUser twoFactorEnabled company.isActive",
+      "deletedAt banned banExpires isServiceAccount isAdmin isEndUser twoFactorEnabled company.isActive",
     )
     .lean();
 
   if (!user) return "Учётная запись не найдена";
+  if (require("@/services/accountDenial").isBanned(user)) return "Учётная запись отключена. Обратитесь к администратору.";
   if (user.isServiceAccount) {
     return "Служебная учётная запись входит не паролем";
   }
@@ -200,7 +203,7 @@ const sendMagicLink = async ({ email, url }) => {
   const User = require("@/models/user");
   const user = await User.findOne({ email })
     .select(
-      "firstName lastLogin isEndUser isServiceAccount banned banExpires twoFactorEnabled company.isActive",
+      "firstName lastLogin isEndUser isServiceAccount deletedAt banned banExpires twoFactorEnabled company.isActive",
     )
     .lean();
 
@@ -254,8 +257,9 @@ const sendMagicLink = async ({ email, url }) => {
 const sendEmailCode = async ({ email, otp, type }) => {
   const User = require("@/models/user");
   const user = await User.findOne({ email })
-    .select("firstName name isEndUser")
+    .select("firstName name isEndUser deletedAt")
     .lean();
+  if (user?.deletedAt) return;
   const isClient = user?.isEndUser !== false;
   const minutes = Math.round(config.loginCodeTtlSeconds / 60);
 

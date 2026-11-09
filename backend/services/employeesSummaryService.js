@@ -240,7 +240,7 @@ const buildEmployeesSummary = async ({
     // Тот же набор, что отдаёт селектор сотрудников отчёта. Без тех, у кого
     // финансовый учёт не ведётся (services/financeTracking.js)
     User.find({
-      banned: { $ne: true },
+      deletedAt: null, banned: { $ne: true },
       isEndUser: false,
       isServiceAccount: false,
       ...TRACKED_FILTER,
@@ -284,7 +284,7 @@ const buildEmployeesSummary = async ({
       ...TRACKED_FILTER,
     })
       .select(
-        "firstName lastName position finances banned timezone workSchedule workSchedules followProductionCalendar",
+        "firstName lastName position finances deletedAt banned timezone workSchedule workSchedules followProductionCalendar",
       )
       .lean();
     for (const employee of formerEmployees) {
@@ -383,7 +383,7 @@ const buildEmployeesSummary = async ({
         firstName: employee.firstName,
         lastName: employee.lastName,
         position: employee.position ?? null,
-        isActive: !employee.banned,
+        isActive: !employee.deletedAt && !employee.banned,
       },
       ...summary,
       // Норма и отсутствия — то, без чего «отработано» не с чем сравнивать

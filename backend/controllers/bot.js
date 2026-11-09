@@ -106,6 +106,11 @@ exports.outboxPull = async (req, res, next) => {
       );
 
       if (!notification) break;
+      if (notification.to?.chatId && !notification.to.globalChat && !notification.to.companyChat &&
+          await User.exists({ "telegramBot.chatId": String(notification.to.chatId), deletedAt: { $ne: null } })) {
+        await Notification.updateOne({ _id: notification._id, leaseId }, { $set: { failed: true, leaseId: null, leaseUntil: null } });
+        continue;
+      }
       claimed.push(notification);
     }
 

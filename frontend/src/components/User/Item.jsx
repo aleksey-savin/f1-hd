@@ -198,6 +198,7 @@ const UserItem = ({ item }) => {
               item={{ ...item, title: fullName }}
               open={deleteOpen}
               onOpenChange={setDeleteOpen}
+              customDeleteMessage="Пользователь исчезнет из рабочих списков и не сможет войти. Заявки, работы и история сохранятся. Запись можно восстановить."
             />
           </div>
         )}

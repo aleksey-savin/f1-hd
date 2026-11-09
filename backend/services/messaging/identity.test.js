@@ -36,6 +36,13 @@ const fakeDeps = ({ byTelegram = {}, byPhone = {}, existing = null } = {}) => {
   };
 };
 
+test("deleted people cannot acquire a new messenger identity by Telegram or phone", async () => {
+  const deleted = { ...CLIENT, deletedAt: new Date(), banned: false };
+  const { deps } = fakeDeps({ byTelegram: { 123: deleted }, byPhone: { "79145550142": [deleted] } });
+  assert.equal((await resolveIdentity("telegram", { id: "123" }, deps)).userId, undefined);
+  assert.equal((await resolveIdentity("whatsapp", { id: "phone", phone: "79145550142" }, deps)).userId, undefined);
+});
+
 test("a Telegram sender who linked the HD bot is recognised", async () => {
   const { deps } = fakeDeps({ byTelegram: { 123456: CLIENT } });
   const identity = await resolveIdentity("telegram", { id: "123456", name: "Марина Соколова", username: "@m_sokolova" }, deps);

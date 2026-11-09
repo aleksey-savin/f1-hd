@@ -174,6 +174,7 @@ const mergeStatements = (target, source) => {
  *   хотя сам этим правом не действует).
  */
 const effectivePermissions = async (user) => {
+  if (user.deletedAt) return { statements: {}, grantStatements: {} };
   const audience = accountAudienceOf(user);
 
   // Зеркало действует только у сотрудника: у клиентской учётной записи
@@ -306,7 +307,7 @@ const permissionFilter = async (actionId) => {
   // уровнем `$and`: потребители читают `.$or` фрагмента
   // (services/reportApproval.js) и разворачивают его, и всё, что осталось бы
   // снаружи, при таком развороте потерялось бы.
-  const usable = { banned: { $ne: true }, isServiceAccount: { $ne: true } };
+  const usable = { deletedAt: null, banned: { $ne: true }, isServiceAccount: { $ne: true } };
   const branches = conditions.map((condition) => ({
     ...condition,
     ...usable,

@@ -36,6 +36,17 @@ const revokeAllForUser = async (userId) => {
   return deletedCount;
 };
 
+/** Also close sessions opened by this actor and retire links that could recreate access. */
+const revokeImpersonationsForUser = async (userId) => {
+  const id = String(userId);
+  const values = [id];
+  if (mongoose.isValidObjectId(id)) values.push(new mongoose.Types.ObjectId(id));
+  await collection().deleteMany({ impersonatedBy: { $in: values } });
+  await mongoose.connection.db.collection("impersonationCodes").deleteMany({
+    $or: ["targetId", "adminId", "impersonatedBy"].map((field) => ({ [field]: { $in: values } })),
+  });
+};
+
 /** Погасить все сеансы, кроме текущего — для «выйти на остальных устройствах». */
 const revokeOthersForUser = async (userId, keepToken) => {
   const { deletedCount } = await collection().deleteMany({
@@ -146,6 +157,7 @@ const revokeAllForCompany = async (companyId) => {
 
 module.exports = {
   revokeAllForUser,
+  revokeImpersonationsForUser,
   revokeOthersForUser,
   listForUser,
   revokeById,

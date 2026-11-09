@@ -25,6 +25,15 @@ const channelHealth = () => ({
 });
 
 const preferencesSchema = new Schema({
+  userReview: {
+    enabled: { type: Boolean, default: false },
+    suggestDeletion: { type: Boolean, default: false },
+    disabledDays: { type: Number, default: 90, min: 1, max: 3650 },
+    inactivityDays: { type: Number, default: 180, min: 1, max: 3650 },
+    historyPaused: { type: Boolean, default: true },
+  },
+  // Persisted discovery/history cursors. These are worker state, never taken from settings forms.
+  _userReviewState: { type: Schema.Types.Mixed, default: {} },
   timezone: { type: String, default: "Europe/Moscow" },
   htmlTicketDesc: { type: Boolean, default: false },
   // Ящик-приёмник: письма на него становятся заявками. Транспорт задаётся
@@ -93,6 +102,7 @@ const preferencesSchema = new Schema({
       mikrotikChange: { type: Boolean, default: true },
       // Предложения ИИ-агента по учёту техники: ждёт решения и итог
       inventoryChange: { type: Boolean, default: true },
+      userReview: { type: Boolean, default: true },
     },
     // Канал отправки (SMTP). Транспорт задаётся так же, как у ящика-приёмника;
     // authMethod "none" — внутренний релей, принимающий почту без пароля.

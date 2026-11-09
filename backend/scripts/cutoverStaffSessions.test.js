@@ -108,13 +108,12 @@ const migrationRun = async (command, applied = []) => {
   return { output, spawned, recorded, exitCode: await done };
 };
 
-test("migration ledger appends cutover last and dispatches --apply exactly once", async () => {
+test("migration ledger dispatches cutover --apply exactly once when other migrations are recorded", async () => {
   const status = await migrationRun("status");
   assert.equal(status.exitCode, 0);
   const ids = status.output.filter((line) => /^ {2}· /.test(line)).map((line) => line.slice(4));
-  assert.equal(ids.at(-1), "2026-11-07-cutoverStaffSessions");
   assert.equal(ids.filter((id) => id === "2026-11-07-cutoverStaffSessions").length, 1);
-  const up = await migrationRun("up", ids.slice(0, -1));
+  const up = await migrationRun("up", ids.filter((id) => id !== "2026-11-07-cutoverStaffSessions"));
   assert.equal(up.exitCode, 0);
   assert.equal(up.spawned.length, 1);
   assert.deepEqual(Array.from(up.spawned[0][1]), ["scripts/cutoverStaffSessions.js", "--apply"]);

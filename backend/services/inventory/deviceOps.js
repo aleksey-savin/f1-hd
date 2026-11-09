@@ -272,7 +272,7 @@ const validateNewDevice = async (payload) => {
   if (payload.userId) {
     const user = await User.findById(payload.userId);
     const userCompanyId = user?.company?._id || user?.company;
-    if (!user || userCompanyId?.toString() !== payload.companyId?.toString()) {
+    if (!user || user.deletedAt || userCompanyId?.toString() !== payload.companyId?.toString()) {
       return {
         error: new AppError(
           "Assigned user must belong to the same company",
@@ -820,7 +820,7 @@ const planAssignUser = async (
   if (userId) {
     const user = await User.findById(userId);
     const userCompanyId = user?.company?._id || user?.company;
-    if (!user || userCompanyId?.toString() !== device.companyId?.toString()) {
+    if (!user || user.deletedAt || userCompanyId?.toString() !== device.companyId?.toString()) {
       return fail(400, "Assigned user must belong to the same company");
     }
     device.userId = userId;

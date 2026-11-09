@@ -73,6 +73,8 @@ export const changeInterval = (
 ): ScheduleDay => {
   const rows = dayIntervals(day);
   rows[index] = { ...rows[index], ...patch };
+  if (patch.start !== undefined && rows[index - 1])
+    rows[index - 1].end = patch.start;
   if (patch.end !== undefined && rows[index + 1])
     rows[index + 1].start = patch.end;
   return withIntervals(day, rows);
@@ -109,6 +111,31 @@ export const addPlaceChange = (
   return withIntervals(day, rows);
 };
 
+export const appendInterval = (
+  day: ScheduleDay,
+  place: ScheduleInterval["place"],
+): ScheduleDay => {
+  const rows = dayIntervals(day);
+  if (rows.length >= 24 || dayIntervalsError(day)) return day;
+  const last = rows.at(-1)!;
+  if (day.is24hours) {
+    // Полные сутки уже заканчиваются в полночь: новая строка занимает хвост.
+    const window = intervalMinutes(day, rows).at(-1)!;
+    const duration = Math.min(60, Math.floor((window.end - window.start) / 2));
+    if (duration < 1) return day;
+    const at = window.end - duration;
+    const time = `${String(Math.floor((at % DAY) / 60)).padStart(2, "0")}:${String(at % 60).padStart(2, "0")}`;
+    return addPlaceChange(day, time, place);
+  }
+  const end = (minutes(last.end) + 60) % DAY;
+  rows.push({
+    start: last.end,
+    end: `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`,
+    place,
+  });
+  return withIntervals(day, rows);
+};
+
 export const copyScheduleDays = (
   week: WeekSchedule,
   source: string,
@@ -137,8 +164,11 @@ export const dayIntervalsError = (day: ScheduleDay): string | null => {
   const start = day.is24hours ? 0 : minutes(day.start);
   const rawEnd = day.is24hours ? 0 : minutes(day.end);
   const end = rawEnd > start ? rawEnd : rawEnd + DAY;
+  const windows = intervalMinutes(day, rows);
+  if (windows.some((row) => row.end > start + DAY))
+    return "Смена не может длиться дольше 24 часов.";
   let cursor = start;
-  for (const row of intervalMinutes(day, rows)) {
+  for (const row of windows) {
     if (row.start !== cursor || row.end > end)
       return "Интервалы должны идти подряд, без разрывов и пересечений.";
     cursor = row.end;

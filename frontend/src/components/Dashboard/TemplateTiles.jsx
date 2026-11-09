@@ -161,7 +161,7 @@ const TemplateCard = ({ template, showAccess }) => {
 const FreeCard = ({ alone }) => (
   <Link
     to="/dashboard/tickets/add"
-    className={cn(CARD, "border-dashed", alone && "md:col-span-2")}
+    className={cn(CARD, "border-dashed", alone && "@sm:col-span-2")}
   >
     <span className="flex items-center gap-2">
       <span className="flex size-6 flex-none items-center justify-center rounded-md bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
@@ -239,7 +239,7 @@ const TemplateTiles = ({ heading = null, className }) => {
   };
 
   return (
-    <section className={className}>
+    <section className={cn("@container", className)}>
       {heading && (
         <Eyebrow count={templates.length || undefined}>{heading}</Eyebrow>
       )}
@@ -288,7 +288,7 @@ const TemplateTiles = ({ heading = null, className }) => {
         </div>
       )}
 
-      <div className="grid gap-2 md:grid-cols-2 md:gap-3 lg:grid-cols-4">
+      <div className="grid gap-2 @sm:grid-cols-2 @2xl:grid-cols-4 md:gap-3">
         {shown.map((template) => (
           <TemplateCard
             key={template._id}

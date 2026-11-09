@@ -17,6 +17,8 @@ type PagerProps = {
   loaded: number;
   onPage: (page: number) => void;
   onLoadMore: () => void;
+  /** Route loaders can replace pages instead of accumulating rows. */
+  mobileMode?: "append" | "pages";
 };
 
 // 1 … (page-1) page (page+1) … last, с многоточиями
@@ -42,6 +44,7 @@ const Pager = ({
   loaded,
   onPage,
   onLoadMore,
+  mobileMode = "append",
 }: PagerProps) => {
   if (!total) return null;
 
@@ -103,13 +106,39 @@ const Pager = ({
       </BrowserView>
       <MobileView>
         <div className="mt-3 flex flex-col items-center gap-2 px-1">
-          {loaded < total && (
-            <Button variant="outline" className="w-full" onClick={onLoadMore}>
-              Показать ещё
-            </Button>
+          {mobileMode === "pages" ? (
+            <div className="flex w-full items-center justify-between gap-3">
+              <Button
+                variant="outline"
+                disabled={page <= 1}
+                onClick={() => onPage(page - 1)}
+              >
+                Предыдущая
+              </Button>
+              <span className="text-xs text-faint">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                disabled={page >= totalPages}
+                onClick={() => onPage(page + 1)}
+              >
+                Следующая
+              </Button>
+            </div>
+          ) : (
+            loaded < total && (
+              <Button variant="outline" className="w-full" onClick={onLoadMore}>
+                Показать ещё
+              </Button>
+            )
           )}
           <span className="text-sm text-faint tabular-nums">
-            {loaded < total ? `Показаны ${loaded} из ${total}` : `Все ${total}`}
+            {mobileMode === "pages"
+              ? `Показаны ${from}–${to} из ${total}`
+              : loaded < total
+                ? `Показаны ${loaded} из ${total}`
+                : `Все ${total}`}
           </span>
         </div>
       </MobileView>

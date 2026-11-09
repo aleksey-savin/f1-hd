@@ -144,7 +144,7 @@ function createProposals({ store, readMenus, now = () => new Date() }) {
     const requester = await store.findUserByTelegram(telegramId);
     if (requester?.error) return refuse(requester.error);
     if (!requester) {
-      return refuse("no employee with this Telegram id: the person must be an active, non-banned staff member with a linked Telegram");
+      return refuse("no employee with this Telegram id: the person must be an active, non-deletedAt banned staff member with a linked Telegram");
     }
 
     // 3. Кто решает

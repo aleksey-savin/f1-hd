@@ -4,6 +4,7 @@ import Forbidden from "@/components/Error/403";
 import NotFound from "@/components/Error/404";
 import { useCan } from "@/store/authed-user";
 import useInitialPrefsStore from "@/store/prefs";
+import { routeAccessAllowed } from "@/lib/route-access";
 
 /**
  * Право на РАЗДЕЛ — на самом маршруте, а не внутри страницы.
@@ -40,11 +41,10 @@ const RouteGuard = ({ children }) => {
     .some((key) => !modules?.[key]?.isActive);
   if (moduleOff) return <NotFound />;
 
-  const required = matches
-    .map((match) => match.handle?.can)
-    .filter(Boolean);
-
-  const allowed = required.every((request) => can(request));
+  const allowed = routeAccessAllowed(
+    matches.map((match) => match.handle || {}),
+    can,
+  );
 
   return allowed ? children : <Forbidden />;
 };

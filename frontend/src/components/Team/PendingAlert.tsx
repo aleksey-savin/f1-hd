@@ -1,3 +1,5 @@
+import { formatAbsencePeriod } from "@/util/absence-period";
+import { formatDayKey } from "@/util/format-date";
 import { useState } from "react";
 import { RiTimeLine } from "react-icons/ri";
 
@@ -19,11 +21,6 @@ type Props = {
   impactOf?: (id: string) => number | null;
   total?: number;
 };
-
-const humanDate = (key: string) => key.split("-").reverse().join(".");
-
-const range = (from: string, to: string) =>
-  from === to ? humanDate(from) : `${humanDate(from)} — ${humanDate(to)}`;
 
 /**
  * Чужой запрос, ждущий решения, — инлайн-алерт с автором и датой, а не пункт
@@ -89,10 +86,11 @@ const PendingAlert = ({
               {fullName(item.user)} — {item.typeLabel.toLowerCase()}
             </b>
             <span className="block text-xs text-muted-foreground">
-              {range(item.from, item.to)}
+              {formatAbsencePeriod(item, formatDayKey)}
               {item.comment ? ` · «${item.comment}»` : ""}
             </span>
             {(() => {
+              if (item.timeRange) return null;
               const left = impactOf?.(item._id);
               if (left === null || left === undefined || !total) return null;
               return (

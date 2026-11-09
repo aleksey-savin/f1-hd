@@ -1,12 +1,57 @@
 # AI Integration — Implementation Notes
 
-_Last updated: 2026-07-31. This document describes the AI features as currently
+_Last updated: 2026-11-09. This document describes the AI features as currently
 implemented, so the code can be reviewed and optimized later. It is a snapshot,
 not a spec — verify against the code before relying on any detail._
 
 ## Overview
 
-Five AI capabilities have been added:
+### User review: local triage and reusable analysis
+
+`services/userReview/input-plan.js` checks the title, description, questionnaire
+and every current comment locally before calling a provider. Selection uses
+employment and account-access intent; application names and ticket categories
+are not exclusion rules. A dismissal mentioned only in a comment remains eligible.
+Quoted old correspondence and signatures alone do not trigger a model request.
+
+For a candidate, the prompt retains current human prose, names, lists, dates,
+exceptions and corrections. Only explicit technical dumps and empty acknowledgements
+can be omitted; referenced quoted background stays attached. Keeping later human
+responses prevents an old departure from surviving a cancellation or return.
+
+The detector hashes the actual selected prompt, selection version, timezone and
+provider/model identity. Unchanged input reuses the stored result without another
+request, revalidates quotations against current sources and matches current users
+again. Provider keys are not part of the hash or prompt. An explicit retry clears
+this cache. The full source fingerprint and worker lease still guard publication.
+
+Analysis records store `method` (`rules`, `ai`, `cache`), the input hash and input
+size/source counts. The analysis page distinguishes these methods; older records
+without provenance remain unknown. Character counts describe payload size, not
+billed tokens or measured extraction accuracy.
+
+Each worker run handles at most 100 jobs while retaining the separate AI budget
+(5 by default, maximum 20). Local checks and cache hits do not spend that budget.
+Explicit history scans discover batches of 300 with the existing persisted cursor
+and pause controls; installing this code does not start or resume a history scan.
+
+History progress is separate from the count of analysis rows. A new scan freezes
+an upper ticket ID and initial total, then reports discovery and successful/error
+outcomes within that snapshot and the viewer's ticket scope. Newer tickets do not
+expand the denominator; permanently removed tickets no longer count toward it.
+Undiscovered tickets remain in the denominator. Before a run, the summary reports
+the available history size without pretending an empty queue is a completed or
+paused scan. Resuming keeps the saved cursor and snapshot; pausing takes effect
+between jobs.
+
+The summary exposes actual discovery and analysis leases, including the current
+ticket, stage and attempt start time. The UI animates these active stages and
+explains the wait between worker runs. Pulse notifications on claim and discovery
+boundaries refresh the page through the shared live mechanism. A local elapsed
+clock does not poll the API or advance progress. Failed jobs count as handled but
+remain separate from successfully checked tickets.
+
+The other AI capabilities are:
 
 1. **AI provider preferences** — admin chooses OpenAI, Anthropic, DeepSeek,
    Yandex AI Studio or a **self-hosted server** (Ollama, LM Studio, vLLM,

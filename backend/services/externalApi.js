@@ -42,9 +42,9 @@ const apiApplicantFilters = ({ companyId, userId, userEmail }) => {
   const id = asString(userId);
   const email = asString(userEmail).toLowerCase();
   return [
-    ...(HEX_OBJECT_ID.test(id) ? [{ _id: id, "company._id": companyId }] : []),
+    ...(HEX_OBJECT_ID.test(id) ? [{ _id: id, "company._id": companyId, deletedAt: null }] : []),
     ...(email
-      ? [{ email, "company._id": companyId, banned: { $ne: true } }]
+      ? [{ email, "company._id": companyId, deletedAt: null, banned: { $ne: true } }]
       : []),
   ];
 };

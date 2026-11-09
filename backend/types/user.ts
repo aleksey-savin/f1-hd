@@ -37,6 +37,11 @@ export type WorkStatusCode =
   | "sick"
   | "unset";
 
+export type DashboardLayout = {
+  customOrder: boolean;
+  widgets: { id: string; zone: "top" | "main" | "aside"; visible: boolean }[];
+};
+
 export interface IUser {
   email: string;
   /** Подтверждён ли адрес. Существующим проставлено true миграцией. */
@@ -63,6 +68,10 @@ export interface IUser {
   isServiceAccount: boolean;
   isCloudTelephony: boolean;
   hideWorkStatus?: boolean;
+  dashboardLayout?: {
+    staff?: DashboardLayout | null;
+    client?: DashboardLayout | null;
+  };
   finances?: {
     salary: number | null;
     overtimeHourlyRate: number | null;
@@ -87,6 +96,9 @@ export interface IUser {
   banReason?: string;
   /** Пусто = бессрочно. Просроченный бан плагин снимает сам при входе. */
   banExpires?: Date;
+  disabledAt?: Date;
+  deletedAt?: Date | null;
+  deletedBy?: Types.ObjectId | null;
   lastLogin?: Date;
   /** Когда отправлено приглашение. Пусто + пустой lastLogin = «не дошло». */
   invitedAt?: Date;
@@ -96,6 +108,8 @@ export interface IUser {
   resetTokenExpiration?: Date;
   telegramBot: { isActive: boolean; chatId: string };
   workStatus?: {
+    source?: "schedule" | "manual" | "taxi";
+    taxiTripId?: Types.ObjectId | null;
     code: WorkStatusCode;
     note: string;
     updatedAt: Date | null;

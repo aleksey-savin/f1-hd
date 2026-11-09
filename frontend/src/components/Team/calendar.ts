@@ -1,3 +1,5 @@
+import { formatAbsencePeriod } from "@/util/absence-period";
+import { formatDayKey } from "@/util/format-date";
 import type { CalendarDay, TeamMember } from "@/types/teamSchedule";
 import { getAbsenceType } from "@/util/absence-types";
 import { WORK_STATUSES } from "@/util/work-statuses";
@@ -66,6 +68,14 @@ export const dotState = (
   isToday: boolean,
 ): DotState => {
   const who = `${member.user.lastName} ${member.user.firstName}`.trim();
+  const partial = (day.partialAbsences ?? [])
+    .map(
+      (absence) =>
+        `${absence.status === "pending" ? "запрос: " : ""}${absence.label.toLowerCase()} · ${formatAbsencePeriod(absence, formatDayKey)}`,
+    )
+    .join("; ");
+  const withPartial = (title: string) =>
+    partial ? `${title} · ${partial}` : title;
 
   if (day.absence) {
     const color =
@@ -74,27 +84,29 @@ export const dotState = (
     return {
       color,
       hollow: pending,
-      title: `${who} — ${pending ? "запрос: " : ""}${day.absence.label.toLowerCase()}`,
+      title: `${who} — ${pending ? "запрос: " : ""}${day.absence.label.toLowerCase()} · ${formatAbsencePeriod(day.absence, formatDayKey)}`,
     };
   }
   if (day.offDuty) {
     return {
       color: OFF_COLOR,
       hollow: false,
-      title: `${who} — ${day.holidayTitle ?? "не на работе"}`,
+      title: withPartial(`${who} — ${day.holidayTitle ?? "не на работе"}`),
     };
   }
   if (isToday && member.status) {
     return {
       color: statusColor(member.status.code),
       hollow: false,
-      title: `${who} — ${member.status.label}${member.status.note ? ` · ${member.status.note}` : ""}`,
+      title: withPartial(
+        `${who} — ${member.status.label}${member.status.note ? ` · ${member.status.note}` : ""}`,
+      ),
     };
   }
   return {
     color: PLANNED_COLOR,
     hollow: false,
-    title: `${who} — по графику работает`,
+    title: withPartial(`${who} — по графику работает`),
   };
 };
 

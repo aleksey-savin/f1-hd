@@ -9,6 +9,7 @@ const {
   CODE_TTL_MS,
 } = require("@/services/impersonation");
 const authConfig = require("@/auth/config");
+const { isDeniedAccount } = require("@/services/accountDenial");
 
 /**
  * Вход под пользователем.
@@ -39,7 +40,7 @@ exports.start = async (req, res, next) => {
         new AppError("Служебная учётная запись не входит в портал", 400),
       );
     }
-    if (target.banned) {
+    if (isDeniedAccount(target)) {
       return next(new AppError("Учётная запись отключена", 400));
     }
 
@@ -116,8 +117,9 @@ exports.claim = async (req, res, next) => {
     }
 
     const user = await User.findById(found.targetId).select(
-      "firstName lastName email isEndUser isAdmin",
+      "firstName lastName email isEndUser isAdmin deletedAt banned banExpires company.isActive isServiceAccount",
     );
+    if (!user || isDeniedAccount(user)) return next(new AppError("Учётная запись отключена", 403));
 
     // Серверная ручка вычисляет оставшийся срок по времени создания сеанса.
     const { headers, response } = await getAuth().api.setImpersonationCookie({

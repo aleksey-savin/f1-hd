@@ -87,7 +87,7 @@ function createProposals({ store, ops, now = () => new Date() }) {
       if (!errors.some((e) => e.startsWith("requester"))) {
         requester = await store.findUserByTelegram(telegramId);
         if (requester?.error) errors.push(requester.error);
-        else if (!requester) errors.push("no employee with this Telegram id: the person must be an active, non-banned staff member with a linked Telegram");
+        else if (!requester) errors.push("no employee with this Telegram id: the person must be an active, non-deletedAt banned staff member with a linked Telegram");
       }
       const listOk = Array.isArray(operations) && operations.length > 0 && operations.length <= MAX_OPERATIONS;
 

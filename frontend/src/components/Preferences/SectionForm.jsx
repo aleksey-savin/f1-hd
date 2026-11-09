@@ -6,6 +6,7 @@ import { useDraftSection } from "@/components/app/draft-context";
 // присланные группы. Секция без сохранения (сервисные действия) этой обёрткой
 // не пользуется. Непустой blockedReason гасит «Сохранить» у изменённой секции и
 // называет причину (см. useDraftSection).
+/** @param {{buildPayload: () => import("@/components/app/draft-context").DraftPayload, blockedReason?: string | null, children?: import("react").ReactNode}} props */
 const SectionForm = ({ buildPayload, blockedReason = null, children }) => {
   useDraftSection(buildPayload, blockedReason);
 

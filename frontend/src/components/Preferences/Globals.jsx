@@ -14,24 +14,15 @@ import Combobox from "@/components/app/Combobox";
 import { timezoneOptions } from "../../util/timezone-catalog";
 import useToastStore from "../../store/toast-store";
 import { adoptBrand } from "../../store/prefs";
-import {
-  DEFAULT_BRAND,
-  accentWarnings,
-  applyAccent,
-} from "../../util/brand";
+import { DEFAULT_BRAND, accentWarnings, applyAccent } from "../../util/brand";
 import { isHexColor } from "../../util/brand-color";
 import { DEFAULT_TIMEZONE } from "../../util/format-date";
 import { phoneInputError, phoneWireValue } from "../../util/phone";
-import { TAXI_OPERATORS } from "../../util/taxi-operators";
 import SectionForm from "./SectionForm";
 
 // «Основные»: часовой пояс, контакты организации, бренд (название портала, лого,
-// значок, цвет акцента, подпись в письмах), такси. Лого и значок сохраняются
+// значок, цвет акцента, подпись в письмах). Лого и значок сохраняются
 // сразу, отдельными эндпоинтами; остальное уходит черновиком страницы.
-const TAXI_OPTIONS = [
-  { value: "", label: "Не показывать" },
-  ...TAXI_OPERATORS.map(({ value, label }) => ({ value, label })),
-];
 
 // Готовые цвета акцента; первый — цвет по умолчанию
 const ACCENT_SWATCHES = [
@@ -57,7 +48,6 @@ const PrefsGlobals = ({ prefs }) => {
   const [tel, setTel] = useState(phoneWireValue(prefs.contacts?.tel));
   const [email, setEmail] = useState(prefs.contacts?.email || "");
   const [address, setAddress] = useState(prefs.contacts?.address || "");
-  const [taxiOperator, setTaxiOperator] = useState(prefs.taxi?.operator || "");
 
   // Лого компании: загрузка/удаление — сразу, отдельными эндпоинтами
   const logoInputRef = useRef(null);
@@ -215,7 +205,6 @@ const PrefsGlobals = ({ prefs }) => {
           accent: accentInvalid ? accentInput : accent,
           mailSignature,
         },
-        taxi: { operator: taxiOperator },
       })}
       blockedReason={blockedReason}
     >
@@ -459,22 +448,6 @@ const PrefsGlobals = ({ prefs }) => {
           placeholder={signaturePlaceholder}
           className="w-72 resize-none max-md:w-full"
         />
-      </SettingRow>
-
-      <SettingRow
-        divider
-        title="Оператор заказа такси"
-        hint="Действие «такси» в справочнике компаний. Маршрут до офиса умеет только Яндекс Go — по координатам компании или метке из ссылки на карты."
-        htmlFor="prefs-taxi"
-      >
-        <div className="w-56 max-md:w-full">
-          <Combobox
-            id="prefs-taxi"
-            value={taxiOperator || null}
-            options={TAXI_OPTIONS}
-            onChange={(value) => setTaxiOperator(value || "")}
-          />
-        </div>
       </SettingRow>
     </SectionForm>
   );

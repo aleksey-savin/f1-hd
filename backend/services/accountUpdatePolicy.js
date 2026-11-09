@@ -90,7 +90,7 @@ const planAccountUpdate = ({ target, body, mayManageAccess, mayBan }) => {
 
   // Поля `banned` в документе может не быть — это «работает»
   const bannedChanges =
-    banned !== undefined && banned !== Boolean(target.banned);
+    banned !== undefined && (banned !== Boolean(target.banned) || (banned && !require("./accountDenial").isBanned(target)));
 
   // Адресат, а не сырое поле: учётка без записанного типа — клиент
   // (accountAudienceOf), и «клиент» для неё сменой не считается

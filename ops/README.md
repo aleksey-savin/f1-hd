@@ -44,6 +44,19 @@ The script finds the source containers by itself. The copy brings the source
 `migrations` ledger along, so `migrate up` runs only the entries the source has
 not applied yet.
 
+After the archive passes its dry run, the script stops the target compose
+stack's existing `backend` and `tg-service` containers before dropping any
+collections. They stay stopped through restore, index creation and masking,
+then start again only after success. MongoDB itself stays running. Otherwise
+the backend can recreate a missing calendar during restore, leaving duplicate
+`country/year` records and preventing the unique index from being restored.
+
+`--no-restart` still stops these writers and leaves them stopped afterwards.
+A failed restore or masking also leaves them stopped; retry from the saved
+archive before starting the application. A retry finds existing stopped
+containers too. Only this machine's compose stack is controlled: if the target
+is outside that stack, stop its database writers separately before syncing.
+
 ### Modes
 
 - masked (default): after the restore, identity fields are masked and every
@@ -55,9 +68,11 @@ not applied yet.
 ### What is never copied
 
 - Kept as they are on the target (the target's own settings): `preferences`,
-  `channels`, `channeljobs`.
+  `channels`, `channeljobs`, `taxisettings`.
 - Live credentials, dropped on the target: `authSessions`, `authVerifications`,
   `mcpkeys`, `mikrotikdownloadcodes`, `impersonationCodes`, `telegramPairingCodes`.
+- Corporate taxi records, dropped on the target: `taxitrips`, `taxiemployees`. The development installation uses its own
+  corporate credentials and employee mappings; production trips and employee mappings are not copied there.
 
 A copy must not be able to act as a signed-in person or as an agent of the
 source installation.

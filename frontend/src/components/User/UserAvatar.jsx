@@ -23,12 +23,12 @@ const RING = {
 const UserAvatar = ({
   user,
   /** Переопределение картинки (превью после загрузки на карточке). */
-  src,
+  src = undefined,
   sizeClass = "size-13",
   textClass = "text-base",
   ringColor = null,
   ring = "sm",
-  className,
+  className = undefined,
 }) => {
   const fullName = `${user.lastName || ""} ${user.firstName || ""}`.trim();
   const image =

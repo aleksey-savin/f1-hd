@@ -85,7 +85,7 @@ const resolveServiceUserId = async (raw, current) => {
   const value = typeof raw === "string" ? raw.trim() : raw;
   if (!value) return null;
   if (!mongoose.isValidObjectId(value)) throw new AppError("Пользователь не найден", 404);
-  const user = await User.findOne({ _id: value, isEndUser: false }).select("_id banned banExpires").lean();
+  const user = await User.findOne({ _id: value, isEndUser: false }).select("_id deletedAt banned banExpires").lean();
   if (!user || isBanned(user)) throw new AppError("Автор ответов с телефона — только сотрудник", 400);
   return user._id;
 };

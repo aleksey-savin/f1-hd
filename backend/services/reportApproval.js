@@ -438,7 +438,7 @@ const managersOfParts = async (parts) => {
   if (managerIds.length === 0) {
     return [];
   }
-  return User.find({ _id: { $in: managerIds }, banned: { $ne: true } })
+  return User.find({ _id: { $in: managerIds }, deletedAt: null, banned: { $ne: true } })
     .select("firstName lastName email telegramBot notify")
     .lean();
 };
@@ -458,7 +458,7 @@ const pendingApprovers = async (report) => {
   if (!finalId) {
     return [];
   }
-  return User.find({ _id: finalId, banned: { $ne: true } })
+  return User.find({ _id: finalId, deletedAt: null, banned: { $ne: true } })
     .select("firstName lastName email telegramBot notify")
     .lean();
 };
@@ -479,7 +479,7 @@ const assertApprovalRoute = async (report, attachment) => {
   if (!finalId) {
     problems.push("не назначен согласующий со стороны клиента");
   } else {
-    const approver = await User.findOne({ _id: finalId, banned: { $ne: true } })
+    const approver = await User.findOne({ _id: finalId, deletedAt: null, banned: { $ne: true } })
       .select("_id")
       .lean();
     if (!approver) {
@@ -505,7 +505,7 @@ const assertApprovalRoute = async (report, attachment) => {
       const managerIds = nodes.map((node) => node.manager).filter(Boolean);
       const active = await User.find({
         _id: { $in: managerIds },
-        banned: { $ne: true },
+        deletedAt: null, banned: { $ne: true },
       })
         .select("_id")
         .lean();
@@ -547,7 +547,7 @@ const contractorRecipients = async (report) =>
     // `banned` здесь остаётся, хотя permissionFilter отсекает отключённых сам:
     // ветка автора (`_id`) добавлена в обход фильтра, и без внешнего условия
     // уведомление ушло бы уволенному
-    banned: { $ne: true },
+    deletedAt: null, banned: { $ne: true },
     isEndUser: { $ne: true },
     $or: [
       { _id: report.createdBy },

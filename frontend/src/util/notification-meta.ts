@@ -7,6 +7,7 @@ import {
   RiFileTextLine,
   RiLinkUnlinkM,
   RiRouterLine,
+  RiUserSearchLine,
 } from "react-icons/ri";
 
 import type { NotificationItem } from "@/types/notification";
@@ -34,6 +35,7 @@ const EXTRA: Record<string, Meta> = {
   // changeNotifications): ждёт решения — тон ожидания, итог — нейтральный
   inventoryChangeProposed: { icon: RiComputerLine, tone: "warn" },
   inventoryChangeResult: { icon: RiComputerLine, tone: "muted" },
+  userReviewSummary: { icon: RiUserSearchLine, tone: "warn" },
   // «Диалоги»: сообщение ждёт ответа (backend/services/messaging/notify.js)
   conversationWaiting: { icon: RiDiscussLine, tone: "warn" },
   // Канал связи отключился — сессия, блокировка, ошибка; администраторам
@@ -57,11 +59,14 @@ export const toneClass = (tone: string): string =>
 /** Третья строка: где это случилось — заявка или раздел */
 export const notificationContext = (item: NotificationItem): string => {
   if (item.ticketNum) {
-    return [String(item.ticketNum), item.ticketTitle].filter(Boolean).join(" · ");
+    return [String(item.ticketNum), item.ticketTitle]
+      .filter(Boolean)
+      .join(" · ");
   }
   if (item.link.startsWith("/team/calendar")) return "Календарь команды";
   if (item.link.includes("/approval")) return "Согласование работ";
   if (item.link.startsWith("/conversations")) return "Диалоги";
+  if (item.link.startsWith("/users/review")) return "Проверка пользователей";
   if (item.link.startsWith("/preferences#channels")) {
     return "Настройки системы · Каналы связи";
   }

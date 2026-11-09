@@ -1,3 +1,5 @@
+import type { AbsenceTimeRange } from "@/util/absence-period";
+
 // Контракт GET /api/team/schedule — календарь команды.
 // Страница отвечает на «кто доступен», поэтому ни часов, ни нормы, ни
 // переработок здесь нет: они живут в отчёте «Сотрудники».
@@ -31,6 +33,7 @@ export type DayAbsence = {
   away: boolean;
   from: string;
   to: string;
+  timeRange?: AbsenceTimeRange | null;
 };
 
 export type CalendarDay = {
@@ -40,6 +43,7 @@ export type CalendarDay = {
   away: boolean;
   holidayTitle: string | null;
   absence: DayAbsence | null;
+  partialAbsences?: DayAbsence[];
 };
 
 export type PresenceStatus = {
@@ -87,6 +91,7 @@ export type PendingAbsence = {
   away: boolean;
   from: string;
   to: string;
+  timeRange?: AbsenceTimeRange | null;
   comment: string;
   requestedBy: { firstName: string; lastName: string } | null;
   createdAt: string;

@@ -22,6 +22,8 @@ export interface IWorkFinancesConfirmation {
 }
 
 export interface IWork {
+  taxiTripIds?: Types.ObjectId[];
+  taxiDecision?: "pending" | "none" | "linked";
   description?: string;
   visitRequired?: boolean;
   startedAt?: Date;

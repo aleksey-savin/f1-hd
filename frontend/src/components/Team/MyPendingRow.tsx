@@ -1,3 +1,6 @@
+import type { AbsenceTimeRange } from "@/util/absence-period";
+import { formatAbsencePeriod } from "@/util/absence-period";
+import { formatDayKey } from "@/util/format-date";
 import { RiTimeLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
@@ -14,13 +17,9 @@ type PendingAbsence = {
   typeLabel: string;
   from: string;
   to: string;
+  timeRange?: AbsenceTimeRange | null;
   comment?: string;
 };
-
-const humanDate = (key: string) => key.split("-").reverse().join(".");
-
-const range = (from: string, to: string) =>
-  from === to ? humanDate(from) : `${humanDate(from)} — ${humanDate(to)}`;
 
 const MyPendingRow = ({
   absence,
@@ -36,7 +35,7 @@ const MyPendingRow = ({
     <span className="min-w-0 flex-1">
       <b className="font-semibold">Ваша заявка ждёт решения</b>
       <span className="block text-xs text-muted-foreground">
-        {absence.typeLabel} · {range(absence.from, absence.to)}
+        {absence.typeLabel} · {formatAbsencePeriod(absence, formatDayKey)}
         {absence.comment ? ` · «${absence.comment}»` : ""}
       </span>
     </span>

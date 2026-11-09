@@ -116,6 +116,7 @@ const TicketBulkActionBar = ({
         onConfirm={onAddWorks}
       />
       <CloseModal
+        selectedItems={selectedItems}
         show={openModal === "close"}
         onHide={closeModal}
         count={count}

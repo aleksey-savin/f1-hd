@@ -32,7 +32,7 @@ const buildAuthContext = async (user, session = null) => {
   // Тем же правилом, что и `effectivePermissions`: `isAdmin` у клиентской
   // учётной записи не действует — иначе оставшийся в базе флаг обходил бы
   // скоупы заявок и отчётов (`req.auth.isAdmin` читают десятки мест).
-  const isAdmin = isStaffAdmin(user);
+  const isAdmin = !user.deletedAt && isStaffAdmin(user);
 
   return {
     userId: user._id.toString(),

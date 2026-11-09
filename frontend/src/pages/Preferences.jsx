@@ -15,7 +15,10 @@ import DraftBar from "@/components/app/DraftBar";
 import { DraftProvider, useDraft } from "@/components/app/draft-context";
 
 import PrefsGlobals from "../components/Preferences/Globals";
+import PrefsTaxi from "../components/Preferences/Taxi";
+import { taxiSettingsAction } from "./Taxi/routes";
 import PrefsSecurity from "../components/Preferences/Security";
+import PrefsUserReview from "../components/Preferences/UserReview";
 import PrefsTickets from "../components/Preferences/Tickets";
 import PrefsTicketsCollect from "../components/Preferences/TicketsCollect";
 import PrefsChannels from "../components/Preferences/Channels";
@@ -156,11 +159,9 @@ const PreferencesCanvas = ({ sections }) => {
 };
 
 /**
- * Настройки — одно право (`settings.manage`): секции по правам не делятся
- * (спека 2026-09-11). Раньше страницу целиком закрывал `isAdmin`, затем у
- * секций были разные права — обе схемы уступили место одной: у кого есть
- * доступ к настройкам, тот видит и меняет их все, сервер это же право и
- * проверяет (`routes/internal/preferences.js`).
+ * Общие настройки доступны по settings.manage. Для интеграции такси действует
+ * отдельное taxi.configure: с ним открывается только секция «Такси», без
+ * остальных данных настроек. Сервер проверяет доступ по ключам тела.
  */
 const Preferences = () => {
   const prefs = useLoaderData() || {};
@@ -198,6 +199,16 @@ const Preferences = () => {
       id: "notifications",
       label: "Уведомления",
       element: <PrefsNotifications prefs={prefs} />,
+    },
+    (general || can({ taxi: ["configure"] })) && {
+      id: "taxi",
+      label: "Такси",
+      element: <PrefsTaxi prefs={prefs} />,
+    },
+    general && {
+      id: "user-review",
+      label: "Проверка пользователей",
+      element: <PrefsUserReview prefs={prefs} />,
     },
     general && {
       id: "ai",
@@ -256,7 +267,7 @@ const Preferences = () => {
     },
   ].filter(Boolean);
 
-  // Маршрут уже требует settings.manage (RouteGuard); проверка здесь — на
+  // Маршрут уже требует одно из прав глобальных настроек; проверка здесь — на
   // случай прямого захода мимо гварда, а не рабочий сценарий для роли.
   if (!sections.length) {
     return <Forbidden />;
@@ -293,10 +304,13 @@ export async function loader({ request } = {}) {
 // бэкенд трогает только присланные группы. Часовой пояс после сохранения
 // дублируется в localStorage (его читает util/format-date на каждой странице).
 export async function action({ request }) {
+  if (!request.headers.get("Content-Type")?.includes("application/json")) {
+    return taxiSettingsAction({ request });
+  }
   const payload = await request.json();
 
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/preferences`,
+    `${import.meta.env.VITE_API_ADDRESS || ""}/api/preferences`,
     {
       method: "POST",
       headers: {

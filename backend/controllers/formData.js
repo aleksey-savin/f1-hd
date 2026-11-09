@@ -31,7 +31,7 @@ exports.getServiceAccounts = async (req, res, next) => {
   try {
     const users = await User.find({
       isServiceAccount: true,
-      banned: { $ne: true },
+      deletedAt: null, banned: { $ne: true },
     });
     const shortenedUsersList = users.map((user) => ({
       _id: user._id,

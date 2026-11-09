@@ -16,6 +16,7 @@ export type NotificationFacet = {
   categories: NotificationCategory[];
   /** Фасет раздела-модуля: виден, только когда раздел человеку открыт */
   module?: "messaging" | "mikrotik" | "inventory";
+  permission?: "userReview";
 };
 
 export const NOTIFICATION_FACETS: NotificationFacet[] = [
@@ -62,6 +63,12 @@ export const NOTIFICATION_FACETS: NotificationFacet[] = [
     categories: ["inventoryChange"],
     module: "inventory",
   },
+  {
+    key: "users",
+    label: "Пользователи",
+    categories: ["userReview"],
+    permission: "userReview",
+  },
 ];
 
 /** Фасеты, которые стоит показать: без «Диалогов», если раздел закрыт. */
@@ -69,18 +76,21 @@ export const visibleFacets = ({
   messaging,
   mikrotik = true,
   inventory = true,
+  userReview = false,
 }: {
   messaging: boolean;
   /** Модуль Mikrotik включён и человек не клиент */
   mikrotik?: boolean;
   /** Модуль «Инвентарь» включён и человек не клиент */
   inventory?: boolean;
+  userReview?: boolean;
 }): NotificationFacet[] =>
   NOTIFICATION_FACETS.filter(
     (facet) =>
       (facet.module !== "messaging" || messaging) &&
       (facet.module !== "mikrotik" || mikrotik) &&
-      (facet.module !== "inventory" || inventory),
+      (facet.module !== "inventory" || inventory) &&
+      (facet.permission !== "userReview" || userReview),
   );
 
 export const facetByKey = (key: string | null | undefined): NotificationFacet =>
@@ -101,7 +111,8 @@ export const unreadInFacet = (
 ): number => {
   if (!byCategory) return 0;
   const categories = facetCategories(key);
-  const keys = categories ?? (Object.keys(byCategory) as NotificationCategory[]);
+  const keys =
+    categories ?? (Object.keys(byCategory) as NotificationCategory[]);
   return keys.reduce((sum, category) => sum + (byCategory[category] ?? 0), 0);
 };
 

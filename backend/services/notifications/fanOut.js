@@ -11,7 +11,7 @@ const oneLine = (text, max) => {
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 };
 const personName = (user) => oneLine([user?.firstName, user?.lastName].filter(Boolean).join(" "), 80);
-const usable = (user) => Boolean(user) && user.isServiceAccount !== true && user.banned !== true;
+const usable = (user) => Boolean(user) && !user.deletedAt && user.isServiceAccount !== true && user.banned !== true;
 
 function createFanOut({ loadUsers, loadPrefs, saveNotifications, pushInApp, category, log, logPrefix = "Notification" }) {
   const CATEGORY = category;

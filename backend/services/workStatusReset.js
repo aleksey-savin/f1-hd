@@ -4,6 +4,8 @@ const Preferences = require("../models/preferences");
 const logger = require("../utils/logger");
 const { LONG_LIVED_WORK_STATUSES } = require("../utils/workStatuses");
 const { getAbsenceType } = require("../utils/absenceTypes");
+const { TaxiTrip } = require("../models/taxi");
+const { ACTIVE_STATUSES } = require("./taxi/policy");
 const {
   dayKey,
   dayKeyToUtcMidnight,
@@ -26,6 +28,9 @@ const syncStatusesWithAbsences = async (staffFilter) => {
 
   const active = await Absence.find({
     status: "approved",
+    // Часы внутри дня ведёт поминутный планировщик; ночной сброс не должен
+    // превращать такое отсутствие в отгул на весь следующий день.
+    timeRange: null,
     from: { $lte: today },
     to: { $gte: today },
   })
@@ -86,11 +91,18 @@ const syncStatusesWithAbsences = async (staffFilter) => {
 // ведёт services/workStatusAuto по графику. Выполняется независимо от
 // statusBoard.isActive: устаревший статус вреден и в вебе.
 const runWorkStatusReset = async () => {
+  const ongoing = await TaxiTrip.find({ deletedAt: null, purpose: "business", status: { $in: ACTIVE_STATUSES } })
+    .select("_id userId").lean();
   const staffFilter = {
-    banned: { $ne: true },
+    deletedAt: null, banned: { $ne: true },
     isEndUser: false,
     isServiceAccount: false,
     isCloudTelephony: false,
+    // Завершённый выезд сбрасывается как раньше. Поездка, продолжающаяся
+    // через полночь, сохраняет присутствие только до своего окончания.
+    ...(ongoing.some((trip) => trip.userId) ? { $nor: ongoing.filter((trip) => trip.userId).map((trip) => ({
+      _id: trip.userId, "workStatus.source": "taxi", "workStatus.taxiTripId": trip._id,
+    })) } : {}),
   };
 
   // Штатных ночь возвращает в «не на работе» — это правда про 2:30; «не указан»

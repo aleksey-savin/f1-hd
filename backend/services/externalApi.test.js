@@ -48,6 +48,13 @@ test("values from the body are strings; objects and arrays are dropped", () => {
   }
 });
 
+test("external applicant resolution rejects a deleted identity supplied by id or email", async () => {
+  const deleted = { ...users[0], deletedAt: new Date(), banned: false };
+  const finder = { findUser: async (filter) => sift(filter)(deleted) ? deleted : null };
+  assert.equal(await resolveApiApplicant({ companyId: KEY_COMPANY, userId: deleted._id }, finder), null);
+  assert.equal(await resolveApiApplicant({ companyId: KEY_COMPANY, userEmail: deleted.email }, finder), null);
+});
+
 test("applicant filters are always scoped to the key's company", () => {
   const filters = apiApplicantFilters({
     companyId: KEY_COMPANY,
@@ -56,8 +63,8 @@ test("applicant filters are always scoped to the key's company", () => {
   });
 
   assert.deepEqual(filters, [
-    { _id: "66aa000000000000000000a1", "company._id": KEY_COMPANY },
-    { email: "anna@romashka.ru", "company._id": KEY_COMPANY, banned: { $ne: true } },
+    { _id: "66aa000000000000000000a1", "company._id": KEY_COMPANY, deletedAt: null },
+    { email: "anna@romashka.ru", "company._id": KEY_COMPANY, deletedAt: null, banned: { $ne: true } },
   ]);
   assert.deepEqual(apiApplicantFilters({ companyId: null, userEmail: "anna@romashka.ru" }), []);
 });

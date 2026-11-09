@@ -1,3 +1,5 @@
+import { formatAbsencePeriod } from "@/util/absence-period";
+import { formatDayKey } from "@/util/format-date";
 import { cn } from "@/lib/utils";
 import type { TeamScheduleResponse } from "@/types/teamSchedule";
 import { getAbsenceType } from "@/util/absence-types";
@@ -100,6 +102,7 @@ const PlanningGrid = ({ data }: Props) => {
                 const off =
                   meta?.kind === "weekend" || meta?.kind === "holiday";
                 const absence = day.absence;
+                const partials = day.partialAbsences ?? [];
                 const color =
                   getAbsenceType(absence?.type ?? "")?.color ??
                   "var(--ws-st-unset)";
@@ -112,8 +115,10 @@ const PlanningGrid = ({ data }: Props) => {
                     key={day.date}
                     title={
                       absence
-                        ? `${fullName(member.user)} · ${absence.label}${pending ? " (ждёт решения)" : ""}`
-                        : `${fullName(member.user)} · ${dayNumber(day.date)}`
+                        ? `${fullName(member.user)} · ${absence.label} · ${formatAbsencePeriod(absence, formatDayKey)}${pending ? " (ждёт решения)" : ""}`
+                        : partials.length
+                          ? `${fullName(member.user)} · ${partials.map((item) => `${item.label} · ${formatAbsencePeriod(item, formatDayKey)}${item.status === "pending" ? " (ждёт решения)" : ""}`).join("; ")}`
+                          : `${fullName(member.user)} · ${dayNumber(day.date)}`
                     }
                     className={cn(
                       "relative h-9 border-b border-border-soft",
@@ -137,6 +142,25 @@ const PlanningGrid = ({ data }: Props) => {
                             : { background: color }
                         }
                       />
+                    ) : partials.length ? (
+                      <span className="absolute inset-0 flex items-center justify-center gap-0.5">
+                        {partials.map((item, index) => {
+                          const itemColor =
+                            getAbsenceType(item.type)?.color ??
+                            "var(--ws-st-unset)";
+                          return (
+                            <span
+                              key={index}
+                              className="h-2.5 w-1.5 rounded-sm"
+                              style={
+                                item.status === "pending"
+                                  ? { border: `1px dashed ${itemColor}` }
+                                  : { background: itemColor }
+                              }
+                            />
+                          );
+                        })}
+                      </span>
                     ) : (
                       !off && (
                         <span

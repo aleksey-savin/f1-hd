@@ -17,7 +17,8 @@ import { Button } from "../ui/button";
 import { useCan } from "../../store/authed-user";
 import { monthRange } from "../../util/period";
 import { getAbsenceType } from "../../util/absence-types";
-import { DEFAULT_TIMEZONE } from "../../util/format-date";
+import { formatAbsencePeriod } from "../../util/absence-period";
+import { DEFAULT_TIMEZONE, formatDayKey } from "../../util/format-date";
 import { tzCity } from "../../util/timezone-display";
 import { WORK_TIME_MODES } from "./permissions-catalog";
 
@@ -321,9 +322,7 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                         <span className="font-medium">{absence.typeLabel}</span>
                         <span className="text-muted-foreground">
                           {" · "}
-                          {humanDate(absence.from)}
-                          {absence.from !== absence.to &&
-                            ` — ${humanDate(absence.to)}`}
+                          {formatAbsencePeriod(absence, formatDayKey)}
                         </span>
                       </span>
                       {absence.status === "pending" && (

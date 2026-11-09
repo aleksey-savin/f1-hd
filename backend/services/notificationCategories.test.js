@@ -10,6 +10,7 @@ const {
 
 test("каталог категорий — тот же, что в настройках уведомлений", () => {
   assert.deepEqual(CATEGORIES, [
+    "userReview",
     "newTicket",
     "respStateUpdate",
     "ticketStateUpdate",

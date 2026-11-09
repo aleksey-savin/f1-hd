@@ -11,6 +11,8 @@
 // ширина маршрута управляет каждой страницей, а не только теми, под кем лежат
 // обои. Маршрутов ФОРМ здесь нет: их ширину даёт хозяин (см. layoutPathname).
 const MIGRATED_ROUTES = [
+  { path: "/report/taxi", maxWidth: 1328 },
+  { path: "/taxi", maxWidth: 944 },
   // Главная: ролевой лендинг, PageShell max-w-7xl + 2×24.
   // «/» — точным совпадением, иначе префикс поймал бы вообще
   // всё остальное приложение.
@@ -78,6 +80,8 @@ const MIGRATED_ROUTES = [
   // Пользователи: список на канве (max-w-7xl), карточка
   // /users/:id — уже (со слэшем), поэтому идёт ДО точного «/users»
   // карточка с рейлом-якорем: max-w-5xl (1024) + 2×24
+  { path: "/users/review", maxWidth: 1328 },
+  { path: "/users/deleted", maxWidth: 1328 },
   { path: "/users/", maxWidth: 1072 },
   { path: "/users", maxWidth: 1328, exact: true },
   // страница: max-w-4xl (896) + 2×24
@@ -93,16 +97,12 @@ const MIGRATED_ROUTES = [
   // Страница запроса ИИ-агента (max-w-5xl, как запись) — тоже раньше списка
   { path: "/devices/mikrotik/changes", maxWidth: 1072 },
   { path: "/devices/mikrotik", maxWidth: 1328 },
-  ...[
-    "guests",
-    "nodes",
-    "storages",
-    "connections",
-    "companies",
-  ].map((kind) => ({
-    path: `/devices/proxmox/${kind}/`,
-    maxWidth: 1072,
-  })),
+  ...["guests", "nodes", "storages", "connections", "companies"].map(
+    (kind) => ({
+      path: `/devices/proxmox/${kind}/`,
+      maxWidth: 1072,
+    }),
+  ),
   { path: "/devices/proxmox", maxWidth: 1328 },
   // Настройки системы: рейл + секции, как «Мой аккаунт»
   { path: "/preferences", maxWidth: 944 },

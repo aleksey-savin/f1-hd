@@ -7,6 +7,7 @@
  * Листовой модуль без mongoose: его читает и тест, и модель.
  */
 const CATEGORIES = [
+  "userReview",
   "newTicket",
   "respStateUpdate",
   "ticketStateUpdate",

@@ -17,7 +17,7 @@ const { isBanned } = require("@/services/accountDenial");
  * обязан ехать вместе с `banned`.
  *
  * Флаг в документе при этом снимает `liftExpiredBans()` по расписанию:
- * запросы к спискам, рассылке и табло фильтруют по `{ banned: { $ne: true } }`
+ * запросы к спискам, рассылке и табло фильтруют по `{ deletedAt: null, banned: { $ne: true } }`
  * и про срок не знают. Без снятия человек после срока входил бы, но в списках
  * и в рассылке оставался бы отключённым до первого входа — а клиенты входят
  * редко, письма же им идут постоянно.
@@ -31,8 +31,8 @@ const { isBanned } = require("@/services/accountDenial");
  */
 const liftExpiredBans = async () => {
   const { modifiedCount } = await User.updateMany(
-    { banned: true, banExpires: { $lte: new Date() } },
-    { $set: { banned: false }, $unset: { banReason: "", banExpires: "" } },
+    { banned: true, deletedAt: null, banExpires: { $lte: new Date() } },
+    { $set: { banned: false }, $unset: { banReason: "", banExpires: "", disabledAt: "" } },
   );
   return modifiedCount;
 };

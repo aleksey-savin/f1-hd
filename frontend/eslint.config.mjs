@@ -27,6 +27,32 @@ export default [
       "@typescript-eslint": tsPlugin,
     },
     rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ObjectExpression:has(> Property[key.name='path'][value.value=/settings$/]) > Property[key.name='element']",
+          message:
+            "Настройки модулей размещаются только в /preferences#<раздел>. Для старого адреса оставьте redirect, а не отдельную страницу.",
+        },
+        {
+          selector: "JSXAttribute[name.name='to'][value.value=/settings$/]",
+          message:
+            "Не добавляйте отдельное меню настроек модуля. Настройки находятся в глобальном разделе /preferences.",
+        },
+        {
+          selector:
+            "JSXAttribute[name.name='type'][value.value=/^(date|datetime-local)$/]",
+          message:
+            "Используйте app/DateField, app/DateRangeField или app/DateTimeField: нативный календарь не входит в дизайн-систему.",
+        },
+        {
+          selector:
+            "JSXAttribute[name.name='type'][value.expression.value=/^(date|datetime-local)$/]",
+          message:
+            "Используйте app/DateField, app/DateRangeField или app/DateTimeField: нативный календарь не входит в дизайн-систему.",
+        },
+      ],
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
       "no-unused-vars": "off",

@@ -28,7 +28,7 @@ import {
   withIntervals,
   changeInterval,
   removeInterval,
-  addPlaceChange,
+  appendInterval,
   copyScheduleDays,
   dayIntervalsError,
   intervalMinutes,
@@ -45,10 +45,6 @@ export default function WorkScheduleEditor({
   remoteOnly?: boolean;
 }) {
   const [open, setOpen] = useState<string | null>("Monday");
-  const [adding, setAdding] = useState(false);
-  const [changeAt, setChangeAt] = useState("");
-  const [changePlace, setChangePlace] =
-    useState<ScheduleInterval["place"]>("office");
   const [copying, setCopying] = useState(false);
   const [targets, setTargets] = useState<string[]>([]);
   const [copied, setCopied] = useState("");
@@ -63,7 +59,6 @@ export default function WorkScheduleEditor({
   };
   const select = (key: string, value: boolean) => {
     setOpen(value ? key : null);
-    setAdding(false);
     setCopying(false);
     setCopied("");
     setTargets([]);
@@ -81,10 +76,10 @@ export default function WorkScheduleEditor({
           const rows = dayIntervals(day, remoteOnly);
           const expanded = open === key;
           const error = dayIntervalsError(day);
-          const validChange =
-            Boolean(changeAt) &&
-            !error &&
-            addPlaceChange(day, changeAt, changePlace) !== day;
+          const appended = appendInterval(
+            day,
+            remoteOnly || rows.at(-1)?.place === "office" ? "remote" : "office",
+          );
           const windows = intervalMinutes(day, rows);
           return (
             <Collapsible
@@ -143,15 +138,10 @@ export default function WorkScheduleEditor({
                           <TimeInput
                             id={`${key}-start-${index}`}
                             value={row.start}
-                            readOnly={index > 0 || day.is24hours}
+                            readOnly={day.is24hours && index === 0}
                             className={
-                              index > 0 || day.is24hours
+                              day.is24hours && index === 0
                                 ? "border-transparent bg-muted"
-                                : undefined
-                            }
-                            title={
-                              index > 0
-                                ? "Совпадает с окончанием предыдущего интервала"
                                 : undefined
                             }
                             onChange={(event) =>
@@ -238,106 +228,25 @@ export default function WorkScheduleEditor({
                     )}
                     {rows.length > 1 && (
                       <p className="text-xs text-muted-foreground">
-                        Если изменить «До», следующая строка начнётся с этого
-                        времени.
+                        Соседние интервалы стыкуются автоматически: изменение
+                        «С» или «До» сдвигает общую границу.
                       </p>
                     )}
-                    {adding ? (
-                      <div className="rounded-lg border border-border bg-muted/30 p-3">
-                        <p className="mb-3 text-sm font-semibold">
-                          С какого времени меняется место работы?
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          <Field
-                            label="Время"
-                            htmlFor={`${key}-change-at`}
-                            className="mb-0"
-                          >
-                            <TimeInput
-                              id={`${key}-change-at`}
-                              value={changeAt}
-                              onChange={(event) =>
-                                setChangeAt(event.target.value)
-                              }
-                            />
-                          </Field>
-                          <Field
-                            label="Место работы"
-                            htmlFor={`${key}-change-place`}
-                            className="mb-0"
-                          >
-                            <Combobox
-                              id={`${key}-change-place`}
-                              options={options}
-                              value={remoteOnly ? "remote" : changePlace}
-                              onChange={(value) =>
-                                setChangePlace(
-                                  value as ScheduleInterval["place"],
-                                )
-                              }
-                              clearable={false}
-                              disabled={remoteOnly}
-                            />
-                          </Field>
-                        </div>
-                        {changeAt && !validChange && (
-                          <p className="mt-2 text-sm text-destructive">
-                            Укажите время внутри рабочего дня:{" "}
-                            {day.is24hours
-                              ? "24 часа"
-                              : `${day.start}–${day.end}`}
-                            .
-                          </p>
-                        )}
-                        <div className="mt-3 flex gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={!validChange}
-                            onClick={() => {
-                              setDay(
-                                key,
-                                addPlaceChange(
-                                  day,
-                                  changeAt,
-                                  remoteOnly ? "remote" : changePlace,
-                                ),
-                              );
-                              setAdding(false);
-                              setChangeAt("");
-                            }}
-                          >
-                            Добавить
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setAdding(false)}
-                          >
-                            Отменить добавление
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={rows.length >= 24 || Boolean(error)}
-                        onClick={() => {
-                          setAdding(true);
-                          setChangeAt("");
-                          setChangePlace(
-                            remoteOnly || rows.at(-1)?.place === "office"
-                              ? "remote"
-                              : "office",
-                          );
-                        }}
-                      >
-                        <RiAddLine /> Добавить интервал
-                      </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={Boolean(error) || appended === day}
+                      onClick={() => setDay(key, appended)}
+                    >
+                      <RiAddLine /> Добавить интервал
+                    </Button>
+                    {!error && appended === day && (
+                      <p className="text-xs text-muted-foreground">
+                        {rows.length >= 24
+                          ? "В дне может быть не более 24 интервалов."
+                          : "Чтобы добавить интервал, измените границу последней строки."}
+                      </p>
                     )}
                     {copying ? (
                       <div className="rounded-lg border border-border p-3">
@@ -394,7 +303,6 @@ export default function WorkScheduleEditor({
                         disabled={Boolean(error)}
                         onClick={() => {
                           setCopying(true);
-                          setAdding(false);
                           setTargets([]);
                         }}
                       >
@@ -425,6 +333,12 @@ export default function WorkScheduleEditor({
                       />
                       24 часа
                     </label>
+                    {day.is24hours && (
+                      <p className="text-xs text-muted-foreground">
+                        В режиме «24 часа» новая строка выделяется из конца
+                        последнего интервала. Задайте время смены места в «С».
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       Рабочий день:{" "}
                       {day.is24hours ? "24 часа" : `${day.start}–${day.end}`}.

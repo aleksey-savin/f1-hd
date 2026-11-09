@@ -40,6 +40,7 @@ exports.update = [
   body("brand").optional().isObject(),
   phoneBody("contacts.tel"),
   body("taxi").optional().isObject(),
+  body("taxiBusiness").optional().isObject(),
 
   // Ящик-приёмник
   body("mailbox").optional().isObject(),

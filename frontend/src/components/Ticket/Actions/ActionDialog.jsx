@@ -1,3 +1,4 @@
+import ClosingReminder from "@/components/Taxi/ClosingReminder";
 import { useEffect, useRef, useState } from "react";
 
 import { RiCloseLine, RiErrorWarningLine } from "react-icons/ri";
@@ -214,6 +215,7 @@ const ActionDialog = ({
 
             {action === "close" && blockers.length === 0 && (
               <>
+                <ClosingReminder tickets={[ticket]} />
                 <Field
                   label="Результат выполнения"
                   htmlFor="action-text"

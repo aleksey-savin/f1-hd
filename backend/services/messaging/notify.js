@@ -5,7 +5,7 @@
  */
 const { previewOf } = require("./rules");
 
-const USER_FIELDS = "_id firstName lastName notify isServiceAccount banned isEndUser";
+const USER_FIELDS = "_id firstName lastName notify isServiceAccount deletedAt banned isEndUser";
 
 /**
  * Назначенный → ответственные компании → ведущие диалоги — но считаются

@@ -440,7 +440,7 @@ function mongoNotifier({ baseUrl, log } = {}) {
     loadPrefs: () => lazy("P", "@/models/preferences").findOne({}).lean(),
     loadUsers: (ids) =>
       lazy("U", "@/models/user").find({ _id: { $in: ids } })
-        .select("firstName lastName email telegramBot notify isServiceAccount banned").lean(),
+        .select("firstName lastName email telegramBot notify isServiceAccount deletedAt banned").lean(),
     loadContext: (change) => mongoLoadContext(change, lazy),
     // Тот же расчёт права, что при предложении запроса
     loadApprovers: () => require("./changeProposals").mongoStore.listApprovers(),

@@ -19,6 +19,7 @@ import {
 } from "../../util/format-date";
 
 import OutOfSchedulePanel from "./OutOfSchedulePanel";
+import WorkTrips from "../Taxi/WorkTrips";
 import { formatDurationWords } from "./duration";
 import { formatWorkRange } from "./time-range";
 
@@ -322,6 +323,8 @@ const WorkFormFields = ({
           </span>
         </p>
       )}
+
+      <WorkTrips form={form} />
 
       {config.linkTickets && otherTickets.length > 0 && (
         <Field

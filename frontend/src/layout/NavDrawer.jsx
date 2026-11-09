@@ -22,6 +22,7 @@ import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
 import { AuthedUserContext } from "../store/authed-user-context";
 import { useCan } from "../store/authed-user";
 import { ThemeContext } from "../store/theme-context";
+import { canOpenGlobalSettings } from "@/util/global-settings-access";
 
 // Бургер-Sheet навигации: мобильный shell и узкий десктоп (< xl, где пункты
 // не влезают в бар). Структура прежнего drawer сохранена: шапка пользователя,
@@ -190,7 +191,7 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
             <RiUserSettingsLine size={18} aria-hidden className={iconClass} />
             Мой аккаунт
           </NavLink>
-          {can({ settings: ["manage"] }) && (
+          {canOpenGlobalSettings(can) && (
             <NavLink to="/preferences" onClick={close} className={itemClass}>
               <RiSettings3Line size={18} aria-hidden className={iconClass} />
               Настройки системы

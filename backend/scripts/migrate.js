@@ -78,6 +78,16 @@ const MIGRATIONS = [
   { id: "2026-10-29-moveDeviceTechToAttributes", script: "moveDeviceTechToAttributes.js", apply: true },
   // Снимок ID записывается один раз: повторы сохраняют созданные позднее сеансы сотрудников.
   { id: "2026-11-07-cutoverStaffSessions", script: "cutoverStaffSessions.js", apply: true },
+  // Сохраняет полный доступ прежних администраторов после добавления такси.
+  { id: "2026-11-09-grantTaxiPermissions", script: "grantTaxiPermissions.js", apply: true },
+  // Первоначальная раздача могла пропустить администраторов с отдельными
+  // ограничениями или правами, отставшими от другого модуля. Новый ID нужен
+  // также установкам, где прежний прогон уже записан в журнале без изменений.
+  { id: "2026-11-09-repairTaxiAdminPermissions", script: "grantTaxiPermissions.js", apply: true },
+  { id: "2026-11-09-upgradeUserReviewRoles", script: "upgradeUserReviewRoles.js", apply: true },
+  { id: "2026-11-09-backfillUserActivity", script: "backfillUserActivity.js", apply: true },
+  // Удаляет только права заказа/отмены и квитанции удалённого механизма заказа.
+  { id: "2026-11-09-removeTaxiBooking", script: "removeTaxiBooking.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

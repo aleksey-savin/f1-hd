@@ -17,6 +17,7 @@ const SearchBar = ({
   className,
   placeholder = "Поиск…",
   ariaLabel,
+  maxLength,
 }: {
   onChange?: ChangeEventHandler<HTMLInputElement>;
   size?: "lg" | "md";
@@ -27,6 +28,7 @@ const SearchBar = ({
   placeholder?: string;
   /** Имя поля для скринридера, когда рядом нет видимой подписи. */
   ariaLabel?: string;
+  maxLength?: number;
 }) => {
   const controlled = value !== undefined;
 
@@ -45,6 +47,7 @@ const SearchBar = ({
         type="search"
         placeholder={placeholder}
         aria-label={ariaLabel}
+        maxLength={maxLength}
         className={cn(
           // Поиск живёт в шапке на канве — фон панели, иначе сливается
           "bg-card pl-9 text-sm",

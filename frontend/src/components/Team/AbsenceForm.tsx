@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RiSaveLine } from "react-icons/ri";
 
 import AlertMessage from "../app/AlertMessage";
@@ -9,8 +9,18 @@ import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import Combobox from "../app/Combobox";
 import DateRangeField from "../app/DateRangeField";
+import DateField from "../app/DateField";
+import Segmented from "../app/Segmented";
+import TimeInput from "../app/TimeInput";
 import { ABSENCE_TYPES } from "../../util/absence-types";
-import { toIsoDay } from "../../util/period";
+import { businessDayKey, formatDayKey } from "../../util/format-date";
+import {
+  absenceDurationMinutes,
+  absencePeriodError,
+  formatAbsenceDuration,
+  formatAbsencePeriod,
+  formatAbsenceScheduleWindow,
+} from "../../util/absence-period";
 import type { TeamMember } from "@/types/teamSchedule";
 
 type Props = {
@@ -24,6 +34,18 @@ type Props = {
 };
 
 const API = import.meta.env.VITE_API_ADDRESS;
+
+type Impact = {
+  workingDays: number;
+  durationMinutes?: number;
+  reducesNorm?: boolean;
+  scheduleWindow?: {
+    date: string;
+    start: number;
+    end: number;
+    crossesMidnight: boolean;
+  } | null;
+};
 
 const plural = (count: number, one: string, few: string, many: string) => {
   const mod10 = count % 10;
@@ -51,10 +73,13 @@ const AbsenceForm = ({
 }: Props) => {
   const [userId, setUserId] = useState<string | null>(defaultUserId);
   const [type, setType] = useState("vacation");
-  const [from, setFrom] = useState(() => toIsoDay(new Date()));
-  const [to, setTo] = useState(() => toIsoDay(new Date()));
+  const [from, setFrom] = useState(() => businessDayKey());
+  const [to, setTo] = useState(() => businessDayKey());
+  const [mode, setMode] = useState("days");
+  const [start, setStart] = useState("09:00");
+  const [end, setEnd] = useState("11:00");
   const [comment, setComment] = useState("");
-  const [impact, setImpact] = useState<{ workingDays: number } | null>(null);
+  const [impact, setImpact] = useState<Impact | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +90,9 @@ const AbsenceForm = ({
     if (open) {
       setUserId(defaultUserId);
       setType("vacation");
+      setMode("days");
+      setStart("09:00");
+      setEnd("11:00");
       setComment("");
       setError(null);
       setImpact(null);
@@ -77,10 +105,12 @@ const AbsenceForm = ({
         value: item.code,
         label: `${item.emoji} ${item.label}`,
         hint: item.reducesNorm
-          ? "человека не будет в календаре"
+          ? mode === "hours"
+            ? "человека не будет в указанные часы"
+            : "человека не будет в календаре"
           : "человек продолжает работать",
       })),
-    [],
+    [mode],
   );
 
   const employeeOptions = useMemo(
@@ -96,33 +126,53 @@ const AbsenceForm = ({
 
   const selectedType = ABSENCE_TYPES.find((item) => item.code === type);
 
-  // Живая сводка периода — тем же планировщиком, что строит календарь: форма
-  // не должна обещать одно, а календарь показывать другое
-  const loadImpact = useCallback(async () => {
-    if (!targetId || !from || !to || to < from) {
-      setImpact(null);
-      return;
-    }
-    try {
-      const response = await fetch(
-        `${API}/api/team/absences/impact?user=${targetId}&from=${from}&to=${to}`,
-      );
-      if (!response.ok) throw new Error(String(response.status));
-      setImpact(await response.json());
-    } catch {
-      setImpact(null);
-    }
-  }, [targetId, from, to]);
+  const partial = mode === "hours";
+  const timeRange = useMemo(
+    () => (partial ? { start, end } : null),
+    [partial, start, end],
+  );
+  const period = useMemo(
+    () => ({ from, to: partial ? from : to, timeRange }),
+    [from, to, partial, timeRange],
+  );
+  const periodError = absencePeriodError(period);
+  const duration = absenceDurationMinutes(timeRange);
 
+  // Отмена и флаг защищают сводку от ответов для предыдущего сотрудника/периода.
   useEffect(() => {
-    if (!open) return undefined;
-    const timer = setTimeout(loadImpact, 250);
-    return () => clearTimeout(timer);
-  }, [open, loadImpact]);
+    setImpact(null);
+    if (!open || !targetId || periodError) return undefined;
+    const controller = new AbortController();
+    let active = true;
+    const timer = setTimeout(async () => {
+      const query = new URLSearchParams({
+        user: targetId,
+        from: period.from,
+        to: period.to,
+      });
+      if (timeRange) query.set("timeRange", JSON.stringify(timeRange));
+      try {
+        const response = await fetch(
+          `${API}/api/team/absences/impact?${query}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error(String(response.status));
+        const payload: Impact = await response.json();
+        if (active) setImpact(payload);
+      } catch {
+        if (active) setImpact(null);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, targetId, period, periodError, timeRange]);
 
   const submit = async () => {
-    if (to < from) {
-      setError("Дата окончания раньше даты начала");
+    if (periodError) {
+      setError(periodError);
       return;
     }
     setSaving(true);
@@ -136,8 +186,7 @@ const AbsenceForm = ({
         body: JSON.stringify({
           ...(showEmployeePicker && userId ? { user: userId } : {}),
           type,
-          from,
-          to,
+          ...period,
           comment,
         }),
       });
@@ -189,17 +238,80 @@ const AbsenceForm = ({
         />
       </Field>
 
-      <Field label="Период" htmlFor="abs-period" required>
-        <DateRangeField
-          id="abs-period"
-          value={{ from, to }}
-          onChange={(range) => {
-            setFrom(range.from);
-            setTo(range.to);
+      <Field label="Продолжительность">
+        <Segmented
+          ariaLabel="Продолжительность отсутствия"
+          options={[
+            { value: "days", label: "Целые дни" },
+            { value: "hours", label: "Часть дня" },
+          ]}
+          value={mode}
+          onChange={(value) => {
+            setMode(value);
+            if (value === "hours") setTo(from);
           }}
-          required
         />
       </Field>
+
+      {partial ? (
+        <>
+          <Field label="Дата" htmlFor="abs-date" required>
+            <DateField
+              id="abs-date"
+              value={from}
+              onChange={(value) => {
+                setFrom(value);
+                setTo(value);
+              }}
+              clearable={false}
+              required
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Не буду с" htmlFor="abs-start" required>
+              <TimeInput
+                id="abs-start"
+                value={start}
+                onChange={(event) => setStart(event.target.value)}
+                required
+              />
+            </Field>
+            <Field label="До" htmlFor="abs-end" required>
+              <TimeInput
+                id="abs-end"
+                value={end}
+                onChange={(event) => setEnd(event.target.value)}
+                required
+              />
+            </Field>
+          </div>
+          {periodError && (
+            <p role="alert" className="-mt-2 mb-4 text-sm text-destructive">
+              {periodError}
+            </p>
+          )}
+          <p className="-mt-2 mb-4 text-sm text-muted-foreground">
+            {impact?.scheduleWindow &&
+              `График на этот день: ${formatAbsenceScheduleWindow(impact.scheduleWindow)}. `}
+            Время организации.
+            {duration !== null &&
+              end < start &&
+              " Отсутствие закончится на следующий день."}
+          </p>
+        </>
+      ) : (
+        <Field label="Период" htmlFor="abs-period" required>
+          <DateRangeField
+            id="abs-period"
+            value={{ from, to }}
+            onChange={(range) => {
+              setFrom(range.from);
+              setTo(range.to);
+            }}
+            required
+          />
+        </Field>
+      )}
 
       <Field
         label="Комментарий"
@@ -214,28 +326,55 @@ const AbsenceForm = ({
         />
       </Field>
 
-      {days !== null && (
+      {partial && duration !== null && !periodError ? (
         <AlertMessage
           variant={canManage ? "info" : "warning"}
           message={
-            <>
-              <b>
-                {days}{" "}
-                {plural(days, "рабочий день", "рабочих дня", "рабочих дней")}
-              </b>
-              {selectedType?.reducesNorm ? (
-                <> · в эти дни человека не будет в календаре</>
-              ) : (
-                <>
-                  {" "}
-                  · человек продолжает работать, в календаре останется доступным
-                </>
-              )}
-              {!canManage &&
-                " · запрос уйдёт на согласование, до решения календарь не меняется"}
-            </>
+            <div className="space-y-1.5">
+              <p className="font-semibold">
+                {formatAbsencePeriod(period, formatDayKey)} ·{" "}
+                {formatAbsenceDuration(duration)}
+              </p>
+              <p>
+                {selectedType?.reducesNorm
+                  ? "В остальное время рабочий день сохранится по графику."
+                  : "Человек продолжает работать, в календаре останется доступным."}
+              </p>
+              <p>Норма часов и расчёт переработок не изменятся.</p>
+              <p>
+                {canManage
+                  ? "Отсутствие появится в календаре."
+                  : "Запрос уйдёт на согласование. До решения график не изменится."}
+              </p>
+            </div>
           }
         />
+      ) : (
+        !partial &&
+        days !== null && (
+          <AlertMessage
+            variant={canManage ? "info" : "warning"}
+            message={
+              <>
+                <b>
+                  {days}{" "}
+                  {plural(days, "рабочий день", "рабочих дня", "рабочих дней")}
+                </b>
+                {selectedType?.reducesNorm ? (
+                  <> · в эти дни человека не будет в календаре</>
+                ) : (
+                  <>
+                    {" "}
+                    · человек продолжает работать, в календаре останется
+                    доступным
+                  </>
+                )}
+                {!canManage &&
+                  " · запрос уйдёт на согласование, до решения календарь не меняется"}
+              </>
+            }
+          />
+        )
       )}
       <FormActions className="justify-end">
         <Button
@@ -247,7 +386,9 @@ const AbsenceForm = ({
         </Button>
         <Button
           onClick={submit}
-          disabled={saving || (showEmployeePicker && !userId)}
+          disabled={
+            saving || Boolean(periodError) || (showEmployeePicker && !userId)
+          }
         >
           <RiSaveLine />
           {saving ? "Сохранение…" : "Сохранить"}

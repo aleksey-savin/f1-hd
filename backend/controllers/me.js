@@ -24,6 +24,7 @@ const {
 } = require("@/services/knowledgeModerationCounts");
 const { getCatalogue } = require("@/services/help/catalogue");
 const { hasHelp } = require("@/services/help/visibility");
+const { currentDashboardLayout } = require("@/services/dashboardLayout");
 
 /**
  * Профиль текущего пользователя, его эффективные права, рубильники модулей и
@@ -60,6 +61,7 @@ const publicUser = (user) => ({
   timezone: user.timezone,
   fontScale: user.fontScale === 125 ? 125 : 100,
   plainCanvas: Boolean(user.plainCanvas),
+  dashboardLayout: currentDashboardLayout(user),
   notify: user.notify,
   telegramBot: {
     isActive: Boolean(user.telegramBot?.isActive),

@@ -36,11 +36,8 @@ const labelClass = "text-xs font-semibold tracking-wider text-faint uppercase";
 // Пункт меню в две строки: название места, под ним адрес целиком — выбирают
 // по улице, а не по имени отдела; причина выбора по умолчанию и «без
 // маршрута» (нет координат — заказ откроется без точки) — хвостом адреса
-const AddressItem = ({ entry }) => (
-  <DropdownMenuItem
-    onSelect={() => openTaxi(entry.action)}
-    className="items-start"
-  >
+const AddressItem = ({ entry, onSelect }) => (
+  <DropdownMenuItem onSelect={() => onSelect(entry)} className="items-start">
     <RiMapPin2Line className="mt-0.5" />
     <span className="min-w-0">
       <span className="block font-medium">{entry.title}</span>
@@ -76,13 +73,19 @@ const TaxiButton = ({
   if (!choices) return null;
 
   const { action, menu, title } = choices;
+  const selectAddress = (entry) => openTaxi(entry?.action || action);
   const label = `${ariaLabel} · ${action.label}`;
 
   if (!menu) {
     return (
       <button
         type="button"
-        onClick={() => openTaxi(action)}
+        onClick={() =>
+          selectAddress(
+            choices.entries.find((entry) => entry.key === defaultKey) ||
+              choices.entries[0],
+          )
+        }
         title={title}
         aria-label={label}
         className={className}
@@ -108,13 +111,13 @@ const TaxiButton = ({
         <DropdownMenuLabel className={labelClass}>
           {menu.label}
         </DropdownMenuLabel>
-        <AddressItem entry={menu.first} />
+        <AddressItem entry={menu.first} onSelect={selectAddress} />
         <DropdownMenuSeparator />
         <DropdownMenuLabel className={labelClass}>
           {menu.restLabel}
         </DropdownMenuLabel>
         {menu.rest.map((entry) => (
-          <AddressItem key={entry.key} entry={entry} />
+          <AddressItem key={entry.key} entry={entry} onSelect={selectAddress} />
         ))}
       </DropdownMenuContent>
     </DropdownMenu>

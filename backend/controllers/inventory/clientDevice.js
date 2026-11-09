@@ -1091,7 +1091,7 @@ exports.update = async (req, res, next) => {
       const user = await User.findById(payload.userId);
       const userCompanyId = user?.company?._id || user?.company;
       const deviceCompanyId = payload.companyId || device.companyId;
-      if (!user || userCompanyId?.toString() !== deviceCompanyId?.toString()) {
+      if (!user || (user.deletedAt && String(payload.userId) !== String(device.userId || "")) || userCompanyId?.toString() !== deviceCompanyId?.toString()) {
         return next(
           new AppError("Assigned user must belong to the same company", 400),
         );

@@ -420,10 +420,10 @@ exports.sendPendingEmails = async ({
        * `users`, — то есть тихо выбрасывал переписку с внешними адресатами,
        * которые пишут в поддержку почтой и учётки не имеют.
        */
-      const account = await User.findOne({ email: notification.to.email }).select(
-        "isServiceAccount",
+      const account = await User.findOne({ email: notification.intendedEmail || notification.to.email }).select(
+        "isServiceAccount deletedAt",
       );
-      if (account?.isServiceAccount) {
+      if (account?.isServiceAccount || account?.deletedAt) {
         await queue.drop(notification, leaseId);
         continue;
       }

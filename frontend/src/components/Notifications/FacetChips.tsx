@@ -5,7 +5,11 @@ import { cn } from "@/lib/utils";
 import { useAuthedUser, useCan } from "@/store/authed-user";
 import useNotificationsStore from "@/store/notifications";
 import useInitialPrefsStore from "@/store/prefs";
-import { shownFacetKey, unreadInFacet, visibleFacets } from "@/util/notification-facets";
+import {
+  shownFacetKey,
+  unreadInFacet,
+  visibleFacets,
+} from "@/util/notification-facets";
 
 /**
  * Ряд чипов-фасетов панели уведомлений: какой вид показать. У чипа — число
@@ -36,6 +40,7 @@ const FacetChips = ({ scroll = false, className }: Props) => {
     messaging: messagingOn && can({ conversation: ["read"] }),
     mikrotik: mikrotikOn && !isEndUser,
     inventory: inventoryOn && !isEndUser,
+    userReview: !isEndUser && can({ userReview: ["read"] }),
   });
 
   // Выключили модуль, а фасет остался в localStorage: чипа для сброса нет
@@ -50,9 +55,7 @@ const FacetChips = ({ scroll = false, className }: Props) => {
       aria-label="Вид уведомлений"
       className={cn(
         "flex gap-1.5",
-        scroll
-          ? "overflow-x-auto scrollbar-none"
-          : "flex-wrap",
+        scroll ? "overflow-x-auto scrollbar-none" : "flex-wrap",
         className,
       )}
     >
@@ -62,7 +65,11 @@ const FacetChips = ({ scroll = false, className }: Props) => {
           size="sm"
           active={item.key === facet}
           onClick={() => setFacet(item.key)}
-          count={item.key === "all" ? null : unreadInFacet(unreadByCategory, item.key)}
+          count={
+            item.key === "all"
+              ? null
+              : unreadInFacet(unreadByCategory, item.key)
+          }
           className="flex-none"
         >
           {item.label}

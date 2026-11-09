@@ -16,7 +16,7 @@ exports.createSupport = async (req, res, next) => {
 
     const user = await User.findById(req.body.user);
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       return next(new AppError(`User not found`, 404));
     }
 

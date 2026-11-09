@@ -30,7 +30,7 @@ const useInitialPrefsStore = create((set) => ({
   contacts: "",
   getScreen: "",
   timezone: "",
-  // Оператор такси («Основные → Такси»): "" — действие «такси» скрыто
+  // Оператор такси («Настройки системы → Такси»): "" — действие «такси» скрыто
   taxi: { operator: "" },
   emailNotifications: "",
   telegramNotifications: "",

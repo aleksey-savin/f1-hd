@@ -115,7 +115,7 @@ function mongoNotifier({ baseUrl, log } = {}) {
     },
     loadUsers: (ids) =>
       lazy("U", "@/models/user").find({ _id: { $in: ids } })
-        .select("firstName lastName email telegramBot notify isServiceAccount banned").lean(),
+        .select("firstName lastName email telegramBot notify isServiceAccount deletedAt banned").lean(),
     loadContext: async () => {
       const prefs = await lazy("P", "@/models/preferences").findOne({}).select("timezone").lean();
       return { timezone: prefs?.timezone || DEFAULT_TZ };

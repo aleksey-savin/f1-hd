@@ -77,7 +77,7 @@ const extractCallerPhones = (
 // отключения бывает срок, сырому banned верить нельзя. Двоих достаточно, чтобы
 // понять «номер не одного человека». Им же пользуется связывание собеседников
 // «Диалогов» (services/messaging/identity.js).
-const USER_FIELDS = "_id company isEndUser isServiceAccount banned banExpires";
+const USER_FIELDS = "_id company isEndUser isServiceAccount deletedAt banned banExpires";
 
 const findUsersByPhone = async (phone) => {
   // Не полный номер — базу не спрашиваем: сеттер схемы превратил бы «+7» или
@@ -85,6 +85,7 @@ const findUsersByPhone = async (phone) => {
   if (!isValidPhone(phone)) return [];
   const candidates = await MongoUser.find({
     phone,
+    deletedAt: null,
     isServiceAccount: { $ne: true },
     isCloudTelephony: { $ne: true },
     "company.isActive": { $ne: false },

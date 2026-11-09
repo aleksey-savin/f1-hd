@@ -1024,7 +1024,7 @@ exports.getFormData = async (req, res, next) => {
     const [companies, users, categories] = await Promise.all([
       Company.find({ isActive: { $ne: false } }).sort({ alias: 1 }),
       User.find({
-        banned: { $ne: true },
+        deletedAt: null, banned: { $ne: true },
         isServiceAccount: false,
         "company.isActive": { $ne: false },
       }).sort({

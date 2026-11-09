@@ -48,6 +48,11 @@ module.exports = async (req, res, next) => {
      * висеть в списке устройств человека.
      */
     if (identity.session?.impersonatedBy) {
+      const actor = await User.findById(identity.session.impersonatedBy);
+      if (!actor || isDeniedAccount(actor)) {
+        await revokeById(user._id, identity.session.id);
+        return next();
+      }
       const startedAt = new Date(identity.session.createdAt || 0).getTime();
       if (Date.now() - startedAt > SESSION_MAX_MS) {
         await revokeById(user._id, identity.session.id);

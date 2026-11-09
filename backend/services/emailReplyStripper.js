@@ -163,8 +163,9 @@ const tailQuoteBlockStart = (text) => {
 // хвоста, quotedText — отрезанный хвост ("" если ничего не отрезано). Если
 // после чистки не остаётся ничего (весь текст — цитата, например ответ написан
 // внутри неё), исходный текст возвращается нетронутым — лучше «багаж», чем
-// потерянный ответ.
-const stripQuotedReply = (text) => {
+// потерянный ответ. Анализ текста передаёт preserveQuotedOnly: false, чтобы
+// целиком процитированное письмо оставалось историческим свидетельством.
+const stripQuotedReply = (text, { preserveQuotedOnly = true } = {}) => {
   const original = (text || "").replace(/\r\n/g, "\n");
   if (!original.trim()) return { content: original, quotedText: "" };
 
@@ -190,7 +191,7 @@ const stripQuotedReply = (text) => {
   const content = original.slice(0, cutAt).trim();
   const quotedText = original.slice(cutAt).trim();
 
-  if (!content) return { content: original.trim(), quotedText: "" };
+  if (!content && preserveQuotedOnly) return { content: original.trim(), quotedText: "" };
   return { content, quotedText };
 };
 

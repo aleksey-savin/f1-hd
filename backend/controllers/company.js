@@ -143,8 +143,8 @@ exports.getOne = async (req, res, next) => {
     const company = await Company.findById(req.params.id)
       .populate({
         path: "employees",
-        match: { banned: { $ne: true } },
-        select: "_id firstName lastName email phone position role banned",
+        match: { deletedAt: null, banned: { $ne: true } },
+        select: "_id firstName lastName email phone position role deletedAt banned",
         populate: {
           path: "subdivision",
           select: "name",
@@ -176,13 +176,13 @@ exports.getOne = async (req, res, next) => {
       .select("name email phone address linkToMap manager users parent timezone")
       .populate({
         path: "manager",
-        select: "firstName lastName email position role banned",
-        match: { banned: { $ne: true } },
+        select: "firstName lastName email position role deletedAt banned",
+        match: { deletedAt: null, banned: { $ne: true } },
       })
       .populate({
         path: "users",
-        select: "firstName lastName email position role banned",
-        match: { banned: { $ne: true } },
+        select: "firstName lastName email position role deletedAt banned",
+        match: { deletedAt: null, banned: { $ne: true } },
       })
       .lean();
 
@@ -441,6 +441,7 @@ exports.add = async (req, res, next) => {
 
     for (let resp of respIds) {
       const user = await User.findById(resp);
+      if (user?.deletedAt) throw new AppError("Нельзя назначить удалённого пользователя ответственным", 409);
       responsibles.push(user);
     }
 
@@ -519,6 +520,7 @@ exports.update = async (req, res, next) => {
         continue;
       }
 
+      if (resp.deletedAt) throw new AppError("Нельзя назначить удалённого пользователя ответственным", 409);
       responsibles.push(resp);
 
       if (
@@ -546,6 +548,7 @@ exports.update = async (req, res, next) => {
           continue;
         }
 
+        if (resp.deletedAt) throw new AppError("Нельзя назначить удалённого пользователя ответственным", 409);
         clientsSideResponsibles.push({
           _id: resp._id,
           lastName: resp.lastName,
@@ -696,8 +699,9 @@ const resolveApprover = async (approverId) => {
     return null;
   }
   const user = await User.findById(approverId)
-    .select("firstName lastName")
+    .select("firstName lastName deletedAt")
     .lean();
+  if (user?.deletedAt) throw new AppError("Нельзя назначить удалённого пользователя согласующим", 409);
   return user
     ? { _id: user._id, firstName: user.firstName, lastName: user.lastName }
     : null;
@@ -977,13 +981,13 @@ exports.addSubdivision = async (req, res, next) => {
     await subdivision.populate([
       {
         path: "users",
-        select: "firstName lastName email position role banned",
-        match: { banned: { $ne: true } },
+        select: "firstName lastName email position role deletedAt banned",
+        match: { deletedAt: null, banned: { $ne: true } },
       },
       {
         path: "manager",
-        select: "firstName lastName email position role banned",
-        match: { banned: { $ne: true } },
+        select: "firstName lastName email position role deletedAt banned",
+        match: { deletedAt: null, banned: { $ne: true } },
       },
       {
         path: "subdivisions",
@@ -1096,13 +1100,13 @@ exports.updateSubdivision = async (req, res, next) => {
     await subdivision.populate([
       {
         path: "users",
-        select: "firstName lastName email position role banned",
-        match: { banned: { $ne: true } },
+        select: "firstName lastName email position role deletedAt banned",
+        match: { deletedAt: null, banned: { $ne: true } },
       },
       {
         path: "manager",
-        select: "firstName lastName email position role banned",
-        match: { banned: { $ne: true } },
+        select: "firstName lastName email position role deletedAt banned",
+        match: { deletedAt: null, banned: { $ne: true } },
       },
       {
         path: "subdivisions",
@@ -1226,6 +1230,13 @@ exports.updateSubdivisionUsers = async (req, res, next) => {
       );
     }
 
+    const currentIds = new Set((subdivision.users || []).map(String));
+    const newlyAssigned = (users || []).filter((id) => id && !currentIds.has(String(id)));
+    if (manager && String(manager) !== String(subdivision.manager || "")) newlyAssigned.push(manager);
+    if (newlyAssigned.length && await User.exists({ _id: { $in: newlyAssigned }, deletedAt: { $ne: null } })) {
+      return next(new AppError("Нельзя назначить удалённого пользователя в подразделение", 409));
+    }
+
     // Get current users and manager to handle removals
     const currentUsers = [...subdivision.users];
     const currentManager = subdivision.manager;
@@ -1283,13 +1294,13 @@ exports.updateSubdivisionUsers = async (req, res, next) => {
       await subdivision.populate([
         {
           path: "users",
-          select: "firstName lastName email position role banned",
-          match: { banned: { $ne: true } },
+          select: "firstName lastName email position role deletedAt banned",
+          match: { deletedAt: null, banned: { $ne: true } },
         },
         {
           path: "manager",
-          select: "firstName lastName email position role banned",
-          match: { banned: { $ne: true } },
+          select: "firstName lastName email position role deletedAt banned",
+          match: { deletedAt: null, banned: { $ne: true } },
         },
       ]);
 
@@ -1597,6 +1608,7 @@ exports.linkUserToAD = async (req, res, next) => {
     const { activeDirectoryObjectGUID, userId } = req.body;
 
     const user = await User.findById(userId);
+    if (user?.deletedAt) return next(new AppError("Сначала восстановите удалённую учётную запись", 409));
     if (!user) {
       return next(new AppError(`Пользователь с ID ${userId} не найден`, 404));
     }
@@ -1661,6 +1673,7 @@ exports.unlinkUserFromAD = async (req, res, next) => {
     const { userId } = req.body;
 
     const user = await User.findById(userId);
+    if (user?.deletedAt) return next(new AppError("Сначала восстановите удалённую учётную запись", 409));
     if (!user) {
       return next(new AppError(`Пользователь с ID ${userId} не найден`, 404));
     }

@@ -27,10 +27,12 @@ const stubModule = (modulePath, exportsValue) => {
 stubModule("@/models/ticket", { Ticket: {} });
 
 const Preferences = require("../models/preferences");
+const { TaxiSettings } = require("../models/taxi");
 const storage = require("../services/storage");
 const controller = require("./preferences");
 
 const storedPreferences = (t, fields) => {
+  t.mock.method(TaxiSettings, "findById", () => ({ lean: async () => ({ isActive: true, token: "private-corporate-token" }) }));
   const doc = fields === null ? null : new Preferences(fields);
   const saves = [];
   if (doc) {
@@ -42,6 +44,14 @@ const storedPreferences = (t, fields) => {
   t.mock.method(Preferences, "findOne", async () => doc);
   return saves;
 };
+
+test("initial taxi configuration exposes only the external operator without corporate credentials", async (t) => {
+  storedPreferences(t, { taxi: { operator: "yandexgo" } });
+  const initial = await callHandler(controller.getInitial, { auth: { can: () => false } });
+  assert.equal(initial.error, undefined);
+  assert.deepEqual(initial.res.body.taxi, { operator: "yandexgo" });
+  assert.equal(JSON.stringify(initial.res.body).includes("private-corporate-token"), false);
+});
 
 const callHandler = async (handler, req = {}) => {
   let passed;
@@ -56,7 +66,7 @@ const callHandler = async (handler, req = {}) => {
       return this;
     },
   };
-  await handler({ auth: { user: { _id: "u1" } }, ...req }, res, (error) => {
+  await handler({ auth: { user: { _id: "u1" }, userId: "u1", can: ({ settings }) => settings?.includes("manage") }, ...req }, res, (error) => {
     passed = error;
   });
   return { res, error: passed };
@@ -134,7 +144,7 @@ test("getAuth: emailIsActive — почта включена в настройк
 test("getInitial: emailNotifications гаснет при MAIL_MODE=off, а рубильник в форме настроек (get) остаётся как в базе", async (t) => {
   withMailMode(t, "off");
   storedPreferences(t, { notify: { byEmail: { isActive: true } } });
-  const auth = { user: { _id: "u1" }, can: () => false };
+  const auth = { user: { _id: "u1" }, userId: "u1", can: ({ settings }) => settings?.includes("manage") };
 
   const initial = await callHandler(controller.getInitial, { auth });
   assert.equal(initial.error, undefined);

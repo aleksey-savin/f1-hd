@@ -485,6 +485,26 @@ seed() {
   dc run --rm backend node scripts/seed.js "$@"
 }
 
+apply_data_migrations() {
+  # Includes taxi permission defaults and cleanup of the retired booking workflow.
+  # Keep grants in the migration ledger: rerunning a standalone grant on every
+  # deploy would restore rights deliberately removed after the initial grant.
+  local pending
+  set +e
+  dc run --rm backend node scripts/migrate.js pending
+  pending=$?
+  set -e
+  case $pending in
+    0) ;;
+    3) log "Applying data migrations (the application is stopped meanwhile)"
+       dc stop backend tg-service >/dev/null 2>&1 \
+         || die "cannot stop application writers — migrations were not run; fix the cause and run ./deploy.sh again"
+       dc run --rm backend node scripts/migrate.js up \
+         || die "a migration failed — fix the cause and run ./deploy.sh again (it resumes there), or skip it with ./deploy.sh migrate mark <id>" ;;
+    *) die "migrations cannot run (see above): ./deploy.sh migrate status" ;;
+  esac
+}
+
 deploy() {
   need_tools; ensure_docker; ensure_env; require_subject_prefix; load_env
   # Pulled images are never rebuilt by `up`, even if a source tree is here.
@@ -514,18 +534,7 @@ deploy() {
   # must not serve requests while the data changes shape under it. The stop
   # happens only when something is actually pending, so a routine update has
   # no extra downtime.
-  set +e
-  dc run --rm backend node scripts/migrate.js pending
-  pending=$?
-  set -e
-  case $pending in
-    0) ;;
-    3) log "Applying data migrations (the application is stopped meanwhile)"
-       dc stop backend tg-service >/dev/null 2>&1 || true
-       dc run --rm backend node scripts/migrate.js up \
-         || die "a migration failed — fix the cause and run ./deploy.sh again (it resumes there), or skip it with ./deploy.sh migrate mark <id>" ;;
-    *) die "migrations cannot run (see above): ./deploy.sh migrate status" ;;
-  esac
+  apply_data_migrations
   # Catalogue seeds run on every deploy, a fresh install included: they only
   # add, so the running application is not stopped, and with nothing pending
   # the step does nothing.

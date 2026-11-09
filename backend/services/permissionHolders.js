@@ -180,6 +180,7 @@ const HOLDER_FIELDS = [
   "isEndUser",
   "banned",
   "banExpires",
+  "deletedAt",
   "isServiceAccount",
   "companyId",
   "companyActive",

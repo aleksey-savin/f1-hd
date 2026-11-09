@@ -23,7 +23,9 @@ import {
   RiShieldKeyholeLine,
   RiSettings3Line,
   RiTeamLine,
+  RiTaxiLine,
 } from "react-icons/ri";
+import { TAXI_REPORT_ACCESS } from "../../util/taxi-access.js";
 
 // Конфиг главной навигации — единый источник для десктопного бара, его
 // дропдаунов и мобильного бургер-Sheet. Структура — по согласованному макету
@@ -116,7 +118,8 @@ export function buildMenu({
 
     return [
       link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
-      canReadCompanies && link("companies", "Компания", RiBuilding2Line, "/companies"),
+      canReadCompanies &&
+        link("companies", "Компания", RiBuilding2Line, "/companies"),
       canReadUsers && link("users", "Пользователи", RiContactsLine, "/users"),
       // Пункта «Заявки» у клиента нет (2026-09). Открытых заявок у него единицы
       // (самое большое — четыре, у компании целиком — пятнадцать), и список с
@@ -202,6 +205,8 @@ export function buildMenu({
             RiDraftLine,
             "/finances/approval",
           ),
+        can(TAXI_REPORT_ACCESS) &&
+          link("report-taxi", "Такси", RiTaxiLine, "/report/taxi"),
       ].filter(Boolean),
     },
   ].filter((group) => group.items.length > 0);

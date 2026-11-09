@@ -32,6 +32,10 @@ const mirrorToTicket = async ({ message, ticket, conversation, identity, channel
     identity?.userId ||
     prefs?.defaultApplicant?._id;
   if (!authorId) throw new Error("Не задана служебная учётка по умолчанию (Настройки → Сбор заявок)");
+  // Saved bindings remain historical identity, never authority to write after deletion.
+  const User = require("@/models/user");
+  const author = await User.findById(authorId).select("deletedAt").lean();
+  if (author?.deletedAt) return null;
 
   const attachments = [];
   for (const attachment of message.attachments || []) {

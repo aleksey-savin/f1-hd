@@ -79,7 +79,7 @@ const callHandler = async (handler, req) => {
       return this;
     },
   };
-  await handler({ auth: { user: { _id: "u1" } }, ...req }, res, (error) => {
+  await handler({ auth: { user: { _id: "u1" }, userId: "u1", can: ({ settings }) => settings?.includes("manage") }, ...req }, res, (error) => {
     passed = error;
   });
   return { res, error: passed };
@@ -547,4 +547,16 @@ test("тестовое письмо: пароль SMTP под чужим клю�
   assert.equal(res.body.ok, false);
   assert.equal(res.body.state, reenter("Пароль SMTP"));
   assert.ok(res.body.hint, "подсказка пуста");
+});
+
+test('user review partial settings keep explicit switches and reject invalid periods', async(t)=>{
+ const saves=storedPreferences(t,{userReview:{enabled:true,suggestDeletion:true,disabledDays:120,inactivityDays:250,historyPaused:false}});
+ const result=await callUpdate({userReview:{inactivityDays:300}});
+ assert.equal(result.error,undefined);
+ assert.equal(saves.at(-1).userReview.enabled,true);
+ assert.equal(saves.at(-1).userReview.suggestDeletion,true);
+ assert.equal(saves.at(-1).userReview.inactivityDays,300);
+ const invalid=await callUpdate({userReview:{disabledDays:0}});
+ assert.equal(invalid.error?.statusCode,400);
+ assert.equal(saves.length,1);
 });

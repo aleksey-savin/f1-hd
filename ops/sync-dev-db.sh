@@ -69,8 +69,8 @@ DUMP_MODE="${DUMP_MODE:-auto}"        # auto | remote (mongodump on prod) | tunn
 # pairing codes. A copy must not be able to act as a signed-in person or an
 # agent of the source installation. KEEP_LOCAL ones are preserved on the dev
 # side; NEVER_COPIED ones are dropped there.
-KEEP_LOCAL=(preferences channels channeljobs)
-NEVER_COPIED=(authSessions authVerifications mcpkeys mikrotikdownloadcodes impersonationCodes telegramPairingCodes)
+KEEP_LOCAL=(preferences channels channeljobs taxisettings)
+NEVER_COPIED=(authSessions authVerifications mcpkeys mikrotikdownloadcodes impersonationCodes telegramPairingCodes taxitrips taxiemployees)
 EXCLUDE_COLLECTIONS=("${KEEP_LOCAL[@]}" "${NEVER_COPIED[@]}")
 EXCLUDE_FLAGS=()
 for collection in "${EXCLUDE_COLLECTIONS[@]}"; do EXCLUDE_FLAGS+=("--excludeCollection=$collection"); done
@@ -113,7 +113,7 @@ show_help() {
     echo "  --keep-dump           Keep the downloaded dump archive after a successful sync"
     echo "  --from-archive FILE   Restore from an existing dump archive instead of"
     echo "                        downloading a fresh one (never touches production)"
-    echo "  --no-restart          Do not restart backend/tg-service containers afterwards"
+    echo "  --no-restart          Leave backend/tg-service stopped after restoring"
     echo "  -h, --help            Show this help"
     echo ""
     echo "Requirements:"
@@ -488,12 +488,40 @@ SECONDS=0
 DUMP_FILE="$FROM_ARCHIVE"
 DUMP_IS_TEMP=false
 DUMP_OK=false
+TARGET_SERVICES=()
+TARGET_PAUSED=false
+
+# The backend reads missing calendars with an upsert, and workers write other
+# collections too. No application process may race drop/restore/index creation
+# or masking. Include stopped containers so a retry after failure can resume
+# the same existing services without starting new profiles or dependencies.
+pause_target_services() {
+    if ! command -v docker >/dev/null 2>&1 || ! target_is_compose_mongodb; then
+        log_warning "Target is outside this compose stack: its database writers must be stopped separately."
+        return
+    fi
+    local existing service
+    existing=$(docker compose ps -a --services)
+    while IFS= read -r service; do
+        case "$service" in backend|tg-service) TARGET_SERVICES+=("$service") ;; esac
+    done <<< "$existing"
+    if [ ${#TARGET_SERVICES[@]} -gt 0 ]; then
+        log_info "Stopping target database writers: ${TARGET_SERVICES[*]}..."
+        docker compose stop "${TARGET_SERVICES[@]}"
+        TARGET_PAUSED=true
+    fi
+}
 
 on_exit() {
     local code=$?
     close_prod_ssh
     if [ $code -ne 0 ]; then
         log_error "Sync failed (exit code $code)"
+        if $TARGET_PAUSED; then
+            # Also covers a partially successful `compose start`.
+            docker compose stop "${TARGET_SERVICES[@]}" >/dev/null 2>&1 || true
+            log_warning "Target services remain stopped. Fix the failure and repeat the sync from the archive before starting them."
+        fi
         if [ "$MODE" = masked ] && $RESTORE_STARTED && ! $MASKED_OK; then
             log_error "The copy in '$DEV_DB' is NOT masked and may hold real data. Re-run the sync from the archive (not maskData.js by hand), or drop the database."
         fi
@@ -651,6 +679,8 @@ if ! DRY_RUN_OUT=$(dev_restore "${RESTORE_NS[@]}" --dryRun 2>&1); then
     exit 1
 fi
 
+pause_target_services
+
 # One combined snapshot for all never-synced collections, not just `preferences`:
 # the pre-clean drop below (and a --from-archive restore) must leave every one
 # of them untouched, not only the first.
@@ -698,21 +728,20 @@ if [ "$DEV_SHELL_MODE" != none ]; then
     fi
 fi
 
-if $RESTART_SERVICES; then
-    if command -v docker >/dev/null 2>&1; then
-        log_info "Restarting backend (and tg-service, if it runs) to drop cached state..."
-        docker compose restart backend >/dev/null 2>&1 \
-            || log_warning "Could not restart backend (is it running?)"
-        docker compose restart tg-service >/dev/null 2>&1 || true
-    else
-        log_warning "docker is not available: restart backend/tg-service yourself to drop cached state"
-    fi
-fi
-
 # Last line of defence: success is never reported for an unmasked masked run.
 if [ "$MODE" = masked ] && ! $MASKED_OK; then
     log_error "The copy in '$DEV_DB' was not masked and still holds real data. Re-run the sync from the archive, or drop the database."
     exit 1
+fi
+
+if $TARGET_PAUSED; then
+    if $RESTART_SERVICES; then
+        log_info "Starting target services after successful restore: ${TARGET_SERVICES[*]}..."
+        docker compose start "${TARGET_SERVICES[@]}"
+        TARGET_PAUSED=false
+    else
+        log_info "Target services left stopped (--no-restart)."
+    fi
 fi
 
 log_success "Database '$DEV_DB' synced with production '$PROD_DB' in ${SECONDS}s ($MODE copy)"

@@ -56,7 +56,7 @@ const snapshot = (user) =>
     : null;
 
 const usable = (user) =>
-  Boolean(user) && user.isServiceAccount !== true && user.banned !== true;
+  Boolean(user) && !user.deletedAt && user.isServiceAccount !== true && user.banned !== true;
 
 const inAppAllowed = (user, category, prefs) =>
   Boolean(prefs?.notify?.personal?.[category]) &&
@@ -337,7 +337,7 @@ const buildWorksItems = ({
 
 // ---------------------------------------------------------------- база
 
-const USER_FIELDS = "firstName lastName notify isServiceAccount banned";
+const USER_FIELDS = "firstName lastName notify isServiceAccount deletedAt banned";
 
 const loadUsers = async (ids) => {
   const User = require("@/models/user");

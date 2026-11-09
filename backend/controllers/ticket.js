@@ -89,6 +89,18 @@ const { canEditChecklist } = require("@/services/ticketAccess");
 const { ticketCardCompany } = require("@/services/ticketCardCompany");
 const { isBanned } = require("@/services/authBan");
 
+const assignmentId = (value) => value == null ? null : String(value._id || value);
+const assertTicketAssignments = async (ticket, { applicantId, responsibles } = {}) => {
+  if (applicantId && assignmentId(applicantId) !== assignmentId(ticket.applicantId)) {
+    const user = await User.findById(applicantId).select("deletedAt banned banExpires isServiceAccount").lean();
+    if (!user || user.isServiceAccount || isBanned(user)) throw new AppError("Инициатор не найден или отключён", 400);
+  }
+  if (responsibles) {
+    const existing = new Set((ticket.responsibles || []).map(assignmentId));
+    await assertResponsiblesMayPerform(responsibles.filter((person) => !existing.has(assignmentId(person))));
+  }
+};
+
 const buildAttachment = (file) => ({
   mimetype: file.mimetype,
   mimeType: file.mimetype,
@@ -146,7 +158,7 @@ exports.getAllOpened = async (req, res, next) => {
       .populate({
         path: "applicantId",
         select:
-          "firstName lastName email phone position role banned subdivision timezone",
+          "firstName lastName email phone position role deletedAt banned subdivision timezone",
         populate: {
           path: "subdivision",
           select: "name timezone parent",
@@ -481,7 +493,7 @@ exports.getOne = async (req, res, next) => {
           // isEndUser/isServiceAccount — попапу инициатора на карточке: у
           // служебной учётки (регламент, мониторинг) контактов нет, и имя там
           // не кликается; profileImagePath — его аватару
-          "firstName lastName email phone position role banned subdivision activeDirectoryObjectGUID timezone isEndUser isServiceAccount profileImagePath",
+          "firstName lastName email phone position role deletedAt banned subdivision activeDirectoryObjectGUID timezone isEndUser isServiceAccount profileImagePath",
         populate: {
           path: "subdivision",
           select: "name email address phone linkToMap timezone parent",
@@ -542,8 +554,8 @@ exports.getOne = async (req, res, next) => {
     // вырезает пустой объект company — без ?. карточка падала бы в 500.
     const company = await Company.findById(ticket.company?._id).populate({
       path: "employees",
-      select: "firstName lastName email phone position banned",
-      match: { banned: { $ne: true } },
+      select: "firstName lastName email phone position deletedAt banned",
+      match: { deletedAt: null, banned: { $ne: true } },
     });
 
     // Если инициатор связан с Active Directory, подтягиваем его последний ПК
@@ -721,7 +733,7 @@ exports.getFormData = async (req, res, next) => {
           ? User.find({
               "company._id": authedUser.company._id,
               isServiceAccount: { $ne: true },
-              banned: { $ne: true },
+              deletedAt: null, banned: { $ne: true },
             })
           : [authedUser],
       ]);
@@ -757,7 +769,7 @@ exports.getFormData = async (req, res, next) => {
         allApplicants
           ? User.find({
               $and: [
-                { banned: { $ne: true } },
+                { deletedAt: null, banned: { $ne: true } },
                 { isServiceAccount: { $ne: true } },
               ],
               ...applicantCompanyActive,
@@ -846,10 +858,12 @@ exports.add = async (req, res, next) => {
 
     let applicant = userId;
     if (usesOriginApplicant) {
+      const originUser = await User.findById(originApplicant).select("deletedAt").lean();
+      if (!originUser || originUser.deletedAt) throw new AppError("Инициатор диалога удалён: выберите другого пользователя", 409);
       applicant = originApplicant;
     } else if (onBehalfOfOthers && req.body.applicantId && String(req.body.applicantId) !== String(userId)) {
       const chosen = await User.findById(req.body.applicantId)
-        .select("_id company isServiceAccount banned banExpires")
+        .select("_id company isServiceAccount deletedAt banned banExpires")
         .lean();
       if (!chosen || chosen.isServiceAccount || isBanned(chosen)) {
         throw new AppError("Инициатор не найден или отключён", 404);
@@ -1424,12 +1438,14 @@ exports.process = async (req, res, next) => {
       return sendConflict(res, ticket);
     }
 
+    await assertTicketAssignments(ticket, { applicantId, responsibles });
+
     ticket.title = title;
     ticket.company = company;
     ticket.description = description;
     ticket.categoryId = categoryId;
-    ticket.applicantId = applicantId;
-    ticket.responsibles = responsibles;
+    ticket.applicantId = applicantId ?? ticket.applicantId;
+    ticket.responsibles = responsibles ?? ticket.responsibles;
     ticket.deadline = deadline;
     ticket.updatedBy = authData.userId;
     ticket.processedAt = new Date();
@@ -1459,6 +1475,7 @@ exports.process = async (req, res, next) => {
       message: "Заявка успешно обработана",
     });
   } catch (error) {
+    if (error instanceof AppError) return next(error);
     next(
       new AppError(
         `Failed to process ticket ${req.body._id}`,
@@ -1580,6 +1597,8 @@ exports.requestHelp = async (req, res, next) => {
       return true;
     });
 
+    await assertTicketAssignments(ticket, { responsibles: filteredResponsibles });
+
     ticket.responsibles = ticket.responsibles.concat(filteredResponsibles);
     ticket.updatedBy = authData.userId;
     ticket.notifications = {
@@ -1606,6 +1625,7 @@ exports.requestHelp = async (req, res, next) => {
       message: "Пользователи добавлены в список ответственных",
     });
   } catch (error) {
+    if (error instanceof AppError) return next(error);
     next(
       new AppError(
         `Failed to request help for ticket ${req.body._id}`,
@@ -2396,6 +2416,8 @@ exports.update = async (req, res, next) => {
       return sendConflict(res, ticket);
     }
 
+    await assertTicketAssignments(ticket, { applicantId, responsibles: responsibles ? JSON.parse(responsibles) : undefined });
+
     const attachments = req.files?.map(buildAttachment);
 
     // Ответы трогаем, только если их прислали: запрос без customFields раньше
@@ -2563,7 +2585,7 @@ exports.update = async (req, res, next) => {
       }
     }
     next(
-      new AppError(`Failed to update ticket ${req.body._id}`, 500, true, error),
+      error instanceof AppError ? error : new AppError(`Failed to update ticket ${req.body._id}`, 500, true, error),
     );
   }
 };

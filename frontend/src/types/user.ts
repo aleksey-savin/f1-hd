@@ -6,6 +6,8 @@
 // контекст (layout/Root: `{ ...defaultAuthedUser, ...userData }`). Читается
 // типобезопасным хуком `useAuthedUser()` из `store/authed-user`. Поля
 // добавляем по мере того, как их начинает читать TS-код.
+import type { DashboardLayout } from "./dashboard";
+
 export type AuthedUser = {
   _id: string;
   firstName?: string;
@@ -18,4 +20,6 @@ export type AuthedUser = {
   workStatus?: { code: string; note: string; updatedAt: string | null };
   /** Личный масштаб интерфейса, проценты; применяется только на десктопе. */
   fontScale?: 100 | 125;
+  hideWorkStatus?: boolean;
+  dashboardLayout?: DashboardLayout | null;
 };

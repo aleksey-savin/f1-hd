@@ -68,6 +68,7 @@ exports.add = async (req, res, next) => {
         user = await User.findById(userId);
       }
 
+      if (user?.deletedAt) return next(new AppError("Нельзя назначить удалённого пользователя в категорию", 409));
       if (user) {
         usersList.push(user);
       }
@@ -134,6 +135,10 @@ exports.update = async (req, res, next) => {
       users,
       servicePlans,
     } = req.body;
+
+    const currentIds = new Set((category.users || []).map((user) => String(user._id || user)));
+    const addedIds = (users || []).filter((id) => id && !currentIds.has(String(id)));
+    if (addedIds.length && await User.exists({ _id: { $in: addedIds }, deletedAt: { $ne: null } })) return next(new AppError("Нельзя назначить удалённого пользователя в категорию", 409));
 
     let usersList = [];
     const usersArray = concatIdsArray(users, category.users);

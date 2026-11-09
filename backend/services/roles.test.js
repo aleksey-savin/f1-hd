@@ -34,6 +34,7 @@ const {
   mirrorOf,
   needsUpgradeFirmwareGrant,
   needsApproveChangesGrant,
+  needsTaxiGrant,
   rolesToRefresh,
   orphanMessage,
   loadHolderState,
@@ -44,6 +45,15 @@ const rolesService = require("./roles");
 const { withoutUser } = require("./permissionHolders");
 
 const ROLE_MANAGE = { role: ["manage"], user: ["manage"] };
+
+test("taxi upgrade preserves former full access without promoting partial roles", () => {
+  const full = staffAccessStatements();
+  const old = { ...full }; delete old.taxi;
+  assert.equal(needsTaxiGrant(old), true);
+  assert.equal(needsTaxiGrant(full), false);
+  assert.equal(needsTaxiGrant({ ...old, ticket: old.ticket.filter((action) => action !== "delete") }), false);
+  assert.equal(needsTaxiGrant({ ticket: ["perform"], work: ["read", "log"] }), false);
+});
 
 test("a role keeping role.manage to itself may not drop it", () => {
   // Ровно та дыра, из-за которой порог и появился: PATCH /roles/admin с пустым
@@ -635,6 +645,7 @@ const install = ({ roles, people }) => {
 const holdersLoaded = (reads) => reads.some(([name]) => name === "users");
 
 test("loadHolderState reads member roles as a comma list and joins the accounts", async () => {
+  const deletedAt = new Date("2026-01-01T00:00:00Z");
   const banUntil = new Date("2030-01-01T00:00:00Z");
   const { reads, data } = install({
     roles: [
@@ -645,7 +656,7 @@ test("loadHolderState reads member roles as a comma list and joins the accounts"
     ],
     people: [
       person(1, " engineer , legacy,engineer"),
-      person(2, "engineer", { banned: true, banExpires: banUntil }),
+      person(2, "engineer", { banned: true, banExpires: banUntil, deletedAt }),
       person(3, "client", { isEndUser: true, company: { _id: OUR_COMPANY, isActive: false } }),
       person(4, "engineer", { isServiceAccount: true, company: undefined }),
     ],
@@ -673,6 +684,7 @@ test("loadHolderState reads member roles as a comma list and joins the accounts"
         isEndUser: false,
         banned: false,
         banExpires: undefined,
+        deletedAt: undefined,
         isServiceAccount: false,
         companyId: String(OUR_COMPANY),
         companyActive: true,
@@ -683,6 +695,7 @@ test("loadHolderState reads member roles as a comma list and joins the accounts"
         isEndUser: false,
         banned: true,
         banExpires: banUntil,
+        deletedAt,
         isServiceAccount: false,
         companyId: String(OUR_COMPANY),
         companyActive: true,
@@ -693,6 +706,7 @@ test("loadHolderState reads member roles as a comma list and joins the accounts"
         isEndUser: true,
         banned: false,
         banExpires: undefined,
+        deletedAt: undefined,
         isServiceAccount: false,
         companyId: String(OUR_COMPANY),
         companyActive: false,
@@ -703,6 +717,7 @@ test("loadHolderState reads member roles as a comma list and joins the accounts"
         isEndUser: false,
         banned: false,
         banExpires: undefined,
+        deletedAt: undefined,
         isServiceAccount: true,
         companyId: null,
         companyActive: true,
@@ -717,6 +732,7 @@ test("loadHolderState reads member roles as a comma list and joins the accounts"
     isEndUser: 1,
     banned: 1,
     banExpires: 1,
+    deletedAt: 1,
     isServiceAccount: 1,
     "company._id": 1,
     "company.isActive": 1,

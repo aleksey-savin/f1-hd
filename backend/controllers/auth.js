@@ -309,7 +309,7 @@ exports.requestLoginCode = async (req, res, next) => {
     if (!email) return same();
 
     const user = await User.findOne({ email }).select(
-      "isEndUser banned banExpires isServiceAccount company.isActive",
+      "isEndUser deletedAt banned banExpires isServiceAccount company.isActive",
     );
 
     // Общие основания отказать: их не различает ни один из двух путей.

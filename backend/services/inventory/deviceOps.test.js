@@ -463,6 +463,17 @@ test("assignUser без каскада (путь контроллера) не т
   assert.deepEqual(savedIds(), [HOST]);
 });
 
+test("assignUser rejects deleted people even if company and banned flag permit assignment", async () => {
+  const { host } = setupAssembly();
+  host.userId = undefined;
+  User.findById = async () => ({ _id: USER, company: { _id: COMPANY }, banned: false, deletedAt: new Date() });
+  const result = await assignUser(HOST, USER, { actorId: USER });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.equal(host.userId, undefined);
+  assert.deepEqual(savedIds(), []);
+});
+
 test("assignUser с каскадом: пользователь и статус уходят в живые детали", async () => {
   const { parts } = setupAssembly();
   User.findById = async () => ({ _id: USER, company: { _id: COMPANY } });

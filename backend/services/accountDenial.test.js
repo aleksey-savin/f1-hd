@@ -21,6 +21,14 @@ const account = (fields = {}) => ({
   ...fields,
 });
 
+test("deleted accounts remain denied after an expired ban or a cleared ban flag", () => {
+  for (const banned of [false, true]) {
+    const user = account({ deletedAt: new Date(), banned, banExpires: inPast() });
+    assert.equal(isBanned(user), true);
+    assert.equal(isDeniedAccount(user), true);
+  }
+});
+
 test("isBanned: a ban without an expiry holds", () => {
   assert.equal(isBanned({ banned: true }), true);
   assert.equal(isBanned({ banned: true, banExpires: null }), true);

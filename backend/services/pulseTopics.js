@@ -98,6 +98,8 @@ const PRESENCE_PATHS = [
   "profileImagePath",
   "position",
   "banned",
+  "deletedAt",
+  "disabledAt",
   "hideWorkStatus",
   "isEndUser",
   "isServiceAccount",
@@ -117,6 +119,8 @@ const TEAM_PATHS = [
   "lastName",
   "profileImagePath",
   "banned",
+  "deletedAt",
+  "disabledAt",
   "isEndUser",
   "isServiceAccount",
 ];

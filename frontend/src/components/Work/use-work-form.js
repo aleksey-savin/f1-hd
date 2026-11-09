@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { localToUtc, utcToLocalForm } from "../../util/format-date";
 
+import { initialWorkTaxi, workTaxiSelection } from "./taxi-state";
+
 import { LONG_WORK_MS } from "./duration";
 
 /**
@@ -81,14 +83,38 @@ export const useWorkForm = ({
   work = null,
   ticketIds,
   currentUserId,
+  companyId = "",
 }) => {
   const config = WORK_MODES[mode];
   const isPlan = config.time === "plan";
 
-  const [visitRequired, setVisitRequired] = useState(
+  const [visitRequired, updateVisitRequired] = useState(
     work?.visitRequired ?? false,
   );
   const [description, setDescription] = useState(work?.description ?? "");
+  const [taxiTripIds, updateTaxiTripIds] = useState(
+    () => initialWorkTaxi({ mode, isPlan, work }).taxiTripIds,
+  );
+  const [taxiDecision, setTaxiDecision] = useState(
+    () => initialWorkTaxi({ mode, isPlan, work }).taxiDecision,
+  );
+  const applyTaxiSelection = (selection) => {
+    updateTaxiTripIds(selection.taxiTripIds);
+    setTaxiDecision(selection.taxiDecision);
+  };
+  const setTaxiTripIds = (values) =>
+    applyTaxiSelection(
+      workTaxiSelection({ isPlan, visitRequired, taxiTripIds: values }),
+    );
+  const setNoTaxi = () =>
+    applyTaxiSelection(
+      workTaxiSelection({ isPlan, visitRequired, withoutTaxi: true }),
+    );
+  const setVisitRequired = (value) => {
+    updateVisitRequired(value);
+    if (value !== visitRequired)
+      applyTaxiSelection(workTaxiSelection({ isPlan, visitRequired: value }));
+  };
   const [withinPlan, setWithinPlan] = useState(work?.withinPlan ?? false);
 
   // При подтверждении факт предзаполняется плановым временем — его и правят,
@@ -213,6 +239,12 @@ export const useWorkForm = ({
       tickets: allTicketIds,
       description: description.trim(),
       visitRequired,
+      ...workTaxiSelection({
+        isPlan,
+        visitRequired,
+        taxiTripIds,
+        withoutTaxi: taxiDecision === "none",
+      }),
       withinPlan: effectiveWithinPlan,
       ...times,
       ...(isPlan ? { executor: performerId } : { finishedBy: performerId }),
@@ -222,6 +254,12 @@ export const useWorkForm = ({
   return {
     config,
     isPlan,
+    companyId: String(companyId || work?.company?._id || work?.company || ""),
+    allTicketIds,
+    taxiTripIds,
+    setTaxiTripIds,
+    setNoTaxi,
+    taxiDecision,
 
     visitRequired,
     setVisitRequired,

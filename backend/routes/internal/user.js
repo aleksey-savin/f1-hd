@@ -105,6 +105,7 @@ router.post(
   userController.updateMyAccount,
 );
 router.post("/users/delete/:id", isAuth, canManageUsers, userController.delete);
+router.post("/users/restore/:id", isAuth, canManageUsers, userController.restore);
 router.post(
   "/users/toggle-active/:id",
   isAuth,

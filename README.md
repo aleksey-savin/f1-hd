@@ -98,6 +98,10 @@ local database from another installation (masked by default).
   `docs/typescript-guide.md`.
 - UI rules: `docs/ux-ui-guide.md`. Dates and timezones:
   `docs/datetime-conventions.md`.
+- Employee presence, work schedules and planned absences:
+  [docs/user-presence-and-calendar.md](docs/user-presence-and-calendar.md).
+- Corporate taxi, work links and expense reporting:
+  [docs/taxi.md](docs/taxi.md).
 - Phone numbers are stored as canonical digits and formatted only for display:
   `docs/phone-numbers.md`.
 - Data migrations are scripts in `backend/scripts/` registered in

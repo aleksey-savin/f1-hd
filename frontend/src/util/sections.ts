@@ -39,6 +39,18 @@ export type Section = {
 
 export const SECTIONS: Section[] = [
   {
+    key: "user-review",
+    listTo: "/users/review",
+    label: "Проверка пользователей",
+    can: { userReview: ["read"] },
+  },
+  {
+    key: "deleted-users",
+    listTo: "/users/deleted",
+    label: "Удалённые пользователи",
+    can: { user: ["manage"] },
+  },
+  {
     key: "proxmox-guests",
     listTo: "/devices/proxmox/guests",
     label: "ВМ и LXC",
@@ -214,6 +226,11 @@ export const SECTIONS: Section[] = [
     listTo: "/report/companies",
     label: "Компании",
     can: { report: ["companies"] },
+  },
+  {
+    key: "taxi",
+    listTo: "/report/taxi",
+    label: "Такси",
   },
   {
     key: "networks-report",

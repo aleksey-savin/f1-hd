@@ -143,7 +143,10 @@ externalRoutes.use(attachSession);
 internalRoutes.use(hideStaffContactsFromClients);
 externalRoutes.use(hideStaffContactsFromClients);
 
+internalRoutes.use("/user-review", require("./internal/userReview"));
+
 // Mount internal routes
+internalRoutes.use("/taxi", require("./internal/taxi"));
 internalRoutes.use("/proxmox", require("./internal/proxmox"));
 internalRoutes.use("/", appVersionRoutes);
 internalRoutes.use("/", meRoutes);

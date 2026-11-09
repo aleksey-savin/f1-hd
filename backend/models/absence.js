@@ -26,6 +26,11 @@ const absenceSchema = new Schema(
     },
     from: { type: Date, required: true },
     to: { type: Date, required: true },
+    // Часть одного дня: часы в поясе организации, end < start — следующие сутки.
+    timeRange: {
+      type: new Schema({ start: { type: String, required: true }, end: { type: String, required: true } }, { _id: false }),
+      default: null,
+    },
     comment: { type: String, default: "", maxlength: 300 },
 
     status: {

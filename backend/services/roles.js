@@ -333,7 +333,7 @@ const otherFullAccessHolders = async (orgId, userId, fullKeys) => {
   return mongoose.connection.db.collection("users").countDocuments({
     _id: { $in: ids },
     isEndUser: false,
-    banned: { $ne: true },
+    deletedAt: null, banned: { $ne: true },
     isServiceAccount: { $ne: true },
   });
 };
@@ -392,6 +392,7 @@ const HOLDER_PROJECTION = {
   isEndUser: 1,
   banned: 1,
   banExpires: 1,
+  deletedAt: 1,
   isServiceAccount: 1,
   "company._id": 1,
   "company.isActive": 1,
@@ -456,6 +457,7 @@ const loadHolderState = async (orgId) => {
       isEndUser: user.isEndUser,
       banned: user.banned,
       banExpires: user.banExpires,
+      deletedAt: user.deletedAt,
       isServiceAccount: user.isServiceAccount,
       companyId: user.company?._id ? String(user.company._id) : null,
       // Поля нет у сотрудников без компании и у старых снимков — «активна»
@@ -572,7 +574,7 @@ const usage = async (orgId, key) => {
         _id: {
           $in: [...bearers.keys()].map((id) => new mongoose.Types.ObjectId(id)),
         },
-        banned: { $ne: true },
+        deletedAt: null, banned: { $ne: true },
       },
       { projection: { firstName: 1, lastName: 1, email: 1 } },
     )
@@ -960,11 +962,13 @@ const assign = async (userId, keys, can) => {
     .collection("users")
     .findOne(
       { _id: new mongoose.Types.ObjectId(String(userId)) },
-      { projection: { isEndUser: 1 } },
+      { projection: { isEndUser: 1, deletedAt: 1 } },
     );
   if (!account) {
     throw new AppError("Учётная запись не найдена", 404);
   }
+
+  if (account.deletedAt) throw new AppError("Сначала восстановите удалённую учётную запись", 409);
 
   // Назначить роль, которая даёт больше, чем есть у назначающего, — тот же
   // обход, что и создание такой роли, только в два шага. Но проверять надо
@@ -1141,6 +1145,7 @@ const mirrorOf = (keys, catalogue, account) => {
 const LATE_STAFF_GRANTS = [
   { resource: "mikrotik", action: "upgradeFirmware" },
   { resource: "mikrotik", action: "approveChanges" },
+  ...["read", "allocate", "configure"].map((action) => ({ resource: "taxi", action })),
 ];
 
 const withLateGrants = (statements) => {
@@ -1188,6 +1193,9 @@ const needsUpgradeFirmwareGrant = (statements) =>
  */
 const needsApproveChangesGrant = (statements) =>
   needsLateGrant(statements, "mikrotik", "approveChanges");
+
+const needsTaxiGrant = (statements) =>
+  ["read", "allocate", "configure"].some((action) => needsLateGrant(statements, "taxi", action));
 
 /**
  * У носителей каких ролей пересчитывается зеркало после раздачи «Обновлять
@@ -1261,6 +1269,7 @@ module.exports = {
   mirrorOf,
   needsUpgradeFirmwareGrant,
   needsApproveChangesGrant,
+  needsTaxiGrant,
   rolesToRefresh,
   rolesOfMember,
   namedRoles,

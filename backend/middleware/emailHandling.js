@@ -710,6 +710,7 @@ exports.handleNewEmails = async () => {
         const defaultApplicant = await MongoUser.findById(
           prefs.defaultApplicant._id,
         );
+        if (defaultApplicant?.deletedAt) throw new Error("Пользователь по умолчанию удалён: выберите другого в настройках сбора заявок");
 
         // Компания машинной заявки: снапшот из настроек, а если его нет —
         // компания самого инициатора. Заявка без company ломает свою карточку
@@ -832,6 +833,7 @@ exports.handleNewEmails = async () => {
               (emailAddress
                 ? await MongoUser.findOne({
                     email: emailAddress,
+                    deletedAt: null,
                     "company.isActive": { $ne: false },
                   })
                 : null);
@@ -853,6 +855,7 @@ exports.handleNewEmails = async () => {
             applicant = emailAddress
               ? await MongoUser.findOne({
                   email: emailAddress,
+                    deletedAt: null,
                   "company.isActive": { $ne: false },
                 })
               : null;

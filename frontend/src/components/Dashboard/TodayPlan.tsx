@@ -268,9 +268,9 @@ const TodayPlan = () => {
   if (today.length === 0) return null;
 
   return (
-    <section>
+    <section className="@container">
       <Eyebrow count={today.length}>Сегодня в плане</Eyebrow>
-      <div className="grid gap-3 max-md:hidden md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 max-md:hidden @xl:grid-cols-2 @4xl:grid-cols-3">
         {today.map((item) => (
           <PlanCard
             key={item.work._id}

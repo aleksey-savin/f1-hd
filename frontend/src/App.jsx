@@ -1,3 +1,13 @@
+import TaxiReport from "./pages/Taxi/Report";
+import { TAXI_REPORT_ACCESS } from "./util/taxi-access";
+import { GLOBAL_SETTINGS_ACCESS } from "./util/global-settings-access";
+import TaxiDetail from "./pages/Taxi/Detail";
+import {
+  reportLoader as taxiReportLoader,
+  tripDetailLoader as taxiDetailLoader,
+  tripStatusLoader,
+  taxiAction,
+} from "./pages/Taxi/routes";
 import { proxmoxRoutes } from "@/pages/Proxmox/routes";
 import { RouterProvider, createBrowserRouter, redirect } from "react-router";
 
@@ -382,6 +392,18 @@ import MikrotikScheduleForm, {
 
 // Users
 import Users, { loader as usersLoader } from "./pages/User/List.jsx";
+import UserReviewList from "./pages/UserReview/List";
+import UserReviewAnalysis from "./pages/UserReview/Analysis";
+import DeletedUsers from "./pages/UserReview/DeletedUsers";
+import {
+  reviewLoader,
+  reviewAction,
+  analysisLoader,
+  reviewSummaryLoader,
+  ticketReviewLoader,
+  deletedUsersLoader,
+  restoreUserAction,
+} from "./pages/UserReview/routes";
 
 import AddUserPage, {
   loader as addUserLoader,
@@ -535,7 +557,10 @@ function App() {
               loader: dashboardLoader,
               // «Новая заявка» с главной: форма — вложенный маршрут главной,
               // за шторкой остаётся главная, а не список заявок
-              children: ticketFormRoutes({ prefix: "tickets/", modes: ["add"] }),
+              children: ticketFormRoutes({
+                prefix: "tickets/",
+                modes: ["add"],
+              }),
             },
             // Tickets
             {
@@ -739,6 +764,37 @@ function App() {
             },
             // Users
             {
+              path: "users/review/summary",
+              handle: { can: { userReview: ["read"] } },
+              loader: reviewSummaryLoader,
+            },
+            {
+              path: "users/review/ticket/:ticketId",
+              handle: { can: { userReview: ["read"] } },
+              loader: ticketReviewLoader,
+            },
+            {
+              path: "users/review/analysis",
+              handle: { can: { userReview: ["read"] } },
+              element: <UserReviewAnalysis />,
+              loader: analysisLoader,
+              action: reviewAction,
+            },
+            {
+              path: "users/review",
+              handle: { can: { userReview: ["read"] } },
+              element: <UserReviewList />,
+              loader: reviewLoader,
+              action: reviewAction,
+            },
+            {
+              path: "users/deleted",
+              handle: { can: { user: ["manage"] } },
+              element: <DeletedUsers />,
+              loader: deletedUsersLoader,
+              action: restoreUserAction,
+            },
+            {
               path: "users",
               handle: { can: { user: ["read"] } },
               element: <Users />,
@@ -922,14 +978,20 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: { can: { checklistTemplate: ["manage"] }, ...SHEET_MD },
+                  handle: {
+                    can: { checklistTemplate: ["manage"] },
+                    ...SHEET_MD,
+                  },
                   loader: checklistTemplateFormLoader,
                   action: addChecklistTemplateAction,
                   element: <AddChecklistTemplatePage />,
                 },
                 {
                   path: "update/:id",
-                  handle: { can: { checklistTemplate: ["manage"] }, ...SHEET_MD },
+                  handle: {
+                    can: { checklistTemplate: ["manage"] },
+                    ...SHEET_MD,
+                  },
                   loader: checklistTemplateFormLoader,
                   action: updateChecklistTemplateAction,
                   element: <UpdateChecklistTemplatePage />,
@@ -1490,6 +1552,24 @@ function App() {
               element: <InventoryChangePage />,
               loader: inventoryChangeLoader,
             },
+            {
+              path: "report/taxi",
+              handle: { can: TAXI_REPORT_ACCESS },
+              element: <TaxiReport />,
+              loader: taxiReportLoader,
+              action: taxiAction,
+            },
+            {
+              path: "taxi/settings",
+              handle: { canAny: GLOBAL_SETTINGS_ACCESS },
+              loader: () => redirect("/preferences#taxi"),
+            },
+            {
+              path: "taxi/trips/:id",
+              element: <TaxiDetail />,
+              loader: taxiDetailLoader,
+            },
+            { path: "taxi/trips/:id/status", loader: tripStatusLoader },
             // Reports
             // Легаси-отчёт по работам влился в «Архив» (сегмент «Работы») —
             // постоянный редирект, закладки сотрудников не ломаются
@@ -1689,7 +1769,7 @@ function App() {
             // Preferences
             {
               path: "preferences",
-              handle: { can: { settings: ["manage"] } },
+              handle: { canAny: GLOBAL_SETTINGS_ACCESS },
               element: <Preferences />,
               loader: prefsLoader,
               action: prefsAction,

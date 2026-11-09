@@ -38,6 +38,15 @@ const logger = require("../utils/logger");
 const { describeMailMode, mailCanSend } = require("../utils/mailGuard");
 const { resolveAiFeatures } = require("../services/ai/features");
 const { resolveBrand, validateBrandInput } = require("../services/brand");
+const taxiConfiguration = require("../services/taxi/settings");
+const { has: hasTaxiPermission } = require("../services/taxi/access");
+const canManageGeneral = (auth) => !auth?.isEndUser && Boolean(auth?.can?.({ settings: ["manage"] }));
+const preferencesResponse = async (auth, preferences) => ({
+  ...(canManageGeneral(auth)
+    ? preferences ? { ...maskSecrets(preferences), mailMode: describeMailMode() } : { message: "Preferences are not set" }
+    : {}),
+  ...(hasTaxiPermission(auth, "configure") ? { taxiBusiness: await taxiConfiguration.loadConfiguration() } : {}),
+});
 
 // Поля почтовых каналов, которые правит форма. Мержим по путям (а не заменяем
 // группу целиком): health пишут крон сбора и отправка уведомлений, форма о нём
@@ -178,19 +187,11 @@ const isOpenaiSpeechModel = (modelId) =>
 
 exports.get = async (req, res, next) => {
   try {
-    const preferences = await Preferences.findOne({});
-    if (!preferences) {
-      return res.status(200).json({ message: "Preferences are not set" });
-    }
-    // Пароли и API-ключи наружу не уходят: вместо значения — флаг «задан».
-    // `mailMode` — режим почты из окружения сервера (MAIL_MODE): только для
-    // показа в настройках, в базе не хранится и при сохранении не читается.
-    res.status(200).json({
-      ...maskSecrets(preferences),
-      mailMode: describeMailMode(),
-    });
+    if (!canManageGeneral(req.auth) && !hasTaxiPermission(req.auth, "configure")) throw new AppError("Недостаточно прав для просмотра настроек", 403);
+    const preferences = canManageGeneral(req.auth) ? await Preferences.findOne({}) : null;
+    res.status(200).json(await preferencesResponse(req.auth, preferences));
   } catch (error) {
-    next(new AppError(`Failed to fetch preferences`, 500, true, error));
+    next(error instanceof AppError ? error : new AppError(`Failed to fetch preferences`, 500, true, error));
   }
 };
 
@@ -265,7 +266,9 @@ exports.getInitial = async (req, res, next) => {
       getScreen: preferences.getScreen,
       timezone: preferences.timezone,
       // Оператор такси нужен каждому: действие «такси» в справочнике компаний
-      taxi: { operator: preferences.taxi?.operator || "" },
+      taxi: {
+        operator: preferences.taxi?.operator || "",
+      },
       emailNotifications: mailCanSend(preferences),
       telegramNotifications: preferences.notify?.byTelegram?.isActive,
       // Имя бота для ссылки привязки в «Интеграциях»; пусто — сервис не подключён
@@ -297,9 +300,19 @@ exports.update = async (req, res, next) => {
     // Первый запуск обрабатывается тем же путём: пустой документ получает
     // дефолты схемы, присланные группы ложатся поверх.
     const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new AppError("Некорректное тело настроек", 400);
     const has = (key) => Object.prototype.hasOwnProperty.call(body, key);
-
-    // Право проверил маршрут (`canManageSettings`): настройки — одно право.
+    const generalChanged = Object.keys(body).some((key) => key !== "taxiBusiness");
+    const taxiForbidden = has("taxiBusiness") && !hasTaxiPermission(req.auth, "configure");
+    const generalForbidden = (generalChanged || !has("taxiBusiness")) && !canManageGeneral(req.auth);
+    if (taxiForbidden || generalForbidden) throw new AppError("Недостаточно прав для изменения настроек", 403);
+    // Validate the taxi draft before mutating any general preference fields.
+    const taxiDraft = has("taxiBusiness") ? await taxiConfiguration.prepareConfiguration(body.taxiBusiness) : null;
+    if (!generalChanged && taxiDraft) {
+      await taxiConfiguration.saveConfiguration(taxiDraft);
+      const preferences = canManageGeneral(req.auth) ? await Preferences.findOne({}) : null;
+      return res.status(200).json({ message: "Настройки сохранены", preferences: await preferencesResponse(req.auth, preferences) });
+    }
 
     let preferences = await Preferences.findOne({});
     if (!preferences) {
@@ -498,6 +511,28 @@ exports.update = async (req, res, next) => {
       };
     }
 
+    if (has("userReview")) {
+      const incoming = body.userReview;
+      if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+        return next(new AppError("Некорректные настройки проверки пользователей", 400));
+      }
+      const previous = preferences.userReview?.toObject?.() ?? preferences.userReview ?? {};
+      const patch = {};
+      for (const key of ["enabled", "suggestDeletion", "historyPaused"]) {
+        if (Object.hasOwn(incoming, key)) {
+          if (typeof incoming[key] !== "boolean") return next(new AppError("Некорректный переключатель проверки пользователей", 400));
+          patch[key] = incoming[key];
+        }
+      }
+      for (const key of ["disabledDays", "inactivityDays"]) {
+        if (Object.hasOwn(incoming, key)) {
+          if (!Number.isInteger(incoming[key]) || incoming[key] < 1 || incoming[key] > 3650) return next(new AppError("Период должен быть от 1 до 3650 дней", 400));
+          patch[key] = incoming[key];
+        }
+      }
+      preferences.userReview = { ...previous, ...patch };
+    }
+
     if (has("knowledgeBase")) {
       const prevKb = preferences.knowledgeBase || {};
       secretsJustEnabled =
@@ -571,6 +606,7 @@ exports.update = async (req, res, next) => {
     }
 
     await preferences.save();
+    if (taxiDraft) await taxiConfiguration.saveConfiguration(taxiDraft);
 
     // Только что включённые фичи сканируем сразу. Ошибка скана не должна
     // валить уже сохранённые настройки — логируем и продолжаем.
@@ -592,7 +628,7 @@ exports.update = async (req, res, next) => {
       // Ответ на сохранение — такой же выход наружу, как и чтение: секреты в нём
       // маскируются (иначе форма получала бы обратно шифртексты ключей)
       // (`mailMode` — как в чтении: форма кладёт этот ответ на место прежнего)
-      preferences: { ...maskSecrets(preferences), mailMode: describeMailMode() },
+      preferences: await preferencesResponse(req.auth, preferences),
     });
   } catch (error) {
     // Инварианты нечитаемые секреты уже называют; это — страховка на случай,
@@ -600,7 +636,7 @@ exports.update = async (req, res, next) => {
     if (error instanceof SecretUnreadableError) {
       return next(unreadableSecretAnswer(error));
     }
-    next(new AppError(`Failed to update preferences`, 500, true, error));
+    next(error instanceof AppError ? error : new AppError(`Failed to update preferences`, 500, true, error));
   }
 };
 

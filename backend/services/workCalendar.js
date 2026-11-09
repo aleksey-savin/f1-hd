@@ -40,6 +40,7 @@ const {
   dayNameOfKey,
   parseTimeOfDay,
   windowMinutes,
+  shiftDayKey,
 } = require("@/services/workWindow");
 
 /**
@@ -150,10 +151,10 @@ const buildScheduleContext = async ({ fromKey, toKey, userIds, preferences }) =>
     const absences = await Absence.find({
       user: { $in: userIds },
       status: "approved",
-      from: { $lte: keyToUtc(toKey) },
-      to: { $gte: keyToUtc(fromKey) },
+      from: { $lte: keyToUtc(shiftDayKey(toKey, 1)) },
+      to: { $gte: keyToUtc(shiftDayKey(fromKey, -1)) },
     })
-      .select("user type from to status")
+      .select("user type from to status timeRange")
       .lean();
 
     for (const absence of absences) {
@@ -166,7 +167,8 @@ const buildScheduleContext = async ({ fromKey, toKey, userIds, preferences }) =>
         status: absence.status,
         fromKey: toDateKey(new Date(absence.from)),
         toKey: toDateKey(new Date(absence.to)),
-        reducesNorm: reducesNorm(absence.type),
+        timeRange: absence.timeRange || null,
+        reducesNorm: !absence.timeRange && reducesNorm(absence.type),
       });
     }
   }
@@ -206,7 +208,7 @@ const makePlanner = (user, ctx, overtimeSettings) => {
   const absences = ctx.absencesByUser.get(String(user?._id)) || [];
 
   const absenceOn = (dateKey) =>
-    absences.find((a) => dateKey >= a.fromKey && dateKey <= a.toKey) || null;
+    absences.find((a) => !a.timeRange && dateKey >= a.fromKey && dateKey <= a.toKey) || null;
 
   // ignoreAbsence — «каким был бы день без отпуска»: нужно строке
   // «норма 71 ч, без отпуска — 151 ч» и подсчёту потерянных на отсутствии часов
@@ -302,6 +304,35 @@ const makePlanner = (user, ctx, overtimeSettings) => {
     };
   };
 
+  // Частичное отсутствие не участвует в dayPlan: это финансовый план.
+  // Доступность и присутствие используют отдельные окна в тех же настенных
+  // минутах, поэтому отсутствие 09–11 не превращает обычную работу в переработку.
+  const partialWindows = (dateKey) => absences.filter((absence) => absence.timeRange).map((absence) => {
+    const offset = dayjs.utc(absence.fromKey).diff(dayjs.utc(dateKey), "day") * MINUTES_PER_DAY;
+    const window = windowMinutes(absence.timeRange.start, absence.timeRange.end);
+    return { absence, start: offset + window.start, end: offset + window.end };
+  });
+  const partialAbsencesOn = (dateKey) => partialWindows(dateKey)
+    .filter((window) => window.start < MINUTES_PER_DAY && window.end > 0)
+    .map((window) => window.absence);
+  const partialAbsenceAt = (dateKey, minutes) => partialWindows(dateKey)
+    .find((window) => minutes >= window.start && minutes < window.end)?.absence || null;
+  const availabilityWindows = (dateKey) => {
+    const plan = dayPlan(dateKey);
+    if (plan.start === null || plan.end === null) return [];
+    let available = [{ start: plan.start, end: plan.end }];
+    for (const missing of partialWindows(dateKey).filter((window) => reducesNorm(window.absence.type))) {
+      available = available.flatMap((window) => {
+        if (missing.end <= window.start || missing.start >= window.end) return [window];
+        return [
+          { start: window.start, end: Math.min(missing.start, window.end) },
+          { start: Math.max(missing.end, window.start), end: window.end },
+        ].filter((piece) => piece.start < piece.end);
+      });
+    }
+    return available;
+  };
+
   const periodPlan = (fromKey, toKey) => {
     const days = [];
     let normMinutes = 0;
@@ -351,6 +382,9 @@ const makePlanner = (user, ctx, overtimeSettings) => {
     followsCalendar,
     absences,
     dayPlan,
+    partialAbsencesOn,
+    partialAbsenceAt,
+    availabilityWindows,
     periodPlan,
   };
 };

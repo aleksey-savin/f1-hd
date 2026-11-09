@@ -20,6 +20,7 @@ const Schema = mongoose.Schema;
 const { CATEGORIES } = require("@/services/notificationCategories");
 
 const EXTRA_KINDS = [
+  "userReviewSummary",
   "absenceRequest",
   "absenceDecision",
   "reportApproval",

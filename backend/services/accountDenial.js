@@ -9,10 +9,10 @@
  * дальше, вызовы по проекту не менялись.
  */
 
-/** Отключение действует: флаг стоит, и срок либо не задан, либо не вышел. */
+/** Удаление действует всегда; обычное отключение — пока не вышел срок. */
 const isBanned = (user) =>
-  Boolean(user?.banned) &&
-  !(user.banExpires && new Date(user.banExpires).getTime() <= Date.now());
+  Boolean(user?.deletedAt) || (Boolean(user?.banned) &&
+  !(user.banExpires && new Date(user.banExpires).getTime() <= Date.now()));
 
 /**
  * Основания отказать, общие для всех способов входа.

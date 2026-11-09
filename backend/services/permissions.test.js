@@ -12,6 +12,11 @@ const assert = require("node:assert/strict");
 
 const { effectivePermissions, canFor } = require("./permissions");
 
+test("deleted administrator mirrors grant no effective permissions or rights to grant", async () => {
+  const result = await effectivePermissions({ _id: "000000000000000000000001", isEndUser: false, isAdmin: true, deletedAt: new Date() });
+  assert.deepEqual(result, { statements: {}, grantStatements: {} });
+});
+
 test("a staff admin gets the whole staff dictionary and may grant client actions", async () => {
   const { statements, grantStatements } = await effectivePermissions({
     _id: "000000000000000000000001",

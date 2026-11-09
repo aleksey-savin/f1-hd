@@ -204,7 +204,7 @@ const resolveSubdivisions = async ({ company, works }) => {
   const managers = await User.find({
     _id: { $in: docs.map((doc) => doc.manager).filter(Boolean) },
   })
-    .select("firstName lastName banned")
+    .select("firstName lastName deletedAt banned")
     .lean();
   const managerById = new Map(managers.map((user) => [String(user._id), user]));
 
@@ -222,7 +222,7 @@ const resolveSubdivisions = async ({ company, works }) => {
                 _id: manager._id,
                 firstName: manager.firstName,
                 lastName: manager.lastName,
-                isActive: !manager.banned,
+                isActive: !manager.deletedAt && !manager.banned,
               }
             : null,
         },

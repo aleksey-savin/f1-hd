@@ -1,0 +1,37 @@
+const ACTIVE_STATUSES = ['transporting'];
+const normalizePurpose = (purpose) => purpose === 'home' ? 'personal' : purpose;
+const companyPurpose = (companyId, internalCompanyId) => !companyId ? 'unknown'
+  : internalCompanyId && String(companyId) === String(internalCompanyId) ? 'service' : 'business';
+const isWorkPurpose = (purpose) => ['business', 'service'].includes(purpose);
+const isTaxiPresence = (user) => Boolean(
+  user?.workStatus?.code === 'trip' &&
+  user.workStatus.source === 'taxi' &&
+  user.workStatus.taxiTripId,
+);
+
+const shouldApplyPresence = (trip) => Boolean(
+  !trip?.deletedAt && trip?.purpose === 'business' && trip.status === 'transporting' &&
+  trip.userId && !trip.historical,
+);
+
+const moneyToMinor = (value) => {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(String(value));
+  if (!match) throw new Error('Некорректная сумма провайдера');
+  const minor = BigInt(match[1]) * 100n + BigInt((match[2] || '').padEnd(2, '0'));
+  if (minor > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Некорректная сумма провайдера');
+  return Number(minor);
+};
+const { AppError } = require('../../middleware/errorHandling');
+const id = (value) => String(value?._id ?? value ?? '');
+const validateWorkTrip = (work, trip, actor) => {
+  if (!work.visitRequired || !work.finishedAt || !work.startedAt && work.scheduled) {
+    throw new AppError('Поездку можно связать только с фактическим выездом', 400);
+  }
+  if (trip.deletedAt || !isWorkPurpose(trip.purpose) || !id(work.company) || id(work.company) !== id(trip.companyId)) {
+    throw new AppError('Компания или цель поездки не соответствует работе', 400);
+  }
+  if (!actor.canAllocate && (id(trip.userId) !== id(actor.userId) || id(work.finishedBy) !== id(actor.userId))) {
+    throw new AppError('Недостаточно прав для связи поездки', 403);
+  }
+};
+module.exports = { ACTIVE_STATUSES, isTaxiPresence, shouldApplyPresence, moneyToMinor, validateWorkTrip, normalizePurpose, companyPurpose, isWorkPurpose };

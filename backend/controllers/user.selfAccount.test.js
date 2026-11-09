@@ -176,3 +176,105 @@ test("an absent body is a no-op, not a 500", async () => {
   assert.equal(user.firstName, "Мария");
   assert.equal(user.email, "maria@example.com");
 });
+
+test("dashboard settings persist for the session owner and round-trip in the response", async () => {
+  const user = person();
+  const layout = {
+    customOrder: true,
+    widgets: [
+      { id: "report", zone: "main", visible: true },
+      { id: "userReview", zone: "main", visible: true },
+      { id: "tickets", zone: "aside", visible: false },
+    ],
+  };
+  const outcome = await updateAccount(user, {
+    id: OTHER_ID,
+    dashboardLayout: layout,
+  });
+  assertCreated(outcome);
+  assert.deepEqual(user.toObject().dashboardLayout.staff, layout);
+  assert.deepEqual(outcome.res.payload.user.dashboardLayout, layout);
+  assert.equal(user.toObject().dashboardLayout.client, undefined);
+});
+
+test("client and staff dashboard layouts remain independent and reset affects only the current audience", async () => {
+  const user = person();
+  const staff = {
+    customOrder: true,
+    widgets: [{ id: "report", zone: "top", visible: false }],
+  };
+  const client = {
+    customOrder: false,
+    widgets: [{ id: "workplace", zone: "main", visible: false }],
+  };
+  assertCreated(await updateAccount(user, { dashboardLayout: staff }));
+  user.isEndUser = true;
+  assertCreated(await updateAccount(user, { dashboardLayout: client }));
+  assert.deepEqual(user.toObject().dashboardLayout.staff, staff);
+  assert.deepEqual(user.toObject().dashboardLayout.client, client);
+  assertCreated(await updateAccount(user, { firstName: "Анна" }));
+  assert.deepEqual(user.toObject().dashboardLayout.client, client);
+  const reset = await updateAccount(user, { dashboardLayout: null });
+  assertCreated(reset);
+  assert.equal(reset.res.payload.user.dashboardLayout, null);
+  assert.equal(user.toObject().dashboardLayout.client, null);
+  assert.deepEqual(user.toObject().dashboardLayout.staff, staff);
+});
+
+test("invalid dashboard settings are rejected before any profile write", async () => {
+  const invalid = [
+    false,
+    { customOrder: true, widgets: "tickets" },
+    { customOrder: "false", widgets: [] },
+    {
+      customOrder: true,
+      widgets: [{ id: "tickets", zone: "footer", visible: true }],
+    },
+    {
+      customOrder: true,
+      widgets: [{ id: "tickets", zone: "main", visible: "false" }],
+    },
+    {
+      customOrder: true,
+      widgets: [{ id: "unknown", zone: "main", visible: true }],
+    },
+    {
+      customOrder: true,
+      widgets: [
+        { id: "tickets", zone: "main", visible: true },
+        { id: "tickets", zone: "aside", visible: true },
+      ],
+    },
+    {
+      customOrder: true,
+      widgets: [{ id: "report", zone: "top", visible: true, role: "admin" }],
+    },
+  ];
+  for (const dashboardLayout of invalid) {
+    const user = person();
+    const outcome = await updateAccount(user, {
+      firstName: "Не должно сохраниться",
+      dashboardLayout,
+    });
+    assert.equal(
+      outcome.errors[0]?.statusCode,
+      422,
+      JSON.stringify(dashboardLayout),
+    );
+    assert.deepEqual(outcome.written, []);
+    assert.equal(user.firstName, "Мария");
+  }
+});
+
+test("client dashboard settings cannot include staff-only widgets", async () => {
+  const user = person();
+  user.isEndUser = true;
+  const outcome = await updateAccount(user, {
+    dashboardLayout: {
+      customOrder: true,
+      widgets: [{ id: "report", zone: "top", visible: true }],
+    },
+  });
+  assert.equal(outcome.errors[0]?.statusCode, 422);
+  assert.deepEqual(outcome.written, []);
+});

@@ -8,7 +8,10 @@ import {
 import { Button } from "@/components/ui/button";
 import type { TeamScheduleResponse } from "@/types/teamSchedule";
 
-import { dotState, fullName, humanDate, longDate } from "./calendar";
+import { formatAbsencePeriod } from "@/util/absence-period";
+import { formatDayKey } from "@/util/format-date";
+
+import { dotState, fullName, longDate } from "./calendar";
 
 type Props = {
   data: TeamScheduleResponse;
@@ -43,12 +46,16 @@ const DayPopover = ({ data, dateKey, onClose, onAddAbsence }: Props) => {
     const day = row.day!;
     const dot = dotState(row.member, day, isToday);
     const label = day.absence
-      ? `${day.absence.label.toLowerCase()}${day.absence.to > dateKey ? ` до ${humanDate(day.absence.to)}` : ""}`
+      ? `${day.absence.label.toLowerCase()} · ${formatAbsencePeriod(day.absence, formatDayKey)}`
       : day.offDuty
         ? (day.holidayTitle ?? "не на работе")
         : isToday && row.member.status
           ? row.member.status.label
           : "по графику";
+    const partial = (day.partialAbsences ?? []).map(
+      (absence) =>
+        `${absence.status === "pending" ? "запрос: " : ""}${absence.label.toLowerCase()} · ${formatAbsencePeriod(absence, formatDayKey)}`,
+    );
     return (
       <div
         key={row.member.user._id}
@@ -61,7 +68,14 @@ const DayPopover = ({ data, dateKey, onClose, onAddAbsence }: Props) => {
         <span className="min-w-0 flex-1 truncate">
           {fullName(row.member.user)}
         </span>
-        <span className="flex-none text-xs text-faint">{label}</span>
+        <span className="min-w-0 max-w-[60%] text-right text-xs text-faint">
+          <span className="block">{label}</span>
+          {partial.map((text, index) => (
+            <span key={index} className="block">
+              {text}
+            </span>
+          ))}
+        </span>
       </div>
     );
   };

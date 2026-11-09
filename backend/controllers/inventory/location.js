@@ -503,7 +503,7 @@ exports.add = async (req, res, next) => {
       // company у User — вложенный объект { _id, alias }; сравниваем по _id
       // (с фолбэком на сырой ObjectId для непопулированных/legacy данных).
       const userCompanyId = user?.company?._id || user?.company;
-      if (!user || userCompanyId?.toString() !== targetCompanyId.toString()) {
+      if (!user || user.deletedAt || userCompanyId?.toString() !== targetCompanyId.toString()) {
         return next(
           new AppError("Assigned user must belong to the same company", 400),
         );
@@ -667,7 +667,7 @@ exports.update = async (req, res, next) => {
       const userCompanyId = user?.company?._id || user?.company;
       const targetCompanyId =
         company || location.company?._id || location.company;
-      if (!user || userCompanyId?.toString() !== targetCompanyId?.toString()) {
+      if (!user || (user.deletedAt && String(assignedUser) !== String(location.assignedUser?._id || location.assignedUser || "")) || userCompanyId?.toString() !== targetCompanyId?.toString()) {
         return next(
           new AppError("Assigned user must belong to the same company", 400),
         );
@@ -789,7 +789,7 @@ exports.getAssignableUsers = async (req, res, next) => {
 
       const subIds = subs.map((s) => s._id);
       const employees = await User.find({
-        banned: { $ne: true },
+        deletedAt: null, banned: { $ne: true },
         "company.isActive": { $ne: false },
         $or: [
           { subdivision: { $in: subIds } },
@@ -824,7 +824,7 @@ exports.getAssignableUsers = async (req, res, next) => {
 
     // 3) Без подразделения → все активные пользователи компании.
     const companyUsers = await User.find({
-      banned: { $ne: true },
+      deletedAt: null, banned: { $ne: true },
       "company.isActive": { $ne: false },
       "company._id": location.company,
     }).select("firstName lastName email");

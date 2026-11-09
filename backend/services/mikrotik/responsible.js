@@ -41,8 +41,8 @@ function mongoResponsible() {
   const { isBanned } = require("@/services/authBan");
   const { mongoStore } = require("./changeProposals");
   return createResponsible({
-    findUser: (id) => (require("mongoose").isValidObjectId(id) ? User.findById(id).select("firstName lastName isEndUser isServiceAccount banned banExpires").lean() : null),
-    listStaff: () => User.find({ isEndUser: false, isServiceAccount: { $ne: true } }).select("firstName lastName isEndUser isServiceAccount banned banExpires").lean(),
+    findUser: (id) => (require("mongoose").isValidObjectId(id) ? User.findById(id).select("firstName lastName isEndUser isServiceAccount deletedAt banned banExpires").lean() : null),
+    listStaff: () => User.find({ isEndUser: false, isServiceAccount: { $ne: true } }).select("firstName lastName isEndUser isServiceAccount deletedAt banned banExpires").lean(),
     // Тот же расчёт права, что при предложении запроса
     canApprove: (user) => mongoStore.canApprove(user._id),
     isBanned,

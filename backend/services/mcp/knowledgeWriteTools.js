@@ -366,7 +366,7 @@ const createKnowledgeWriteTools = ({ source, baseUrl, log, now = () => new Date(
     }
     const person = await source.findRequester(telegramId);
     if (person?.error) reasons.push(person.error);
-    else if (!person) reasons.push("no employee with this Telegram id: the person must be an active, non-banned staff member with a linked Telegram");
+    else if (!person) reasons.push("no employee with this Telegram id: the person must be an active, non-deletedAt banned staff member with a linked Telegram");
     else if (!person.canManage) reasons.push("this person is not allowed to manage the knowledge base: ask someone who is");
     return { telegramId, person: person && !person.error && person.canManage ? person : null };
   };

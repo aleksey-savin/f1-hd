@@ -30,6 +30,7 @@ const {
 } = require("../services/clientTimezone");
 
 const User = require("../models/user");
+const { executeUserLifecycle } = require("@/services/userLifecycle");
 const {
   WORK_STATUS_CODES,
   WORK_STATUS_BY_CODE,
@@ -56,9 +57,9 @@ const {
 const { invite } = require("@/services/invitation");
 const { isBanned } = require("@/services/authBan");
 const { pickSelfEditableFields } = require("@/services/selfAccountFields");
+const { parseDashboardLayout, currentDashboardLayout } = require("@/services/dashboardLayout");
 const {
   ensureMember,
-  removeMembership,
   assign: assignRoles,
   namedRoles,
   refreshMirrorForUsers,
@@ -66,7 +67,6 @@ const {
   assertNotLastFullAccessHolder,
 } = require("@/services/roles");
 const {
-  withoutUser,
   withRoles,
   withAccountPatch,
 } = require("@/services/permissionHolders");
@@ -136,7 +136,7 @@ const assertMayChangeRoles = (req, currentKeys, wanted) => {
  */
 const holderLossPatch = (user, { accountPlan, isServiceAccount, company }) => {
   const patch = {};
-  if (accountPlan.banned === true) patch.banned = true;
+  if (accountPlan.banned === true) { patch.banned = true; patch.banExpires = undefined; }
   if (accountPlan.audienceChanged && accountPlan.isEndUser === true) {
     patch.isEndUser = true;
   }
@@ -328,7 +328,8 @@ exports.getAll = async (req, res, next) => {
     }
 
     const q = req.query;
-    const match = {};
+    if (q.deleted === "only" && !req.auth.can({ user: ["manage"] })) return next(new AppError("Недостаточно прав для просмотра удалённых пользователей", 403));
+    const match = { deletedAt: q.deleted === "only" ? { $ne: null } : null };
     const and = [];
 
     // 1) Скоуп по правам — в самом запросе (раньше выбирались все и фильтровались
@@ -525,6 +526,8 @@ exports.getAll = async (req, res, next) => {
           isEndUser: 1,
           isCloudTelephony: 1,
           banned: 1,
+          deletedAt: 1,
+          disabledAt: 1,
           workStatus: 1,
           hideWorkStatus: 1,
           hideInTeamCalendar: 1,
@@ -715,8 +718,8 @@ exports.getOne = async (req, res, next) => {
 // настроек («Интеграции»). Сам ключ не отдаём
 exports.getPro32Connected = async (req, res, next) => {
   try {
-    const users = await User.find({ "getScreen.api": { $nin: [null, ""] } })
-      .select("firstName lastName company.alias banned isEndUser")
+    const users = await User.find({ deletedAt: null, "getScreen.api": { $nin: [null, ""] } })
+      .select("firstName lastName company.alias deletedAt banned isEndUser")
       .sort({ lastName: 1, firstName: 1 })
       .lean();
     res.status(200).json({ users });
@@ -905,6 +908,7 @@ exports.add = async (req, res, next) => {
       timezone: normalizeTimezone(timezone),
       password: hashedPassword,
       banned: Boolean(banned),
+      disabledAt: banned ? new Date() : undefined,
       // Ключ PRO32 Connect храним только шифртекстом (secretBox)
       getScreen: {
         api: getScreenApi ? encryptSecret(getScreenApi) : "",
@@ -1055,6 +1059,7 @@ exports.update = async (req, res, next) => {
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
     }
+    if (user.deletedAt) return next(new AppError("Сначала восстановите удалённую учётную запись", 409));
     // Карточка администратора — тоже его доступ: здесь правятся email,
     // отключение и тип учётной записи. Правило то же, что у отключения,
     // смены пароля и сеансов.
@@ -1225,7 +1230,9 @@ exports.update = async (req, res, next) => {
     // не включает учётку молча. Включение снимает причину и срок, как ручка
     // отключения (toggleActive); сеансы при отключении гасятся после save().
     if (accountPlan.banned !== undefined) {
+      user.disabledAt = accountPlan.banned ? new Date() : undefined;
       user.banned = accountPlan.banned;
+      user.banExpires = undefined;
       if (!accountPlan.banned) {
         user.banReason = undefined;
         user.banExpires = undefined;
@@ -1456,63 +1463,16 @@ exports.update = async (req, res, next) => {
  */
 exports.toggleActive = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
-
-    if (!user) {
-      return next(new AppError("Учётная запись не найдена", 404));
-    }
-
-    if (!mayTouchAccount(req, user)) {
-      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
-    }
-
-    // Направление приходит явно: у «отключить» и «включить» разные тела, и
-    // вычислять его инверсией значит зависеть от того, что видела вкладка.
-    const banned =
-      req.body?.banned === undefined ? !user.banned : Boolean(req.body.banned);
-
-    const until = req.body?.banExpires ? new Date(req.body.banExpires) : null;
-    if (until && Number.isNaN(until.getTime())) {
-      return next(new AppError("Неверная дата окончания", 400));
-    }
-    if (until && until <= new Date()) {
-      return next(new AppError("Срок отключения уже прошёл", 400));
-    }
-
-    // Отключённый носителем прав не считается — последнего носителя права так
-    // не теряем (services/permissionHolders.js). До записи и только на
-    // отключение: включение прав ни у кого не отнимает.
-    if (banned) {
-      await assertNoOrphanedStaffActions(await organizationId(), (state) =>
-        withoutUser(state, String(user._id)),
-      );
-    }
-
-    user.banned = banned;
-    user.banReason = banned
-      ? String(req.body?.banReason || "").trim() || undefined
-      : undefined;
-    user.banExpires = banned ? until || undefined : undefined;
-    await user.save();
-
-    if (banned) {
-      await revokeAllForUser(user._id);
-    }
-
-    res.status(200).json({
-      message: banned ? "Учётная запись отключена" : "Учётная запись включена",
-      banned,
-      banReason: user.banReason || null,
-      banExpires: user.banExpires || null,
+    const target = await User.findById(req.params.id);
+    if (!target) return next(new AppError("Учётная запись не найдена", 404));
+    const banned = req.body?.banned === undefined ? !target.banned : Boolean(req.body.banned);
+    const { user, message } = await executeUserLifecycle(req, req.params.id, {
+      intent: banned ? "disable" : "enable", reason: req.body?.banReason, banExpires: req.body?.banExpires,
     });
+    res.status(200).json({ message, banned: user.banned, disabledAt: user.disabledAt || null,
+      banReason: user.banReason || null, banExpires: user.banExpires || null });
   } catch (error) {
-    // Отказ проверки носителей (409) доходит до экрана со своим кодом и
-    // фразой, а не превращается в 500
-    next(
-      error instanceof AppError
-        ? error
-        : new AppError("Не удалось изменить доступ", 500, true, error),
-    );
+    next(error instanceof AppError ? error : new AppError("Не удалось изменить доступ", 500, true, error));
   }
 };
 
@@ -1640,118 +1600,19 @@ exports.revokeAllSessions = async (req, res, next) => {
 
 exports.delete = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
-
-    // Без этой ветки запрос НЕ ОТВЕЧАЛ ВОВСЕ: всё тело обёрнуто в `if (user)`,
-    // и на несуществующий id соединение висело до таймаута клиента, а вкладка
-    // крутила спиннер бесконечно.
-    if (!user) {
-      return next(new AppError("Учётная запись не найдена", 404));
-    }
-
-    // Отключение и удаление — тоже распоряжение доступом администратора: без
-    // этой проверки «вести пользователей» означало бы «выключить портал».
-    if (!mayTouchAccount(req, user)) {
-      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
-    }
-
-    // Удалённый носителем прав не останется — последнего носителя права так
-    // не теряем (services/permissionHolders.js). До любых удалений.
-    await assertNoOrphanedStaffActions(await organizationId(), (state) =>
-      withoutUser(state, String(user._id)),
-    );
-
-    /**
-     * Следы в коллекциях авторизации удаляются ВМЕСТЕ с человеком.
-     *
-     * Раньше не удалялись вовсе, и осиротевшее членство оставалось навсегда:
-     * `usage()` считает носителей роли по строкам `member`, поэтому удалённые
-     * люди продолжали числиться в роли — на стенде так набежало шесть лишних.
-     * Заодно уходят сеансы, пароль и секрет второго фактора: документов без
-     * владельца в этих коллекциях быть не должно.
-     */
-    await removeMembership(user._id);
-    await revokeAllForUser(user._id);
-    await mongoose.connection.db
-      .collection("authAccounts")
-      .deleteMany({ $or: [{ userId: String(user._id) }, { userId: user._id }] });
-    await mongoose.connection.db
-      .collection("authTwoFactors")
-      .deleteMany({ $or: [{ userId: String(user._id) }, { userId: user._id }] });
-
-    {
-      const company = await Company.findById(user.company._id);
-
-      if (company) {
-        company.employees = company.employees.filter(
-          (item) => item._id.toString() !== user._id.toString(),
-        );
-        await company.save();
-      }
-
-      if (user.subdivision) {
-        const subdivision = await Subdivision.findById(user.subdivision);
-        if (subdivision) {
-          subdivision.users = subdivision.users.filter(
-            (id) => id.toString() !== user._id.toString(),
-          );
-          await subdivision.save();
-        }
-      }
-
-      for (let category of user.categories) {
-        const updatedCategory = await TicketCategory.findById(category._id);
-        if (updatedCategory) {
-          const filteredUsers = updatedCategory.users.filter(
-            (categoryUser) =>
-              categoryUser._id.toString() !== user._id.toString(),
-          );
-
-          updatedCategory.users = filteredUsers;
-
-          await updatedCategory.save();
-        }
-      }
-
-      // Деактивируем рабочее место пользователя
-      try {
-        const workplace = await Location.findOne({
-          type: "workplace",
-          assignedUser: user._id,
-          isActive: true,
-        });
-
-        if (workplace) {
-          workplace.isActive = false;
-          workplace.assignedUser = null;
-          workplace.notes = `Деактивировано при удалении пользователя ${user.email} ${new Date().toISOString()}`;
-          await workplace.save();
-
-          console.log(
-            `Рабочее место деактивировано для удаленного пользователя ${user.email}: ${workplace.name}`,
-          );
-        }
-      } catch (workplaceError) {
-        console.error(
-          `Ошибка при деактивации рабочего места для пользователя ${user.email}:`,
-          workplaceError,
-        );
-        // Не прерываем удаление пользователя, только логируем ошибку
-      }
-
-      await User.deleteOne({ _id: req.params.id });
-
-      res.status(201).json({
-        message: "Пользователь удалён",
-      });
-    }
+    const { user, message } = await executeUserLifecycle(req, req.params.id, { intent: "delete", reason: req.body?.reason });
+    res.status(200).json({ message, deletedAt: user.deletedAt, disabledAt: user.disabledAt || null });
   } catch (error) {
-    // Отказ проверки носителей (409) — со своим кодом и фразой, не 500
-    next(
-      error instanceof AppError
-        ? error
-        : new AppError(`Failed to delete user ${req.params.id}`, 500, true, error),
-    );
+    next(error instanceof AppError ? error : new AppError("Не удалось удалить пользователя", 500, true, error));
+  }
+};
+
+exports.restore = async (req, res, next) => {
+  try {
+    const { user, message } = await executeUserLifecycle(req, req.params.id, { intent: "restore" });
+    res.status(200).json({ message, deletedAt: user.deletedAt || null, banned: user.banned, disabledAt: user.disabledAt || null });
+  } catch (error) {
+    next(error instanceof AppError ? error : new AppError("Не удалось восстановить пользователя", 500, true, error));
   }
 };
 
@@ -1778,6 +1639,7 @@ exports.changePassword = async (req, res, next) => {
     }
 
     const user = await User.findById(req.params.id);
+    if (user?.deletedAt) return next(new AppError("Сначала восстановите удалённую учётную запись", 409));
 
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
@@ -1885,6 +1747,7 @@ exports.sendPasswordLink = async (req, res, next) => {
     }
 
     const user = await User.findById(req.params.id);
+    if (user?.deletedAt) return next(new AppError("Сначала восстановите удалённую учётную запись", 409));
 
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
@@ -1993,6 +1856,7 @@ exports.addProfileImage = async (req, res, next) => {
     const userId = req.params.id;
 
     const user = await User.findById(userId);
+    if (user?.deletedAt) return next(new AppError("Сначала восстановите удалённую учётную запись", 409));
 
     if (!user) {
       return res.status(400).json({ error: "Пользователь не найден" });
@@ -2029,6 +1893,7 @@ exports.updateMyAccount = async (req, res, next) => {
       timezone,
       fontScale,
       plainCanvas,
+      dashboardLayout,
     } = pickSelfEditableFields(req.body);
 
     // Ручка правит ТОЛЬКО свою учётку, поэтому и адресат берётся из сеанса.
@@ -2039,6 +1904,17 @@ exports.updateMyAccount = async (req, res, next) => {
 
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
+    }
+
+    if (dashboardLayout !== undefined) {
+      const audience = user.isEndUser !== false ? "client" : "staff";
+      let layout;
+      try {
+        layout = parseDashboardLayout(dashboardLayout, audience);
+      } catch (error) {
+        return next(new AppError(error.message, 422));
+      }
+      user.set(`dashboardLayout.${audience}`, layout);
     }
 
     // Часовой пояс человек правит сам: он про него знает лучше, а от пояса
@@ -2114,6 +1990,7 @@ exports.updateMyAccount = async (req, res, next) => {
         categories: user.categories,
         notify: user.notify,
         telegramBot: user.telegramBot,
+        dashboardLayout: currentDashboardLayout(user),
       },
     });
   } catch (error) {
@@ -2253,7 +2130,7 @@ exports.setWorkStatusFromTelegram = async (req, res, next) => {
 exports.getWorkStatuses = async (req, res, next) => {
   try {
     const users = await User.find({
-      banned: { $ne: true },
+      deletedAt: null, banned: { $ne: true },
       isEndUser: false,
       isServiceAccount: false,
       isCloudTelephony: false,
@@ -2278,6 +2155,7 @@ exports.updateWorkSchedule = async (req, res, next) => {
   try {
     const { id } = req.params;
     const user = await User.findById(id);
+    if (user?.deletedAt) return next(new AppError("Сначала восстановите удалённую учётную запись", 409));
     if (!user) {
       return next(new AppError("Сотрудник не найден", 404));
     }

@@ -275,6 +275,7 @@ exports.createTicketNotifications = async () => {
   // поля в модели User + ветка `case` в switch по lastAction; само значение
   // lastAction берётся из enum схемы Ticket.
   const notifyTg = (user, state) =>
+    !user?.deletedAt &&
     prefs.notify?.byTelegram?.isActive &&
     user?.telegramBot?.isActive &&
     user?.notify?.byTelegram?.[state] &&
@@ -285,6 +286,7 @@ exports.createTicketNotifications = async () => {
     prefs.notify?.byTelegram?.isActive;
 
   const notifyEmail = (user, state) =>
+    !user?.deletedAt &&
     // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&
@@ -1677,6 +1679,7 @@ exports.createCommentNotifications = async () => {
   );
 
   const notifyTg = (user, state) =>
+    !user?.deletedAt &&
     prefs.notify?.byTelegram?.isActive &&
     user?.telegramBot?.isActive &&
     user?.notify?.byTelegram?.[state] &&
@@ -1687,6 +1690,7 @@ exports.createCommentNotifications = async () => {
     prefs.notify?.byTelegram?.isActive;
 
   const notifyEmail = (user, state) =>
+    !user?.deletedAt &&
     // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&
@@ -1969,6 +1973,7 @@ exports.createScheduledWorkNotifications = async () => {
   );
 
   const notifyTg = (user, state) =>
+    !user?.deletedAt &&
     prefs.notify?.byTelegram?.isActive &&
     user?.telegramBot?.isActive &&
     user?.notify?.byTelegram?.[state] &&
@@ -1979,6 +1984,7 @@ exports.createScheduledWorkNotifications = async () => {
     prefs.notify?.byTelegram?.isActive;
 
   const notifyEmail = (user, state) =>
+    !user?.deletedAt &&
     // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&

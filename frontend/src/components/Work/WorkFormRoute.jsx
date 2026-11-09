@@ -23,7 +23,7 @@ import { useWorkForm } from "./use-work-form";
 const WorkFormRoute = ({ mode }) => {
   const { ticket, responsibles, otherCompanyTickets, works } =
     useViewTicketStore();
-  const { limitWorksDateFrom } = useLoaderData() ?? {};
+  const { limitWorksDateFrom, taxiCompanyId } = useLoaderData() ?? {};
   const { workId } = useParams();
   const { isAdmin, _id: userId } = useContext(AuthedUserContext);
 
@@ -36,6 +36,7 @@ const WorkFormRoute = ({ mode }) => {
     work,
     ticketIds: [String(ticket._id)],
     currentUserId: userId,
+    companyId: taxiCompanyId || ticket.company?._id,
   });
 
   return (

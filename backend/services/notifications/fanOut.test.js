@@ -22,6 +22,13 @@ function build(over = {}) {
 }
 const args = { ids: ["a", "a", "b"], kind: "k", title: "T", mailTitle: "M", telegram: { text: "<x>", replyMarkup: { r: 1 } }, bell: "B", mail: "ML", link: "/l" };
 
+test("deleted recipients receive neither forced Telegram, mail nor bell notifications", async () => {
+  const { fan, saved, pushed } = build({ loadUsers: async () => [user("gone", { deletedAt: new Date(), banned: false })] });
+  assert.equal(await fan({ number: 1 }, { ...args, telegram: { ...args.telegram, force: true } }), 0);
+  assert.deepEqual(saved, []);
+  assert.deepEqual(pushed[0].recipients, []);
+});
+
 test("telegram + почта на каждого, дубли ids схлопнуты, текст экранирован, колокольчик с link и force", async () => {
   const { fan, saved, pushed } = build();
   assert.equal(await fan({ number: 1 }, args), 4);

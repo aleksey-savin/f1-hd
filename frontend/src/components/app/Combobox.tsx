@@ -450,15 +450,21 @@ export const MultiCombobox = ({
   useKeepTriggerInView(open, triggerRef);
   const selected = options.filter((option) => value.includes(option.value));
 
-  const toggle = (next: string) =>
+  const toggle = (next: string) => {
+    if (disabled) return;
     onChange(
       value.includes(next)
         ? value.filter((item) => item !== next)
         : [...value, next],
     );
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={inOverlay}>
+    <Popover
+      open={open && !disabled}
+      onOpenChange={(next) => setOpen(next && !disabled)}
+      modal={inOverlay}
+    >
       {/* relative — якорь для скрытого спутника required */}
       <div className="relative">
         {required && (
@@ -480,9 +486,11 @@ export const MultiCombobox = ({
             id={id}
             role="combobox"
             aria-label={ariaLabel}
+            aria-disabled={disabled || undefined}
             tabIndex={disabled ? -1 : 0}
             aria-expanded={open}
             onKeyDown={(event) => {
+              if (disabled) return;
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 setOpen(true);
@@ -504,6 +512,7 @@ export const MultiCombobox = ({
                 <span className="max-w-60 truncate">{option.label}</span>
                 <button
                   type="button"
+                  disabled={disabled}
                   aria-label={`Убрать «${option.label}»`}
                   onClick={(event) => {
                     event.stopPropagation();

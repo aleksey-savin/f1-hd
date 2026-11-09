@@ -67,7 +67,7 @@ const channelAlertText = (channel, state, reason = "") => ({
   text: String(reason || "").trim() || STATE_HINT[state] || "",
 });
 
-const USER_FIELDS = "_id firstName lastName notify isServiceAccount isEndUser banned banExpires";
+const USER_FIELDS = "_id firstName lastName notify isServiceAccount isEndUser deletedAt banned banExpires";
 
 /**
  * Разослать колокольчик. Состояние к этому моменту уже записано, поэтому сбой

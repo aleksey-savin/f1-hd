@@ -1,3 +1,4 @@
+import ClosingReminder from "@/components/Taxi/ClosingReminder";
 import { useRef, useState } from "react";
 
 import Field from "@/components/app/Field";
@@ -20,7 +21,7 @@ import ClosingChips, { isTouchPointer } from "../Actions/ClosingChips";
 // бэкенде (а на клиенте кнопка для заявок без работ заблокирована заранее).
 // Чипы — без работ (у каждой заявки свои), приветствие — по поясу организации:
 // заявители у выбранных заявок разные.
-const CloseModal = ({ show, onHide, count, onConfirm }) => {
+const CloseModal = ({ show, onHide, count, selectedItems = [], onConfirm }) => {
   const [closingComment, setClosingComment] = useState("");
   const field = useRef(null);
 
@@ -50,6 +51,7 @@ const CloseModal = ({ show, onHide, count, onConfirm }) => {
           </DialogHeader>
 
           <div className="mt-4">
+            {show && <ClosingReminder tickets={selectedItems} />}
             <Field label="Результат выполнения" htmlFor="bulk-closing" required>
               <Textarea
                 ref={field}

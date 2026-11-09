@@ -410,7 +410,7 @@ exports.assign = async (req, res, next) => {
       if (!isId(userId)) return next(new AppError("Некорректный пользователь", 400));
       // Срок отключения смотрит isBanned, а не сырой banned (у отключения есть срок)
       const candidate = await User.findOne({ _id: userId, isEndUser: false, isServiceAccount: { $ne: true } })
-        .select("firstName lastName banned banExpires")
+        .select("firstName lastName deletedAt banned banExpires")
         .lean();
       if (!candidate || isBanned(candidate)) return next(new AppError("Назначить можно только сотрудника", 400));
       assignee = candidate;
@@ -535,7 +535,7 @@ exports.linkIdentity = async (req, res, next) => {
   try {
     const identity = await loadVisibleIdentity(req);
     if (!isId(req.body?.userId)) return next(new AppError("Укажите пользователя", 400));
-    const user = await User.findOne({ _id: req.body.userId, isServiceAccount: { $ne: true } }).select("_id company isEndUser").lean();
+    const user = await User.findOne({ _id: req.body.userId, deletedAt: null, isServiceAccount: { $ne: true } }).select("_id company isEndUser").lean();
     if (!user) return next(new AppError("Пользователь не найден", 404));
     const companyId = user.company?._id || null;
     // Ручная связь — твёрдое основание (I6): перебивает компанию личности и, для
@@ -567,7 +567,7 @@ exports.candidates = async (req, res, next) => {
     const and = personSearchClauses(req.query.q, CANDIDATE_SEARCH_FIELDS, 4);
     if (!and.length) return res.status(200).json({ items: [] });
     const found = await User.find({ $and: [{ isServiceAccount: { $ne: true } }, ...and] })
-      .select("firstName lastName position company banned banExpires")
+      .select("firstName lastName position company deletedAt banned banExpires")
       .sort({ isEndUser: -1, lastName: 1, firstName: 1 })
       .limit(16)
       .lean();

@@ -40,6 +40,7 @@ import { ThemeContext } from "../store/theme-context";
 import useInitialPrefs from "../store/prefs";
 import NavDrawer from "./NavDrawer";
 import { buildMenu } from "./Navigation/menu";
+import { canOpenGlobalSettings } from "@/util/global-settings-access";
 
 // Навбар оболочки (Фаза 2 миграции): панель поверхности с тонкой нижней
 // границей в обеих темах. Бренд — лого компании из настроек (contacts.logo),
@@ -186,7 +187,7 @@ const UserMenu = ({ trigger, align = "end" }) => {
           />
           Мой аккаунт
         </NavLink>
-        {can({ settings: ["manage"] }) && (
+        {canOpenGlobalSettings(can) && (
           <NavLink
             to="/preferences"
             onClick={() => setOpen(false)}
