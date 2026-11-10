@@ -322,6 +322,15 @@ entry so an already recorded initial grant cannot skip it. Fresh installations
 use the admin role catalogue. Grants are not rerun on every deployment, so later
 intentional role edits remain in effect.
 
+`2026-11-11-grantProxmoxPermissions` adds `proxmox.read`, `manage`, `power`,
+`backup` and `discover` to existing administrative staff roles (those with
+`role.manage`, `user.manageAccess` and `settings.manage`). It preserves other
+permission restrictions and skips client roles. Roles that become full-access
+also have their holders' `isAdmin` / plugin role mirrors recomputed; a retry
+after interruption completes that step without duplicating grants. Fresh
+installations already have these actions in the admin role catalogue. This is
+a one-off migration, so subsequent intentional permission edits stay in effect.
+
 Rules the runner enforces:
 
 - empty database → `up` records the whole list as baseline and runs nothing;
