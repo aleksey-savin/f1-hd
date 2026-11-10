@@ -292,3 +292,9 @@ test("значок: удалять нечего — ответ тот же, бе
   assert.deepEqual(res.body, { message: "Значок удалён", icon: "" });
   assert.equal(saves.length, 0);
 });
+
+// Public general preferences include the separate Wazzup singleton.
+const WazzupSettings = require('../models/wazzupSettings');
+require('node:test').beforeEach((t) => {
+  t.mock.method(WazzupSettings, 'findById', () => ({ select() { return this; }, lean: async () => null }));
+});

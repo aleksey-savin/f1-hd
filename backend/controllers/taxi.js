@@ -12,6 +12,7 @@ const { AppError } = require("../middleware/errorHandling");
 const { decryptSecret } = require("../services/crypto/secretBox");
 const { loadAccessibleTicket, assertTicketsAccessible, isResponsible } = require("../services/ticketAccess");
 const { normalizePurpose, companyPurpose, isWorkPurpose } = require("../services/taxi/policy");
+const { presentTaxiPoint } = require("../services/taxi/presentation");
 const { ticketListFilter } = require("../services/ticketScope");
 const { canViewTrip, requireStaff, has, canOpenReport } = require("../services/taxi/access");
 const { loadConfiguration, prepareConfiguration, saveConfiguration } = require("../services/taxi/settings");
@@ -79,7 +80,7 @@ const decorateTrips = async (trips, auth) => {
     return { _id: id(trip), externalId: trip.externalId, source: trip.source, userId: trip.userId ? id(trip.userId) : null,
       personName: names.get(id(trip.userId)) || externalNames.get(trip.externalUserId) || "Сотрудник не сопоставлен",
       companyId: trip.companyId ? id(trip.companyId) : null, companyName: companyById.get(id(trip.companyId)) || "",
-      purpose: normalizePurpose(trip.purpose), status: trip.status, origin: trip.origin, destination: trip.destination,
+      purpose: normalizePurpose(trip.purpose), status: trip.status, origin: presentTaxiPoint(trip.origin), destination: presentTaxiPoint(trip.destination),
       startedAt: trip.startedAt, requestedAt: trip.requestedAt, finishedAt: trip.finishedAt, estimateMinor: trip.estimateMinor ?? null, totalMinor: trip.totalMinor ?? null,
       currency: trip.currency || "RUB", driver: trip.driver, workIds: relation.workIds,
       directTicketIds: (trip.ticketIds || []).map(id).filter((ticketId) => ticketById.has(ticketId)),

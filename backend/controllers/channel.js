@@ -25,6 +25,7 @@ const plain = (value) => (value?.toObject ? value.toObject() : value || {});
 const publicChannel = (channel) => ({
   id: String(channel._id),
   type: channel.type,
+  provider: channel.provider || 'gateway',
   name: channel.name,
   isActive: channel.isActive,
   state: channel.state,
@@ -166,7 +167,7 @@ exports.remove = async (req, res, next) => {
 const command = (type, build = () => ({})) => async (req, res, next) => {
   try {
     const channel = await loadChannel(req);
-    if (!GATEWAY_NETWORKS.includes(channel.type)) {
+    if (channel.provider === 'wazzup' || !GATEWAY_NETWORKS.includes(channel.type)) {
       return next(new AppError("Эта команда — для каналов шлюза (Telegram, WhatsApp)", 409));
     }
     const payload = build(req);

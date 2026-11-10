@@ -84,3 +84,9 @@ test('clients and staff with neither settings permission cannot read global pref
     assert.equal((await invoke(controller.get, permissions)).error?.statusCode, 403);
   }
 });
+
+// Public general preferences include the separate Wazzup singleton.
+const WazzupSettings = require('../models/wazzupSettings');
+require('node:test').beforeEach((t) => {
+  t.mock.method(WazzupSettings, 'findById', () => ({ select() { return this; }, lean: async () => null }));
+});

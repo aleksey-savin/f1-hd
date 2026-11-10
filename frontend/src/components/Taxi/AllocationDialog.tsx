@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/dialog";
 import type { TaxiActionResult, TaxiCompany, TaxiTrip } from "@/types/taxi";
 import { formatDate } from "@/util/format-date";
-import { formatTaxiAddress } from "./address";
 
 export default function AllocationDialog({
   trip,
@@ -92,8 +91,7 @@ export default function AllocationDialog({
               ? `Заказ на ${formatDate(trip.requestedAt)}`
               : "Дата уточняется"}
           <br />
-          {formatTaxiAddress(trip.origin?.address) || "—"} →{" "}
-          {formatTaxiAddress(trip.destination?.address) || "—"}
+          {trip.origin?.address || "—"} → {trip.destination?.address || "—"}
         </div>
         {!!trip.workIds.length && (
           <p className="text-sm text-muted-foreground">

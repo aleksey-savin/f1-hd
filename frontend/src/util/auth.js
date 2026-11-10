@@ -7,6 +7,7 @@ import {
   browserSessionGeneration,
   beginBrowserSessionCheck,
   confirmBrowserSession,
+  browserSessionKey,
 } from "./browser-session.js";
 import { adoptBrand } from "@/store/prefs";
 
@@ -59,8 +60,12 @@ export function ensureBrowserIdentity() {
   return loadBrowserIdentity();
 }
 
-export async function authDataLoader({ request } = {}) {
-  const identity = loadBrowserIdentity(request?.signal);
+async function loadAuthData(request, refreshOnly = false) {
+  // Background permission refresh must not start a new identity generation:
+  // doing so aborts an in-flight navigation or form-data request in this tab.
+  const identity = refreshOnly
+    ? api("/api/me", { signal: request?.signal })
+    : loadBrowserIdentity(request?.signal);
   const expected = browserSessionGeneration();
   try {
     const [appVersion, me] = await Promise.all([
@@ -68,6 +73,9 @@ export async function authDataLoader({ request } = {}) {
       identity,
     ]);
     assertBrowserSessionCurrent(expected, request?.signal);
+    if (refreshOnly && browserSessionKey() !== JSON.stringify([
+      String(me.user?._id), String(me.sessionId),
+    ])) return null;
 
     // Бренд применяется в загрузчике, до отрисовки оболочки: акцент и название
     // портала известны раньше, чем появится первый экран
@@ -78,6 +86,7 @@ export async function authDataLoader({ request } = {}) {
       userData: {
         ...me.user,
         statements: me.statements,
+        accessVersion: me.accessVersion,
         // Что человек вправе ВЫДАТЬ роли — до вырезания по типу аккаунта
         // (store/authed-user.ts → useCanGrant). Без этого поля форма роли
         // не отличила бы «нет права» от «есть, но не действует у меня».
@@ -98,6 +107,9 @@ export async function authDataLoader({ request } = {}) {
     throw error;
   }
 }
+
+export const authDataLoader = ({ request } = {}) => loadAuthData(request);
+export const refreshAuthData = () => loadAuthData(undefined, true);
 
 /**
  * Выход. Гасит СЕРВЕРНЫЙ сеанс, а не полагается на то, что клиент забудет

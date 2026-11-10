@@ -33,7 +33,7 @@ import { action as deleteTicketAction } from "./pages/Ticket/Delete.jsx";
 // Форма заявки — фабрика маршрутов: форма одна, хозяев несколько (список,
 // главная, карточка шаблона). Ширину шторки маршрут формы несёт в handle.
 import { ticketFormRoutes } from "./routes/ticket-forms.jsx";
-import { SHEET_LG, SHEET_MD, SHEET_XL } from "@/components/app/FormOutlet";
+import FormOutlet, { SHEET_LG, SHEET_MD, SHEET_XL } from "@/components/app/FormOutlet";
 
 // Формы справочников техники (типы, модели, вендоры, атрибуты, конфигурации)
 // живут под одним правом и в одной ширине шторки. Требование написано один
@@ -693,6 +693,7 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: { can: { knowledge: ["manage"] } },
                   element: <AddKnowledgeNotePage />,
                   loader: addKnowledgeNoteLoader,
                 },
@@ -923,19 +924,24 @@ function App() {
             },
             // Ticket Templates
             {
+              element: <FormOutlet />,
+              children: [
+                {
+                  path: "ticket-templates/add",
+                  handle: SHEET_LG,
+                  loader: addTicketTemplateLoader,
+                  action: addTicketTemplateAction,
+                  element: <AddTicketTemplatePage />,
+                },
+              ],
+            },
+            {
               path: "ticket-templates",
               handle: { can: { ticketTemplate: ["read"] } },
               element: <TicketTemplates />,
               loader: ticketTemplatesLoader,
               action: deleteTicketTemplateAction,
               children: [
-                {
-                  path: "add",
-                  handle: SHEET_LG,
-                  loader: addTicketTemplateLoader,
-                  action: addTicketTemplateAction,
-                  element: <AddTicketTemplatePage />,
-                },
                 {
                   path: "update/:id",
                   handle: SHEET_XL,

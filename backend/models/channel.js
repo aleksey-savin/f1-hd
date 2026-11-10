@@ -14,6 +14,9 @@ const { toCanonicalPhone } = require("../services/phone");
  */
 const channelSchema = new Schema(
   {
+    provider: { type: String, enum: ['gateway', 'wazzup'], default: 'gateway' },
+    providerChannelId: { type: String, default: undefined },
+    providerTransport: { type: String, default: undefined },
     type: { type: String, enum: ["telegram", "whatsapp", "max", "site"], required: true },
     name: { type: String, required: true, trim: true },
     isActive: { type: Boolean, default: true },
@@ -78,6 +81,7 @@ const channelSchema = new Schema(
 );
 
 channelSchema.index({ type: 1, isActive: 1 });
+channelSchema.index({ provider: 1, providerChannelId: 1 }, { unique: true, partialFilterExpression: { provider: 'wazzup', providerChannelId: { $type: 'string' } } });
 channelSchema.index({ "settings.site.formKey": 1 }, { unique: true, sparse: true });
 
 // Настройки каналов узнают о входе по QR и смене состояния из пульса — тема

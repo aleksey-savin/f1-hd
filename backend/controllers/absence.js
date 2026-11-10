@@ -241,7 +241,7 @@ exports.add = async (req, res, next) => {
     }
 
     if (doc.status === "pending") {
-      notifyManagers(doc).catch((error) =>
+      notifyApprovers(doc).catch((error) =>
         logger.log("error", "Absence request notification failed", {
           error: error.message,
         }),
@@ -387,13 +387,13 @@ exports.impact = async (req, res, next) => {
  * Отправка идёт через тот же канал, что и прочие уведомления приложения;
  * падение уведомления не должно ронять сохранение — вызовы обёрнуты в catch.
  */
-const notifyManagers = async (doc) => {
+const notifyApprovers = async (doc) => {
   const preferences = await Preferences.findOne({}).lean();
   const tz = resolveTimezone(preferences);
   // Отключённых и служебные учётки отсекает сам permissionFilter
-  const managers = await User.find({
+  const approvers = await User.find({
     isEndUser: false,
-    ...(await permissionFilter("schedule.manage")),
+    ...(await permissionFilter("schedule.approve")),
   })
     .select("firstName lastName telegramBot notify email")
     .lean();
@@ -406,7 +406,7 @@ const notifyManagers = async (doc) => {
     `\nПодал(а) ${fmtDateTime(doc.createdAt, tz)}`;
 
   const { notifyAbsence } = require("../services/absenceNotifications");
-  await notifyAbsence({ recipients: managers, text, category: "absenceRequest" });
+  await notifyAbsence({ recipients: approvers, text, category: "absenceRequest" });
 };
 
 const notifyRequester = async (doc) => {

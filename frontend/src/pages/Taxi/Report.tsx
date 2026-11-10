@@ -28,7 +28,6 @@ import PageShell from "@/components/app/PageShell";
 import StatTile from "@/components/app/StatTile";
 import AllocationDialog from "@/components/Taxi/AllocationDialog";
 import { taxiPurposeLabel } from "@/components/Taxi/purpose";
-import { formatTaxiAddress } from "@/components/Taxi/address";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import {
   DropdownMenu,
@@ -395,7 +394,7 @@ function TaxiReportView({
                             Откуда
                           </dt>
                           <dd className="m-0 min-w-0 flex-1 leading-relaxed text-foreground">
-                            {formatTaxiAddress(trip.origin?.address) || "—"}
+                            {trip.origin?.address || "—"}
                           </dd>
                         </div>
                         <div className="flex items-baseline gap-3">
@@ -403,8 +402,7 @@ function TaxiReportView({
                             Куда
                           </dt>
                           <dd className="m-0 min-w-0 flex-1 leading-relaxed text-foreground">
-                            {formatTaxiAddress(trip.destination?.address) ||
-                              "—"}
+                            {trip.destination?.address || "—"}
                           </dd>
                         </div>
                       </dl>

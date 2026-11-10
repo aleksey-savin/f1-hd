@@ -1,4 +1,6 @@
 const test = require("node:test");
+const { beforeEach } = require("node:test");
+beforeEach((t) => t.mock.method(require("./monitoring-view"), "enrich", async (items) => items));
 const assert = require("node:assert/strict");
 const { clusterMetadata } = require("./core");
 const { view, list } = require("./view");

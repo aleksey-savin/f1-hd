@@ -114,6 +114,10 @@ from other processes (the legacy Mongo-writing telegram bot), manual mongosh.
   past the cursor; inaccessible → `null`.
 - `notifications` (the bell summary, `summaryFor` in `controllers/notification.js`)
   only when the inbox moved past the cursor or there is no cursor.
+- Every pulse includes `access: { userId, version }`. The version hashes the
+  request's effective permissions, grant rights and account audience/admin flags
+  (`services/accessVersion.js`); `/api/me` returns the same `accessVersion`.
+  It needs no extra database query or role-change event.
 - `Cache-Control: no-store`. Cost: `attachSession` reads + O(1) memory.
 
 ### `X-Pulse-Cursor` on every internal API response
@@ -143,6 +147,14 @@ Exposed via `Access-Control-Expose-Headers` for a cross-origin dev setup.
   signed-in person. Delay = `min(pollMs, cadences)`, never below 3 s. Every
   5 min the request goes without a cursor to resync the bell summary. Hands
   `notifications` to `store/notifications.ts → applySummary`.
+- `components/app/AccessSync.tsx` compares the pulse access version with the
+  signed-in user's version. A change refreshes identity and preferences only;
+  child loaders are left alone so unsaved forms and ticket dialogs survive.
+  `util/auth.js#refreshAuthData` preserves the current browser-session generation
+  and rejects responses for another account/session or an obsolete generation.
+  The root applies this snapshot until its next normal loader result. An existing
+  route error is revalidated after refresh so a newly granted permission can
+  reopen the page. Failed refreshes retry on the next pulse.
 - `hooks/use-live-topic.ts` — `useLiveTopic(topics, onChange, { enabled,
   ticketId, baseline, maxStaleMs, minIntervalMs })`. Subscribes to the store
   outside React (a pulse re-renders nothing). Initial baseline: the loader
@@ -182,11 +194,13 @@ Exposed via `Access-Control-Expose-Headers` for a cross-origin dev setup.
 | «Диалоги» list | conversations | `store/conversations.silentRefresh` | 5 s min |
 | «Диалоги» open thread | conversations | `changedSince` poll (`use-thread.ts`), then deferred card revalidate if anything changed | `requestCadence(3000)` while open |
 | «Диалоги» navigation badge | conversations | `refreshCounts` (`CountsSync`) | 15 s min; module + `conversation.read` only |
-| Channel settings («Каналы связи») | channels | channel list reload; proxy-test job read | `requestCadence(2000)` while a login or a proxy test is pending |
+| Connection settings («Диалоги») | channels | direct channel list reload; proxy-test job read; saved Wazzup metadata reload (`GET /preferences/wazzup`), preserving its draft | `requestCadence(2000)` while a login or a proxy test is pending |
 
 Deliberately not live: archive, reports, catalogs, roles, templates, preferences
-— except channel settings within preferences («Каналы связи»), which are live
-via the `channels` topic (row above).
+— except connection settings within preferences («Диалоги»), which are live
+via the `channels` topic (row above). Wazzup refreshes saved account/health
+metadata without resetting its draft; discovering accounts through the
+provider API still requires the explicit check action.
 
 ## Adding live data to a page
 

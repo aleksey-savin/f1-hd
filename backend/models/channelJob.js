@@ -10,6 +10,7 @@ const Schema = mongoose.Schema;
  */
 const channelJobSchema = new Schema(
   {
+    provider: { type: String, enum: ['gateway', 'wazzup'], default: 'gateway' },
     channelId: { type: Schema.Types.ObjectId, ref: "Channel", required: true },
     network: { type: String, enum: ["telegram", "whatsapp", "max", "site"], required: true },
     type: {

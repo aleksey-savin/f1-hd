@@ -11,7 +11,8 @@ const stub = (path, exports) => {
 };
 stub("../utils/logger", { log() {} });
 stub("../services/workStatusAuto", { runWorkStatusAuto: async () => {} });
-stub("../services/permissions", { permissionFilter: async () => ({}) });
+let permissionRecipients;
+stub("../services/permissions", { permissionFilter: async (action) => permissionRecipients ? { _id: { $in: permissionRecipients[action] || [] } } : {} });
 let notifications;
 stub("../services/absenceNotifications", { notifyAbsence: async (value) => { notifications.push(value); } });
 const Absence = require("../models/absence");
@@ -36,7 +37,7 @@ const record = (extra = {}) => ({ _id: "62d0c0ed5a3314d41cc43ef5", user: userId,
 const chain = (value) => ({ select() { return this; }, populate() { return this; }, sort() { return this; }, limit() { return this; }, lean: async () => value });
 let stored, created, pending;
 beforeEach((t) => {
-  stored = []; created = null; pending = null; notifications = [];
+  stored = []; created = null; pending = null; notifications = []; permissionRecipients = null;
   t.mock.method(Absence, "find", (query) => chain(stored.filter(sift(query))));
   t.mock.method(Absence, "findOne", (query) => chain(stored.find(sift(query)) || null));
   t.mock.method(Absence, "create", async (value) => { created = new Absence(value).toObject(); return created; });
@@ -182,4 +183,17 @@ test("request and decision notifications identify overnight date and time", asyn
   await call(controller.decide, { params: { id: pending._id }, body: { decision: "reject" } });
   await new Promise(setImmediate);
   assert.match(notifications[1]?.text || "", /09\.11\.2026, 23:00–02:00 \+1/);
+});
+
+test("absence requests notify approvers and exclude managers without approval rights", async (t) => {
+  const approver = { ...user, _id: otherId, firstName: "Согласующий" };
+  const manager = { ...user, _id: "62d0c0ed5a3314d41cc43ef6", firstName: "Менеджер" };
+  permissionRecipients = { "schedule.approve": [approver._id], "schedule.manage": [manager._id] };
+  t.mock.method(User, "find", (query) => chain([approver, manager].filter(sift(query))));
+  const result = await add({}, { manager: false });
+  assert.equal(result.error, undefined);
+  await new Promise(setImmediate);
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].category, "absenceRequest");
+  assert.deepEqual(notifications[0].recipients.map((person) => person._id), [otherId]);
 });

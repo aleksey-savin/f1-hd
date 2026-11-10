@@ -716,6 +716,82 @@ documented in each component's own header.
   `records/:recordId/link-inventory` right after the connection check, then returns
   to the device card). **The legacy `:clientDeviceId` Mikrotik endpoints now have
   no caller** — see `mikrotik-management.md`.
+- **Proxmox monitoring** — `/devices/proxmox/guests` and `/nodes` share the
+  record-list layout and availability bar used by MikroTik. State, guest OS and
+  one «Агент» filter are applied on the server before pagination. Guest names
+  remain the row/card headings; VMID, virtualization type and host are metadata.
+  Cards use the shared left `AnchorRail`, with availability periods of 1, 7, 30
+  and 90 days. Missing observations stay unknown and do not become downtime.
+  `PATCH /api/proxmox/resources/:id/monitoring` pauses a resource independently
+  of the connection and excludes it from alerting and availability calculation.
+  Module settings remain in `/preferences#proxmox`.
+- **Proxmox CVE severity** — `proxmox.cveMinSeverity` is `high` (default) or
+  `critical`, like MikroTik. The current threshold applies to node/guest warning
+  counts, external-access attention filters and opted-in CVE tickets. It works
+  independently of ticket automation. High includes Critical; CVSS scores use
+  7.0/9.0 cutoffs, with vendor severity labels used when no score is supplied.
+  Unknown ratings remain visible in neutral text and never qualify as High or
+  Critical. All matched CVEs remain in full reports. Fleet aggregation computes
+  compact severity counts in MongoDB, without returning package/CVE arrays.
+  Exposure caches retain counts per severity so a threshold change is applied
+  immediately. Ticket CVE identifiers are filtered before the 20-item limit,
+  and the threshold is rechecked before creating a ticket. MSRC provides
+  per-CVE ratings; the severity of an entire KB is never assigned to every CVE.
+  Older Windows reports acquire missing ratings at their next CVE check.
+- **Proxmox external publications** — when both Proxmox and MikroTik modules
+  are enabled, guest rows and cards show direct IPv4 TCP/UDP publications from
+  explicitly linked networks. Configure connection/node/bridge/VLAN/subnet and
+  router/LAN/WAN in `/preferences#proxmox`; matching a bare IP or the connection's
+  transit router never establishes ownership. Runtime guest interfaces, or
+  scoped active DHCP/ARP evidence, establish the destination. Rules are read
+  every 5 minutes; after 15 minutes their previous result is historical.
+  NAT, raw, routes and forward rules are evaluated in order for new connections;
+  unsupported conditions stay unknown and proven port/source fragments remain
+  separate. This is configuration evidence, not an external connectivity scan.
+  Reverse proxies, multi-router NAT, public addressing without NAT and IPv6 are
+  outside this check. The guest list's `exposure` filter is server-side before
+  pagination. `GET /api/proxmox/guests/:id/exposure` returns a compact summary;
+  IPs, rule identifiers and router links additionally require `mikrotik.read`.
+  Closed network/worker fields never appear in the general resource DTO.
+  `proxmox.exposureTicketsEnabled` defaults to false and additionally requires
+  the existing `autoTickets`, service account and category. A plain publication
+  creates no ticket. Opted-in tickets cover published running guests with CVEs
+  or no completed check within 36 hours, after two independent source polls and
+  the configured delay. One durable source per guest identity prevents repeats;
+  unknown data does not recover a source, and tickets never close automatically.
+- **Proxmox Guest Agent** — polling compares desired and running QEMU
+  configuration, then reads agent info and OS details. A pending enable on a
+  running VM is shown as requiring a restart. Silence alone proves neither that
+  the agent is installed nor that it is absent. Disabled options suppress stale
+  installation/response labels; LXC does not use QEMU Guest Agent. Enabling and
+  editing use the same shared settings sheet: enabled, trim after cloning,
+  filesystem freeze for backup, and channel type. Saving calls
+  `PATCH /api/proxmox/guests/:id/agent` with `proxmox.manage`, a configuration
+  digest and the current VM UUID; unknown existing options are preserved. Saving
+  never restarts the VM.
+- **Proxmox host security** — the node card shows installed/candidate versions,
+  pending APT package updates, the running kernel, and the official release and
+  support lifecycle. `GET/POST /api/proxmox/nodes/:id/security` reads or queues a
+  report; the manual action requires `proxmox.manage`. The daily worker only
+  reads Proxmox API data and public vendor/catalog sources. CVE matching uses
+  curated vendor package/kernel rules; the UI names the checked bulletins and
+  keeps other catalog advisories separate. It never treats limited coverage as
+  proof that the host is secure. List DTOs carry counts and warnings, while full
+  package inventories belong to the security report. Refresh failures preserve
+  the previous report and its timestamp. This module does not install upgrades.
+- **Proxmox guest CVEs** — the guest monitoring card has a «Безопасность» section
+  and a manual «Проверить CVE» action (`proxmox.manage`; reports require read).
+  `services/proxmox/guest-security.js` runs daily checks through fixed read-only
+  QEMU Guest Agent collectors. Debian/Ubuntu source-package versions are matched
+  locally against vendor feeds; Windows servicing builds, installation type and
+  applicable missing KBs are matched against public MSRC catalogs for the last
+  24 months. Package inventories never go to a third-party matching API.
+  `ProxmoxGuestSecurity` keeps one report and a private inventory/job per guest;
+  leases and checkpoints prevent repeated guest command dispatch after a crash.
+  Failed refreshes retain the prior report with its date. Uncertain package
+  matches, missing running-kernel coverage and incomplete Windows checks are
+  visible separately. Unsupported distributions/releases never produce a clean
+  result. Development masking clears the inventory, report and execution state.
 - **Suppliers** — `components/Supplier/`: `List` + `Item` + `Filter` (directory),
   `View` (card), `Form` + `FormFields` (flat form — few fields of one topic, no
   wizard). Selection is client-side (`store/lists/suppliers.js`): the directory is

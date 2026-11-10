@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import { redirect } from "react-router";
 import { api, ApiError } from "@/lib/api";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import type {
@@ -26,6 +27,11 @@ export async function reviewLoader({ request }: LoaderFunctionArgs) {
 export async function analysisLoader({ request }: LoaderFunctionArgs) {
   setDocTitle("Анализ заявок");
   const url = new URL(request.url);
+  if (url.searchParams.get("status") === "error") {
+    url.searchParams.delete("status");
+    url.searchParams.delete("page");
+    return redirect(`${url.pathname}${url.search}`);
+  }
   const [analyses, summary] = await Promise.all([
     api<ReviewPage<ReviewAnalysis>>(`/api/user-review/analyses${url.search}`, {
       signal: request.signal,

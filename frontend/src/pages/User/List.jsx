@@ -140,7 +140,6 @@ const Users = () => {
 
   const toolbar = (
     <>
-      {can({ userReview: ["read"] }) && <Button asChild variant="outline"><Link to="/users/review">Проверка</Link></Button>}
       {can({ user: ["manage"] }) && <Button asChild variant="ghost"><Link to="/users/deleted">Удалённые</Link></Button>}
       <Segmented
         options={AUDIENCE_OPTIONS}
@@ -187,6 +186,13 @@ const Users = () => {
       filterActive={activeFilters.length > 0}
       activeFilters={activeFilters}
       toolbar={toolbar}
+      headerActions={
+        can({ userReview: ["read"] }) && (
+          <Button asChild variant="outline">
+            <Link to="/users/review">Проверка</Link>
+          </Button>
+        )
+      }
       addRoute="/users/add"
       addLabel="Новый пользователь"
       /* Форма пользователя одной ширины и здесь, и на карточке: рейл секций

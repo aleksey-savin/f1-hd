@@ -21,6 +21,7 @@ import { TICKET_STATE_GROUPS } from "../../components/Ticket/ticket-state";
 import useListSelection from "../../hooks/use-list-selection";
 import useLiveTopic from "@/hooks/use-live-topic";
 import { warm } from "@/store/form-data";
+import useInitialPrefsStore from "@/store/prefs";
 import useNotificationsStore from "@/store/notifications";
 import useTicketFilterStore from "../../store/lists/tickets";
 import useToastStore from "../../store/toast-store";
@@ -78,10 +79,14 @@ const Tickets = () => {
   const store = useTicketFilterStore();
   const { showToast } = useToastStore();
   const can = useCan();
+  const { modules } = useInitialPrefsStore();
 
   const [processing, setProcessing] = useState(false);
 
-  const canSelect = can({ ticket: ["delete"] }) || can({ ticket: ["perform"] });
+  const canSelect =
+    can({ ticket: ["delete"] }) ||
+    can({ ticket: ["perform"] }) ||
+    (modules.timeTracking?.isActive && can({ work: ["read", "log"] }));
   const canFilterByResponsible = !!can({
     ticket: { actions: ["readAll", "readCompanies"], connector: "OR" },
   });
@@ -93,7 +98,8 @@ const Tickets = () => {
   // Порядок для выделения (Shift+клик берёт диапазон) — видимый, то есть
   // сгруппированный, а не порядок отфильтрованного списка
   const visibleList = useMemo(
-    () => (groups ? groups.flatMap((group) => group.items) : store.filteredList),
+    () =>
+      groups ? groups.flatMap((group) => group.items) : store.filteredList,
     [groups, store.filteredList],
   );
 

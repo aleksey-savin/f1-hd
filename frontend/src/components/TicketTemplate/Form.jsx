@@ -205,8 +205,10 @@ const TicketTemplateForm = () => {
         setChildRoutines(children);
         setSyncIds(children.map((routine) => routine._id));
         setSyncOpen(true);
-      } else {
+      } else if (isEdit) {
         close("..");
+      } else {
+        close(`/ticket-templates/${fetcher.data._id}`, { replace: true });
       }
     }
   }, [fetcher.state, fetcher.data]);

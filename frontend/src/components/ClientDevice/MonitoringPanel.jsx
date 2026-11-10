@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { useCan } from "@/store/authed-user";
 import {
   RiAlertLine,
   RiArrowRightSLine,
@@ -38,6 +39,8 @@ const Stat = ({ label, children }) => (
  * форма «Новое устройство» раздела мониторинга, привязанная к этой карточке.
  */
 const MonitoringPanel = ({ device, canManage, onSynced }) => {
+  const can = useCan();
+  const canSyncInventory = canManage && can({ device: ["manage"] });
   const recordId = device.mikrotik?.recordId || null;
   const [row, setRow] = useState(null);
   const [isLoading, setIsLoading] = useState(Boolean(recordId));
@@ -228,7 +231,7 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
               {syncError && (
                 <div className="mb-1.5 text-destructive">{syncError}</div>
               )}
-              {canManage && syncable.length > 0 && (
+              {canSyncInventory && syncable.length > 0 && (
                 <Button
                   variant="outline"
                   size="xs"

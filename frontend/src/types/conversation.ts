@@ -7,7 +7,12 @@
 
 export type Network = "telegram" | "whatsapp" | "max" | "site";
 export type ConversationKind = "direct" | "group" | "form";
-export type ConversationQueue = "awaiting" | "mine" | "unbound" | "all" | "hidden";
+export type ConversationQueue =
+  | "awaiting"
+  | "mine"
+  | "unbound"
+  | "all"
+  | "hidden";
 
 /** Строка списка — `conversationRow`. */
 export type ConversationRow = {
@@ -207,6 +212,7 @@ export type ChannelState =
 /** Канал в настройках — `publicChannel` (секреты только признаком «задан»). */
 export type MessagingChannel = {
   id: string;
+  provider?: "gateway" | "wazzup";
   type: Network;
   name: string;
   isActive: boolean;

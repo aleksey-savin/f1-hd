@@ -3,7 +3,8 @@
  * шторки предпросмотра из списка.
  *
  * Главное действие ровно одно, и его выбирает **состояние заявки**, а не
- * порядок в разметке: «Новая» / «Не в работе» → принять, «В работе»
+ * порядок в разметке: «Новая» → обработать, если можно, иначе принять;
+ * «Не в работе» → принять, «В работе»
  * у ответственного → закрыть, у остальных → присоединиться, «Закрыта» → вернуть.
  *
  * «Своя» заявка — та, где человек в ответственных: работа с ней (закрыть,
@@ -126,7 +127,7 @@ export const ticketActions = (
   // Взяться за чужую заявку — отдельное право. Одного «Вести заявки» мало:
   // маршруты принятия и присоединения стоят за `canPerformTickets`, и роль без
   // «Брать заявки в работу» получила бы кнопку и 403 по ней
-  const canJoin = can({ ticket: ["join"] });
+  const canJoin = can({ ticket: ["join"] }) || canManageTickets;
 
   const mine = isResponsible(ticket, userId);
   // Состав чек-листа: ведущий заявки — на любой, исполнитель — на своей и не
@@ -135,27 +136,29 @@ export const ticketActions = (
   const state = ticket.state;
   const closed = state === "Закрыта" || state === "Выполнена";
 
-  let primary = null;
-  if (
+  const canTakeToWork =
     (state === "Новая" || state === "Не в работе") &&
     canPerformTickets &&
-    (mine || canJoin)
-  ) {
+    (mine || canJoin);
+
+  let primary = null;
+  if (state === "Новая" && (canManageTickets || isAdmin)) {
+    primary = { key: "process", label: "Обработать" };
+  } else if (canTakeToWork) {
     // Заявка без ответственных — тоже «не своя»: её берут по праву
     // присоединяться, отдельной поблажки для неё больше нет.
     // `canPerformTickets` обязателен: все ручки принятия и присоединения стоят
     // за `ticket.perform`, и без него кнопка обещала бы то, что даст 403
     primary = { key: "takeToWork", label: "Принять в работу" };
-  } else if (state === "Новая" && (canManageTickets || isAdmin)) {
-    primary = { key: "process", label: "Обработать" };
   } else if (state === "В работе" && mine) {
     // Пока работ нет, «Закрыть» всё равно упрётся в запрет — предлагаем то,
     // чего не хватает, а не действие, которое не сработает. Держателю права
     // закрывать без работ закрытие доступно — оно уходит в меню (ниже)
-    primary =
-      worksMissing(ticket, { works, can }) || shouldOfferWorks(works, can)
-        ? { key: "addWork", label: "Указать работы" }
-        : { key: "close", label: "Закрыть заявку" };
+    primary = shouldOfferWorks(works, can)
+      ? { key: "addWork", label: "Указать работы" }
+      : canPerformTickets
+        ? { key: "close", label: "Закрыть заявку" }
+        : null;
   } else if (
     (state === "В работе" || state === "На согласовании") &&
     !mine &&
@@ -169,7 +172,10 @@ export const ticketActions = (
     // или сам заявитель. Возврат чужой закрытой заявки не делает человека
     // ответственным, поэтому одного «Брать заявки в работу» мало
     closed &&
-    (mine || isAdmin || canManageTickets || isApplicant(ticket, userId))
+    ((mine && canPerformTickets) ||
+      isAdmin ||
+      canManageTickets ||
+      isApplicant(ticket, userId))
   ) {
     primary = { key: "backToWork", label: "Вернуть в работу" };
   }
@@ -180,12 +186,16 @@ export const ticketActions = (
   // Главным стало «Указать работы», а закрыть без них человеку можно — закрытие
   // не пропадает, а переезжает сюда. Дубля не бывает: пункт есть только пока
   // главное действие занято работами
-  if (primary?.key === "addWork" && !worksMissing(ticket, { works, can })) {
+  if (
+    canPerformTickets &&
+    primary?.key === "addWork" &&
+    !worksMissing(ticket, { works, can })
+  ) {
     push({ key: "close", label: "Закрыть заявку", group: "work" });
   }
 
-  if (state === "Новая" && primary?.key !== "process" && (canManageTickets || isAdmin)) {
-    push({ key: "process", label: "Обработать", group: "ticket" });
+  if (primary?.key === "process" && canTakeToWork) {
+    push({ key: "takeToWork", label: "Принять в работу", group: "work" });
   }
 
   // Работа с заявкой — доступна ответственному, пока заявка живая

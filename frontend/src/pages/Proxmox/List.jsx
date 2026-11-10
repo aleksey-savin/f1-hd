@@ -22,11 +22,32 @@ import FormSheet from "@/components/app/FormSheet";
 import { FormActions } from "@/components/app/FormLayout";
 import Combobox from "@/components/app/Combobox";
 import ChipCombobox from "@/components/app/ChipCombobox";
+import ChipSelect from "@/components/app/ChipSelect";
+import ListGroupLabel from "@/components/app/ListGroupLabel";
+import FleetColumns, { FleetHeader, NodeSecuritySummary } from "./FleetColumns";
+import {
+  GuestAgentSheet,
+  guestAgentLabel,
+  guestAgentState,
+} from "./GuestAgent";
+import { agentLabels } from "./guest-agent-presentation";
+import {
+  fleetStates,
+  fleetState,
+  nodeNeedsAttention,
+  shouldClearBulkSelection,
+} from "./fleet-presentation";
+import { securitySummary, cveAlertCount } from "./guest-security-presentation";
+import { ExposureLabel } from "./Exposure";
+import { exposureFilterOptions } from "./exposure-presentation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCan } from "@/store/authed-user";
 import { ROOT } from "./data";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import OperationStatus from "./OperationStatus";
 import CancelOperationDialog, {
   canCancelOperation,
@@ -87,7 +108,7 @@ function Row({ item, kind, selecting, selected, onToggle, extraActions }) {
     first = null,
     second = null;
   if (kind === "guests") {
-    meta = `${item.vmid ?? "—"} · ${item.guestType === "lxc" ? "LXC" : "QEMU"}`;
+    meta = `VMID ${item.vmid ?? "—"} · ${item.guestType === "lxc" ? "LXC" : "QEMU"} · ${item.nodeName || item.node?.name || "Узел не определён"}`;
     first = item.company ? (
       nameOf(item.company)
     ) : (
@@ -132,71 +153,92 @@ function Row({ item, kind, selecting, selected, onToggle, extraActions }) {
     meta = "Виртуальные машины и выделенные мощности";
 
   return (
-    <ListRow
-      // updatedAt advances on every monitoring poll, not just user edits.
-      // Only creation is meaningful for the shared row's highlight here.
-      item={{ _id: idOf(item), createdAt: item.createdAt }}
-      title={
-        <Link
-          to={`${ROOT}/${kind}/${idOf(item)}`}
-          onClick={(event) => event.stopPropagation()}
-          className="text-foreground hover:text-foreground"
-        >
-          {title}
-        </Link>
-      }
-      detailTo={`${ROOT}/${kind}/${idOf(item)}`}
-      glyph={<Icon size={22} />}
-      meta={
-        <>
-          <span className="block truncate">
-            {meta}
-            {first != null && <> · {first}</>}
-            {kind === "guests" && (
-              <span className="lg:hidden">
-                {" "}
-                · {item.nodeName || item.node?.name || "Узел не определён"}
+    <div
+      className={`proxmox-exposure-row ${item.exposure?.hasPublic ? "has-public" : item.exposure?.unknownCount ? "has-unknown" : item.exposure?.hasRestricted ? "has-restricted" : ""}`}
+    >
+      <ListRow
+        // updatedAt advances on every monitoring poll, not just user edits.
+        // Only creation is meaningful for the shared row's highlight here.
+        item={{ _id: idOf(item), createdAt: item.createdAt }}
+        title={
+          <Link
+            to={`${ROOT}/${kind}/${idOf(item)}`}
+            onClick={(event) => event.stopPropagation()}
+            className="text-foreground hover:text-foreground"
+          >
+            {title}
+          </Link>
+        }
+        detailTo={`${ROOT}/${kind}/${idOf(item)}`}
+        glyph={<Icon size={22} />}
+        meta={
+          <>
+            <span className="block truncate">
+              {meta}
+              {first != null && <> · {first}</>}
+            </span>
+            {kind === "guests" && <ExposureLabel summary={item.exposure} />}
+            {kind === "guests" && item.visibleOperation && (
+              <OperationStatus
+                compact
+                operation={item.visibleOperation}
+                journalHref={`${ROOT}/guests/${idOf(item)}#operations`}
+              />
+            )}
+            {kind === "guests" && item.guestSecurity && (
+              <span
+                className={`mt-1 block whitespace-normal text-xs ${cveAlertCount(item.guestSecurity) > 0 && ["completed", "partial"].includes(item.guestSecurity.status) ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                CVE: {securitySummary(item.guestSecurity)}
               </span>
             )}
-          </span>
-          {kind === "guests" && item.visibleOperation && (
-            <OperationStatus
-              compact
-              operation={item.visibleOperation}
-              journalHref={`${ROOT}/guests/${idOf(item)}#operations`}
-            />
-          )}
-          {kind !== "companies" && (
-            <span className="mt-0.5 block md:hidden">
-              <Status item={item} kind={kind} />
-            </span>
-          )}
-        </>
-      }
-      column={
-        kind !== "companies" && (
-          <>
-            <span className="hidden min-w-0 flex-1 text-sm text-muted-foreground lg:block">
-              {second}
-            </span>
-            <span className="hidden w-36 shrink-0 text-sm md:block">
-              <Status item={item} kind={kind} />
-            </span>
+            {kind === "guests" && (
+              <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
+                {item.guestOs?.name || "ОС не определена"} · Агент:{" "}
+                {guestAgentLabel(item)}
+              </span>
+            )}
+            {kind === "nodes" && (
+              <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
+                <NodeSecuritySummary report={item.nodeSecurity} />
+              </span>
+            )}
+            {kind !== "companies" && (
+              <span className="proxmox-row-mobile mt-0.5 block md:hidden">
+                <Status item={item} kind={kind} />
+              </span>
+            )}
           </>
-        )
-      }
-      extraActions={extraActions}
-      showExtraActions={Boolean(extraActions)}
-      trailing={
-        selecting && (
-          <Checkbox
-            aria-label={`Выбрать ${title}`}
-            checked={selected}
-            onCheckedChange={onToggle}
-          />
-        )
-      }
-    />
+        }
+        column={
+          ["nodes", "guests"].includes(kind) ? (
+            <FleetColumns item={item} kind={kind} />
+          ) : (
+            kind !== "companies" && (
+              <>
+                <span className="hidden min-w-0 flex-1 text-sm text-muted-foreground lg:block">
+                  {second}
+                </span>
+                <span className="hidden w-36 shrink-0 text-sm md:block">
+                  <Status item={item} kind={kind} />
+                </span>
+              </>
+            )
+          )
+        }
+        extraActions={extraActions}
+        showExtraActions={Boolean(extraActions)}
+        trailing={
+          selecting && (
+            <Checkbox
+              aria-label={`Выбрать ${title}`}
+              checked={selected}
+              onCheckedChange={onToggle}
+            />
+          )
+        }
+      />
+    </div>
   );
 }
 
@@ -209,6 +251,7 @@ export default function ProxmoxList() {
   const operationFetcher = useFetcher();
   const [pendingOperation, setPendingOperation] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [agentEditor, setAgentEditor] = useState(null);
   const [storage, setStorage] = useState("");
   const [receipts, setReceipts] = useState({});
   useEffect(() => {
@@ -312,7 +355,7 @@ export default function ProxmoxList() {
     setSelecting(false);
   }, [kind, query.toString()]);
   useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
+    if (fetcher.state === "idle" && shouldClearBulkSelection(fetcher.data)) {
       setAssign(false);
       setSelected([]);
       setSelecting(false);
@@ -323,6 +366,7 @@ export default function ProxmoxList() {
       const next = new URLSearchParams(old);
       value ? next.set(key, value) : next.delete(key);
       if (key === "companyId") next.delete("clusterId");
+      if (key === "state") next.delete("status");
       if (!["page", "more"].includes(key)) {
         next.delete("page");
         next.delete("more");
@@ -387,9 +431,7 @@ export default function ProxmoxList() {
           { value: query.get("clusterId"), label: clusterName },
         ]
       : clusterOptions;
-  const filter = ["guests", "nodes", "connections", "storages"].includes(
-    kind,
-  ) ? (
+  const filter = ["connections", "storages"].includes(kind) ? (
     <Field label="Состояние">
       <Combobox
         value={query.get("status")}
@@ -405,6 +447,21 @@ export default function ProxmoxList() {
   return (
     <>
       <Feedback data={!assign ? fetcher.data : null} />
+      {kind === "guests" &&
+        (data.nodeWarnings || [])
+          .filter((node) => nodeNeedsAttention(node.nodeSecurity))
+          .map((node) => (
+            <Link
+              key={idOf(node)}
+              to={`${ROOT}/nodes/${idOf(node)}`}
+              className="mb-3 block rounded-xl border border-border bg-card px-4 py-3 text-sm"
+            >
+              <span className="font-medium">{node.name}</span>
+              <span className="mt-1 block">
+                <NodeSecuritySummary report={node.nodeSecurity} />
+              </span>
+            </Link>
+          ))}
       <ListWrapper
         title={() => "Мониторинг Proxmox"}
         count={total}
@@ -446,6 +503,10 @@ export default function ProxmoxList() {
           query.get("search") ||
             query.get("companyId") ||
             query.get("status") ||
+            query.get("state") ||
+            query.get("agent") ||
+            query.get("exposure") ||
+            query.get("os") ||
             query.get("clusterId"),
         )}
         searchPlaceholder={cfg.search || "Поиск"}
@@ -477,6 +538,64 @@ export default function ProxmoxList() {
                 options={visibleClusterOptions}
                 onChange={(value) => update("clusterId", value)}
               />
+            )}
+            {["guests", "nodes"].includes(kind) && (
+              <ChipSelect
+                placeholder="Все состояния"
+                allLabel="Все состояния"
+                value={
+                  query.get("state") ||
+                  {
+                    running: "up",
+                    online: "up",
+                    offline: "down",
+                    stopped: "stopped",
+                  }[query.get("status")]
+                }
+                options={fleetStates
+                  .filter(
+                    (state) =>
+                      kind === "guests" ||
+                      !["stopped", "template"].includes(state.value),
+                  )
+                  .map((state) => ({
+                    ...state,
+                    label:
+                      state.value === "up" && kind === "nodes"
+                        ? "Доступны"
+                        : state.label,
+                  }))}
+                onChange={(value) => update("state", value)}
+              />
+            )}
+            {kind === "guests" && (
+              <>
+                {data.exposureEnabled && (
+                  <ChipSelect
+                    placeholder="Доступ из интернета"
+                    allLabel="Все"
+                    value={query.get("exposure")}
+                    options={exposureFilterOptions}
+                    onChange={(value) => update("exposure", value)}
+                  />
+                )}
+                <ChipCombobox
+                  placeholder="Гостевая ОС"
+                  allLabel="Все гостевые ОС"
+                  value={query.get("os")}
+                  options={facets.operatingSystems || []}
+                  onChange={(value) => update("os", value)}
+                />
+                <ChipSelect
+                  placeholder="Агент"
+                  allLabel="Все"
+                  value={query.get("agent")}
+                  options={Object.entries(agentLabels)
+                    .filter(([value]) => value !== "disabled")
+                    .map(([value, label]) => ({ value, label }))}
+                  onChange={(value) => update("agent", value)}
+                />
+              </>
             )}
             {kind === "guests" &&
               can({ proxmox: ["manage"] }) &&
@@ -527,90 +646,214 @@ export default function ProxmoxList() {
           />
         }
       >
-        <div className="appear-children">
-          {items.map((item) => (
-            <Row
-              key={idOf(item)}
-              item={item}
+        <div className="proxmox-fleet-list">
+          {["nodes", "guests"].includes(kind) && (
+            <FleetHeader
               kind={kind}
-              extraActions={
-                kind === "guests" &&
-                (can({ proxmox: ["power"] }) ||
-                  can({ proxmox: ["backup"] })) ? (
-                  <>
-                    {can({ proxmox: ["power"] }) &&
-                      (item.status === "stopped"
-                        ? ["start"]
-                        : ["reboot", "shutdown"]
-                      ).map((operation) => (
-                        <DropdownMenuItem
-                          key={operation}
-                          disabled={Boolean(powerDisabledReason(item))}
-                          title={powerDisabledReason(item) || undefined}
-                          onSelect={() => startOperation(item, operation)}
-                        >
-                          {operationLabels[operation]}
-                        </DropdownMenuItem>
-                      ))}
-                    {can({ proxmox: ["power"] }) &&
-                      item.status !== "stopped" && (
-                        <DropdownMenuItem
-                          variant="destructive"
-                          disabled={Boolean(powerDisabledReason(item))}
-                          title={powerDisabledReason(item) || undefined}
-                          onSelect={() => startOperation(item, "stop")}
-                        >
-                          {operationLabels.stop}
-                        </DropdownMenuItem>
-                      )}
-                    {item.currentOperation?.active &&
-                      can({
-                        proxmox: [
-                          item.currentOperation.operation === "backup"
-                            ? "backup"
-                            : "power",
-                        ],
-                      }) && (
-                        <DropdownMenuItem
-                          disabled={!canCancelOperation(item.currentOperation)}
-                          title={
-                            !canCancelOperation(item.currentOperation) &&
-                            !item.currentOperation.cancelRequested
-                              ? "Дождитесь отправки команды или проверьте результат в журнале ВМ"
-                              : undefined
-                          }
-                          onSelect={() => setCancelTarget(item)}
-                        >
-                          {item.currentOperation.cancelRequested
-                            ? "Отмена запрошена"
-                            : "Отменить операцию"}
-                        </DropdownMenuItem>
-                      )}
-                    {can({ proxmox: ["backup"] }) && (
-                      <DropdownMenuItem
-                        disabled={Boolean(powerDisabledReason(item))}
-                        title={powerDisabledReason(item) || undefined}
-                        onSelect={() => startOperation(item, "backup")}
-                      >
-                        {operationLabels.backup}
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                ) : null
-              }
-              selecting={selecting}
-              selected={selected.includes(idOf(item))}
-              onToggle={(value) =>
-                setSelected((s) =>
-                  value
-                    ? [...s, idOf(item)]
-                    : s.filter((id) => id !== idOf(item)),
-                )
+              hasActions={
+                can({ proxmox: ["manage"] }) ||
+                (kind === "guests" &&
+                  (can({ proxmox: ["power"] }) || can({ proxmox: ["backup"] })))
               }
             />
-          ))}
+          )}
+          <div className="appear-children">
+            {(["nodes", "guests"].includes(kind)
+              ? fleetStates.map((state) => ({
+                  ...state,
+                  items: items.filter(
+                    (item) => fleetState(item) === state.value,
+                  ),
+                }))
+              : [{ value: kind, items }]
+            )
+              .filter((group) => group.items.length)
+              .map((group) => (
+                <div key={group.value}>
+                  {["nodes", "guests"].includes(kind) && (
+                    <ListGroupLabel
+                      label={
+                        group.value === "up" && kind === "nodes"
+                          ? "Доступны"
+                          : group.label
+                      }
+                      count={group.items.length}
+                      tone={
+                        group.value === "down"
+                          ? "warn"
+                          : group.value === "up"
+                            ? "on"
+                            : "off"
+                      }
+                    />
+                  )}
+                  {group.items.map((item) => (
+                    <Row
+                      key={idOf(item)}
+                      item={item}
+                      kind={kind}
+                      extraActions={
+                        (["nodes", "guests"].includes(kind) &&
+                          can({ proxmox: ["manage"] })) ||
+                        (kind === "guests" &&
+                          (can({ proxmox: ["power"] }) ||
+                            can({ proxmox: ["backup"] }))) ? (
+                          <>
+                            {can({ proxmox: ["manage"] }) && (
+                              <>
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    fetcher.submit(
+                                      {
+                                        intent: "resourceMonitoring",
+                                        resourceId: idOf(item),
+                                        monitoringEnabled:
+                                          item.monitoringEnabled === false,
+                                      },
+                                      {
+                                        method: "post",
+                                        encType: "application/json",
+                                      },
+                                    )
+                                  }
+                                >
+                                  {item.monitoringEnabled === false
+                                    ? "Включить мониторинг"
+                                    : "Отключить мониторинг"}
+                                </DropdownMenuItem>
+                                {kind === "guests" &&
+                                  item.guestType === "qemu" &&
+                                  !item.template && (
+                                    <>
+                                      {guestAgentState(item) === "disabled" && (
+                                        <DropdownMenuItem
+                                          onSelect={() =>
+                                            setAgentEditor({
+                                              item,
+                                              enable: true,
+                                            })
+                                          }
+                                        >
+                                          Включить опцию Guest Agent
+                                        </DropdownMenuItem>
+                                      )}
+                                      <DropdownMenuItem
+                                        onSelect={() =>
+                                          setAgentEditor({
+                                            item,
+                                            enable: false,
+                                          })
+                                        }
+                                      >
+                                        Изменить параметры Guest Agent
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                {kind === "guests" &&
+                                  (can({ proxmox: ["power"] }) ||
+                                    can({ proxmox: ["backup"] })) && (
+                                    <DropdownMenuSeparator />
+                                  )}
+                              </>
+                            )}
+                            {kind === "guests" &&
+                              can({ proxmox: ["power"] }) &&
+                              (item.status === "stopped"
+                                ? ["start"]
+                                : ["reboot", "shutdown"]
+                              ).map((operation) => (
+                                <DropdownMenuItem
+                                  key={operation}
+                                  disabled={Boolean(powerDisabledReason(item))}
+                                  title={powerDisabledReason(item) || undefined}
+                                  onSelect={() =>
+                                    startOperation(item, operation)
+                                  }
+                                >
+                                  {operationLabels[operation]}
+                                </DropdownMenuItem>
+                              ))}
+                            {kind === "guests" &&
+                              can({ proxmox: ["power"] }) &&
+                              item.status !== "stopped" && (
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  disabled={Boolean(powerDisabledReason(item))}
+                                  title={powerDisabledReason(item) || undefined}
+                                  onSelect={() => startOperation(item, "stop")}
+                                >
+                                  {operationLabels.stop}
+                                </DropdownMenuItem>
+                              )}
+                            {item.currentOperation?.active &&
+                              can({
+                                proxmox: [
+                                  item.currentOperation.operation === "backup"
+                                    ? "backup"
+                                    : "power",
+                                ],
+                              }) && (
+                                <DropdownMenuItem
+                                  disabled={
+                                    !canCancelOperation(item.currentOperation)
+                                  }
+                                  title={
+                                    !canCancelOperation(
+                                      item.currentOperation,
+                                    ) && !item.currentOperation.cancelRequested
+                                      ? "Дождитесь отправки команды или проверьте результат в журнале ВМ"
+                                      : undefined
+                                  }
+                                  onSelect={() => setCancelTarget(item)}
+                                >
+                                  {item.currentOperation.cancelRequested
+                                    ? "Отмена запрошена"
+                                    : "Отменить операцию"}
+                                </DropdownMenuItem>
+                              )}
+                            {kind === "guests" &&
+                              can({ proxmox: ["backup"] }) && (
+                                <DropdownMenuItem
+                                  disabled={Boolean(powerDisabledReason(item))}
+                                  title={powerDisabledReason(item) || undefined}
+                                  onSelect={() =>
+                                    startOperation(item, "backup")
+                                  }
+                                >
+                                  {operationLabels.backup}
+                                </DropdownMenuItem>
+                              )}
+                          </>
+                        ) : null
+                      }
+                      selecting={selecting}
+                      selected={selected.includes(idOf(item))}
+                      onToggle={(value) =>
+                        setSelected((s) =>
+                          value
+                            ? [...s, idOf(item)]
+                            : s.filter((id) => id !== idOf(item)),
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              ))}
+          </div>
         </div>
       </ListWrapper>
+      {agentEditor && (
+        <GuestAgentSheet
+          key={`${idOf(agentEditor.item)}:${agentEditor.enable}`}
+          item={
+            items.find((item) => idOf(item) === idOf(agentEditor.item)) ||
+            agentEditor.item
+          }
+          open
+          onOpenChange={(open) => !open && setAgentEditor(null)}
+          enable={agentEditor.enable}
+        />
+      )}
       {!pendingOperation && !operationFetcher.data?.operation && (
         <Feedback data={operationFetcher.data} />
       )}

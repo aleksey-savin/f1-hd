@@ -7,6 +7,18 @@ const { authPathAllowList } = require("./authPathAllowList");
 const { createIsGateway } = require("./isGateway");
 
 const ORIGIN = "https://portal.example.test";
+
+test('Wazzup bypasses browser identity only on the exact credential-protected webhook route', () => {
+  const middleware = browserOrigin({ publicUrl: ORIGIN });
+  const req = { method: 'POST', originalUrl: '/api/wazzup/webhook?token=own-secret', headers: { cookie: 'session=browser' } };
+  let next = false;
+  middleware(req, {}, () => { next = true; });
+  assert.equal(next, true);
+  assert.equal(req.headers.cookie, undefined);
+  let status;
+  middleware({ method: 'POST', originalUrl: '/api/wazzup/settings', headers: {} }, { status(code) { status = code; return this; }, json() {} }, () => assert.fail('other routes require browser origin'));
+  assert.equal(status, 403);
+});
 const harness = async (t) => {
   const app = express();
   app.all("/api/auth/*splat", authPathAllowList);

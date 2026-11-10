@@ -24,6 +24,8 @@ router.put(
 );
 router.use(proxmoxIsActive, gate("read"));
 router.get("/options", c.options);
+router.get('/exposure/options', live, require('../../controllers/proxmoxExposure').options);
+router.get('/guests/:id/exposure', require('../../controllers/proxmoxExposure').detail);
 router.get("/settings", c.settings);
 router.post("/connections/verify", gate("manage"), live, c.verify);
 router.post("/connections", gate("manage"), live, c.saveConnection);
@@ -49,6 +51,12 @@ for (const kind of ["nodes", "guests"])
     return c.company(req, res, next);
   });
 router.patch("/guests/:id/monitoring", gate("manage"), c.guestMonitoring);
+router.patch("/guests/:id/agent", gate("manage"), live, c.guestAgent);
+router.patch("/resources/:id/monitoring", gate("manage"), c.resourceMonitoring);
+router.get("/guests/:id/security", c.guestSecurity);
+router.get("/nodes/:id/security", c.nodeSecurity);
+router.post("/nodes/:id/security", gate("manage"), live, c.checkNodeSecurity);
+router.post("/guests/:id/security", gate("manage"), live, c.checkGuestSecurity);
 router.post("/guests/:id/operations", live, c.operation);
 router.get("/guests/:id/operations", c.operationHistory);
 router.post("/guests/:id/operations/:operationId/reconcile", live, c.reconcile);

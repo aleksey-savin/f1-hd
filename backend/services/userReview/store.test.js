@@ -39,6 +39,19 @@ const chain = (value) => ({
   lean: async () => value,
 });
 const at = new Date("2026-11-09T12:00:00Z");
+test("legacy grounding failures are automatically reconsidered after exhausted retries", async (t) => {
+  let filter;
+  t.mock.method(Analysis, "findOneAndUpdate", (q) => { filter = q; return chain(null); });
+  await mongoStore.claim(at, false);
+  for (const error of [
+    "AI user review: identity is not grounded in source quote",
+    "AI user review: quote is not grounded in source",
+    "AI user review: email is not grounded in source quote",
+  ]) {
+    assert.equal(sift(filter)({ status: "error", error, attempts: 5, retryAt: new Date(at - 1) }), true);
+  }
+  assert.equal(sift(filter)({ status: "error", error: "provider offline", attempts: 5, retryAt: new Date(at - 1) }), false);
+});
 test("proposal scope hides any timeline containing an inaccessible source", async (t) => {
   const userId = "507f1f77bcf86cd799439011",
     visible = "507f1f77bcf86cd799439012",

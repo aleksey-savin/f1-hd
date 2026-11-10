@@ -45,6 +45,15 @@ import { useCan } from "@/store/authed-user";
 import { ROOT, labels } from "./data";
 import { Metrics, History } from "./Monitoring";
 import Operations from "./Operations";
+import GuestSecurity from "./GuestSecurity";
+import {
+  GuestAgentPanel,
+  GuestAgentSheet,
+  guestAgentState,
+} from "./GuestAgent";
+import AvailabilityPanel from "./AvailabilityPanel";
+import NodeSecurity from "./NodeSecurity";
+import ExposureSection, { ExposureLabel } from "./Exposure";
 import {
   Status,
   Section,
@@ -148,6 +157,7 @@ export default function ProxmoxDetail() {
   const [activeOperation, setActiveOperation] = useState(undefined);
   const [operationStatusError, setOperationStatusError] = useState(null);
   const [cancelOperation, setCancelOperation] = useState(null);
+  const [agentEditor, setAgentEditor] = useState(null);
   const [operation, setOperation] = useState(null),
     [storage, setStorage] = useState(""),
     [operationKey, setOperationKey] = useState("");
@@ -261,15 +271,29 @@ export default function ProxmoxDetail() {
     ...(resource
       ? [
           { id: "resources", label: "Ресурсы" },
-          { id: "metrics", label: "Графики" },
+          ...(item.monitoringEnabled !== false &&
+          !item.monitoringPausedByConnection
+            ? [{ id: "metrics", label: "Графики" }]
+            : []),
           { id: "availability", label: "Доступность" },
         ]
       : []),
     ...(kind === "companies" ? [{ id: "totals", label: "Мощности" }] : []),
     ...(kind === "guests"
       ? [
+          ...(item.exposure
+            ? [{ id: "exposure", label: "Доступ из интернета" }]
+            : []),
+          { id: "agent", label: "QEMU Guest Agent" },
+          { id: "security", label: "Безопасность" },
           { id: "backups", label: "Резервные копии" },
           { id: "operations", label: "Операции ВМ" },
+        ]
+      : []),
+    ...(kind === "nodes"
+      ? [
+          { id: "security", label: "Безопасность" },
+          { id: "updates", label: "Версии и обновления" },
         ]
       : []),
     ...(["guests", "nodes"].includes(kind)
@@ -375,6 +399,7 @@ export default function ProxmoxDetail() {
           <h1 className="break-words text-2xl font-semibold tracking-tight">
             {title}
           </h1>
+          {kind === "guests" && <ExposureLabel summary={item.exposure} />}
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             {kind !== "companies" && <Status item={item} kind={kind} />}
             {(resource || kind === "connections") && (
@@ -388,6 +413,7 @@ export default function ProxmoxDetail() {
                 ? "Контейнер LXC"
                 : "Виртуальная машина QEMU"}
               {item.template ? " · шаблон" : ""}
+              {item.guestOs?.name ? ` · ${item.guestOs.name}` : ""}
             </p>
           )}
         </div>
@@ -424,6 +450,41 @@ export default function ProxmoxDetail() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {["nodes", "guests"].includes(kind) && manageable && (
+                  <>
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        submit({
+                          intent: "resourceMonitoring",
+                          monitoringEnabled: item.monitoringEnabled === false,
+                        })
+                      }
+                    >
+                      {item.monitoringEnabled === false
+                        ? "Включить мониторинг"
+                        : "Отключить мониторинг"}
+                    </DropdownMenuItem>
+                    {kind === "guests" &&
+                      item.guestType === "qemu" &&
+                      !item.template && (
+                        <>
+                          {guestAgentState(item) === "disabled" && (
+                            <DropdownMenuItem
+                              onSelect={() => setAgentEditor({ enable: true })}
+                            >
+                              Включить опцию Guest Agent
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onSelect={() => setAgentEditor({ enable: false })}
+                          >
+                            Изменить параметры Guest Agent
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 {editCompany && (
                   <DropdownMenuItem
                     onSelect={() =>
@@ -549,9 +610,9 @@ export default function ProxmoxDetail() {
           </AlertDescription>
         </Alert>
       )}
-      <div className="flex gap-6">
+      <div className="flex items-start gap-6">
         {sections.length > 1 && (
-          <aside className="hidden w-48 shrink-0 lg:block">
+          <aside className="sticky top-28 hidden w-48 shrink-0 lg:block">
             <AnchorRail sections={sections} />
           </aside>
         )}
@@ -651,9 +712,57 @@ export default function ProxmoxDetail() {
               <Section title="Ресурсы" id="resources">
                 <Capacity item={item} kind={kind} />
               </Section>
-              <Metrics id={id} kind={kind} />
-              <History id={id} type="availability" />
+              {item.monitoringEnabled !== false &&
+                !item.monitoringPausedByConnection && (
+                  <Metrics id={id} kind={kind} />
+                )}
+              {["guests", "nodes"].includes(kind) ? (
+                <AvailabilityPanel key={id} id={id} item={item} />
+              ) : (
+                <History id={id} type="availability" />
+              )}
             </>
+          )}
+          {kind === "guests" && (
+            <>
+              {item.exposure && (
+                <ExposureSection
+                  key={`exposure-${id}`}
+                  resourceId={id}
+                  summary={item.exposure}
+                  canReadMikrotik={can({ mikrotik: ["read"] })}
+                />
+              )}
+              <GuestAgentPanel
+                item={item}
+                canManage={manageable && !item.template}
+                onEdit={() => setAgentEditor({ enable: false })}
+              />
+            </>
+          )}
+          {kind === "guests" && (
+            <GuestSecurity
+              key={id}
+              id={id}
+              canCheck={
+                manageable &&
+                item.monitoringEnabled !== false &&
+                !item.monitoringPausedByConnection
+              }
+              guestType={item.guestType}
+            />
+          )}
+          {kind === "nodes" && (
+            <NodeSecurity
+              key={id}
+              id={id}
+              item={item}
+              canCheck={
+                manageable &&
+                item.monitoringEnabled !== false &&
+                !item.monitoringPausedByConnection
+              }
+            />
           )}
           {kind === "companies" && (
             <Section title="Выделенные мощности" id="totals">
@@ -827,6 +936,15 @@ export default function ProxmoxDetail() {
         </main>
       </div>
       <FormOutlet />
+      {agentEditor && (
+        <GuestAgentSheet
+          key={id}
+          item={item}
+          open
+          enable={agentEditor.enable}
+          onOpenChange={(open) => !open && setAgentEditor(null)}
+        />
+      )}
       <FormSheet
         open={Boolean(edit)}
         onOpenChange={(open) => !open && setEdit(null)}

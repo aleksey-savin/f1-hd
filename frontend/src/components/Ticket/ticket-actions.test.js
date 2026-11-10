@@ -33,6 +33,28 @@ test("new ticket: «Обработать» needs manage", () => {
   );
 });
 
+test("processing a new ticket takes priority over taking it to work", () => {
+  for (const responsibles of [[], [{ _id: me }], [{ _id: "u2" }]]) {
+    const ticket = { state: "Новая", responsibles };
+    for (const context of [
+      ctx({ ticket: ["perform", "manage"] }),
+      ctx({ ticket: ["perform", "join", "manage"] }),
+      ctx({ ticket: ["perform", "join"] }, { isAdmin: true }),
+    ]) {
+      const actions = ticketActions(ticket, context);
+      assert.deepEqual(actions.primary, { key: "process", label: "Обработать" });
+      assert.ok(!keys(actions.menu).includes("process"));
+      assert.deepEqual(
+        actions.menu.find((item) => item.key === "takeToWork"),
+        { key: "takeToWork", label: "Принять в работу", group: "work" },
+      );
+    }
+    const actions = ticketActions(ticket, ctx({ ticket: ["manage"] }));
+    assert.equal(actions.primary?.key, "process");
+    assert.ok(!keys(actions.menu).includes("takeToWork"));
+  }
+});
+
 test("«Изменить» needs manage, «Удалить» needs delete", () => {
   const ticket = { state: "В работе", responsibles: [{ _id: me }] };
   assert.ok(
@@ -160,7 +182,10 @@ test("«Принять в работу»: своя — по perform, чужая 
   // «Вести заявки» кнопки не даёт: маршрут принятия стоит за «Брать заявки в
   // работу», и роль без него получила бы кнопку и 403 по ней
   assert.equal(primaryKey(theirs, { ticket: ["manage"] }), null);
-  assert.equal(primaryKey(theirs, { ticket: ["perform", "manage"] }), null);
+  assert.equal(
+    primaryKey(theirs, { ticket: ["perform", "manage"] }),
+    "takeToWork",
+  );
   // Одного «Присоединяться» тоже мало: без `ticket.perform` ручка принятия
   // ответит 403, и кнопка обещала бы несбыточное
   assert.equal(primaryKey(theirs, { ticket: ["join"] }), null);
@@ -172,7 +197,7 @@ test("«Присоединиться» к чужой заявке в работ�
   const theirs = { state: "В работе", responsibles: [{ _id: other }] };
   assert.equal(primaryKey(theirs, { ticket: ["perform"] }), null);
   assert.equal(primaryKey(theirs, { ticket: ["perform", "join"] }), "join");
-  assert.equal(primaryKey(theirs, { ticket: ["perform", "manage"] }), null);
+  assert.equal(primaryKey(theirs, { ticket: ["perform", "manage"] }), "join");
   assert.equal(
     primaryKey(
       { state: "На согласовании", responsibles: [{ _id: other }] },
@@ -275,15 +300,83 @@ test("«Взять на себя» makes sense only with someone else responsibl
 });
 
 test("new unassigned ticket can be taken with perform and join", () => {
-  const ticket = { state: "Новая", title: "Помощь", company: { _id: "c1" }, categoryId: "cat1", responsibles: [] };
-  for (const permissions of [["perform", "join"], ["perform", "join", "manage"]]) {
+  const ticket = {
+    state: "Новая",
+    title: "Помощь",
+    company: { _id: "c1" },
+    categoryId: "cat1",
+    responsibles: [],
+  };
+  for (const permissions of [
+    ["perform", "join"],
+    ["perform", "join", "manage"],
+  ]) {
     const actions = ticketActions(ticket, ctx({ ticket: permissions }));
-    assert.equal(actions.primary?.key, "takeToWork");
-    assert.equal(keys(actions.menu).includes("process"), permissions.includes("manage"));
+    assert.equal(
+      actions.primary?.key,
+      permissions.includes("manage") ? "process" : "takeToWork",
+    );
+    assert.ok(!keys(actions.menu).includes("process"));
   }
   for (const permissions of [["perform"], ["join"]]) {
-    assert.equal(ticketActions(ticket, ctx({ ticket: permissions })).primary, null);
+    assert.equal(
+      ticketActions(ticket, ctx({ ticket: permissions })).primary,
+      null,
+    );
   }
-  assert.equal(ticketActions({ ...ticket, isArchived: true }, ctx({ ticket: ["perform", "join"] })).primary, null);
-  assert.equal(ticketActions(ticket, ctx({ ticket: ["perform", "join"] }, { isEndUser: true })).primary, null);
+  assert.equal(
+    ticketActions(
+      { ...ticket, isArchived: true },
+      ctx({ ticket: ["perform", "join"] }),
+    ).primary,
+    null,
+  );
+  assert.equal(
+    ticketActions(
+      ticket,
+      ctx({ ticket: ["perform", "join"] }, { isEndUser: true }),
+    ).primary,
+    null,
+  );
+});
+
+test("assigned tickets cannot be closed or reopened after perform is revoked", () => {
+  const ticket = { state: "В работе", responsibles: [{ _id: me }] };
+  for (const granted of [
+    {},
+    { ticket: ["manage"] },
+    { ticket: ["closeWithoutWork"], work: ["read", "log"] },
+  ]) {
+    const result = ticketActions(ticket, ctx(granted));
+    assert.notEqual(result.primary?.key, "close");
+    assert.ok(!keys(result.menu).includes("close"));
+  }
+  assert.equal(primaryKey({ ...ticket, state: "Закрыта" }, {}), null);
+  assert.equal(
+    primaryKey({ ...ticket, state: "Закрыта", applicant: { _id: me } }, {}),
+    "backToWork",
+  );
+});
+
+test("offering work entry requires both read and log independently of perform", () => {
+  const ticket = { state: "В работе", responsibles: [{ _id: me }] };
+  for (const work of [[], ["read"], ["log"]]) {
+    assert.notEqual(
+      primaryKey(ticket, { ticket: ["perform"], work }),
+      "addWork",
+    );
+  }
+  assert.equal(primaryKey(ticket, { work: ["read", "log"] }), "addWork");
+  assert.equal(
+    primaryKey(ticket, { ticket: ["perform"], work: ["read"] }),
+    "close",
+  );
+});
+
+test("perform plus manage allows joining the same tickets as the bulk action", () => {
+  for (const state of ["В работе", "На согласовании"]) {
+    const ticket = { state, responsibles: [{ _id: other }] };
+    assert.equal(primaryKey(ticket, { ticket: ["perform", "manage"] }), "join");
+    assert.equal(primaryKey(ticket, { ticket: ["manage"] }), null);
+  }
 });

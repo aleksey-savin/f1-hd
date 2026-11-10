@@ -80,6 +80,7 @@ const {
   getLocalStorageData,
   logoutLoader,
   loadBrowserIdentity,
+  refreshAuthData,
 } = await import("./auth.js");
 const { storeSession, clearSession } = await import("../pages/Auth/session.ts");
 const forms = await import("../store/form-data.ts");
@@ -186,7 +187,7 @@ test("timezone metadata is readable without auth keys and with stale expiry", ()
   assert.equal(getLocalStorageData().timezone, "Asia/Vladivostok");
 });
 test("only 401 clears state; refusals, rate limits, outages and network failures retain it", async () => {
-  for (const status of [403, 429, 500, 503, "network", 401]) {
+  for (const status of [403, 429, 500, 502, 503, "network", 401]) {
     setup();
     localStorage.setItem("token", "cookie.s1");
     globalThis.fetch = async () => {
@@ -372,6 +373,7 @@ function shellTree(data) {
     useEffect: (fn) => effects.push(fn),
     useLayoutEffect: (fn) => effects.push(fn),
     useRef: () => ({ current: null }),
+    useState: (value) => [value, () => {}],
     useContext: () => ({ plainCanvas: false }),
     useLocation: () => ({ pathname: "/dashboard" }),
     useLoaderData: () => data,
@@ -760,4 +762,38 @@ test("warm request from before same-session root revalidation cannot poison a ne
   } finally {
     router.dispose();
   }
+});
+
+test("background access refresh does not supersede an in-flight root identity check", async () => {
+  setup();
+  globalThis.fetch = async (url) => json(url === "/api/me" ? me() : {});
+  await authDataLoader();
+  const rootReply = deferred();
+  let calls = 0;
+  globalThis.fetch = async (url) => url === "/api/me"
+    ? ++calls === 1 ? rootReply.promise : json({ ...me(), accessVersion: "changed" })
+    : json({});
+  const root = authDataLoader();
+  const generation = session.browserSessionGeneration();
+  const background = await refreshAuthData();
+  assert.equal(session.browserSessionGeneration(), generation);
+  rootReply.resolve(json(me()));
+  assert.equal((await root).userData._id, "alice");
+  assert.equal(background.userData.accessVersion, "changed");
+});
+
+test("background access refresh cannot adopt changed cookies or a late previous identity", async () => {
+  setup();
+  globalThis.fetch = async (url) => json(url === "/api/me" ? me() : {});
+  await authDataLoader();
+  globalThis.fetch = async (url) => json(url === "/api/me" ? me("bob", "s2") : {});
+  assert.equal(await refreshAuthData(), null);
+  assert.equal(session.confirmedUserId(), "alice");
+  const lateReply = deferred();
+  globalThis.fetch = async (url) => url === "/api/me" ? lateReply.promise : json({});
+  const background = refreshAuthData();
+  clearSession();
+  lateReply.resolve(json(me()));
+  await assert.rejects(background, aborted);
+  assert.equal(session.confirmedUserId(), null);
 });

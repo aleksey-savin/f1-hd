@@ -22,6 +22,9 @@ export type AttachMode = "bound" | "reply" | "manual" | "origin" | "deliver" | n
 export type JobType = "send" | "markRead" | "fetchMedia" | "login" | "logout" | "loadHistory" | "testProxy";
 
 export interface IChannel {
+  provider?: 'gateway' | 'wazzup';
+  providerChannelId?: string;
+  providerTransport?: string;
   type: Network;
   name: string;
   isActive: boolean;
@@ -145,6 +148,7 @@ export interface IMessage {
 }
 
 export interface IChannelJob {
+  provider?: 'gateway' | 'wazzup';
   channelId: Types.ObjectId;
   network: Network;
   type: JobType;

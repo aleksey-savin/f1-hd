@@ -18,16 +18,36 @@ const normalizePart = (value) => value
 const hasBuilding = (value) => value.includes(' ') && /(?:^|\s)\d+[а-яa-z]?(?:[/-]\d+[а-яa-z]?)?(?:к\d+)?(?:с\d+)?$/u.test(value);
 const address = (value) => {
   const raw = typeof value === 'string' ? value.normalize('NFKC').toLowerCase().replace(/ё/g, 'е')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/(?:^|[\s,])(?:офис|оф|квартира|кв|помещение|этаж|эт)\.?\s*\d.*$/u, '') : '';
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/(?:^|[\s,])(?:офис|оф|кабинет|каб|квартира|кв|помещение|пом|этаж|эт)\.?\s*\d.*$/u, '') : '';
   const parts = raw.split(/[,;\n]/).map((part) => part.trim()).filter(Boolean);
-  const last = normalizePart(parts.at(-1) || '');
-  const streetAt = hasBuilding(last) ? parts.length - 1 : parts.length - 2;
-  const street = parts[streetAt] || '';
-  return {
-    key: hasBuilding(last) ? last : normalizePart(`${street} ${parts.at(-1) || ''}`),
-    city: normalizePart(parts[streetAt - 1] || ''),
-    kind: STREET_TYPES.find(([, pattern]) => new RegExp(`(?:^|[\\s.])(?:${pattern})(?=[\\s.]|$)`, 'u').test(street))?.[0] || '',
+  const kind = (part) => STREET_TYPES.find(([, pattern]) => new RegExp(`(?:^|[\\s.])(?:${pattern})(?=[\\s.]|$)`, 'u').test(part))?.[0] || '';
+  const house = (part) => normalizePart(part || '');
+  const houseOnly = (part) => /^\d+[а-яa-z]?(?:[/-]\d+[а-яa-z]?)?(?:к\d+)?(?:с\d+)?$/u.test(house(part));
+  const suffix = (start) => {
+    let result = '';
+    for (const part of parts.slice(start)) {
+      const match = /^(корпус|корп|к|строение|стр|с)\.?\s*(\d+[а-яa-z]?)$/u.exec(part);
+      if (!match) break;
+      result += `${['корпус', 'корп', 'к'].includes(match[1]) ? 'к' : 'с'}${match[2]}`;
+    }
+    return result;
   };
+  const candidates = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i], normalized = normalizePart(part), streetKind = kind(part);
+    // Floors/offices and named map POIs may follow the house. A POI's № 1
+    // must never be mistaken for a building or become a street name.
+    if (/№|(?:^|\s)(?:этаж|офис|оф|каб(?:инет)?|кв(?:артира)?|помещение)(?:[.\s]|$)/u.test(part)) continue;
+    let key;
+    if (hasBuilding(normalized) && !houseOnly(part)) key = normalized + suffix(i + 1);
+    else if (/[а-яa-z]/u.test(part) && !houseOnly(part) && houseOnly(parts[i + 1])) key = normalizePart(`${part} ${parts[i + 1]}`) + suffix(i + 2);
+    if (!key) continue;
+    const previous = parts[i - 1] || '';
+    const city = /^(?:россия|российская федерация|рф)$|(?:^|\s)(?:край|область|район|республика)$/u.test(previous) ? '' : normalizePart(previous);
+    candidates.push({ key, city, kind: streetKind });
+  }
+  return candidates.find((candidate) => candidate.kind) || candidates[0] || { key: '', city: '', kind: '' };
 };
 const sameAddress = (a, b) => hasBuilding(a.key) && hasBuilding(b.key) && a.key === b.key &&
   (!a.city || !b.city || a.city === b.city) && (!a.kind || !b.kind || a.kind === b.kind);

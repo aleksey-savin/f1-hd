@@ -292,6 +292,10 @@ const preferencesSchema = new Schema({
   },
 
   proxmox: {
+    cveMinSeverity: { type: String, enum: ["high", "critical"], default: "high" },
+    exposureTicketsEnabled: { type: Boolean, default: false },
+    networkLinks: { type: [require('./proxmoxExposure').networkLinkSchema], default: [] },
+    networkLinksVersion: String,
     cpuThreshold: { type: Number, default: 90 }, memoryThreshold: { type: Number, default: 90 },
     storageWarning: { type: Number, default: 85 }, storageCritical: { type: Number, default: 95 },
     thresholdMinutes: { type: Number, default: 5 }, autoTickets: { type: Boolean, default: false },

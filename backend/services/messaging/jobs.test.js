@@ -2,9 +2,16 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { pickHeads, applyAck } = require("./jobs");
+const { pickHeads, applyAck, resultForAck } = require("./jobs");
 
 const NOW = Date.parse("2026-09-24T10:00:00Z");
+
+test('Wazzup failure/rate ack retains accepted multipart progress and delivery evidence', () => {
+  const progress = { nextPart: 1, inFlightPart: null, externalIds: ['sent-first'], delivery: { 'sent-first': 'read' } };
+  assert.deepEqual(resultForAck({ provider: 'wazzup', result: progress }, { ok: false }), progress);
+  assert.deepEqual(resultForAck({ provider: 'wazzup', result: progress }, { ok: true, result: { externalId: 'sent-first' } }), { ...progress, externalId: 'sent-first' });
+  assert.equal(resultForAck({ provider: 'gateway', result: progress }, { ok: false }), null);
+});
 
 test("only the head of each conversation's queue is handed out", () => {
   const candidates = [

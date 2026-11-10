@@ -26,6 +26,13 @@ const USERS = Buffer.concat([
   sentence("!done"),
 ]);
 
+test('bounded command rejects oversized streams before accumulating the full reply',async()=>{
+ const socket=new EventEmitter();
+ const conn={socket,writeWords(){queueMicrotask(()=>socket.emit('data',USERS));}};
+ await assert.rejects(sendCommand(conn,['/ip/firewall/nat/print'],{maxBytes:10,maxRows:1}),/лимит/);
+ assert.equal(socket.listenerCount('data'),0);
+});
+
 const collect = (chunks) => {
   const reader = createSentenceReader();
   return chunks.flatMap((chunk) => reader.feed(chunk));

@@ -13,6 +13,25 @@ const shouldApplyPresence = (trip) => Boolean(
   !trip?.deletedAt && trip?.purpose === 'business' && trip.status === 'transporting' &&
   trip.userId && !trip.historical,
 );
+const SUCCESSFUL_STATUSES = ['complete', 'finished'];
+const CANCELLED_STATUSES = ['cancelled', 'canceled', 'client_cancelled', 'driver_cancelled', 'failed'];
+const shouldCheckOfficeArrival = (trip) => Boolean(
+  trip && !trip.deletedAt && !trip.historical && !trip.officeArrivalAppliedAt &&
+  ['business', 'service', 'unknown'].includes(trip.purpose) && SUCCESSFUL_STATUSES.includes(trip.status) && trip.userId,
+);
+const officeArrivalStatus = (trip, user, previousTrip, now) => {
+  if (!shouldCheckOfficeArrival(trip) || !isTaxiPresence(user)) return null;
+  const arrival = new Date(trip.finishedAt || trip.officeArrivalObservedAt);
+  const start = new Date(trip.startedAt || trip.requestedAt);
+  const previousStart = new Date(previousTrip?.startedAt || previousTrip?.requestedAt);
+  const statusAt = new Date(user.workStatus.updatedAt);
+  if (![arrival, start, previousStart, statusAt].every((date) => Number.isFinite(date.valueOf())) ||
+    arrival > now || arrival < start || previousStart >= start || statusAt > start ||
+    !previousTrip || previousTrip.deletedAt || previousTrip.purpose !== 'business' ||
+    String(previousTrip.userId) !== String(trip.userId) || String(previousTrip._id) === String(trip._id) ||
+    previousTrip.finishedAt && new Date(previousTrip.finishedAt) > start) return null;
+  return { code: 'office', note: '', source: 'taxi', auto: false, updatedAt: arrival };
+};
 
 const moneyToMinor = (value) => {
   const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(String(value));
@@ -34,4 +53,4 @@ const validateWorkTrip = (work, trip, actor) => {
     throw new AppError('Недостаточно прав для связи поездки', 403);
   }
 };
-module.exports = { ACTIVE_STATUSES, isTaxiPresence, shouldApplyPresence, moneyToMinor, validateWorkTrip, normalizePurpose, companyPurpose, isWorkPurpose };
+module.exports = { ACTIVE_STATUSES, SUCCESSFUL_STATUSES, CANCELLED_STATUSES, isTaxiPresence, shouldApplyPresence, shouldCheckOfficeArrival, officeArrivalStatus, moneyToMinor, validateWorkTrip, normalizePurpose, companyPurpose, isWorkPurpose };

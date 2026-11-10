@@ -101,6 +101,8 @@ type ListWrapperProps = {
   topContent?: ReactNode;
   /** Чипы/контролы в строке инструментов (например, FilterChip). */
   toolbar?: ReactNode;
+  /** Дополнительные действия рядом с кнопкой создания в шапке. */
+  headerActions?: ReactNode;
   /** Применённые фильтры — липкая полоса бейджей над списком (видна при
    *  скролле; каждый бейдж снимается крестиком). */
   activeFilters?: ActiveFilter[];
@@ -164,6 +166,7 @@ const ListWrapper = ({
   customData,
   topContent,
   toolbar,
+  headerActions,
   activeFilters = [],
   selection,
   count,
@@ -438,13 +441,25 @@ const ListWrapper = ({
               {filterButton}
             </>
           }
-          action={addButton(false)}
+          action={
+            headerActions ? (
+              <div className="flex items-center gap-2">
+                {headerActions}
+                {addButton(false)}
+              </div>
+            ) : (
+              addButton(false)
+            )
+          }
         />
       </BrowserView>
       <MobileView>
         <div className="mb-3 flex items-center gap-2">
           {titleBlock}
-          <div className="ms-auto">{addButton(true)}</div>
+          <div className="ms-auto flex items-center gap-2">
+            {headerActions}
+            {addButton(true)}
+          </div>
         </div>
         {showSearch && (
           <div className="mb-3">

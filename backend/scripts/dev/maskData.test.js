@@ -390,6 +390,14 @@ test("a masked Proxmox operation cannot resume and unknown integration fields st
   assert.equal(classifyPath("inventorychanges", "operations[].params.notes"), "free");
   assert.equal(classifyPath("inventorychanges", "operations[].targets[].model"), "label");
 });
+test("a copied guest CVE scan cannot resume or expose its private inventory", () => {
+  const scan = { _id: ID, status: "collecting", report: { os: { name: "Internal VM" } }, inventory: { packages: ["private"] }, job: { pid: 123 }, leaseToken: "worker", leaseUntil: new Date(), lastError: "Internal host", checkedAt: new Date(), requestedAt: new Date() };
+  const update = rewriteDocument("proxmoxguestsecurities", scan, ctx);
+  const masked = apply(scan, update);
+  assert.equal(masked.status, "error");
+  for (const field of ["report", "inventory", "job", "leaseToken", "leaseUntil", "lastError", "checkedAt", "requestedAt"]) assert.equal(Object.hasOwn(masked, field), false);
+  assert.equal(rewriteDocument("proxmoxguestsecurities", masked, ctx), null);
+});
 
 // --- Классы полей ---------------------------------------------------------------
 

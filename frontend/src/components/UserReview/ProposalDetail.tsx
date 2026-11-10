@@ -364,7 +364,6 @@ export default function ProposalDetail({
                 id={`review-reason-${proposal._id}`}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Комментарий для коллег"
               />
             </Field>
           </div>

@@ -43,7 +43,14 @@ export function canManageEntity(
     case "ticketTemplate":
       return !!(
         can({ ticketTemplate: ["manage"] }) ||
-        (item.createdBy != null && String(item.createdBy) === userId)
+        (userId != null &&
+          (typeof item.createdBy === "string"
+            ? item.createdBy
+            : item.createdBy &&
+                typeof item.createdBy === "object" &&
+                "_id" in item.createdBy
+              ? item.createdBy._id
+              : undefined) === userId)
       );
     default:
       return false;

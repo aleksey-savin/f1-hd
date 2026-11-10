@@ -330,8 +330,8 @@ exports.seen = async (req, res, next) => {
       { upsert: true, new: false },
     ).lean();
     // «Прочитано» у клиента — только если с прошлого открытия пришло новое
-    const channel = await Channel.findById(conversation.channelId).select("type isActive settings").lean();
-    if (channel?.isActive && GATEWAY_NETWORKS.includes(channel.type) && channel.settings?.markReadOnOpen !== false) {
+    const channel = await Channel.findById(conversation.channelId).select("type isActive settings provider").lean();
+    if (channel?.isActive && channel.provider !== 'wazzup' && GATEWAY_NETWORKS.includes(channel.type) && channel.settings?.markReadOnOpen !== false) {
       const latest = await Message.findOne({
         conversationId: conversation._id,
         direction: "in",
@@ -345,6 +345,7 @@ exports.seen = async (req, res, next) => {
         await enqueueJob({
           channelId: channel._id,
           network: channel.type,
+          provider: require("@/services/messaging/transport").providerOf(channel),
           type: "markRead",
           conversationId: conversation._id,
           payload: { chatId: conversation.externalChatId, upToExternalId: latest.externalId },

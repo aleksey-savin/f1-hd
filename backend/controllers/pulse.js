@@ -6,6 +6,7 @@ const { bus } = require("@/services/pulse");
 const { canAccessTicket } = require("@/services/ticketAccess");
 const { summaryFor } = require("@/controllers/notification");
 const { buildInfo } = require("../utils/buildInfo");
+const { accessVersion } = require("@/services/accessVersion");
 
 /**
  * GET /pulse?cursor=<epoch>:<rev>&ticket=<id>[,<id>…]
@@ -60,6 +61,7 @@ exports.pulse = async (req, res, next) => {
       rev,
       pollMs: POLL_MS,
       appVersion: buildInfo.id,
+      access: { userId: auth.userId, version: accessVersion(auth) },
       topics,
       tickets,
     };

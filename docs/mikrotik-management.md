@@ -63,7 +63,25 @@ Rights are orthogonal to the switch and come from the permission dictionary:
 model_). There is no admin bypass branch: a full-access role carries the whole
 staff dictionary, so the same `can()` decides for everybody.
 
+## Publications to Proxmox guests
+
+
+The optional Proxmox crossover reads fixed RouterOS `print` menus through the
+existing pinned/transit-aware transport and limiter. It does not alter router
+configuration or the normal router health state. Bindings live only in global
+Proxmox settings (`/preferences#proxmox`), not on a router report page.
+`services/mikrotik/exposure-snapshot.js` collects bounded snapshots;
+`services/proxmox/exposure/` matches guest interfaces and evaluates new inbound
+NAT/firewall paths. A failed menu or unsupported predicate is not an empty
+table or proof of no exposure. Stored snapshots are private and removed during
+development database masking. See `inventory.md`, «Proxmox external publications»,
+and the approved `superpowers/specs/2026-11-10-proxmox-mikrotik-exposure-design.md`.
+Both module switches gate the feature. Optional guest-security tickets use
+Proxmox's independent, default-off flag; MikroTik ticket flags do not enable them.
+
+
 ## Data model & relationships
+
 
 ```
 Company                                   Vendor (+ isMikrotikManagementEnabled)

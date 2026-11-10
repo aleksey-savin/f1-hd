@@ -1,6 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { list, detail, view } = require("./view");
+test("disabled resource metrics do not contact its connection or Proxmox", async (t) => {
+  const { Resource, Connection } = require("../../models/proxmox");
+  t.mock.method(Resource, "findById", async () => ({ monitoringEnabled: false }));
+  t.mock.method(Connection, "findById", () => assert.fail("disabled metrics must not read connection credentials"));
+  await assert.rejects(require("./view").metrics("64aa00000000000000000001"), /Мониторинг ресурса выключен/);
+});
 
 test("removed task and incident views reject before querying storage", async () => {
   for (const kind of ["tasks", "incidents"]) {

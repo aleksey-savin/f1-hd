@@ -10,6 +10,7 @@ const { validateEvent } = require("@/services/messaging/events");
 const { ingestEvent } = require("@/services/messaging/ingest");
 const { leaseJobs, ackJobs, waitForJob } = require("@/services/messaging/jobs");
 const { GATEWAY_NETWORKS } = require("@/services/messaging/rules");
+const { gatewayFilter } = require('@/services/messaging/transport');
 
 /** Ручки шлюза мессенджеров; список — routes/gateway.js, контракт — docs/messaging.md. */
 
@@ -32,7 +33,7 @@ const networksOf = (raw) => {
 
 exports.channels = async (req, res, next) => {
   try {
-    const channels = await Channel.find({ type: { $in: networksOf(req.query.types) }, isActive: true }).lean();
+    const channels = await Channel.find({ ...gatewayFilter(), type: { $in: networksOf(req.query.types) }, isActive: true }).lean();
     res.status(200).json({
       channels: channels.map((channel) => ({
         id: String(channel._id),
@@ -71,6 +72,10 @@ exports.events = async (req, res, next) => {
       const checked = validateEvent(raw);
       if (!checked.ok) {
         results.push({ ok: false, retryable: false, error: checked.error });
+        continue;
+      }
+      if (!(await Channel.exists({ _id: checked.event.channelId, ...gatewayFilter() }))) {
+        results.push({ ok: false, retryable: false, error: 'Канал не относится к прямому подключению' });
         continue;
       }
       try {
@@ -156,7 +161,7 @@ exports.heartbeat = async (req, res, next) => {
     const ids = (Array.isArray(req.body?.channels) ? req.body.channels.slice(0, 50) : [])
       .map((item) => item?.id)
       .filter((id) => mongoose.isValidObjectId(id));
-    if (ids.length) await Channel.updateMany({ _id: { $in: ids } }, { $set: { gatewaySeenAt: new Date() } });
+    if (ids.length) await Channel.updateMany({ _id: { $in: ids }, ...gatewayFilter() }, { $set: { gatewaySeenAt: new Date() } });
     res.status(200).json({ ok: true });
   } catch (error) {
     next(new AppError("Не удалось принять heartbeat", 500, true, error));

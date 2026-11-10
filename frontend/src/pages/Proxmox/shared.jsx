@@ -58,11 +58,7 @@ export function Navigation() {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const current = pathname.split("/")[3] || "guests";
-  const sections = [
-    "guests",
-    "nodes",
-    "storages",
-  ];
+  const sections = ["guests", "nodes", "storages"];
   return (
     <Segmented
       ariaLabel="Раздел Proxmox"
@@ -74,10 +70,7 @@ export function Navigation() {
         if (!value || value === current) return;
         const next = new URLSearchParams();
         const company = new URLSearchParams(search).get("companyId");
-        if (
-          company &&
-          (company !== "unassigned" || value === "guests")
-        )
+        if (company && (company !== "unassigned" || value === "guests"))
           next.set("companyId", company);
         navigate(`${ROOT}/${value}${next.size ? `?${next}` : ""}`);
       }}
@@ -162,11 +155,14 @@ export function Status({ item }) {
     : ["offline", "failed", "unavailable"].includes(state)
       ? "text-destructive"
       : "text-muted-foreground";
-  if (item.template) {
-    label = "Шаблон";
-    tone = "text-muted-foreground";
-  } else if (item.monitoringEnabled === false) {
+  if (item.monitoringEnabled === false) {
     label = "Мониторинг выключен";
+    tone = "text-muted-foreground";
+  } else if (item.monitoringPausedByConnection) {
+    label = "Подключение выключено";
+    tone = "text-muted-foreground";
+  } else if (item.template) {
+    label = "Шаблон";
     tone = "text-muted-foreground";
   } else if (item.operation && ["unknown", "needsReview"].includes(state)) {
     label = "Требует проверки";

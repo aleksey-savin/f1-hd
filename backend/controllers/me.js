@@ -1,5 +1,6 @@
 const { forwardSessionCookies, browserSessionPayload } = require("@/services/browserSession");
 const Preferences = require("@/models/preferences");
+const { accessVersion } = require("@/services/accessVersion");
 
 const { AppError } = require("@/middleware/errorHandling");
 const { getAuth, getFromNodeHeaders } = require("@/auth/bootstrap");
@@ -95,6 +96,7 @@ exports.getMe = async (req, res, next) => {
       // Права человека — на языке словаря; по ним работает `can()` во фронте.
       statements,
       grantStatements,
+      accessVersion: accessVersion(req.auth),
       /**
        * САМ СЛОВАРЬ с подписями. Он одинаков для всех и мог бы ехать отдельной
        * ручкой, но тогда у фронта появилось бы состояние «права уже есть, а как

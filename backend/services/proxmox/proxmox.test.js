@@ -1,4 +1,6 @@
 const test = require("node:test");
+const { beforeEach } = require("node:test");
+beforeEach((t) => t.mock.method(require("./monitoring-view"), "enrich", async (items) => items));
 const assert = require("node:assert/strict");
 const { Duplex } = require("node:stream");
 const tls = require("node:tls");
@@ -380,6 +382,7 @@ test("guest list joins owner in one batch and keeps tenant separate", async () =
       skip: () => chain,
       limit: () => chain,
       populate: () => chain,
+      select: () => chain,
       lean: async () => rows,
     };
     return chain;
@@ -412,7 +415,7 @@ test("guest list joins owner in one batch and keeps tenant separate", async () =
   Resource.countDocuments = async () => 1;
   try {
     const data = await list("guests");
-    assert.equal(calls, 2);
+    assert.equal(calls, 3);
     assert.equal(eventCalls, 1);
     assert.equal(aggregateCalls, 1);
     assert.equal(data.items[0].latestOperation.state, "succeeded");

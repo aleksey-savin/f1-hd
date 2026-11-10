@@ -69,7 +69,7 @@ DUMP_MODE="${DUMP_MODE:-auto}"        # auto | remote (mongodump on prod) | tunn
 # pairing codes. A copy must not be able to act as a signed-in person or an
 # agent of the source installation. KEEP_LOCAL ones are preserved on the dev
 # side; NEVER_COPIED ones are dropped there.
-KEEP_LOCAL=(preferences channels channeljobs taxisettings)
+KEEP_LOCAL=(preferences channels channeljobs taxisettings wazzupsettings wazzupevents)
 NEVER_COPIED=(authSessions authVerifications mcpkeys mikrotikdownloadcodes impersonationCodes telegramPairingCodes taxitrips taxiemployees)
 EXCLUDE_COLLECTIONS=("${KEEP_LOCAL[@]}" "${NEVER_COPIED[@]}")
 EXCLUDE_FLAGS=()

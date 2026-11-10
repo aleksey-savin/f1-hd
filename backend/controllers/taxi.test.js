@@ -181,7 +181,7 @@ test('report rows and totals both exclude deleted trips', async (t) => {
 });
 
 test('detail returns the saved ride without provider requests or database mutations', async (t) => {
-  const trip = { _id: new Types.ObjectId(), externalId: 'old-hd-order', clientId: 'corp', source: 'hd', userId: new Types.ObjectId(ownId), status: 'transporting', estimateMinor: 25000, driver: { name: 'Водитель' }, ticketIds: [] };
+  const trip = { _id: new Types.ObjectId(), externalId: 'old-hd-order', clientId: 'corp', source: 'hd', userId: new Types.ObjectId(ownId), status: 'transporting', estimateMinor: 25000, driver: { name: 'Водитель' }, ticketIds: [], origin: { address: 'Россия, Приморский край, Владивосток, улица Толстого, 23', lat: 43, lon: 131 }, destination: { address: 'Приморский край, Владивосток, Пограничная улица, 15В', lat: 43.1, lon: 131.1 } };
   t.mock.method(TaxiTrip, 'findById', () => chain(trip));
   t.mock.method(TaxiTrip, 'findOneAndUpdate', () => assert.fail('read-only detail must not mutate a ride'));
   t.mock.method(require('../services/taxi/provider'), 'request', () => assert.fail('detail must read saved sync state'));
@@ -198,6 +198,10 @@ test('detail returns the saved ride without provider requests or database mutati
   assert.equal(result.body.trip.estimateMinor, 25000);
   assert.deepEqual(result.body.trip.driver, trip.driver);
   assert.equal('canManage' in result.body.trip, false);
+  assert.equal(result.body.trip.origin.address, 'Владивосток, улица Толстого, 23');
+  assert.equal(result.body.trip.destination.address, 'Владивосток, Пограничная улица, 15В');
+  assert.match(trip.origin.address, /^Россия,/);
+  assert.equal(result.body.trip.origin.lat, trip.origin.lat);
 });
 
 test('taxi HTTP routes expose reporting and allocation without booking APIs', () => {

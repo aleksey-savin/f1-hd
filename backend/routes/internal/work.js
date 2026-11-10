@@ -37,7 +37,14 @@ router.get(
 );
 // Предварительный расчёт по черновику работы: ничего не сохраняет, суммы
 // отдаёт только тем, кому положено (controllers/work.js → canSeeMoney)
-router.post("/works/preview", isAuth, ticketsFromBody, workController.preview);
+router.post(
+  "/works/preview",
+  isAuth,
+  timeTrackingModuleIsActive,
+  canReadWorks,
+  ticketsFromBody,
+  workController.preview,
+);
 router.get(
   "/works/:ticketNum",
   isAuth,
@@ -58,6 +65,8 @@ router.get(
 router.post(
   "/works/add",
   isAuth,
+  timeTrackingModuleIsActive,
+  canReadWorks,
   canLogWorks,
   ticketsFromBody,
   workController.add,
@@ -65,6 +74,8 @@ router.post(
 router.post(
   "/works/schedule",
   isAuth,
+  timeTrackingModuleIsActive,
+  canReadWorks,
   canLogWorks,
   ticketsFromBody,
   workController.schedule,
@@ -74,12 +85,16 @@ router.post(
 router.post(
   "/works/update/:workId",
   isAuth,
+  timeTrackingModuleIsActive,
+  canReadWorks,
   canLogOrManageWorks,
   workController.update,
 );
 router.post(
   "/works/delete",
   isAuth,
+  timeTrackingModuleIsActive,
+  canReadWorks,
   canLogOrManageWorks,
   workController.delete,
 );

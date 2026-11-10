@@ -21,7 +21,8 @@ const analyzeTicket = async ({ ticket = {}, comments = [], users = [], now, pref
   };
   if (previous?.inputFingerprint === plan.inputFingerprint && Array.isArray(previous.events)) {
     try {
-      return match(normalizeAnalysis({ events: previous.events }, context), 'cache');
+      const normalized = normalizeAnalysis({ events: previous.events }, context);
+      if (normalized.length === previous.events.length) return match(normalized, 'cache');
     } catch {
       // Stored output has the same trust boundary as a provider response. An
       // invalid cache is recomputed instead of being marked as a checked pass.

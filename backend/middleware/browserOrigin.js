@@ -7,6 +7,7 @@ const ISOLATED_SERVICE_PATH = /^\/api\/(?:bot|gateway|mcp)(?:\/|$)/i;
 // нельзя исключать целые пространства имён. В частности, внешнее согласование —
 // браузерный сценарий, а устаревший /tg/tickets/add закомментирован, не исключён.
 const SERVICE_ROUTES = new Set([
+  'POST /api/wazzup/webhook',
   "POST /api/external/log/user-activity",
   "POST /api/external/ticket/create",
   "POST /api/tg/auth",

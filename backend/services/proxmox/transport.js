@@ -166,6 +166,7 @@ const requestEndpoint = (
     tokenId,
     tokenSecret,
     body,
+    json = false,
     probe = false,
     timeout = 15000,
     signal,
@@ -176,7 +177,7 @@ const requestEndpoint = (
     (socket) =>
       new Promise((resolve, reject) => {
         const payload = body
-          ? new URLSearchParams(
+          ? json ? JSON.stringify(body) : new URLSearchParams(
               Object.entries(body)
                 .filter(([, v]) => v !== undefined)
                 .map(([k, v]) => [k, String(v)]),
@@ -197,7 +198,7 @@ const requestEndpoint = (
                 : {}),
               ...(payload
                 ? {
-                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Content-Type": json ? "application/json" : "application/x-www-form-urlencoded",
                     "Content-Length": Buffer.byteLength(payload),
                   }
                 : {}),
@@ -218,8 +219,15 @@ const requestEndpoint = (
                   fingerprint,
                 });
               if (res.statusCode < 200 || res.statusCode >= 300) {
-                const err = new Error(`API Proxmox: HTTP ${res.statusCode}`);
-                err.statusCode = res.statusCode;
+                // A PVE token refusal is a connection failure, not an expired
+                // HD session: forwarding 401 signs the operator out of HD.
+                const denied = res.statusCode === 401 || res.statusCode === 403;
+                const err = new Error(
+                  denied
+                    ? `API Proxmox отклонил токен или права доступа (HTTP ${res.statusCode}). Проверьте ID и секрет API-токена, права пользователя и самого токена (Privilege Separation).`
+                    : `API Proxmox: HTTP ${res.statusCode}`,
+                );
+                err.statusCode = denied ? 502 : res.statusCode;
                 return reject(err);
               }
               try {

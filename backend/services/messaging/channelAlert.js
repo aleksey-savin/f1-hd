@@ -26,8 +26,8 @@ const ALERT_STATES = new Set(["loggedOut", "banned", "error"]);
 // всегда новый вход человеком
 const ERROR_REPEAT_MS = 6 * 60 * 60 * 1000;
 
-/** Секция «Каналы связи» в «Настройках системы» (pages/Preferences, id `channels`). */
-const CHANNEL_SETTINGS_LINK = "/preferences#channels";
+/** Секция «Диалоги» в «Настройках системы» (pages/Preferences, id `messaging`). */
+const CHANNEL_SETTINGS_LINK = "/preferences#messaging";
 
 /**
  * Будить ли колокольчик на этот переход.
@@ -49,7 +49,7 @@ const STATE_TITLE = {
 };
 
 const STATE_HINT = {
-  loggedOut: "Войдите заново в «Настройки системы → Каналы связи» — переписка сохранится",
+  loggedOut: "Войдите заново в «Настройки системы → Диалоги» — переписка сохранится",
   banned: "Мессенджер ограничил аккаунт — сообщения не принимаются и не отправляются",
   error: "Сообщения не принимаются, пока канал не подключится",
 };

@@ -5,6 +5,7 @@ import {
   useFetcher,
   useLoaderData,
   useLocation,
+  useNavigate,
 } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
@@ -55,15 +56,20 @@ const PreferencesCanvas = ({ sections }) => {
   const isSaving = fetcher.state !== "idle";
 
   // Ссылка прямо на секцию (колокольчик «Канал «Telegram»: сессия завершена»
-  // ведёт на #channels): роутер к якорю не прокручивает — тем же механизмом,
+  // ведёт на старый #channels): роутер к якорю не прокручивает — тем же механизмом,
   // что форма (app/FormLayout), после отрисовки секций
-  const { hash } = useLocation();
+  const { hash, pathname, search } = useLocation();
+  const navigate = useNavigate();
   useEffect(() => {
-    const id = decodeURIComponent(hash.replace(/^#/, ""));
+    const rawId = decodeURIComponent(hash.replace(/^#/, ""));
+    const id = rawId === "channels" ? "messaging" : rawId;
+    if (rawId === "channels") {
+      navigate(`${pathname}${search}#messaging`, { replace: true });
+    }
     if (!id) return undefined;
     const timer = setTimeout(() => scrollToSection(null, id, false), 0);
     return () => clearTimeout(timer);
-  }, [hash]);
+  }, [hash, pathname, search, navigate]);
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data?.message) return;
@@ -180,12 +186,10 @@ const Preferences = () => {
       label: "Сбор заявок",
       element: <PrefsTicketsCollect prefs={prefs} />,
     },
-    // «Каналы связи» — мессенджеры и форма сайта для «Диалогов». Секция не
-    // входит в черновик страницы: канал сохраняется своей кнопкой в диалоге
-    // подключения, а подключают его и до включения модуля
+    // Подключения к «Диалогам» доступны до включения самого модуля.
     general && {
-      id: "channels",
-      label: "Каналы связи",
+      id: "messaging",
+      label: "Диалоги",
       element: <PrefsChannels prefs={prefs} />,
     },
     // «Сбор заявок» — про то, как заявки приходят; «Заявки» — про то, как за

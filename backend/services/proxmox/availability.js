@@ -2,7 +2,9 @@ const { Observation, Resource } = require("../../models/proxmox");
 const { maintenanceActive, fail } = require("./policy");
 const STALE_MS = 180000;
 const stateOf = (r, c, now) =>
-  maintenanceActive(r.maintenance, now) || maintenanceActive(c.maintenance, now)
+  r.monitoringEnabled === false || c.monitoringEnabled === false
+    ? "excluded"
+    : maintenanceActive(r.maintenance, now) || maintenanceActive(c.maintenance, now)
     ? "maintenance"
     : r.missingSince || r.lastError
       ? "unknown"
@@ -77,26 +79,18 @@ const summarize = (rows, from, to) => {
     excludedMs: excluded,
   };
 };
-const summary = async (id) => {
+const summary = async (id, days = 30) => {
   const r = await Resource.findById(id).lean();
   if (!r) fail("Ресурс не найден", 404);
+  days = Number(days);
+  if (![1, 7, 30, 90].includes(days)) fail("Выберите период 1, 7, 30 или 90 дней");
   const to = new Date(),
-    from = new Date(Math.max(+new Date(r.createdAt), +to - 30 * 86400000));
+    from = new Date(Math.max(+new Date(r.createdAt), +to - days * 86400000));
   const rows = await Observation.find({
     resourceId: id,
     from: { $lte: to },
     $or: [{ until: { $gte: from } }, { open: true }],
   }).lean();
-  const episodes = rows
-    .filter((row) => row.state === "down")
-    .map((row) => ({ startedAt: row.from, endedAt: row.until || null }));
-  return {
-    ...summarize(rows, from, to),
-    from,
-    to,
-    episodes,
-    monitoredSince: r.createdAt,
-    lastCheckedAt: r.lastCheckedAt,
-  };
+  return require("./availability-view").availabilityView(r, rows, days, to);
 };
 module.exports = { observe, summarize, summary, stateOf };

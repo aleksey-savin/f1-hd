@@ -1,6 +1,10 @@
 const { Connection, Resource, Event } = require("../../models/proxmox");
 const mongoose = require("mongoose");
 const { fail } = require("./policy");
+const {
+  monitoringState,
+  applyMonitoringFilters,
+} = require("./monitoring-query");
 const id = (v) => (v ? String(v._id || v) : null);
 const company = (v) =>
   v ? { id: id(v), name: v.alias || v.fullTitle || "" } : null;
@@ -13,6 +17,10 @@ const view = (doc) => {
   delete out.leaseUntil;
   delete out.monitoringIssues;
   delete out.operationData;
+  delete out.guestNetwork;
+  delete out.guestIncarnation;
+  delete out.exposure;
+  delete out.exposureGeneration;
   delete out.taskId;
   delete out.incidentId;
   out.company = company(r.companyId);
@@ -21,7 +29,10 @@ const view = (doc) => {
     out.connection = {
       id: id(r.connectionId),
       name: r.connectionId.name || "",
+      monitoringEnabled: r.connectionId.monitoringEnabled,
     };
+    out.monitoringPausedByConnection =
+      r.connectionId.monitoringEnabled === false;
     out.connectionId = id(r.connectionId);
   }
   if (r.resourceId) {
@@ -53,6 +64,7 @@ const view = (doc) => {
         : null;
   }
   if (r.kind) {
+    out.monitoringState = monitoringState(r);
     out.freshness =
       !r.lastError &&
       r.lastCheckedAt &&
@@ -81,8 +93,8 @@ const validId = (value) => {
 const populate = (q) =>
   q
     .populate("companyId", "alias fullTitle")
-    .populate("connectionId", "name clusterName isCluster");
-const list = async (kind, query = {}) => {
+    .populate("connectionId", "name clusterName isCluster monitoringEnabled");
+const list = async (kind, query = {}, access = {}) => {
   const Model = modelFor(kind);
   const filter = kindFilter(kind);
   if (["connections", "nodes", "guests", "storages"].includes(kind))
@@ -154,6 +166,41 @@ const list = async (kind, query = {}) => {
     }
   }
   if (query.status) filter.status = String(query.status).slice(0, 40);
+  if (kind === "guests") {
+    const scope = { kind: "guest", archived: false };
+    for (const key of ["companyId", "connectionId"])
+      if (Object.hasOwn(filter, key)) scope[key] = filter[key];
+    const guests = await Resource.find(scope).select("guestOs.name").lean();
+    const counts = new Map();
+    for (const row of guests) {
+      const name = row.guestOs?.name || "unknown";
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    facets = {
+      ...facets,
+      operatingSystems: [...counts]
+        .map(([value, count]) => ({
+          value,
+          label: value === "unknown" ? "ОС не определена" : value,
+          count,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, "ru")),
+    };
+  }
+  const disabledParents =
+    (query.state || query.exposure) && ["guests", "nodes"].includes(kind)
+      ? await Connection.find({ archived: false, monitoringEnabled: false })
+          .select("_id")
+          .lean()
+      : [];
+  applyMonitoringFilters(
+    filter,
+    query,
+    kind,
+    new Date(),
+    disabledParents.map((connection) => connection._id),
+  );
+  if (kind === 'guests') require('./exposure/query').applyExposureFilter(filter, query.exposure, { prefs:access.prefs, now:new Date(), disabledConnectionIds:disabledParents.map(row=>row._id) });
   if (query.search) {
     const escaped = String(query.search)
       .slice(0, 100)
@@ -178,12 +225,16 @@ const list = async (kind, query = {}) => {
     .limit(pageSize)
     .populate("companyId", "alias fullTitle");
   if (Model !== Connection)
-    q = q.populate("connectionId", "name clusterName isCluster");
+    q = q.populate(
+      "connectionId",
+      "name clusterName isCluster monitoringEnabled",
+    );
   const [rows, total] = await Promise.all([
     q.lean(),
     Model.countDocuments(filter),
   ]);
   const items = rows.map(view);
+  let infrastructure = [];
   if (kind === "guests" && rows.length) {
     const nodes = await Resource.find({
       kind: "node",
@@ -194,7 +245,9 @@ const list = async (kind, query = {}) => {
       })),
     })
       .populate("companyId", "alias fullTitle")
+      .populate("connectionId", "name clusterName isCluster monitoringEnabled")
       .lean();
+    infrastructure = nodes.map(view);
     const activeOperations = await Event.find({
       kind: "vmOperation",
       resourceId: { $in: rows.map((row) => row._id) },
@@ -238,16 +291,33 @@ const list = async (kind, query = {}) => {
         };
     }
   }
-  return { items, total, page, pageSize, ...(facets ? { facets } : {}) };
+  const monitored = await require("./monitoring-view").enrich([
+    ...items,
+    ...infrastructure,
+  ], new Date(), access);
+  return {
+    items: monitored.slice(0, items.length),
+    ...(kind === 'guests' ? {exposureEnabled:require('./exposure/contract').enabled(access.prefs)} : {}),
+    ...(kind === "guests"
+      ? { nodeWarnings: monitored.slice(items.length) }
+      : {}),
+    total,
+    page,
+    pageSize,
+    ...(facets ? { facets } : {}),
+  };
 };
-const detail = async (kind, value) => {
+const detail = async (kind, value, access = {}) => {
   const Model = modelFor(kind);
   let q = Model.findOne({ _id: validId(value), ...kindFilter(kind) }).populate(
     "companyId",
     "alias fullTitle",
   );
   if (Model !== Connection)
-    q = q.populate("connectionId", "name clusterName isCluster");
+    q = q.populate(
+      "connectionId",
+      "name clusterName isCluster monitoringEnabled",
+    );
   if (Model === Resource)
     q = q.populate("clientDeviceId", "hostname inventoryNumber");
   const row = await q.lean();
@@ -305,7 +375,7 @@ const detail = async (kind, value) => {
       };
   }
   return {
-    item,
+    item: (await require("./monitoring-view").enrich([item], new Date(), access))[0],
     related: {
       guests: related.filter((r) => r.kind === "guest").map(view),
       nodes: related.filter((r) => r.kind === "node").map(view),
@@ -330,13 +400,14 @@ const events = async (resourceId, query = {}) => {
   ]);
   return { items: items.map(view), total, page, pageSize };
 };
-const availability = async (resourceId) =>
-  require("./availability").summary(validId(resourceId));
+const availability = async (resourceId, days = 30) =>
+  require("./availability").summary(validId(resourceId), days);
 const metrics = async (resourceId, timeframe = "day") => {
   if (!["hour", "day", "week", "month", "year"].includes(timeframe))
     fail("Некорректный период");
   const r = await Resource.findById(validId(resourceId));
   if (!r) fail("Ресурс не найден", 404);
+  if (r.monitoringEnabled === false) fail("Мониторинг ресурса выключен", 409);
   const c = await Connection.findById(r.connectionId).select("+tokenSecret");
   if (!c || c.archived || r.archived || !c.monitoringEnabled)
     fail("Мониторинг подключения недоступен", 409);

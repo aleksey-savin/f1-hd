@@ -15,6 +15,7 @@
 
 | Правило | Чем проверяется |
 | --- | --- |
+| Неподтверждённые источником выводы ИИ отбрасываются отдельно, без ошибки анализа и ручного повтора; подтверждённые выводы сохраняются | `services/userReview/policy.test.js`, `services/userReview/detector.test.js`; прежние ошибки автоматически возвращаются в обработку — `services/userReview/store.test.js` |
 | Настройки модулей находятся только в глобальных настройках, без отдельных страниц и меню | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
 | Даты и периоды вводятся общими `DateField` / `DateRangeField` / `DateTimeField`, без нативного календаря | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
 | Меню и маршрут отчёта такси используют одно требование доступа; API проверяет его независимо | `TAXI_REPORT_ACCESS`, тест меню, `controllers/taxi.test.js` |
@@ -22,3 +23,6 @@
 | Удалённые поездки сохраняют ключ импорта и исключаются из отчёта, расходов, синхронизации присутствия и ночного сохранения статуса | `controllers/taxi.test.js`, `services/taxi/sync.test.js`, `services/taxi/destination-import.test.js`, `services/workStatusReset.test.js` |
 | Варианты заявок при распределении такси ограничены компанией и ответственным пассажиром; сохраняется скоуп доступа | `controllers/taxi.test.js`, `components/Taxi/allocation-state.test.js` |
 | Заказы такси оформляются только в Яндексе или внешнем приложении; интеграция HD не создаёт и не отменяет заказы | `services/taxi/provider.test.js`, `controllers/taxi.test.js`; разрешённые методы ограничены в `services/taxi/provider.js` |
+| Адреса такси сокращаются на общей границе выдачи и создания текста, до ограничения длины заметки; исходные адреса для сопоставления сохраняются | `services/taxi/presentation.test.js`, `controllers/taxi.test.js`, `services/taxi/presence.test.js` |
+| Подтверждённый возврат в офис завершает только более ранний статус выезда от такси; личные поездки, поздние ручные изменения и новые выезды защищены | `services/taxi/office-arrival.test.js` |
+| Уведомления такси используют общую очередь, сокращённый адрес и отдельные устойчивые ключи выезда и возврата; новый клиент отслеживается без повторов старого выезда | `services/taxi/notifications.test.js`, `services/taxi/client-transition.test.js`, `services/taxi/office-arrival.test.js` |

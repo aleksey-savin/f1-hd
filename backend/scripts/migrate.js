@@ -88,6 +88,7 @@ const MIGRATIONS = [
   { id: "2026-11-09-backfillUserActivity", script: "backfillUserActivity.js", apply: true },
   // Удаляет только права заказа/отмены и квитанции удалённого механизма заказа.
   { id: "2026-11-09-removeTaxiBooking", script: "removeTaxiBooking.js", apply: true },
+  { id: "2026-11-10-proxmoxExposureIndexes", script: "ensureProxmoxExposureIndexes.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

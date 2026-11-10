@@ -3,6 +3,7 @@ import { RiArrowRightLine, RiMailLine, RiQrCodeLine } from "react-icons/ri";
 
 import HealthRow from "@/components/app/HealthRow";
 import SettingRow from "@/components/app/SettingRow";
+import { SubLabel } from "@/components/app/Panel";
 import { ChannelIcon } from "@/components/Conversation/ChannelGlyph";
 import { failureText } from "@/components/Conversation/conversation-actions";
 import { Button } from "@/components/ui/button";
@@ -14,24 +15,18 @@ import { channelHealth, channelHint } from "@/util/channel-state";
 import { formatAgo } from "@/util/format-date";
 
 import TelegramChannelDialog from "./TelegramChannelDialog";
+import Wazzup, { type WazzupSettings } from "./Wazzup";
 
-/**
- * «Каналы связи» (канва E1 — десктоп, E4 — телефон): строка на канал —
- * название, аккаунт, «Настроить»; под ней строка состояния, которую пишет
- * шлюз msg-gateway (подключён, нужен вход, шлюз молчит). В P1 — Telegram и
- * почта (ссылкой на «Сбор заявок»); WhatsApp, MAX и форма сайта приходят со
- * своими этапами.
- *
- * Секция вне черновика страницы: канал сохраняется в своём диалоге сразу, и
- * подключают его ещё до включения модуля «Диалоги». Живые изменения — тема
- * пульса «channels» (вход по QR, итог проверки прокси).
- */
+// Wazzup сохраняется общим черновиком страницы; прямые каналы —
+// мгновенными действиями существующего диалога входа.
 type Prefs = {
+  wazzup?: WazzupSettings;
   mailbox?: { address?: string };
   contacts?: { title?: string };
 };
 
-const telegramTile = "bg-channel-telegram-tint text-channel-telegram inset-ring-transparent";
+const telegramTile =
+  "bg-channel-telegram-tint text-channel-telegram inset-ring-transparent";
 
 const Channels = ({ prefs }: { prefs: Prefs }) => {
   const [channels, setChannels] = useState<MessagingChannel[] | null>(null);
@@ -56,17 +51,22 @@ const Channels = ({ prefs }: { prefs: Prefs }) => {
 
   useLiveTopic("channels", reload);
 
-  const telegram = (channels ?? []).filter((channel) => channel.type === "telegram");
+  const telegram = (channels ?? []).filter(
+    (channel) => channel.type === "telegram" && channel.provider !== "wazzup",
+  );
   const open = telegram.find((channel) => channel.id === openId) ?? null;
 
   // Канала ещё нет — заводим пустой и сразу открываем вход
   const connect = async () => {
     setCreating(true);
     try {
-      const { channel } = await api<{ channel: MessagingChannel }>("/api/channels", {
-        method: "POST",
-        body: { type: "telegram", name: "Telegram" },
-      });
+      const { channel } = await api<{ channel: MessagingChannel }>(
+        "/api/channels",
+        {
+          method: "POST",
+          body: { type: "telegram", name: "Telegram" },
+        },
+      );
       setChannels((current) => [...(current ?? []), channel]);
       setOpenId(channel.id);
     } catch (error) {
@@ -82,6 +82,19 @@ const Channels = ({ prefs }: { prefs: Prefs }) => {
 
   return (
     <>
+      <div className="px-5 py-4 text-sm text-muted-foreground">
+        Сообщения всех подключённых аккаунтов поступают в «Диалоги», ответы
+        отправляются оттуда же. Для разных аккаунтов можно использовать Wazzup и
+        прямое подключение. Каждый аккаунт подключайте одним способом.
+      </div>
+      <Wazzup settings={prefs.wazzup} />
+      <div className="border-t border-border px-5 pt-5 pb-1">
+        <SubLabel>Прямое подключение</SubLabel>
+        <p className="mt-2 mb-0 text-sm text-muted-foreground">
+          Аккаунт подключается вручную в HD по QR-коду или коду входа. Здесь
+          находятся ваши текущие подключения Telegram.
+        </p>
+      </div>
       {telegram.map((channel, index) => {
         const health = channelHealth(channel, {
           ago: (date) => formatAgo(date) ?? "",
@@ -90,8 +103,23 @@ const Channels = ({ prefs }: { prefs: Prefs }) => {
           <div key={channel.id}>
             <SettingRow
               title="Telegram — корпоративный аккаунт"
-              hint={channelHint(channel)}
-              leading={<ChannelIcon network="telegram" size={18} className="text-inherit" />}
+              hint={
+                <>
+                  <span className="block">
+                    {channelHint(channel)} · напрямую
+                  </span>
+                  <span className="mt-1 block text-xs">
+                    Вход и параметры аккаунта настраиваются в HD
+                  </span>
+                </>
+              }
+              leading={
+                <ChannelIcon
+                  network="telegram"
+                  size={18}
+                  className="text-inherit"
+                />
+              }
               leadingClassName={telegramTile}
               divider={index > 0}
             >
@@ -111,7 +139,11 @@ const Channels = ({ prefs }: { prefs: Prefs }) => {
               hint={health.hint}
               action={
                 health.action === "login" ? (
-                  <Button variant="outline" size="sm" onClick={() => setOpenId(channel.id)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setOpenId(channel.id)}
+                  >
                     <RiQrCodeLine />
                     Показать QR
                   </Button>
@@ -126,8 +158,14 @@ const Channels = ({ prefs }: { prefs: Prefs }) => {
         <>
           <SettingRow
             title="Telegram — корпоративный аккаунт"
-            hint="Клиенты пишут на корпоративный аккаунт, ответы уходят из портала"
-            leading={<ChannelIcon network="telegram" size={18} className="text-inherit" />}
+            hint="Прямое подключение в HD. Клиенты пишут на корпоративный аккаунт, ответы уходят из Диалогов."
+            leading={
+              <ChannelIcon
+                network="telegram"
+                size={18}
+                className="text-inherit"
+              />
+            }
             leadingClassName={telegramTile}
           >
             <Button

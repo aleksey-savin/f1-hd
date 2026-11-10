@@ -39,12 +39,19 @@ const { describeMailMode, mailCanSend } = require("../utils/mailGuard");
 const { resolveAiFeatures } = require("../services/ai/features");
 const { resolveBrand, validateBrandInput } = require("../services/brand");
 const taxiConfiguration = require("../services/taxi/settings");
+const wazzupConfiguration = require("../services/wazzup/configuration");
 const { has: hasTaxiPermission } = require("../services/taxi/access");
 const canManageGeneral = (auth) => !auth?.isEndUser && Boolean(auth?.can?.({ settings: ["manage"] }));
+const maskedPreferences = (auth,preferences) => {
+  const result=maskSecrets(preferences);
+  if(result.proxmox) result.proxmox=require('../services/proxmox/exposure/network-links').publicSettings(result.proxmox,auth?.can);
+  return result;
+};
 const preferencesResponse = async (auth, preferences) => ({
   ...(canManageGeneral(auth)
-    ? preferences ? { ...maskSecrets(preferences), mailMode: describeMailMode() } : { message: "Preferences are not set" }
+    ? preferences ? { ...maskedPreferences(auth,preferences), mailMode: describeMailMode() } : { message: "Preferences are not set" }
     : {}),
+  ...(canManageGeneral(auth) ? { wazzup: await wazzupConfiguration.loadConfiguration() } : {}),
   ...(hasTaxiPermission(auth, "configure") ? { taxiBusiness: await taxiConfiguration.loadConfiguration() } : {}),
 });
 
@@ -302,14 +309,16 @@ exports.update = async (req, res, next) => {
     const body = req.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new AppError("Некорректное тело настроек", 400);
     const has = (key) => Object.prototype.hasOwnProperty.call(body, key);
-    const generalChanged = Object.keys(body).some((key) => key !== "taxiBusiness");
+    const generalChanged = Object.keys(body).some((key) => !["taxiBusiness", "wazzup"].includes(key));
     const taxiForbidden = has("taxiBusiness") && !hasTaxiPermission(req.auth, "configure");
-    const generalForbidden = (generalChanged || !has("taxiBusiness")) && !canManageGeneral(req.auth);
+    const generalForbidden = (generalChanged || has("wazzup") || !has("taxiBusiness")) && !canManageGeneral(req.auth);
     if (taxiForbidden || generalForbidden) throw new AppError("Недостаточно прав для изменения настроек", 403);
     // Validate the taxi draft before mutating any general preference fields.
     const taxiDraft = has("taxiBusiness") ? await taxiConfiguration.prepareConfiguration(body.taxiBusiness) : null;
-    if (!generalChanged && taxiDraft) {
-      await taxiConfiguration.saveConfiguration(taxiDraft);
+    const wazzupDraft = has("wazzup") ? await wazzupConfiguration.prepareConfiguration(body.wazzup) : null;
+    if (!generalChanged && (taxiDraft || wazzupDraft)) {
+      if (wazzupDraft) await wazzupConfiguration.saveConfiguration(wazzupDraft);
+      if (taxiDraft) await taxiConfiguration.saveConfiguration(taxiDraft);
       const preferences = canManageGeneral(req.auth) ? await Preferences.findOne({}) : null;
       return res.status(200).json({ message: "Настройки сохранены", preferences: await preferencesResponse(req.auth, preferences) });
     }
@@ -329,6 +338,7 @@ exports.update = async (req, res, next) => {
     // Старое значение читаем до перезаписи preferences.knowledgeBase.
     let secretsJustEnabled = false;
     let serviceJustEnabled = false;
+    let proxmoxLinksChanged = false;
 
     /**
      * Требование второго фактора к администраторам.
@@ -553,13 +563,14 @@ exports.update = async (req, res, next) => {
       let validated;
       try {
         validated = await require("../services/proxmox/settings").validateSettings(
-          body.proxmox, preferences.proxmox,
+          body.proxmox, preferences.proxmox, { can: req.auth.can },
         );
       } catch (error) {
         return next(error);
       }
       for (const [key, value] of Object.entries(validated.changes))
         preferences.set(`proxmox.${key}`, value);
+      proxmoxLinksChanged = Object.hasOwn(validated.changes, 'networkLinks');
     }
 
     // Табло статусов: из веба приходит только isActive; служебные поля
@@ -605,7 +616,12 @@ exports.update = async (req, res, next) => {
       );
     }
 
+    if (wazzupDraft) await wazzupConfiguration.saveConfiguration(wazzupDraft);
     await preferences.save();
+    if (proxmoxLinksChanged) {
+      await require('../services/proxmox/exposure/store').invalidateResources({}, 'networkLinksChanged');
+      await require('../services/proxmox/core').event({ connectionId: null }, 'networkLinksChanged', 'Сохранены связи сетей Proxmox с MikroTik', req.auth.userId);
+    }
     if (taxiDraft) await taxiConfiguration.saveConfiguration(taxiDraft);
 
     // Только что включённые фичи сканируем сразу. Ошибка скана не должна

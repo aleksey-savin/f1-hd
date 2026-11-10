@@ -1,10 +1,9 @@
 # Messaging («Диалоги») — Implementation Notes
 
-_Last updated: 2026-09-25. P0 backend foundation: channels, ingest, mirroring
-into tickets, the outbound queue, the gateway and staff HTTP contracts. Design
-decisions and the mockup are in
-`docs/superpowers/specs/2026-09-24-omnichannel-dialogs-design.md`; this file is
-a snapshot of the backend contract as implemented — verify against the code._
+_Last updated: 2026-11-10. Current backend contracts include direct gateway
+channels and Wazzup v3. The original design and mockup are in
+`docs/superpowers/specs/2026-09-24-omnichannel-dialogs-design.md`; verify these
+implementation notes against the code._
 
 _P1b (2026-09-27): staff UI additions — queue counts, identity candidates,
 `ticket.boundAt`, the `channels` pulse topic, the channel failure alert; the
@@ -13,26 +12,38 @@ frontend map closes §7._
 ## 1. Overview
 
 «Диалоги» ("Dialogues") is HD's messaging inbox: every client conversation from
-a corporate Telegram/WhatsApp account, the MAX bot, or a website form lands
-here, and staff reply from HD into the same channel. **The backend owns all
-state** — channels, conversations, messages, the outbound queue; adapters are
-thin and stateless, and all of them emit the same normalized event shape
-(`services/messaging/events.js`) into the same ingest entry point
-(`services/messaging/ingest.js`), and drain the same outbound job queue
+a corporate Telegram, WhatsApp or MAX account lands here, and staff reply
+from HD into the same channel. **The backend owns all state** — channels,
+conversations, messages and the outbound queue. Both transports normalize their
+events into `services/messaging/events.js`, use the same ingest entry point
+(`services/messaging/ingest.js`) and share the job contract
 (`services/messaging/jobs.js`).
 
-In P0 the only adapter wired up is **msg-gateway**, an external service that
-holds the live Telegram (MTProto/GramJS) and WhatsApp (Baileys) sessions and
-talks to the backend over `/api/gateway/*` (§6). A backend-side MAX webhook
-adapter and the public site-form endpoint are out of scope for P0 (their
-adapters land in later phases) but consume the identical event/job contract —
-nothing here is Telegram/WhatsApp-specific except the gateway transport itself.
+There are two independent transports:
+
+- **Wazzup v3**, implemented in `services/wazzup/`, connects WhatsApp
+  (`whatsapp`, `wapi`), Telegram (`tgapi`, `telegram`) and MAX (`max`, `maxbot`).
+  HD discovers accounts through the provider API, receives authenticated events
+  through a durable webhook inbox and sends replies from its own worker (§9).
+- **msg-gateway**, an external service holding direct Telegram
+  (MTProto/GramJS) and WhatsApp (Baileys) sessions, talks to the backend over
+  `/api/gateway/*` (§6). Existing direct Telegram login, proxy and account
+  settings remain in HD.
+
+The schema also supports website-form channels; a public form adapter is not
+part of this implementation. A Wazzup account is configured in global
+**Настройки системы → Диалоги** (`/preferences#messaging`), separately from
+direct connections. One messenger account must use one connection method.
 
 ## 2. Collections
 
 - **`channels`** (`models/channel.js`) — one document per connected corporate
-  account: Telegram/WhatsApp (gateway-held session), the MAX bot, or a site
-  form. Secrets (`secrets.*`) are `secretBox` ciphertext; only the gateway ever
+  account. `provider` is `gateway` or `wazzup`; old documents without it remain
+  gateway channels. Wazzup adds `providerChannelId` and `providerTransport`,
+  with a unique partial `{provider, providerChannelId}` index for Wazzup.
+  Direct messenger sessions are held by the gateway; MAX and site remain
+  network values.
+  Secrets (`secrets.*`) are `secretBox` ciphertext; only the gateway ever
   sees them decrypted (`controllers/gateway.js#channels`). Messenger sessions
   themselves are **not** stored here — they live in the gateway's own volume,
   so a dev database copy never carries a live prod session. Indexes:
@@ -79,14 +90,27 @@ nothing here is Telegram/WhatsApp-specific except the gateway transport itself.
   Plus `{conversationId, sentAt, seq}` (chronological read), `{conversationId,
   updatedAt}` (`changedSince` polling), `{ticketId}`, sparse `{jobId}`,
   `{channelId, externalId}`.
-- **`channeljobs`** (`models/channelJob.js`) — the outbound/command queue for
-  the gateway (send, markRead, fetchMedia, login, logout, loadHistory,
-  testProxy). No natural unique key (a job has no external id before it is
-  sent). `{state, network, notBefore, createdAt}` and `{conversationId, state,
+- **`channeljobs`** (`models/channelJob.js`) — the outbound/command queue,
+  isolated by `provider: gateway|wazzup` (missing means gateway). Direct
+  gateway jobs support send, markRead, fetchMedia, login, logout, loadHistory
+  and testProxy; Wazzup jobs support send only. No natural unique key (a job
+  has no external id before it is sent). `{state, network, notBefore, createdAt}` and `{conversationId, state,
   createdAt}` back the leasing query and per-conversation head ordering (§5); a
   partial TTL index on `finishedAt` (30 days, only documents that have one)
   prunes finished jobs — long enough to debug a failure, short enough not to
   grow forever.
+- **`wazzupsettings`** (`models/wazzupSettings.js`) — one `WazzupSettings`
+  document (`_id: "wazzup"`): `isActive`, encrypted `apiKey` and `webhookToken`
+  (both `select:false`), selected `channelIds`, discovered `accounts`,
+  `webhookConnected` and persistent `health` (§9). Account rows contain
+  `{id, type, transport, name, account, state, reason}`; `reason` is the
+  backend's user-facing explanation of Wazzup's state.
+- **`wazzupevents`** (`models/wazzupEvent.js`) — durable `WazzupEvent` inbox:
+  `_id` is SHA-256 of the event kind and canonicalized payload; `kind` is
+  `messages`, `statuses` or `channelsUpdates`. Carries `payload`, `attempts`,
+  `notBefore`, `leaseUntil`, `processedAt` and `lastError`. The pending-work
+  index covers `{processedAt, notBefore, leaseUntil, createdAt}`. Processed
+  rows expire after seven days; pending rows do not expire.
 - **`conversationreads`** (`models/conversationRead.js`) — one read watermark
   per `(user, conversation)`, the messaging equivalent of `TicketRead`. Unique
   `{userId: 1, conversationId: 1}` is exactly the upsert key
@@ -129,8 +153,8 @@ never attached to a ticket (`decideAttach`) — they only fill in the timeline.
 ## 4. Ingest invariants
 
 `services/messaging/ingest.js` is the single entry point for every event,
-called by the gateway (`POST /gateway/events`) and, in later phases, the MAX
-webhook and the site form.
+called by the gateway (`POST /gateway/events`) and the Wazzup inbox worker
+(`services/wazzup/processor.js`).
 
 - **Replay via `effects`.** Each `Message` carries
   `effects.{conversation,attach,notify}`; `ingestMessage` runs a step only
@@ -358,11 +382,15 @@ into a neighboring router:
 | `POST /identities/:id/unlink` | manage | Remove that link |
 | `GET /identities/:id/candidates?q=` | manage | Users to link a counterpart to: a `q` that looks like a whole number is one phone term (`services/personSearch.js`); otherwise every word must match one of name/email/phone/position/company; returns `{items: [{id, name, position, company}]}` (≤8, clients first, banned and service accounts excluded) — names only, never the contacts it matched on |
 | `GET /tickets/:num/delivery-routes` | read + ticket access | Reply routes for a ticket ("reply via …") |
+| `GET /preferences/wazzup` | settings | Public Wazzup metadata for a silent `channels` pulse refresh; preserves the UI draft |
+| `POST /preferences/wazzup/check` | settings | Discover Wazzup accounts with a draft API key; no save (§9) |
+| `GET /preferences` | settings | Includes public `wazzup` configuration (§9) |
+| `POST /preferences` | settings | Partial save accepts `{wazzup:{isActive,apiKey,channelIds}}`; shared settings draft (§9) |
 | `GET /channels` | settings | List channels (secret *presence* flags only, never values) |
-| `POST /channels` | settings | Create a channel |
+| `POST /channels` | settings | Create a direct channel; Wazzup channels are synchronized from its configuration |
 | `PATCH /channels/:id` | settings | Update name/isActive/settings/secrets/`serviceUserId` |
 | `DELETE /channels/:id` | settings | Delete (refuses if it still has conversations) |
-| `POST /channels/:id/login` | settings | Gateway login step |
+| `POST /channels/:id/login` | settings | Direct gateway login step; Wazzup rejects gateway commands |
 | `POST /channels/:id/logout` | settings | Gateway logout |
 | `POST /channels/:id/test` | settings | Proxy test |
 | `POST /channels/:id/history` | settings | Request history import (`days`) |
@@ -452,7 +480,7 @@ rules.
 | `/conversations/:id/users/add` («Новый пользователь») | `pages/Conversation/NewUser.tsx` → `components/User/UserForm.jsx` | — |
 | Navigation badge | `components/Conversation/{CountsSync,NavBadges}.tsx`, `layout/Navigation/menu.js`, `layout/MobileBottomNavbar.jsx` | `store/conversations.ts` (`counts`) |
 | Ticket card: the «Хроника» as a dialog (staff and end users), channel markers, delivery status, «Ответить через», «Диалог» row | `components/Ticket/{Chronicle.jsx,ChannelMarker.tsx,ReplyRoute.tsx,use-delivery-routes.ts}`, `components/Ticket/View/Sections.jsx`, `util/chronicle-dialog.js` (sides, names, markers, «Новые») | `store/view-ticket.js` |
-| Settings → «Каналы связи», «Модули» | `components/Preferences/{Channels,TelegramChannelDialog}.tsx`, `components/Preferences/Modules.jsx` | component state, pulse topic `channels` |
+| Settings → «Диалоги» (`/preferences#messaging`), «Модули» | `components/Preferences/{Channels,Wazzup,TelegramChannelDialog}.tsx`, `components/Preferences/Modules.jsx` | Wazzup: shared settings draft + explicit account check; direct channels: component state, pulse topic `channels`; old `#channels` aliases `#messaging` |
 | Pure helpers (node --test) | `util/{conversation-format,conversation-thread,delivery-routes,chronicle-dialog,channel-state}.js` | — |
 
 ## 8. Operations
@@ -474,11 +502,12 @@ rules.
     model, and the bell reads settings with `.lean()`). The **module switch**
     itself, `Preferences.modules.messaging.isActive`, is untouched — always a
     manual opt-in.
-- **`ops/sync-dev-db.sh`** excludes `preferences`, `channels`, `channeljobs` from
+- **`ops/sync-dev-db.sh`** excludes messaging configuration and queues
+  (`preferences`, `channels`, `channeljobs`, `wazzupsettings`, `wazzupevents`) from
   every sync — the dump, the restore's namespace filter, and the pre-restore
   local cleanup all agree on the same list — so a dev copy never receives
-  production's bot tokens, the MAX webhook secret, or production's queued
-  outbound messages.
+  production's bot tokens, Wazzup API/webhook credentials, the MAX webhook
+  secret, queued outbound messages or pending Wazzup events.
 - **`backend/scripts/smokeMessaging.js`** — a dev-only end-to-end check
   (ingest → mirror → reply → echo → close), **not** part of `migrate.js`. Run
   inside the backend container: `node scripts/smokeMessaging.js`. Everything it
@@ -507,7 +536,7 @@ rules.
   bell of everyone holding `settings.manage` (service accounts and banned
   users excluded) — kind `channelState`, category `conversationMessage` (no
   system category exists; same module, in-app only), link
-  `/preferences#channels`, text = channel name + the gateway's reason. The
+  `/preferences#messaging`, text = channel name + the transport's reason. The
   state write is a compare-and-set on the previous state, so a replay or a
   second delivery never rings twice; `error` rings at most once per 6 hours
   per channel (`Channel.errorAlertedAt`, claimed in the same write), because
@@ -522,3 +551,111 @@ rules.
   `hd_queued_no_job_createdAt`); `channeljobs` gets a plain `{messageId: 1}`
   for the repair's per-message job lookup. `repairOutbound` itself also returns
   immediately when `Channel.exists({isActive:true})` is false.
+
+
+## 9. Wazzup operations
+
+**Configuration and access.** `settings.manage` is required independently by
+the preferences write path, `GET /api/preferences/wazzup` and
+`POST /api/preferences/wazzup/check`.
+`GET /api/preferences` exposes `wazzup` only to settings administrators:
+
+```text
+{
+  isActive, apiKeyIsSet, channelIds,
+  accounts: [{id, type, transport, name, account, state, reason}],
+  health: {lastCheckedAt, lastOkAt, lastMessageAt,
+           lastError, lastErrorHint, lastErrorAt},
+  webhookConnected
+}
+```
+
+`type` is `telegram|whatsapp|max`. Secret values are never returned.
+`POST /api/preferences/wazzup/check {apiKey}` uses the draft key; an empty
+string uses the stored key. It returns `{accounts, message}` without writing
+configuration, health, channels or a webhook. A successful check proves API
+access only. The UI does not fetch this catalog automatically on mount, ties
+its result to the key draft and keeps saved accounts selectable after a
+failed discovery. On a `channels` pulse, `GET /api/preferences/wazzup` returns
+`{wazzup}` and refreshes saved account/health metadata without changing the
+draft switch, key or selection. A check with a new draft key retains its
+own result instead of inheriting the saved connection's status.
+
+The main `POST /api/preferences` accepts the partial draft
+`{wazzup:{isActive,apiKey,channelIds}}`; an empty `apiKey` preserves the saved
+secret. Wazzup uses the page's `SectionForm`/`DraftBar`, with no section save
+button. Enabling requires at least one selected account; the server fetches
+accounts again and rejects unknown selections. It also rejects an account
+already active directly when its canonical phone or username matches a
+direct channel of the same network. Disabling or deselecting deactivates the
+Wazzup channels while retaining their IDs and conversation history; direct
+channels are untouched. The worker reconciles interrupted synchronization
+after restart.
+
+**Webhook registration.** Secrets use `secretBox` and require `APP_ENC_KEY`.
+Set a public HTTPS base in `APP_PUBLIC_URL` or `ADDRESS`; credentials, query,
+fragment, literal IPs and local hostnames are rejected. During an active save,
+HD generates a random callback token, encrypts it and registers
+`/api/wazzup/webhook?token=<generated-token>` through Wazzup's v3 `webhooks`
+API. Registration subscribes to `messagesAndStatuses` and `channelsUpdates`,
+with `contactsAndDealsCreation:false`. The callback handles Wazzup's
+authenticated `test:true` probe before activation. An existing callback for
+another integration causes a 409 instead of being overwritten. Failed
+registration leaves working credentials unchanged; `webhookConnected` records
+successful registration separately from an API check. Disabling does not
+unregister the remote callback: authenticated events are acknowledged and
+ignored while Wazzup is inactive.
+
+**Durable incoming delivery.** The dedicated callback uses its token, not a
+browser session, compares it in constant time and accepts at most 500 events
+per request. Its route limit is 600 requests per minute per IP. A normal 200
+means all accepted events were persisted with deduplicating upserts into
+`WazzupEvent`; a database failure returns 503 so Wazzup can redeliver. Each
+queue key covers the kind plus canonicalized payload, while common ingest
+also deduplicates messages by channel/chat/provider message ID. The worker
+runs every three seconds, drains at most 50 events with two-minute leases,
+and retries processing failures with backoff up to one hour. Statuses and
+own-message echoes that arrive before the send response wait for correlation
+(up to one day). Invalid events or events for unselected channels are ignored.
+Incoming messages, device echoes, edits, deletions and delivery statuses all
+pass through common ingest and ticket mirroring; no separate conversation
+store is created.
+
+**Provider-isolated outgoing delivery.** `ChannelJob.provider` follows the
+channel. `/api/gateway/*` cannot list or lease Wazzup channels/jobs, ingest
+events or heartbeat for those channels, or acknowledge their jobs. Old jobs
+without `provider` remain gateway jobs. The Wazzup worker leases only `provider:wazzup`, checks the active configuration,
+selected account, active channel and the «Диалоги» module, then calls
+`POST https://api.wazzup24.com/v3/message`. Login, logout, proxy tests,
+history import and mark-read commands remain direct-gateway operations.
+Wazzup channels set `historyDays:0` and `markReadOnOpen:false`: opening a
+conversation marks it seen in HD without calling Wazzup, and there is no
+historical import through this adapter.
+
+A logical reply is split into text parts (1024 characters for `wapi`, 10,000
+for other WhatsApp transports, 4096 for Telegram/MAX), followed by one part
+per attachment. Each part has a stable `crmMessageId` derived from the job ID
+and part number. Before every external send, the worker persists its
+`inFlightPart`; after a confirmed response it persists `nextPart` and
+`externalIds`, then continues. Delivery statuses aggregate over all provider
+IDs belonging to the logical reply. A 429 can retry automatically using
+`Retry-After` (bounded to six hours). A timeout, missing response ID or crash
+with an in-flight part leaves acceptance unknown and fails the job without
+an automatic resend. Staff must inspect the conversation in Wazzup before
+using the existing manual retry action, which creates a new delivery attempt;
+late receipts for the previous attempt cannot mark the new attempt delivered.
+
+**Media.** Incoming downloads accept only HTTPS URLs on exactly
+`store.wazzup24.com` or `store.wazzup24.ru`, without credentials or an explicit
+port; redirects are refused. The timeout is 30 seconds. The limit is the
+lower of `Channel.settings.maxMediaMb` and 50 MiB, checked both from
+`Content-Length` and while streaming. Oversized attachments are marked
+`skipped`; an expired 404/410 URL is marked `failed`; other download failures
+retry through the durable event queue. Accepted bytes go into HD storage.
+Outgoing attachments use a presigned S3 GET URL when the file is held in S3,
+or the public HD `/uploads/` URL for a local file.
+
+Persistent health is written by real incoming processing and outgoing sends:
+`lastOkAt`, `lastMessageAt`, `lastError`, `lastErrorHint`, `lastErrorAt`.
+Provider errors are reduced to safe user-facing explanations; raw transport
+errors, API keys and token-bearing callback URLs are not returned to staff.

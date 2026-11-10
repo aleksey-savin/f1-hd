@@ -35,6 +35,8 @@ const tripSchema = new Schema({
   driver: { name: String, phone: String, car: String, number: String },
   lastSyncedAt: Date, financialPending: { type: Boolean, default: true }, manuallyAssigned: { type: Boolean, default: false }, presenceAppliedAt: Date,
   announcementClaimedAt: Date,
+  officeArrivalObservedAt: Date, officeArrivalAppliedAt: Date,
+  officeArrivalPending: { type: Boolean, default: false },
 }, { timestamps: true });
 tripSchema.index({ clientId: 1, externalId: 1 }, { unique: true });
 module.exports = {

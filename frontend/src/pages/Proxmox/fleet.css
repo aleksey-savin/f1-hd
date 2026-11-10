@@ -1,0 +1,82 @@
+.proxmox-fleet-columns {
+  flex: 0 0 645px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(155px, 1fr) 170px 135px 125px;
+  align-items: center;
+  gap: 20px;
+}
+.proxmox-fleet-columns.proxmox-nodes {
+  flex-basis: 680px;
+  grid-template-columns: minmax(150px, 1fr) 180px 135px 125px;
+}
+.proxmox-fleet-list {
+  container: proxmox-fleet / inline-size;
+}
+.proxmox-exposure-row {
+  position: relative;
+}
+.proxmox-exposure-row > .group::before {
+  display: block;
+}
+.proxmox-exposure-row.has-public {
+  background: color-mix(in oklab, var(--destructive) 5%, var(--card));
+}
+.proxmox-exposure-row.has-public::after,
+.proxmox-exposure-row.has-unknown::after,
+.proxmox-exposure-row.has-restricted::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  pointer-events: none;
+  background: var(--destructive);
+}
+.proxmox-exposure-row.has-unknown::after {
+  background: var(--warning);
+}
+.proxmox-exposure-row.has-restricted::after {
+  background: var(--muted-foreground);
+}
+@container proxmox-fleet (max-width: 1050px) {
+  .proxmox-fleet-columns {
+    flex-basis: 310px;
+    grid-template-columns: 160px 130px;
+  }
+  .proxmox-fleet-columns.proxmox-nodes {
+    flex-basis: 310px;
+    grid-template-columns: 170px 120px;
+  }
+  .proxmox-fleet-columns .proxmox-capacity,
+  .proxmox-fleet-columns .proxmox-state {
+    display: none;
+  }
+}
+@container proxmox-fleet (max-width: 650px) {
+  .proxmox-fleet-columns {
+    display: none;
+  }
+  .proxmox-row-mobile {
+    display: block;
+  }
+}
+@media (max-width: 1200px) {
+  .proxmox-fleet-columns {
+    flex-basis: 310px;
+    grid-template-columns: 160px 130px;
+  }
+  .proxmox-fleet-columns.proxmox-nodes {
+    grid-template-columns: 170px 120px;
+  }
+  .proxmox-fleet-columns .proxmox-capacity,
+  .proxmox-fleet-columns .proxmox-state {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  .proxmox-fleet-columns {
+    display: none;
+  }
+}

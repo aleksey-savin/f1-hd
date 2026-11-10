@@ -372,6 +372,10 @@ jobs.register("mail outbox", "*/20 * * * * *", sendPendingEmails, 110000);
 jobs.register("Proxmox monitoring", "* * * * *", require("./services/proxmox/monitor").poll, 55000);
 jobs.register("Proxmox alerts", "* * * * *", require("./services/proxmox/monitor").alerts, 55000);
 jobs.register("Proxmox operations", "*/15 * * * * *", require("./services/proxmox/operations").tick, 14000);
+jobs.register("Proxmox guest CVE", "*/30 * * * * *", require("./services/proxmox/guest-security").tick, 180000, { quietSkip: true });
+jobs.register("Proxmox guest agent", "*/30 * * * * *", require("./services/proxmox/guest-agent").tick, 55000, { quietSkip: true });
+jobs.register("Proxmox node security", "*/30 * * * * *", require("./services/proxmox/node-security").tick, 120000, { quietSkip: true });
+jobs.register('Proxmox external exposure', '*/30 * * * * *', require('./services/proxmox/exposure/worker').tick, 180000, { quietSkip: true });
 // Настройки такси задают частоту опроса; persisted lease защищает несколько
 // экземпляров backend, общий registry — повторный запуск внутри процесса.
 jobs.register("Corporate taxi", "*/30 * * * * *", require("./services/taxi/integration").runTaxiSync, 240000);
@@ -490,6 +494,9 @@ jobs.register(
   () => require("@/services/messaging/outbound").repairOutbound(),
   50 * 1000,
 );
+
+// Wazzup uses a provider-isolated outbox and durable webhook inbox.
+jobs.register('wazzup', '*/3 * * * * *', () => require('./services/wazzup/worker').runWazzupTick(), 110_000);
 
 // Ночные обслуживающие задания — по настенным часам БИЗНЕС-таймзоны: без
 // опции node-cron исполнял бы «2:00»/«3:00» по UTC контейнера, т.е. днём для

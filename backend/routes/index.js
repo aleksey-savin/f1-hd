@@ -111,6 +111,7 @@ internalRoutes.use("/bot", botRoutes);
  * запросу вторую личность. Роутер отвечает на всё под `/gateway` сам.
  */
 internalRoutes.use("/gateway", gatewayRoutes);
+internalRoutes.use('/wazzup', require('./wazzup'));
 
 /**
  * MCP для ИИ-агентов — тоже ДО `attachSession`, и по той же причине: у агента

@@ -7,6 +7,8 @@ const DEFAULTS = Object.freeze({
   storageCritical: 95,
   thresholdMinutes: 5,
   autoTickets: false,
+  exposureTicketsEnabled: false,
+  cveMinSeverity: "high",
   applicantId: null,
   categoryId: null,
 });
@@ -29,7 +31,11 @@ const validateSettings = async (input, current = {}, lookups = {}) => {
       )
         fail("Некорректный идентификатор аккаунта или категории");
       changes[key] = value || null;
-    } else if (key === "autoTickets") {
+    } else if (key === "cveMinSeverity") {
+      if (!["high", "critical"].includes(value))
+        fail("Выберите минимальную опасность: High или Critical");
+      changes[key] = value;
+    } else if (["autoTickets", "exposureTicketsEnabled"].includes(key)) {
       if (typeof value !== "boolean")
         fail("Укажите состояние автоматических заявок");
       changes[key] = value;
@@ -54,6 +60,15 @@ const validateSettings = async (input, current = {}, lookups = {}) => {
     }
   }
   Object.assign(data, changes);
+  if (Object.hasOwn(input, 'networkLinks')) {
+    const { validateNetworkLinks, linksVersion } = require('./exposure/network-links');
+    const links = await validateNetworkLinks(input.networkLinks, stored.networkLinks, lookups);
+    if (JSON.stringify(links) !== JSON.stringify(JSON.parse(JSON.stringify(stored.networkLinks || [])))) {
+      changes.networkLinks = links;
+      changes.networkLinksVersion = linksVersion(links);
+    }
+    data.networkLinks = links;
+  }
   if (data.storageCritical <= data.storageWarning)
     fail("Критический порог должен быть выше уровня предупреждения");
   if (data.autoTickets && (!data.applicantId || !data.categoryId))

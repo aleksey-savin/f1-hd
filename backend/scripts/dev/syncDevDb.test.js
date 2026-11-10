@@ -27,6 +27,11 @@ const record = (event) => { state.events.push(event); fs.writeFileSync(file, JSO
 const fail = (message) => { console.error(message); process.exit(1); };
 if (command === 'timeout' || command === 'ssh') process.exit(0);
 if (command === 'mongorestore') {
+  if (process.env.CHECK_WAZZUP_EXCLUSIONS) {
+    for (const collection of ['wazzupsettings', 'wazzupevents']) {
+      if (!args.some((arg, index) => arg === '--nsExclude' && args[index + 1] === 'hd-source.' + collection)) fail('restoring live Wazzup collection ' + collection);
+    }
+  }
   if (args.includes('--dryRun')) { record('dry-run'); if (process.env.FAIL_DRY_RUN) fail('bad archive'); process.exit(0); }
   record('restore');
   if (state.running) fail('DuplicateKey: country ru year 2026: backend wrote during restore');
@@ -35,7 +40,13 @@ if (command === 'mongorestore') {
 }
 if (command === 'mongosh') {
   const js = args.at(-1);
-  if (js.includes('dropped.forEach')) { record('drop'); if (state.running) fail('drop while writers running'); }
+  if (js.includes('dropped.forEach')) {
+    if (process.env.CHECK_WAZZUP_EXCLUSIONS) {
+      for (const collection of ['wazzupsettings', 'wazzupevents']) {
+        if (!js.includes("'" + collection + "'")) fail('dropping local Wazzup collection ' + collection);
+      }
+    }
+    record('drop'); if (state.running) fail('drop while writers running'); }
   if (js.includes('migrations')) console.log('39');
   else if (js.includes('email:')) console.log('0');
   else if (js.includes("map(c => c + '='")) console.log('preferences=1,channels=0,channeljobs=0,taxisettings=0');
@@ -125,4 +136,10 @@ test("failure to stop writers aborts before dropping any collections", (t) => {
   const f = fixture(t);
   assert.notEqual(f.run(["--raw"], { FAIL_STOP: "1" }).status, 0);
   assert.deepEqual(f.state().events, ["dry-run", "stop"]);
+});
+
+test("sync never imports production Wazzup secrets or webhook queue and preserves local ones", (t) => {
+  const f = fixture(t);
+  const result = f.run(["--raw"], { CHECK_WAZZUP_EXCLUSIONS: "1" });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
 });

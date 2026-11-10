@@ -17,6 +17,12 @@ const LEASE_MS = 2 * 60 * 1000;
 const COMMAND_JOB_TYPES = new Set(["login", "logout", "testProxy", "loadHistory"]);
 const MAX_PAUSE_MS = 6 * 3600 * 1000;
 
+// Wazzup checkpoints parts before the external call. A failed ack must not
+// erase that proof, otherwise a retry resends already accepted parts.
+const resultForAck = (job, result) => job.provider === 'wazzup'
+  ? { ...(job.result || {}), ...(result.result || {}) }
+  : result.result ?? null;
+
 // Долгий опрос шлюза просыпается, как только появилось задание
 const signal = new EventEmitter();
 signal.setMaxListeners(100);
@@ -54,11 +60,12 @@ const enqueueJob = async (fields) => {
   return job;
 };
 
-const leaseJobs = async ({ networks, limit = 10, now = new Date() }) => {
+const leaseJobs = async ({ networks, provider = 'gateway', limit = 10, now = new Date() }) => {
   const mongoose = require("mongoose");
   const ChannelJob = require("@/models/channelJob");
   const free = { $or: [{ leaseUntil: null }, { leaseUntil: { $lte: now } }] };
-  const candidates = await ChannelJob.find({ state: "pending", network: { $in: networks }, notBefore: { $lte: now }, ...free })
+  const transport = provider === 'wazzup' ? { provider: 'wazzup' } : require('./transport').gatewayFilter();
+  const candidates = await ChannelJob.find({ ...transport, state: "pending", network: { $in: networks }, notBefore: { $lte: now }, ...free })
     .sort({ createdAt: 1 })
     .limit(limit * 5)
     .lean();
@@ -172,7 +179,7 @@ const applyMediaOutcome = async (job, result) => {
   );
 };
 
-const ackJobs = async (leaseId, results, { now = Date.now() } = {}) => {
+const ackJobs = async (leaseId, results, { now = Date.now(), provider = 'gateway' } = {}) => {
   const ChannelJob = require("@/models/channelJob");
   let applied = 0;
   let ignored = 0;
@@ -181,7 +188,7 @@ const ackJobs = async (leaseId, results, { now = Date.now() } = {}) => {
     try {
       let job = null;
       try {
-        job = await ChannelJob.findOne({ _id: result?.id, leaseId });
+        job = await ChannelJob.findOne({ _id: result?.id, leaseId, ...(provider === 'wazzup' ? { provider: 'wazzup' } : require('./transport').gatewayFilter()) });
       } catch {
         job = null;
       }
@@ -189,7 +196,7 @@ const ackJobs = async (leaseId, results, { now = Date.now() } = {}) => {
         ignored += 1;
         continue;
       }
-      Object.assign(job, applyAck(job, result, now), { leaseId: null, leaseUntil: null, result: result.result ?? null });
+      Object.assign(job, applyAck(job, result, now), { leaseId: null, leaseUntil: null, result: resultForAck(job, result) });
       // Код и пароль входа не храним ни минуты дольше нужного
       if (job.type === "login") job.payload = { ...job.payload, value: null };
       await job.save();
@@ -211,4 +218,4 @@ const ackJobs = async (leaseId, results, { now = Date.now() } = {}) => {
   return { applied, ignored };
 };
 
-module.exports = { LEASE_MS, pickHeads, applyAck, enqueueJob, leaseJobs, ackJobs, waitForJob };
+module.exports = { LEASE_MS, pickHeads, applyAck, resultForAck, enqueueJob, leaseJobs, ackJobs, waitForJob };

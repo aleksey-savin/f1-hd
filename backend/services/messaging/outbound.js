@@ -89,6 +89,7 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
   const job = await enqueueJob({
     channelId: channel._id,
     network: channel.type,
+    provider: require("./transport").providerOf(channel),
     type: "send",
     conversationId: conversation._id,
     messageId: message._id,
@@ -244,6 +245,7 @@ const retryMessage = async ({ messageId, auth }) => {
   const job = await enqueueJob({
     channelId: channel._id,
     network: channel.type,
+    provider: require("./transport").providerOf(channel),
     type: "send",
     conversationId: conversation._id,
     messageId: message._id,
@@ -253,6 +255,12 @@ const retryMessage = async ({ messageId, auth }) => {
   message.jobId = job._id;
   message.status = "queued";
   message.error = "";
+  if (channel.provider === 'wazzup') {
+    // A retry is a new delivery attempt. Late receipts for the old attempt
+    // must never make this queued attempt appear read before it was sent.
+    message.externalId = undefined;
+    message.externalIds = undefined;
+  }
   await message.save();
   if (message.commentId) {
     // $set: undefined ничего не чистит (Mongoose его вырезает) — нужен $unset
@@ -297,6 +305,7 @@ const repairOutbound = async () => {
     const job = await enqueueJob({
       channelId: channel._id,
       network: channel.type,
+      provider: require("./transport").providerOf(channel),
       type: "send",
       conversationId: conversation._id,
       messageId: message._id,

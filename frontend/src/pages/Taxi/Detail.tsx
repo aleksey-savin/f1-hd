@@ -5,7 +5,6 @@ import { Panel } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/util/format-date";
 import { taxiPurposeLabel } from "@/components/Taxi/purpose";
-import { formatTaxiAddress } from "@/components/Taxi/address";
 import { formatPhone, phoneHref } from "@/util/phone";
 import type { TaxiDetail } from "@/types/taxi";
 
@@ -80,11 +79,8 @@ export default function TaxiTripDetail() {
             </p>
             <div>
               <div className="text-sm text-muted-foreground">Маршрут</div>
-              {formatTaxiAddress(trip.origin?.address) ||
-                "Отправление уточняется"}{" "}
-              →{" "}
-              {formatTaxiAddress(trip.destination?.address) ||
-                "Назначение уточняется"}
+              {trip.origin?.address || "Отправление уточняется"} →{" "}
+              {trip.destination?.address || "Назначение уточняется"}
             </div>
             <p className="my-0 text-sm">
               {trip.startedAt

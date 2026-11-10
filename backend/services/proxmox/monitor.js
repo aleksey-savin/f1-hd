@@ -7,6 +7,7 @@ const issueOf = (target, type) =>
   target?.monitoringIssues?.get?.(type) ?? target?.monitoringIssues?.[type];
 const modelOf = (target) => (target.kind ? Resource : Connection);
 const markProblem = async (target, type, title, startedAt, error) => {
+  if (target.monitoringEnabled === false) return;
   const Model = modelOf(target),
     path = `monitoringIssues.${type}`;
   const companyId =
@@ -20,7 +21,7 @@ const markProblem = async (target, type, title, startedAt, error) => {
       ? `transit:${target.blockedByMikrotikId}`
       : `${target.kind ? "resource" : "connection"}:${target._id}:${type}`;
   await Model.updateOne(
-    { _id: target._id, [`${path}.active`]: { $ne: true } },
+    { _id: target._id, monitoringEnabled: { $ne: false }, [`${path}.active`]: { $ne: true } },
     {
       $set: {
         [path]: {
@@ -78,6 +79,7 @@ const recoveryComments = async (applicantId) => {
   const tickets = await Ticket.find({
     "proxmoxSource.recoveredAt": { $exists: true },
     "proxmoxSource.recoveryCommentAt": null,
+    'proxmoxSource.type': { $ne:'exposureSecurity' },
   })
     .select("+proxmoxSource")
     .limit(100);
@@ -121,6 +123,7 @@ const recoveryComments = async (applicantId) => {
   }
 };
 const observeResource = async (resource, connection, now) => {
+  if (resource.monitoringEnabled === false || connection.monitoringEnabled === false) return;
   const settings = (await Preferences.findOne({}).lean())?.proxmox || {};
   if (
     maintenanceActive(resource.maintenance, now) ||
@@ -314,7 +317,7 @@ const alerts = async () => {
       archived: false,
     }).select("+monitoringIssues");
     for (const target of [connection, ...resources]) {
-      if (maintenanceActive(target.maintenance)) continue;
+      if (target.monitoringEnabled === false || maintenanceActive(target.maintenance)) continue;
       for (const [type, issue] of issueEntries(target)) {
         if (
           !issue.active ||
@@ -369,6 +372,7 @@ const alerts = async () => {
         const claimed = await Model.findOneAndUpdate(
           {
             _id: target._id,
+            monitoringEnabled: { $ne: false },
             [`${path}.key`]: issue.key,
             [`${path}.active`]: true,
             [`${path}.ticketId`]: null,
@@ -433,6 +437,7 @@ const alerts = async () => {
           const attached = await Model.updateOne(
             {
               _id: target._id,
+              monitoringEnabled: { $ne: false },
               [`${path}.key`]: issue.key,
               [`${path}.active`]: true,
             },
@@ -456,7 +461,14 @@ const alerts = async () => {
     }
   }
 };
+const recoverResource = async (resource) => {
+  const current = await Resource.findById(resource._id).select("+monitoringIssues");
+  if (!current) return;
+  for (const [type, issue] of issueEntries(current))
+    if (issue.active) await recover(current, type);
+};
 module.exports = {
+  recoverResource,
   poll,
   alerts,
   observeResource,

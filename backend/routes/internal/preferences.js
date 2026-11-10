@@ -3,6 +3,7 @@ const rateLimit = require("express-rate-limit");
 const router = new Router();
 const preferencesController = require("@/controllers/preferences");
 const preferencesValidation = require("@/validations/preferences");
+const wazzupSettingsController = require("@/controllers/wazzupSettings");
 const mcpKeyController = require("@/controllers/mcpKey");
 const mcpKeyValidation = require("@/validations/mcpKey");
 const isAuth = require("@/middleware/isAuth");
@@ -134,6 +135,19 @@ router.post(
   mcpKeyValidation.update,
   checkValidationResult,
   mcpKeyController.update,
+);
+router.get(
+  "/preferences/wazzup",
+  isAuth,
+  canManageSettings,
+  wazzupSettingsController.get,
+);
+router.post(
+  "/preferences/wazzup/check",
+  isAuth,
+  canManageSettings,
+  checkLimiter,
+  wazzupSettingsController.check,
 );
 router.post(
   "/preferences/mailbox/check",

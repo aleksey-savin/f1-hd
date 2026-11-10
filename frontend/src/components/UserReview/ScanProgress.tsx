@@ -25,13 +25,7 @@ import {
   scanPresentation,
 } from "./scan-presentation";
 
-export default function ScanProgress({
-  summary,
-  onShowErrors,
-}: {
-  summary: ReviewSummary;
-  onShowErrors: () => void;
-}) {
+export default function ScanProgress({ summary }: { summary: ReviewSummary }) {
   const can = useCan();
   const fetcher = useFetcher<ReviewActionResult>();
   const fromState = useCrumbFrom("Анализ заявок");
@@ -171,7 +165,7 @@ export default function ScanProgress({
             aria-valuemin={0}
             aria-valuenow={view.progress.settled}
             aria-valuemax={view.progress.total}
-            aria-valuetext={`Обработано ${view.progress.settled} из ${view.progress.total}; проверено ${view.progress.checked}, с ошибками ${view.progress.errors}`}
+            aria-valuetext={`Обработано ${view.progress.settled} из ${view.progress.total}; проверено ${view.progress.checked}, не удалось проверить ${view.progress.errors}`}
           >
             <div
               className="h-full rounded-full bg-primary transition-[width] duration-700 motion-reduce:transition-none"
@@ -180,8 +174,8 @@ export default function ScanProgress({
           </div>
           {view.progress.errors > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Проверено {scanNumber(view.progress.checked)} · с ошибками{" "}
-              {scanNumber(view.progress.errors)}. Ошибки не считаются проверкой.
+              Проверено: {scanNumber(view.progress.checked)} · не удалось
+              проверить: {scanNumber(view.progress.errors)}.
             </p>
           )}
           {scan.phase === "paused" && scan.remaining > 0 && (
@@ -239,20 +233,13 @@ export default function ScanProgress({
           </dl>
         </details>
       )}
-      {(view.showResults || scan.errors > 0) && (
+      {view.showResults && (
         <div className="mt-5 flex flex-wrap gap-2 border-t border-border-soft pt-4">
-          {view.showResults && (
-            <Button asChild variant="outline">
-              <Link to="/users/review">
-                Открыть проверку пользователей <RiArrowRightLine />
-              </Link>
-            </Button>
-          )}
-          {scan.errors > 0 && (
-            <Button variant="ghost" onClick={onShowErrors}>
-              Показать ошибки · {scanNumber(scan.errors)}
-            </Button>
-          )}
+          <Button asChild variant="outline">
+            <Link to="/users/review">
+              Открыть проверку пользователей <RiArrowRightLine />
+            </Link>
+          </Button>
         </div>
       )}
       {fetcher.data?.error && (

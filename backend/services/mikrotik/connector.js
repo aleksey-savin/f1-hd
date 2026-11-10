@@ -274,7 +274,7 @@ const API_COMMAND_TIMEOUT_MS = envInt("MIKROTIK_API_COMMAND_TIMEOUT_MS", 60000);
 const runApiSession = async (
   { host, port, user, password, tlsCert, knockSequence, jump },
   fn,
-  { deadlineMs = POLL_DEADLINE_MS } = {},
+  { deadlineMs = POLL_DEADLINE_MS, readLimits } = {},
 ) => {
   let watchdogTimer;
   let routeros;
@@ -355,7 +355,7 @@ const runApiSession = async (
     // chunks (see ./apiReader), which left healthy reads hanging until their
     // timeout. Its leftover login listener goes too, so nothing parses twice.
     conn.socket.removeAllListeners("data");
-    conn.write = (words) => sendCommand(conn, words);
+    conn.write = (words) => sendCommand(conn, words, readLimits);
     return fn({ conn, routeros, jumpHostKey });
   })();
 
@@ -535,14 +535,14 @@ const pollDevice = (
 // reply rows, rejects on !trap with RouterOS's own message, and on silence
 // after timeoutMs ("read timeout") — a socket the device closed never settles
 // the library's promise, so the timeout is the only way out.
-const withApiSession = (params, fn, { deadlineMs } = {}) =>
+const withApiSession = (params, fn, { deadlineMs, readLimits } = {}) =>
   runApiSession(
     params,
     ({ conn }) =>
       fn((words, { timeoutMs = API_COMMAND_TIMEOUT_MS } = {}) =>
         withReadTimeout(conn.write(words), timeoutMs),
       ),
-    { deadlineMs },
+    { deadlineMs, readLimits },
   );
 
 // Is a failed poll worth retrying right away? Timeouts and reset connections are

@@ -3,7 +3,10 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/app/Combobox";
 import SettingRow from "@/components/app/SettingRow";
+import Segmented from "@/components/app/Segmented";
 import SectionForm from "./SectionForm";
+import ProxmoxNetworks from "./ProxmoxNetworks";
+import { useCan } from "@/store/authed-user";
 const defaults = {
   cpuThreshold: 90,
   memoryThreshold: 90,
@@ -11,6 +14,8 @@ const defaults = {
   storageCritical: 95,
   thresholdMinutes: 5,
   autoTickets: false,
+  exposureTicketsEnabled: false,
+  cveMinSeverity: "high",
   applicantId: null,
   categoryId: null,
 };
@@ -33,6 +38,7 @@ const thresholds = [
   ],
 ];
 export default function PrefsProxmox({ prefs }) {
+  const can = useCan();
   const [values, setValues] = useState(() => ({
     ...defaults,
     ...prefs.proxmox,
@@ -91,6 +97,43 @@ export default function PrefsProxmox({ prefs }) {
   });
   return (
     <SectionForm buildPayload={payload} blockedReason={reason}>
+      <SettingRow
+        title="Минимальная опасность CVE"
+        hint="Общий порог для предупреждений и заявок. Все найденные CVE остаются в отчёте."
+      >
+        <Segmented
+          options={[
+            { value: "high", label: "High" },
+            { value: "critical", label: "Critical" },
+          ]}
+          value={values.cveMinSeverity}
+          onChange={(value) => set("cveMinSeverity", value)}
+          ariaLabel="Минимальная опасность уязвимости"
+        />
+      </SettingRow>
+      {prefs.modules?.mikrotik?.isActive && (
+        <>
+          <SettingRow
+            title="Создавать заявки по проблемам ВМ с внешним доступом"
+            hint="Требует включённых автоматических заявок Proxmox. Сам проброс порта заявку не создаёт."
+            htmlFor="prefs-proxmox-exposure-tickets"
+          >
+            <Switch
+              id="prefs-proxmox-exposure-tickets"
+              checked={Boolean(values.exposureTicketsEnabled)}
+              disabled={!values.autoTickets}
+              onCheckedChange={(value) => set("exposureTicketsEnabled", value)}
+            />
+          </SettingRow>
+          <ProxmoxNetworks
+            value={values.networkLinks || []}
+            onChange={(value) => set("networkLinks", value)}
+            canEdit={
+              can({ proxmox: ["manage"] }) && can({ mikrotik: ["read"] })
+            }
+          />
+        </>
+      )}
       {thresholds.map(([key, label, hint], index) => (
         <SettingRow
           key={key}

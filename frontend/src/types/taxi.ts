@@ -1,4 +1,5 @@
 export type TaxiPurpose = "business" | "service" | "personal" | "unknown";
+/** Public route labels are formatted by the API; full provider addresses stay on the server. */
 export interface TaxiPoint {
   address: string;
   lat?: number;

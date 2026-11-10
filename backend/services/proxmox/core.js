@@ -1,4 +1,4 @@
-const { Connection, Resource, Event } = require("../../models/proxmox");
+const { Connection, Resource, Event, GuestSecurity } = require("../../models/proxmox");
 const Preferences = require("../../models/preferences");
 const Company = require("../../models/company");
 const { encryptSecret } = require("../crypto/secretBox");
@@ -326,6 +326,12 @@ const sync = async (connection) => {
           previous?.guestIdentity &&
           guestIdentity !== previous.guestIdentity
         ) {
+          fields.guestAgent = null;
+          fields.guestOs = null;
+          fields.guestNetwork = null;
+          fields.exposure = null;
+          await Resource.updateOne({ _id: previous._id }, { $inc: { exposureGeneration: 1 } });
+          await GuestSecurity.deleteOne({ resourceId: previous._id });
           await Resource.updateOne(
             { _id: previous._id },
             {
@@ -340,6 +346,12 @@ const sync = async (connection) => {
           );
         }
         if (guestIdentity) fields.guestIdentity = guestIdentity;
+        if (previous && (previous.missingSince || previous.nodeName !== row.node)) {
+          fields.guestNetwork = null;
+          fields.exposure = null;
+          await Resource.updateOne({ _id: previous._id }, { $inc: { exposureGeneration: 1 } });
+          if (previous.missingSince) fields.guestIncarnation = require('node:crypto').randomUUID();
+        }
         fields.configError = null;
         const parsed = configResources(cfg, row);
         fields.disks = parsed.disks;
@@ -381,7 +393,12 @@ const sync = async (connection) => {
           $set: {
             lastError:
               "Ресурс отсутствует в доступном ответе API; удаление не подтверждено",
+            missingSince: r.missingSince || now,
+            guestNetwork: null,
+            exposure: null,
+            ...(!r.missingSince ? {guestIncarnation:require('node:crypto').randomUUID()} : {}),
           },
+          $inc: { exposureGeneration: 1 },
         },
       );
   await Connection.updateOne(

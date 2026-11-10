@@ -1,3 +1,4 @@
+import useInitialPrefsStore from "@/store/prefs";
 import { useContext, useState } from "react";
 
 import {
@@ -45,6 +46,7 @@ const TicketBulkActionBar = ({
 }) => {
   const { _id: userId } = useContext(AuthedUserContext);
   const can = useCan();
+  const { modules } = useInitialPrefsStore();
   const [openModal, setOpenModal] = useState(null);
 
   const count = selectedItems.length;
@@ -69,14 +71,13 @@ const TicketBulkActionBar = ({
       label: "Комментарий",
       reason: empty ?? commentReason(selectedItems),
     },
-    // Шторка только ЗАПИСЫВАЕТ работы на выбранные заявки, поэтому спрашиваем
-    // право записи, а не просмотра: видеть работы и заводить их — разные вещи.
-    can({ work: ["log"] }) && {
-      key: "works",
-      icon: RiToolsLine,
-      label: "Работы",
-      reason: empty ?? addWorksReason(selectedItems),
-    },
+    modules.timeTracking?.isActive &&
+      can({ work: ["read", "log"] }) && {
+        key: "works",
+        icon: RiToolsLine,
+        label: "Работы",
+        reason: empty ?? addWorksReason(selectedItems),
+      },
     can({ ticket: ["perform"] }) && {
       key: "close",
       icon: RiCheckboxCircleLine,

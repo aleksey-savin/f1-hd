@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type { PulseSnapshot } from "@/lib/pulse/live-cursor";
 import type { NotificationsSummary } from "@/types/notification";
+import type { AccessSnapshot } from "@/lib/access-refresh";
 
 /**
  * Live updates: the last pulse and what the open pages ask the pulse for.
@@ -24,10 +25,12 @@ export type PulseMessage = {
   tickets: Record<string, number | null>;
   /** Present when the person's inbox changed (or the request had no cursor) */
   notifications?: NotificationsSummary;
+  access?: AccessSnapshot;
 };
 
 type PulseState = {
   snapshot: PulseSnapshot | null;
+  access: AccessSnapshot | null;
   appVersion: string | null;
   pollMs: number;
   /** Ticket id → number of open pages watching it */
@@ -44,6 +47,7 @@ let cadenceSeq = 0;
 
 const usePulseStore = create<PulseState>()((set, get) => ({
   snapshot: null,
+  access: null,
   appVersion: null,
   pollMs: 10_000,
   watched: {},
@@ -58,6 +62,7 @@ const usePulseStore = create<PulseState>()((set, get) => ({
         tickets: message.tickets ?? {},
       },
       appVersion: message.appVersion ?? get().appVersion,
+      access: message.access ?? null,
       pollMs: message.pollMs || get().pollMs,
     }),
 

@@ -155,6 +155,7 @@ router.post(
   "/mikrotik-devices/records/:recordId/sync-inventory",
   isAuth,
   canManageMikrotik,
+  canManageDevices,
   mikrotikController.syncInventory,
 );
 router.post(

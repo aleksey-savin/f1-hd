@@ -354,6 +354,25 @@ const blank = (node, fields) => {
  * недоправленное поле от свободного текста).
  */
 const OWN_FIELDS = {
+  preferences: {
+    fields: ['proxmox'], masks: ['proxmox.networkLinks', 'proxmox.networkLinksVersion'],
+    apply(doc) { if (doc.proxmox) { doc.proxmox.networkLinks = []; delete doc.proxmox.networkLinksVersion; doc.proxmox.exposureTicketsEnabled = false; } },
+  },
+  proxmoxresources: {
+    fields: ['guestNetwork', 'guestIncarnation', 'exposure', 'exposureGeneration'],
+    masks: ['guestNetwork', 'guestIncarnation', 'exposure'],
+    apply(doc) { delete doc.guestNetwork; delete doc.guestIncarnation; delete doc.exposure; delete doc.exposureGeneration; },
+  },
+  routerexposuresnapshots: {
+    fields: ['revision','data','status','lastError','checkedAt','lastAttemptAt','leaseToken','leaseUntil'],
+    masks: ['revision','data','status','lastError','checkedAt','lastAttemptAt','leaseToken','leaseUntil'],
+    apply(doc) { for (const key of ['revision','data','status','lastError','checkedAt','lastAttemptAt','leaseToken','leaseUntil']) delete doc[key]; },
+  },
+  guestexposures: {
+    fields: ['generation','inputVersions','reportVersion','checkedAt','freshUntil','report','issue'],
+    masks: ['inputVersions','reportVersion','report','issue'],
+    apply(doc) { for (const key of ['generation','inputVersions','reportVersion','checkedAt','freshUntil','report','issue']) delete doc[key]; },
+  },
   // Подразделение клиента: название, адрес и контакты выдают компанию
   subdivisions: {
     fields: ["name", "email", "phone", "address", "linkToMap", "location"],
@@ -487,6 +506,24 @@ const OWN_FIELDS = {
       }
     },
   },
+  // Guest inventory and execution receipts belong to the source installation.
+  // A copied scan must neither expose that inventory nor resume root commands.
+  proxmoxguestsecurities: {
+    fields: ["status", "report", "inventory", "job", "leaseToken", "leaseUntil", "lastError", "checkedAt", "requestedAt"],
+    masks: ["report", "inventory", "job", "leaseToken", "leaseUntil", "lastError", "checkedAt", "requestedAt"],
+    apply(doc) {
+      doc.status = "error";
+      for (const field of ["report", "inventory", "job", "leaseToken", "leaseUntil", "lastError", "checkedAt", "requestedAt"]) delete doc[field];
+    },
+  },
+  proxmoxnodesecurities: {
+    fields: ["status", "report", "leaseToken", "leaseUntil", "lastError", "checkedAt", "requestedAt"],
+    masks: ["report", "leaseToken", "leaseUntil", "lastError", "checkedAt", "requestedAt"],
+    apply(doc) {
+      doc.status = "unavailable";
+      for (const field of ["report", "leaseToken", "leaseUntil", "lastError", "checkedAt", "requestedAt"]) delete doc[field];
+    },
+  },
   // Ключи WireGuard, выпущенные под запрос на изменение. Само приложение по
   // истечении срока снимает их тем же $unset (changeWorker, purgeKeys).
   mikrotikchanges: {
@@ -607,6 +644,7 @@ const USER_COLLECTIONS = ["users", "users_before_banned"];
 // копирует (NEVER_COPIED): живые сеансы, одноразовые токены, ключи агентов. Она
 // повторена здесь, чтобы скрипт был безопасен и на копии, сделанной иначе.
 const EMPTIED = [
+  'routerexposuresnapshots', 'guestexposures',
   "authSessions", "authVerifications", "mcpkeys", "mikrotikdownloadcodes", "impersonationCodes", "telegramPairingCodes",
   // Секреты двухфакторной проверки и личности в мессенджерах
   "authTwoFactors", "channelidentities",
@@ -617,7 +655,7 @@ const EMPTIED = [
 
 // Свои коллекции машины разработчика: синхронизация их не копирует (KEEP_LOCAL),
 // поэтому и здесь они не правятся и в отчёт не входят
-const KEPT_LOCAL = ["preferences", "channels", "channeljobs", "taxisettings"];
+const KEPT_LOCAL = ["preferences", "channels", "channeljobs", "taxisettings", "wazzupsettings", "wazzupevents"];
 
 /**
  * Свободный текст: прежние адреса, телефоны и имена там ожидаемы и не правятся
@@ -644,7 +682,7 @@ const FREE_TEXT = {
   // Ключи карты monitoringIssues динамические, поэтому классифицируется карта
   // целиком. Токен подключения находится отдельно и удаляется OWN_FIELDS.
   proxmoxconnections: ["lastError", "maintenance.reason", "monitoringIssues"],
-  proxmoxresources: ["lastError", "configError", "lastBackupError", "maintenance.reason", "monitoringIssues"],
+  proxmoxresources: ["lastError", "configError", "lastBackupError", "maintenance.reason", "monitoringIssues", "guestAgent.lastError"],
   proxmoxevents: ["message", "operationData.error", "operationData.log", "operationData.reviewReason"],
   routinetasks: ["title", "description", "checklist"],
   serviceplanreports: ["parts[].comment", "timeline[].comment"],
@@ -708,7 +746,8 @@ const LABELS = {
   // Поля перечислены явно: новое поле интеграции снова потребует решения,
   // а не попадёт автоматически в исключение вместе с учётными данными.
   proxmoxconnections: ["name", "endpoints[].host", "endpoints[].caCert", "endpoints[].fingerprint", "tokenId", "status", "version", "clusterIdentity", "clusterName"],
-  proxmoxresources: ["externalId", "name", "nodeName", "guestIdentity", "status", "storageType", "storageContent", "disks[].name", "disks[].storage", "version", "clusterIdentity", "clusterName"],
+  proxmoxresources: ["externalId", "name", "nodeName", "guestIdentity", "status", "storageType", "storageContent", "disks[].name", "disks[].storage", "version", "clusterIdentity", "clusterName", "guestAgent.version", "guestOs.id", "guestOs.name", "guestOs.version", "guestOs.kernel", "guestOs.arch"],
+  proxmoxnodesecuritysources: ["_id", "data"],
   proxmoxevents: ["kind", "operationData.operation", "operationData.storage", "operationData.idempotencyKey", "operationData.state", "operationData.nodeName", "operationData.upid"],
   proxmoxobservations: ["state"],
   routinetasks: ["category.title", "cronSchedule", "responsibles[].position", "responsibles[].role", "sourceTemplate.title"],

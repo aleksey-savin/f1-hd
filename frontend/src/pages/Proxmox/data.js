@@ -1,5 +1,6 @@
 import { redirect } from "react-router";
 import { api } from "@/lib/api";
+import { guestAgentActionResult } from "./guest-agent-presentation";
 export const ROOT = "/devices/proxmox";
 export const labels = {
   guests: "ВМ и LXC",
@@ -91,9 +92,27 @@ export async function formLoader({ request, params }) {
 export async function resourceLoader({ params, request }) {
   const url = new URL(request.url);
   const section = url.searchParams.get("section");
-  if (!["metrics", "events", "availability", "operations"].includes(section))
+  if (
+    ![
+      "metrics",
+      "events",
+      "availability",
+      "operations",
+      "security",
+      "exposure",
+    ].includes(section)
+  )
     throw new Response("Неизвестный раздел", { status: 404 });
   try {
+    if (section === "exposure")
+      return await api(`/api/proxmox/guests/${params.id}/exposure`, {
+        signal: request.signal,
+      });
+    if (section === "security")
+      return await api(
+        `/api/proxmox/${url.searchParams.get("kind") === "nodes" ? "nodes" : "guests"}/${params.id}/security`,
+        { signal: request.signal },
+      );
     if (section === "operations") {
       const cursor = url.searchParams.get("cursor") || "";
       const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
@@ -116,6 +135,31 @@ export async function action({ request, params }) {
   const body = await request.json();
   const { intent, ...payload } = body;
   try {
+    if (intent === "guestAgent") {
+      const { resourceId, ...settings } = payload;
+      const result = await api(
+        `/api/proxmox/guests/${encodeURIComponent(resourceId || params.id)}/agent`,
+        { method: "PATCH", body: settings },
+      );
+      return guestAgentActionResult(result, resourceId || params.id);
+    }
+    if (intent === "resourceMonitoring") {
+      const { resourceId, monitoringEnabled } = payload;
+      return await api(
+        `/api/proxmox/resources/${encodeURIComponent(resourceId || params.id)}/monitoring`,
+        { method: "PATCH", body: { monitoringEnabled } },
+      );
+    }
+    if (intent === "checkNodeSecurity")
+      return await api(`/api/proxmox/nodes/${params.id}/security`, {
+        method: "POST",
+        body: {},
+      });
+    if (intent === "checkGuestSecurity")
+      return await api(`/api/proxmox/guests/${params.id}/security`, {
+        method: "POST",
+        body: {},
+      });
     if (intent === "cancelOperation") {
       const { resourceId, operationId } = payload;
       return await api(
@@ -175,11 +219,13 @@ export async function action({ request, params }) {
         method: "PATCH",
         body: { companyId: payload.companyId || null },
       });
-    if (intent === "bulkCompany")
-      return await api("/api/proxmox/guests/company", {
+    if (intent === "bulkCompany") {
+      const result = await api("/api/proxmox/guests/company", {
         method: "PATCH",
         body: payload,
       });
+      return { ...result, intent };
+    }
     if (intent === "operation") {
       const { resourceId, ...operation } = payload;
       const result = await api(
@@ -212,11 +258,14 @@ export async function action({ request, params }) {
     throw new Error("Неизвестное действие");
   } catch (error) {
     if (error.status === 401) throw error;
-    return {
+    const result = {
       error: true,
       message: error.message,
       details: error.payload,
       sessionId: payload.clientSessionId || payload.sessionId,
     };
+    return intent === "guestAgent"
+      ? guestAgentActionResult(result, payload.resourceId || params.id)
+      : { ...result, intent };
   }
 }

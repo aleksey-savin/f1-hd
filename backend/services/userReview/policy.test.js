@@ -27,11 +27,11 @@ test('normalization retains every person in a long request and strips model supp
   assert.equal(result[0]._id, undefined);
 });
 
-test('malformed outputs and fabricated quotations or identities fail instead of becoming a checked empty analysis', () => {
+test('malformed output fails while unsupported quotations and identities are discarded', () => {
   const context = { ticket: { description: 'Сидоров Илья уволен.' } };
   assert.throws(() => normalizeAnalysis({ result: [] }, context), /events/);
-  assert.throws(() => normalizeAnalysis({ events: [event('Сидоров Илья', 'Вымышленная цитата')] }, context), /quote/);
-  assert.throws(() => normalizeAnalysis({ events: [event('Петров Пётр', 'Сидоров Илья уволен.')] }, context), /identity/);
+  assert.deepEqual(normalizeAnalysis({ events: [event('Сидоров Илья', 'Вымышленная цитата')] }, context), []);
+  assert.deepEqual(normalizeAnalysis({ events: [event('Петров Пётр', 'Сидоров Илья уволен.')] }, context), []);
   assert.throws(() => normalizeAnalysis({ events: [event('Сидоров Илья', 'Сидоров Илья уволен.', { access: 'delete' })] }, context), /access/);
 });
 
@@ -131,7 +131,7 @@ test('whole quoted messages with mail headers remain historical evidence', () =>
 
 test('a name elsewhere in the same letter cannot ground another persons quotation', () => {
   const ticket = { description: 'Сидоров Илья уволен. Петров Иван работает.' };
-  assert.throws(() => normalizeAnalysis({ events: [event('Петров Иван', 'Сидоров Илья уволен.')] }, { ticket }), /identity/);
+  assert.deepEqual(normalizeAnalysis({ events: [event('Петров Иван', 'Сидоров Илья уволен.')] }, { ticket }), []);
 });
 
 test('a full Russian written date grounds an effective day', () => {

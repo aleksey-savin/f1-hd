@@ -37,3 +37,21 @@ test('an abbreviated city prefix is allowed, but a different street name or stre
   assert.equal(matchDestination({ address: 'Москва, улица Шилкинская, 32а' }, index()), null);
   assert.equal(matchDestination({ address: 'Владивосток, Океанский проспект, 5' }, index([{ _id: 'ocean', address: 'г. Владивосток, Океанский пр-т, 5' }]))?.companyId, 'ocean');
 });
+
+test('office floors and a provider POI suffix do not replace the actual street and building', () => {
+ const office={_id:'office',address:'ул. Пограничная, 15в, 6 этаж, оф. 607',location:{lat:43.123143,lon:131.881335}};
+ const destination={address:'Россия, Приморский край, Владивосток, Пограничная улица, 15В, Чайхана № 1',lat:43.12329518,lon:131.8817186};
+ assert.deepEqual(matchDestination(destination,index([office])),{companyId:'office',method:'address'});
+ assert.equal(matchDestination({...destination,address:'Владивосток, Пограничная улица, 15Б, Чайхана № 1'},index([office])),null);
+ assert.equal(matchDestination({...destination,address:'Москва, Пограничная улица, 15В, Чайхана № 1'},index([{...office,address:`Владивосток, ${office.address}`}])),null);
+ const other={...office,_id:'client',address:'Владивосток, Пограничная улица, 15в, каб. 508, офис, 5 этаж'};
+ assert.equal(matchDestination(destination,index([office,other])),null);
+});
+
+test('inline office and room suffixes retain the house for matching and nearby-building rejection', () => {
+ for(const address of ['Владивосток, Шилкинская, 32а офис 1','Владивосток, Шилкинская 32а офис 1','Владивосток, Шилкинская, 32а помещение 7','Владивосток, Шилкинская, 32а, 6 этаж, каб. 607']) {
+  const offices=index([{...company,address}]);
+  assert.equal(matchDestination({address:'Владивосток, Шилкинская улица, 32А'},offices)?.companyId,'company',address);
+  assert.equal(matchDestination({address:'Владивосток, Шилкинская улица, 34',lat:43.1201,lon:131.92},offices),null,address);
+ }
+});

@@ -55,6 +55,8 @@ yarn.lock
 *.err
 
 # Runtime data
+# Downloaded CVE catalogs and temporary archives; recreated by the Proxmox worker
+/backend/storage/proxmox-cve/
 pids
 *.pid
 *.seed

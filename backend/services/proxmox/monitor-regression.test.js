@@ -1,4 +1,6 @@
 const test = require("node:test");
+const { beforeEach } = require("node:test");
+beforeEach((t) => t.mock.method(require("./monitoring-view"), "enrich", async (items) => items));
 const assert = require("node:assert/strict");
 const { Connection, Resource } = require("../../models/proxmox");
 const Preferences = require("../../models/preferences");
@@ -193,7 +195,11 @@ test("permission-filtered inventory preserves node capacity and missing guest ow
     assert.equal(observed.lastCheckedAt, stamp);
     assert.match(observed.lastError, /без показателей/);
     const missing = updates.find((item) => item.filter._id === "guest").update;
-    assert.deepEqual(Object.keys(missing.$set), ["lastError"]);
+    assert.ok(missing.$set.missingSince instanceof Date);
+    assert.equal(missing.$set.guestNetwork, null);
+    assert.equal(missing.$set.exposure, null);
+    assert.equal(typeof missing.$set.guestIncarnation, 'string');
+    assert.equal(missing.$inc.exposureGeneration, 1);
     assert.equal(missing.$unset, undefined);
     assert.equal(guest.companyId, "tenant");
   } finally {
@@ -390,4 +396,30 @@ test("connection detail avoids inventory queries; node guests and storages have 
   } finally {
     restore.reverse().forEach((fn) => fn());
   }
+});
+test("guest UUID replacement invalidates prior agent, OS and security evidence", async (t) => {
+  const previous = { _id: "g", kind: "guest", externalId: "101", nodeName: "pve", guestIdentity: "old", guestAgent: { installed: true }, guestOs: { name: "Old OS" }, resources: {} };
+  const writes = [], cleared = [];
+  t.mock.method(transport, "request", async (_c, path) => {
+    if (path === "/cluster/resources") return [{ type: "qemu", vmid: 101, node: "pve", status: "running", cpu: 0.1 }];
+    if (path.includes("/config")) return { smbios1: "uuid=new" };
+    return [];
+  });
+  t.mock.method(Resource, "findOne", async () => previous);
+  t.mock.method(Resource, "findOneAndUpdate", async (_f, update) => { writes.push(update); return { ...previous, ...update.$set }; });
+  t.mock.method(Resource, "updateOne", async () => {});
+  t.mock.method(Resource, "find", async () => []);
+  t.mock.method(require("../../models/proxmox").GuestSecurity, "deleteOne", async (filter) => cleared.push(filter));
+  t.mock.method(require("../../models/proxmox").Event, "create", async () => {});
+  t.mock.method(Connection, "updateOne", async () => {});
+  t.mock.method(monitor, "observeResource", async () => {});
+  t.mock.method(availability, "observe", async () => {});
+  const filename = require.resolve("./core"), cached = require.cache[filename];
+  delete require.cache[filename];
+  try {
+    await require("./core").sync({ _id: "c" });
+    assert.equal(writes[0].$set.guestAgent, null);
+    assert.equal(writes[0].$set.guestOs, null);
+    assert.deepEqual(cleared, [{ resourceId: "g" }]);
+  } finally { require.cache[filename] = cached; }
 });

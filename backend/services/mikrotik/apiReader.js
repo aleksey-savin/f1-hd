@@ -107,18 +107,28 @@ const createReplyCollector = () => {
 // rows. Commands run one at a time (every caller awaits), so a single listener
 // per command is enough; it is removed once the reply is complete. A reply that
 // never completes is bounded by the callers (withReadTimeout / poll deadline).
-const sendCommand = (routeros, words) =>
+const sendCommand = (routeros, words, { maxBytes = Infinity, maxRows = Infinity } = {}) =>
   new Promise((resolve, reject) => {
     const reader = createSentenceReader();
     const collector = createReplyCollector();
+    let bytes = 0, rows = 0;
     const onData = (chunk) => {
+      try {
+      bytes += chunk.length;
+      if (bytes > maxBytes) throw new Error('Превышен лимит ответа RouterOS');
       for (const sentence of reader.feed(chunk)) {
+        if (sentence[0] === '!re' && ++rows > maxRows) throw new Error('Превышен лимит строк RouterOS');
         const outcome = collector.push(sentence);
         if (!outcome) continue;
         routeros.socket.off("data", onData);
         if (outcome.error) reject(outcome.error);
         else resolve(outcome.rows);
         return;
+      }
+      } catch (error) {
+        routeros.socket.off('data', onData);
+        routeros.socket.destroy?.();
+        reject(error);
       }
     };
     routeros.socket.on("data", onData);

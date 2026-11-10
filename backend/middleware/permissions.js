@@ -194,10 +194,11 @@ module.exports.canReturnTicket = (req, res, next) => {
   const mine =
     applicantId && String(applicantId) === String(req.auth.userId);
 
-  // Ответственный, ведущий заявки — или сам заявитель. Бывшего «любой, кто
-  // берёт заявки» здесь нет: возврат чужой закрытой заявки не делает человека
-  // ответственным, он просто открывает работу заново за другого.
-  return canActOnOwnTicket(ticket, req.auth) || mine
+  // Заявитель, ведущий заявки или ответственный с правом «Брать заявки
+  // в работу». Само назначение не даёт права вернуть заявку после его отзыва.
+  return mine ||
+    (canActOnOwnTicket(ticket, req.auth) &&
+      (req.auth.can({ ticket: ["perform"] }) || req.auth.can({ ticket: ["manage"] })))
     ? next()
     : deny(
         req,

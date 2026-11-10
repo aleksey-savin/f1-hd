@@ -30,9 +30,9 @@ const validateJump = async (req, endpoints) => {
     }
 };
 exports.list = async (req, res) =>
-  res.json(await read.list(req.params.kind, req.query));
+  res.json(await read.list(req.params.kind, req.query, { prefs: await Preferences.findOne({}).lean() }));
 exports.detail = async (req, res) =>
-  res.json(await read.detail(req.params.kind, req.params.id));
+  res.json(await read.detail(req.params.kind, req.params.id, { prefs: await Preferences.findOne({}).lean() }));
 exports.verify = async (req, res) => {
   const current = req.body.connectionId
     ? await Connection.findById(read.validId(req.body.connectionId)).select(
@@ -166,6 +166,82 @@ exports.guestMonitoring = async (req, res) => {
   );
   res.json({ item: read.view(r) });
 };
+exports.resourceMonitoring = async (req, res) => {
+  requireCan(req, "read");
+  requireCan(req, "manage");
+  const resource = await getResource(req.params.id);
+  if (!["guest", "node"].includes(resource.kind) || resource.archived)
+    fail("Выберите действующую ВМ или узел", 422);
+  if (typeof req.body.monitoringEnabled !== "boolean")
+    fail("Укажите состояние мониторинга");
+  resource.monitoringEnabled = req.body.monitoringEnabled;
+  resource.failedPolls = 0;
+  resource.failureAt = undefined;
+  resource.thresholdSince = {};
+  await resource.save();
+  if (!resource.monitoringEnabled)
+    await require("../services/proxmox/monitor").recoverResource(resource);
+  const connection = await Connection.findById(resource.connectionId);
+  if (connection)
+    await require("../services/proxmox/availability").observe(
+      resource,
+      connection,
+    );
+  await core.event(
+    resource,
+    "monitoringChanged",
+    resource.monitoringEnabled ? "Мониторинг включён" : "Мониторинг выключен",
+    actor(req),
+  );
+  res.json({ item: read.view(resource) });
+};
+exports.guestAgent = async (req, res) => {
+  requireCan(req, "read");
+  requireCan(req, "manage");
+  const resource = await getResource(req.params.id);
+  const connection = await Connection.findById(resource.connectionId).select(
+    "+tokenSecret",
+  );
+  const patch = await require("../services/proxmox/guest-agent").updateSettings(
+    resource,
+    connection,
+    req.body,
+  );
+  Object.assign(resource, patch);
+  await resource.save();
+  await core.event(
+    resource,
+    "guestAgentChanged",
+    "Изменены параметры QEMU Guest Agent",
+    actor(req),
+  );
+  res.json({ item: read.view(resource) });
+};
+exports.guestSecurity = async (req, res) => {
+  const resource = await getResource(req.params.id);
+  if (resource.kind !== "guest") fail("Выберите гостевую ОС", 422);
+  const { GuestSecurity } = require("../models/proxmox");
+  res.json({
+    report: require("../services/proxmox/guest-security").publicView(
+      await GuestSecurity.findOne({ resourceId: resource._id }).lean(),
+      await Preferences.findOne({}).lean(),
+    ),
+  });
+};
+exports.checkGuestSecurity = async (req, res) => {
+  requireCan(req, "manage");
+  const resource = await getResource(req.params.id);
+  const report = await require("../services/proxmox/guest-security").enqueue(
+    resource,
+  );
+  await core.event(
+    resource,
+    "guestSecurityCheck",
+    "Запрошена проверка CVE гостевой ОС",
+    actor(req),
+  );
+  res.status(202).json({ report: require("../services/proxmox/cve-policy").applyCvePolicy(report, await Preferences.findOne({}).lean()) });
+};
 exports.operation = async (req, res) => {
   requireCan(req, req.body.operation === "backup" ? "backup" : "power");
   const resource = await getResource(req.params.id);
@@ -240,7 +316,31 @@ exports.metrics = async (req, res) =>
 exports.events = async (req, res) =>
   res.json(await read.events(req.params.id, req.query));
 exports.availability = async (req, res) =>
-  res.json(await read.availability(req.params.id));
+  res.json(await read.availability(req.params.id, req.query.days || 30));
+exports.nodeSecurity = async (req, res) => {
+  const resource = await getResource(req.params.id);
+  if (resource.kind !== "node") fail("Выберите узел Proxmox", 422);
+  res.json({
+    report: await require("../services/proxmox/node-security").getReport(
+      resource._id,
+      await Preferences.findOne({}).lean(),
+    ),
+  });
+};
+exports.checkNodeSecurity = async (req, res) => {
+  requireCan(req, "manage");
+  const resource = await getResource(req.params.id);
+  const report = await require("../services/proxmox/node-security").refresh(
+    resource,
+  );
+  await core.event(
+    resource,
+    "nodeSecurityCheck",
+    "Запрошена проверка CVE и обновлений узла",
+    actor(req),
+  );
+  res.status(202).json({ report: require("../services/proxmox/cve-policy").applyCvePolicy(report, await Preferences.findOne({}).lean()) });
+};
 exports.maintenance = async (req, res) => {
   const r = await getResource(req.params.id);
   let value = null;
@@ -420,7 +520,7 @@ exports.options = async (req, res) => {
 exports.settings = async (req, res) => {
   const p = await Preferences.findOne({}).lean();
   res.json({
-    settings: p?.proxmox || {
+    settings: require('../services/proxmox/exposure/network-links').publicSettings(p?.proxmox, req.auth.can) || {
       cpuThreshold: 90,
       memoryThreshold: 90,
       storageWarning: 85,
@@ -436,6 +536,7 @@ exports.saveSettings = async (req, res) => {
     await require("../services/proxmox/settings").validateSettings(
       req.body,
       current?.proxmox,
+      { can: req.auth.can },
     );
   if (Object.keys(changes).length)
     await Preferences.updateOne(
@@ -449,8 +550,12 @@ exports.saveSettings = async (req, res) => {
         ),
       },
     );
+  if (Object.hasOwn(changes, 'networkLinks')) {
+    await require('../services/proxmox/exposure/store').invalidateResources({},'networkLinksChanged');
+    await core.event({connectionId:null},'networkLinksChanged','Сохранены связи сетей Proxmox с MikroTik',actor(req));
+  }
   core.bump();
-  res.json({ settings: data });
+  res.json({ settings: require('../services/proxmox/exposure/network-links').publicSettings(data,req.auth.can) });
 };
 
 exports.companies = async (req, res) => {

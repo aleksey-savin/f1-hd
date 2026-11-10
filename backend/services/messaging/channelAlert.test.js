@@ -72,5 +72,5 @@ test("the bell row names the channel and the reason — never the account's phon
   assert.equal(rows.includes("200-00-00"), false);
   assert.equal(rows.includes("4232000000"), false);
   assert.equal(rows.includes("support_desk"), false);
-  assert.equal(CHANNEL_SETTINGS_LINK, "/preferences#channels");
+  assert.equal(CHANNEL_SETTINGS_LINK, "/preferences#messaging");
 });

@@ -50,10 +50,8 @@ const personName = (person) =>
 const ViewTicketTemplate = ({ template }) => {
   const { _id: userId } = useContext(AuthedUserContext);
   const can = useCan();
-  const canManage = canManageEntity("ticketTemplate", can,
-    template,
-    userId,
-  );
+  const canCreateRoutine = can({ routineTask: ["read", "manage"] });
+  const canManage = canManageEntity("ticketTemplate", can, template, userId);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Карточку всегда открываем от начала (иначе hero прячется под баром при
@@ -138,7 +136,7 @@ const ViewTicketTemplate = ({ template }) => {
             </span>
           </div>
         </div>
-        {canManage && (
+        {(canManage || canCreateRoutine) && (
           <div className="flex flex-none flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -152,18 +150,24 @@ const ViewTicketTemplate = ({ template }) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link to={`/routine-tasks/add?fromTemplate=${template._id}`}>
-                    <RiCalendarScheduleLine /> Создать регламент
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => setDeleteOpen(true)}
-                >
-                  <RiDeleteBinLine /> Удалить
-                </DropdownMenuItem>
+                {canCreateRoutine && (
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to={`/routine-tasks/add?fromTemplate=${template._id}`}
+                    >
+                      <RiCalendarScheduleLine /> Создать регламент
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {canCreateRoutine && canManage && <DropdownMenuSeparator />}
+                {canManage && (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => setDeleteOpen(true)}
+                  >
+                    <RiDeleteBinLine /> Удалить
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="outline" asChild>
@@ -171,11 +175,13 @@ const ViewTicketTemplate = ({ template }) => {
                 <RiTicketLine /> Создать заявку
               </Link>
             </Button>
-            <Button asChild>
-              <Link to="update">
-                <RiEdit2Line /> Изменить
-              </Link>
-            </Button>
+            {canManage && (
+              <Button asChild>
+                <Link to="update">
+                  <RiEdit2Line /> Изменить
+                </Link>
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -216,11 +222,7 @@ const ViewTicketTemplate = ({ template }) => {
                  заполненная — карандаш: это второй вход в ту же форму. */
               (checklist.length ? (
                 <span className="ml-auto">
-                  <SectionEditLink
-                    to="update#checklist"
-                    label="Чек-лист"
-                   
-                  />
+                  <SectionEditLink to="update#checklist" label="Чек-лист" />
                 </span>
               ) : (
                 <Button asChild variant="outline" size="sm" className="ml-auto">

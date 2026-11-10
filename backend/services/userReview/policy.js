@@ -169,7 +169,7 @@ const groundedDay = (value, source, quote) => {
 const normalizeAnalysis = (raw, context = {}) => {
   if (!raw || !Array.isArray(raw.events)) throw new TypeError('AI user review: events must be an array');
   const sources = context.sources ?? buildSources(context);
-  return raw.events.map((input) => {
+  return raw.events.flatMap((input) => {
     if (!input || typeof input !== 'object') throw new TypeError('AI user review: invalid event');
     const name = text(input.name);
     const quote = text(input.quote);
@@ -181,7 +181,9 @@ const normalizeAnalysis = (raw, context = {}) => {
     }
     if (input.effectiveDate !== null && typeof input.effectiveDate !== 'string') throw new TypeError('AI user review: invalid effectiveDate');
     const grounding = sources.filter((source) => folded(source.text).includes(folded(quote)));
-    if (!grounding.length) throw new TypeError('AI user review: quote is not grounded in source');
+    // Unsupported model suggestions are expected during extraction. Drop the
+    // individual suggestion without failing the ticket or losing other people.
+    if (!grounding.length) return [];
     const email = text(input.email).toLowerCase();
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new TypeError('AI user review: invalid email');
     // If the same sentence is both quoted and current, retain the explicit
@@ -189,20 +191,20 @@ const normalizeAnalysis = (raw, context = {}) => {
     const identityInQuote = identityGrounded(name, '', { text: quote });
     const preferred = grounding.filter((entry) => entry.sourceRole === 'current');
     const source = identityInQuote && (preferred.length ? preferred : grounding).sort((a, b) => (dateOf(b.sourceAt)?.getTime() ?? 0) - (dateOf(a.sourceAt)?.getTime() ?? 0))[0];
-    if (!source) throw new TypeError('AI user review: identity is not grounded in source quote');
-    if (email && !folded(quote).includes(folded(email))) throw new TypeError('AI user review: email is not grounded in source quote');
+    if (!source) return [];
+    if (email && !folded(quote).includes(folded(email))) return [];
     const historical = source.sourceRole !== 'current';
     const effectiveDate = input.effectiveDate === null ? null : groundedDay(input.effectiveDate, source, quote);
     const exceptions = [...new Set(input.exceptions.map(text).filter(Boolean))];
     const scheduled = dateEvidence(quote, source).mentioned || dateEvidence(source.text, source).mentioned;
     if (!effectiveDate && (input.effectiveDate || scheduled)) exceptions.push('Дата события не подтверждена источником');
-    return {
+    return [{
       name, ...(email ? { email } : {}),
       employment: historical ? 'historical' : input.employment,
       access: historical ? 'none' : input.access,
       effectiveDate, quote, systems: [...new Set(input.systems.map(text).filter(Boolean))], exceptions,
       sourceId: source.sourceId, sourceAt: source.sourceAt, sourceRole: source.sourceRole,
-    };
+    }];
   });
 };
 

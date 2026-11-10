@@ -1095,6 +1095,13 @@ const mongoStore = {
             { status: "pending" },
             { status: "processing", leaseUntil: { $lte: at } },
             { status: "error", attempts: { $lt: 5 }, retryAt: { $lte: at } },
+            // Older versions treated unsupported AI evidence as a job failure.
+            // Reconsider these once with the current policy, even after five attempts.
+            { status: "error", retryAt: { $lte: at }, error: { $in: [
+              "AI user review: identity is not grounded in source quote",
+              "AI user review: quote is not grounded in source",
+              "AI user review: email is not grounded in source quote",
+            ] } },
           ],
         },
         {

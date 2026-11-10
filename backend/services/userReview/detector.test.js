@@ -4,6 +4,32 @@ const assert = require('node:assert/strict');
 const { analyzeTicket } = require('./detector');
 const departure = (name, quote, extra = {}) => ({ name, employment: 'departure', access: 'closeAll', quote, effectiveDate: null, systems: [], exceptions: [], ...extra });
 
+test('unsupported AI evidence is a normal empty result, not a retryable failure', async () => {
+  const ticket = { description: 'Сидоров Илья уволен.' };
+  for (const candidate of [
+    departure('Петров Иван', ticket.description),
+    departure('Сидоров Илья', 'Выдуманная цитата'),
+    departure('Сидоров Илья', ticket.description, { email: 'invented@example.org' }),
+  ]) {
+    const result = await analyzeTicket({ ticket, generateJson: async () => ({ events: [candidate] }) });
+    assert.equal(result.method, 'ai');
+    assert.deepEqual(result.events, []);
+    assert.deepEqual(result.matches, []);
+  }
+});
+
+test('unsupported AI evidence does not discard other confirmed subjects', async () => {
+  const ticket = { description: 'Сидоров Илья уволен. Орлов Иван вернулся.', company: { _id: 'a' } };
+  const result = await analyzeTicket({ ticket, generateJson: async () => ({ events: [
+    departure('Петров Иван', 'Сидоров Илья уволен.'),
+    departure('Сидоров Илья', 'Сидоров Илья уволен.'),
+    departure('Орлов Иван', 'Орлов Иван вернулся.', { employment: 'return', access: 'preserve' }),
+  ] }) });
+  assert.deepEqual(result.events.map(({ name, employment }) => [name, employment]), [
+    ['Сидоров Илья', 'departure'], ['Орлов Иван', 'return'],
+  ]);
+});
+
 // These are synthetic adaptations of corpus patterns, not production content.
 test('comment-only dismissals survive the prefilter and all four subjects are matched independently', async () => {
   const names = ['Крылов Иван', 'Соколов Пётр', 'Уткин Андрей', 'Гусев Юрий'];

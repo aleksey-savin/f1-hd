@@ -1,4 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useRef } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import { useShallow } from "zustand/react/shallow";
@@ -20,6 +20,7 @@ import NavigationBar from "./Navbar";
 import Footer from "./Footer";
 import RouteGuard from "@/components/app/RouteGuard";
 import PulseLoop from "@/components/app/PulseLoop";
+import AccessSync from "@/components/app/AccessSync";
 import CountsSync from "@/components/Conversation/CountsSync";
 import PresenceSync from "@/components/User/PresenceSync";
 import { newerWorkStatus } from "@/components/User/presence";
@@ -49,13 +50,15 @@ import { useNavWait } from "@/components/app/nav-wait";
 import { layoutPathname, resolveSheetWidth } from "./sheet-width";
 
 const RootLayout = () => {
+  const loadedIdentity = useLoaderData();
+  const [liveIdentity, setLiveIdentity] = useState(null);
   const {
     appVersion: loadedAppVersion,
     userData,
     prefs,
     impersonation,
     twoFactorPolicy,
-  } = useLoaderData();
+  } = liveIdentity?.base === loadedIdentity ? liveIdentity.value : loadedIdentity;
   // Версию сервера приносит пульс: баннер «Доступна новая версия» появляется
   // после деплоя сам, без перезагрузки корневого лоадера
   const appVersion = usePulseStore((state) => state.appVersion) ?? loadedAppVersion;
@@ -219,6 +222,9 @@ const RootLayout = () => {
       {/* Живые обновления: один пульс на вкладку и единственный загрузчик
           присутствия (docs/live-updates.md) — на обеих оболочках */}
       {isLoggedIn && <PulseLoop />}
+      {isLoggedIn && (
+        <AccessSync onRefresh={(value) => setLiveIdentity({ base: loadedIdentity, value })} />
+      )}
       {isLoggedIn && !userData?.isEndUser && <PresenceSync />}
       {/* Счётчик «Ждут ответа» у пункта «Диалоги» — сотрудникам */}
       {isLoggedIn && !userData?.isEndUser && <CountsSync />}

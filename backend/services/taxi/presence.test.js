@@ -29,7 +29,11 @@ stub('../../models/user', {
   updateOne: async (filter, update) => {
     const at = filter.$or?.[0]?.['workStatus.updatedAt']?.$lte;
     const own = user.workStatus.source === 'taxi' && user.workStatus.taxiTripId === trip._id;
-    if (own || !user.workStatus.updatedAt || user.workStatus.updatedAt <= at) user.workStatus = update.$set.workStatus;
+    if (own || !user.workStatus.updatedAt || user.workStatus.updatedAt <= at) {
+      user.workStatus = update.$set.workStatus;
+      return { matchedCount: 1 };
+    }
+    return { matchedCount: 0 };
   },
 });
 stub('../../models/company', { findById: () => query({ alias: 'Автогарант' }) });
@@ -63,4 +67,15 @@ test('days-late crash recovery consumes an old announcement without announcing a
   assert.equal(notifications.size, 0);
   assert.equal(user.workStatus.code, 'office');
   assert.ok(trip.announcementClaimedAt);
+});
+
+test('generated presence and departure messages use compact addresses before note truncation', async () => {
+  notifications.clear();
+  Object.assign(trip, { status: 'transporting', presenceAppliedAt: null, announcementClaimedAt: null, destination: { address: 'Россия, Приморский край, Владивосток, улица Нейбута, 33А' } });
+  user.workStatus = { source: 'manual', code: 'office', updatedAt: new Date('2026-11-08T00:00:00Z') };
+  await createStore({ clientId: 'corp' }, 'lease').live({ ...trip }, new Date('2026-11-10T02:29:30Z'));
+  assert.equal(user.workStatus.note, 'Автогарант · Владивосток, улица Нейбута, 33А');
+  const message = notifications.get(trip._id).text;
+  assert.match(message, /Владивосток, улица Нейбута, 33А/);
+  assert.doesNotMatch(message, /Россия|Приморский край/);
 });

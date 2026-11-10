@@ -10,7 +10,8 @@ const historyStart = (now, days, zone) => {
 };
 const { AppError } = require('../../middleware/errorHandling');
 const { parseOrder, parseFinance, parseEmployee, collectPages, collectEmployees } = require('./import');
-const { shouldApplyPresence, normalizePurpose, companyPurpose } = require('./policy');
+const { shouldApplyPresence, shouldCheckOfficeArrival, SUCCESSFUL_STATUSES, CANCELLED_STATUSES, normalizePurpose, companyPurpose } = require('./policy');
+const { taxiPresenceNote } = require('./presentation');
 
 const syncOnce = async ({ settings, provider, store, now = new Date() }) => {
   const call = async (path, options) => { await store.heartbeat(); return provider(path, options); };
@@ -41,11 +42,15 @@ const syncOnce = async ({ settings, provider, store, now = new Date() }) => {
   await store.heartbeat();
   await store.saveEmployees(employees);
   const visibleIds = new Set();
+  const savedTrips = [];
   for (const { row, parsed } of byId.values()) {
     await store.heartbeat();
-    const saved = await store.saveTrip(parsed, row);
+    const saved = await store.saveTrip(parsed, row, now);
     if (saved?.deletedAt) continue;
     visibleIds.add(parsed.externalId);
+    savedTrips.push(saved);
+  }
+  for (const saved of savedTrips) {
     if (shouldApplyPresence(saved)) await store.live(saved, now);
   }
   for (const pending of await store.pending?.() || []) {
@@ -56,6 +61,7 @@ const syncOnce = async ({ settings, provider, store, now = new Date() }) => {
   const ids = [...new Set([...byId.entries()].filter(([id, entry]) => visibleIds.has(id) && terminal.has(entry.parsed.status)).map(([id]) => id).concat((await store.pendingFinance?.() || []).map((trip) => trip.externalId)))];
   let financialPending = false;
   let financialError = '';
+  const enrichedTrips = [];
   for (let i = 0; i < ids.length; i += 100) {
     const batch = ids.slice(i, i + 100);
     await store.heartbeat();
@@ -79,9 +85,20 @@ const syncOnce = async ({ settings, provider, store, now = new Date() }) => {
       try { financial = parseFinance(row); } catch { financialPending = true; financialError = 'Некорректные данные в финансовом отчёте Яндекс Go'; continue; }
       if (financial.totalMinor === undefined) { financialPending = true; continue; }
       await store.heartbeat();
-      await store.saveFinance(row.id, financial);
+      const enriched = await store.saveFinance(row.id, financial);
+      if (enriched) enrichedTrips.push(enriched);
     }
     if (seen.size !== batch.length) financialPending = true;
+  }
+  // Both operational rows and finance can reveal a later journey. Reconcile
+  // arrivals only after the full batch is stored, including failed-report runs.
+  const arrivals = new Map();
+  for (const trip of [...savedTrips, ...enrichedTrips, ...(await store.pendingArrivals?.() || [])]) {
+    if (shouldCheckOfficeArrival(trip) || trip?.officeArrivalPending) arrivals.set(String(trip._id || trip.externalId), trip);
+  }
+  for (const trip of arrivals.values()) {
+    await store.heartbeat();
+    await store.arrive?.(trip, now);
   }
   await store.complete(now, { financialPending, financialError });
   return { imported: visibleIds.size, financialPending, financialError };
@@ -98,7 +115,8 @@ const createStore = (settings, leaseToken) => {
   const { destinationIndex, matchDestination } = require('./destination');
   const Preferences = require('../../models/preferences');
   const Notification = require('../../models/notification');
-  const { escapeHtml } = require('../telegramMessage');
+  const { createTaxiNotifications } = require('./notifications');
+  const notifications = createTaxiNotifications({ Notification, Preferences });
   const leaseFilter = { _id: 'yandex-business', leaseToken, clientId: settings.clientId, token: settings.token };
   const heartbeat = async () => {
     const result = await TaxiSettings.updateOne({ ...leaseFilter, leaseUntil: { $gt: new Date() }, isActive: true }, { $set: { leaseUntil: new Date(Date.now() + 120000) } });
@@ -111,15 +129,20 @@ const createStore = (settings, leaseToken) => {
     }
   };
   let addresses;
-  const destinationCompany = async (trip) => {
+  const destinationCompany = async (trip, onlyCompanyId) => {
     if (!trip.destination?.address && trip.destination?.lat == null && trip.destination?.lon == null) return null;
     if (!addresses) addresses = (async () => {
       const companies = await Company.find({ isActive: { $ne: false } }).select('address location isActive').lean();
       const subdivisions = await Subdivision.find({ company: { $in: companies.map((company) => company._id) } }).select('company address location').lean();
       return destinationIndex(companies, subdivisions);
     })();
-    return matchDestination(trip.destination, await addresses);
+    const entries = await addresses;
+    return matchDestination(trip.destination, onlyCompanyId ? entries.filter((entry) => String(entry.companyId) === String(onlyCompanyId)) : entries);
   };
+  const { createOfficeArrival } = require('./office-arrival');
+  const arrive = createOfficeArrival({ TaxiTrip, TaxiEmployee, User,
+    destinationCompany: (trip) => destinationCompany(trip, settings.internalCompanyId), internalCompanyId: settings.internalCompanyId,
+    announceOfficeArrival: notifications.officeArrival });
   const attributeTrip = async (filter, current, purpose) => {
     if (current.deletedAt || current.manuallyAssigned) return current;
     purpose = normalizePurpose(purpose);
@@ -142,11 +165,18 @@ const createStore = (settings, leaseToken) => {
     if (current.presenceAppliedAt) await refreshTaxiPresenceNote(updated);
     return updated;
   };
-  const saveTrip = async (parsed) => {
+  const saveTrip = async (parsed, _row, now = new Date()) => {
     const employee = await TaxiEmployee.findOne({ externalId: parsed.externalUserId }).lean();
     const { purpose, externalId, ...providerFields } = parsed;
     const filter = { clientId: settings.clientId, externalId };
-    await TaxiTrip.updateOne(filter, { $set: { ...providerFields, ...(employee?.userId ? { userId: employee.userId } : {}), lastSyncedAt: new Date() }, $setOnInsert: { ...filter, source: 'go' } }, { upsert: true });
+    const before = await TaxiTrip.findOne(filter).lean();
+    const observedArrival = before && !before.deletedAt && !before.officeArrivalObservedAt &&
+      before.status && ![...SUCCESSFUL_STATUSES, ...CANCELLED_STATUSES].includes(before.status) && SUCCESSFUL_STATUSES.includes(parsed.status);
+    await TaxiTrip.updateOne(filter, { $set: {
+      ...Object.fromEntries(Object.entries(providerFields).filter(([, value]) => value !== undefined)),
+      ...(employee?.userId ? { userId: employee.userId } : {}), lastSyncedAt: now,
+      ...(observedArrival ? { officeArrivalObservedAt: now, officeArrivalPending: true } : {}),
+    }, $setOnInsert: { ...filter, source: 'go' } }, { upsert: true });
     const current = await TaxiTrip.findOne(filter).lean();
     if (current.deletedAt || current.manuallyAssigned) return current;
     return attributeTrip(filter, current, purpose);
@@ -165,35 +195,29 @@ const createStore = (settings, leaseToken) => {
       await TaxiTrip.updateOne({ _id: trip._id, announcementClaimedAt: null }, { $set: { announcementClaimedAt: now } });
       return;
     }
-    const [user, company, preferences] = await Promise.all([
+    const [user, company] = await Promise.all([
       User.findById(trip.userId).select('firstName lastName isEndUser isServiceAccount isCloudTelephony hideWorkStatus deletedAt banned workStatus').lean(),
       trip.companyId ? Company.findById(trip.companyId).select('alias').lean() : null,
-      Preferences.findOne({}).select('notify.byTelegram').lean(),
     ]);
     if (!user || user.deletedAt || user.isEndUser !== false || user.banned || user.isServiceAccount || user.isCloudTelephony || user.hideWorkStatus) return;
-    const note = [company?.alias, trip.destination?.address].filter(Boolean).join(' · ').slice(0, 100);
-    await User.updateOne({ _id: user._id, $or: [
+    const note = taxiPresenceNote(company?.alias, trip.destination?.address);
+    const presence = await User.updateOne({ _id: user._id, $or: [
       { 'workStatus.updatedAt': { $lte: appliedAt } },
       { 'workStatus.updatedAt': null },
       { 'workStatus.source': 'taxi', 'workStatus.taxiTripId': trip._id },
     ] }, { $set: { workStatus: { code: 'trip', note, source: 'taxi', taxiTripId: trip._id, auto: false, updatedAt: appliedAt } } });
-    const group = preferences?.notify?.byTelegram;
-    if (group?.isActive && group.sendToGroup && group.chatId && !trip.announcementClaimedAt) {
-      const name = [user.firstName, user.lastName].filter(Boolean).join(' ');
-      await Notification.updateOne({ _id: trip._id }, { $setOnInsert: {
-        instrument: 'telegram', to: { chatId: group.chatId, globalChat: true, ...(group.messageThreadId ? { messageThreadId: group.messageThreadId } : {}) },
-        title: 'Поездка началась', text: `🚕 ${escapeHtml(name)} на выезде, компания ${escapeHtml(company?.alias || 'не указана')}, адрес ${escapeHtml(trip.destination?.address || 'не указан')}`,
-      } }, { upsert: true });
-    }
+    if (presence.matchedCount && !trip.announcementClaimedAt) await notifications.departure(trip, user, company?.alias, now);
     if (!trip.announcementClaimedAt) await TaxiTrip.updateOne({ _id: trip._id, announcementClaimedAt: null }, { $set: { announcementClaimedAt: now } });
   };
   return {
-    heartbeat, saveEmployees, saveTrip, live,
+    heartbeat, saveEmployees, saveTrip, live, arrive,
     saveFinance: async (externalId, financial) => {
       const filter = { clientId: settings.clientId, externalId, deletedAt: null };
-      await TaxiTrip.updateOne(filter, { $set: { ...financial, financialPending: false } });
+      // Commit arrival recovery together with finance: a crash before the
+      // batch's presence phase must not lose an out-of-window return.
+      await TaxiTrip.updateOne(filter, { $set: { ...financial, financialPending: false, officeArrivalPending: true } });
       const current = await TaxiTrip.findOne(filter).lean();
-      if (current) await attributeTrip(filter, current, current.purpose);
+      return current ? attributeTrip(filter, current, current.purpose) : null;
     },
     markFinancePending: (ids) => TaxiTrip.updateMany({ clientId: settings.clientId, deletedAt: null, externalId: { $in: ids } }, { $set: { financialPending: true } }),
     pendingFinance: () => TaxiTrip.find({ clientId: settings.clientId, deletedAt: null, financialPending: true, status: { $in: ['complete', 'finished', 'cancelled', 'client_cancelled', 'driver_cancelled', 'failed'] } }).select('externalId').limit(10001).lean().then((rows) => {
@@ -202,6 +226,10 @@ const createStore = (settings, leaseToken) => {
     }),
     pending: () => TaxiTrip.find({ clientId: settings.clientId, deletedAt: null, presenceAppliedAt: { $ne: null }, announcementClaimedAt: null }).limit(10001).lean().then((rows) => {
       if (rows.length > 10000) throw new AppError('Слишком много необработанных поездок', 502);
+      return rows;
+    }),
+    pendingArrivals: () => TaxiTrip.find({ clientId: settings.clientId, deletedAt: null, officeArrivalPending: true, status: { $in: SUCCESSFUL_STATUSES } }).limit(10001).lean().then((rows) => {
+      if (rows.length > 10000) throw new AppError('Слишком много необработанных прибытий', 502);
       return rows;
     }),
     existingActive: () => TaxiTrip.find({ clientId: settings.clientId, deletedAt: null, status: { $nin: ['complete', 'finished', 'cancelled', 'canceled', 'client_cancelled', 'driver_cancelled', 'failed'] } }).select('externalId').limit(10001).lean().then((rows) => {
@@ -249,7 +277,7 @@ const refreshTaxiPresenceNote = async (trip) => {
   const User = require('../../models/user');
   const Company = require('../../models/company');
   const company = trip.companyId ? await Company.findById(trip.companyId).select('alias').lean() : null;
-  const note = [company?.alias, trip.destination?.address].filter(Boolean).join(' · ').slice(0, 100);
+  const note = taxiPresenceNote(company?.alias, trip.destination?.address);
   await User.updateOne({ _id: trip.userId, 'workStatus.source': 'taxi', 'workStatus.taxiTripId': trip._id }, { $set: { 'workStatus.note': note } });
 };
 module.exports = { syncOnce, runTaxiSync, createStore, refreshTaxiPresenceNote, historyStart };

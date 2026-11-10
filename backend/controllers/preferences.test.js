@@ -560,3 +560,9 @@ test('user review partial settings keep explicit switches and reject invalid per
  assert.equal(invalid.error?.statusCode,400);
  assert.equal(saves.length,1);
 });
+
+// Public general preferences include the separate Wazzup singleton.
+const WazzupSettings = require('../models/wazzupSettings');
+require('node:test').beforeEach((t) => {
+  t.mock.method(WazzupSettings, 'findById', () => ({ select() { return this; }, lean: async () => null }));
+});
