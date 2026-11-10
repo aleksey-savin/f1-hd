@@ -27,8 +27,8 @@ import {
 } from "react-icons/ri";
 import { TAXI_REPORT_ACCESS } from "../../util/taxi-access.js";
 
-// Конфиг главной навигации — единый источник для десктопного бара, его
-// дропдаунов и мобильного бургер-Sheet. Структура — по согласованному макету
+// Конфиг главной навигации — единый источник для левого sidebar и мобильного
+// бургер-Sheet. Структура — по согласованному макету
 // реорганизации меню (2026-07): «Компании» и «Пользователи» видны всем ролям с
 // доступом и не прыгают в «Администрирование», MikroTik и Proxmox — внутри
 // «Управления» (раздел сохраняется и с одним доступным модулем),
@@ -39,13 +39,12 @@ import { TAXI_REPORT_ACCESS } from "../../util/taxi-access.js";
 // него нет — см. комментарий в ветке.
 //
 // Форма элемента:
-//   { key, label, shortLabel?, icon, to, badge? }       — ссылка; badge:
+//   { key, label, icon, to, badge? }       — ссылка; badge:
 //     "conversations" — пилюля «Ждут ответа» (Conversation/NavBadges)
-//   { key, label, shortLabel?, icon, groups: [...] }    — раздел-дропдаун;
+//   { key, label, icon, groups: [...] }    — раскрывающийся раздел;
 //     группа: { label?, items: [item, …] } — label — uppercase-заголовок
 //     («Администрирование» подписывает группы по модулям), группы рендерятся
-//     с разделителями. shortLabel показывает только десктоп-бар (экономия
-//     ширины на xl); дропдауны и drawer — полные названия.
+//     с разделителями. Sidebar и drawer показывают полные названия.
 const link = (key, label, icon, to, extra = {}) => ({
   key,
   label,
@@ -53,6 +52,18 @@ const link = (key, label, icon, to, extra = {}) => ({
   to,
   ...extra,
 });
+
+// Вложенный справочник /tickets/checklist-templates принадлежит
+// «Администрированию», а не одновременно двум пунктам меню.
+export function activeMenuKey(items, pathname) {
+  const path = pathname === "/" ? "/dashboard" : pathname;
+  const links = items.flatMap((item) =>
+    item.groups ? item.groups.flatMap((group) => group.items) : [item],
+  );
+  return links
+    .filter((item) => path === item.to || path.startsWith(`${item.to}/`))
+    .sort((a, b) => b.to.length - a.to.length)[0]?.key;
+}
 
 export function buildMenu({
   isEndUser,
@@ -146,9 +157,6 @@ export function buildMenu({
           "База знаний",
           RiBookOpenLine,
           "/knowledge-base",
-          {
-            shortLabel: "База знаний",
-          },
         ),
       reports.length > 0 && {
         key: "reports",
@@ -378,9 +386,7 @@ export function buildMenu({
       ),
     knowledgeBase &&
       canReadKnowledge &&
-      link("knowledge-base", "База знаний", RiBookOpenLine, "/knowledge-base", {
-        shortLabel: "База знаний",
-      }),
+      link("knowledge-base", "База знаний", RiBookOpenLine, "/knowledge-base"),
     // Только тем, кто заявки НЕ выполняет: у исполнителя шаблоны и так под
     // рукой в форме заявки, а в «Администрировании» есть полный список для
     // того, кому доверены чужие заготовки. Право обязательно: страница за

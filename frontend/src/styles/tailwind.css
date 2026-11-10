@@ -166,6 +166,15 @@
 }
 
 @theme inline {
+  /* Sidebar использует общую палитру и меняется вместе с темой портала. */
+  --color-sidebar: var(--card);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-primary: var(--primary);
+  --color-sidebar-primary-foreground: var(--primary-foreground);
+  --color-sidebar-accent: var(--accent);
+  --color-sidebar-accent-foreground: var(--foreground);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--ring);
   /* Встроенная шкала контейнеров кончается на 7xl (1280). Карточке заявки этого
      мало: рейл 192 + хроника 384 оставляют секциям 656, и виджет «Окружение»
      (план помещения с плитками техники) в них не помещается. 8xl = 1440 даёт

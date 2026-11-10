@@ -248,6 +248,42 @@ body:has(.mobile-shell),
   }
 }
 
+/* Левое меню резервирует ширину независимо от правого рейла. Провайдер
+   shadcn общий для десктопной оболочки; её содержимое остаётся в потоке
+   документа. Ниже lg меню — Sheet, резерв слева не нужен. */
+body {
+  --app-header-height: 3rem;
+  --app-sidebar-width: 16rem;
+  --app-sidebar-offset: 0rem;
+}
+.app-sidebar {
+  z-index: 1030;
+}
+.app-navbar,
+.app-sidebar-header {
+  height: var(--app-header-height);
+}
+@media (min-width: 1024px) {
+  body:has([data-slot="sidebar"][data-state="expanded"]) {
+    --app-sidebar-offset: var(--app-sidebar-width);
+  }
+  .desktop-workspace.has-app-sidebar {
+    padding-left: calc(var(--app-sidebar-offset) + 1.5rem);
+  }
+  .app-navbar {
+    left: var(--app-sidebar-offset);
+  }
+  body:has(.has-app-sidebar) .draft-bar {
+    padding-left: calc(var(--app-sidebar-offset) + 1.5rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-container"] {
+    transition: none;
+  }
+}
+
 /* Резерв места под свёрнутый рейл статусов (разметка бара — классами в
    WorkStatusBar.jsx). Правило НЕ в слое: нелоённый CSS сильнее любого слоя,
    поэтому оно перебивает px-12 контейнера оболочки из layer(utilities) без

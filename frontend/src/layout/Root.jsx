@@ -1,4 +1,10 @@
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import { useShallow } from "zustand/react/shallow";
@@ -17,6 +23,8 @@ import {
 } from "../store/authed-user-context";
 
 import NavigationBar from "./Navbar";
+import AppSidebar from "./AppSidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import Footer from "./Footer";
 import RouteGuard from "@/components/app/RouteGuard";
 import PulseLoop from "@/components/app/PulseLoop";
@@ -27,11 +35,7 @@ import { newerWorkStatus } from "@/components/User/presence";
 import usePulseStore from "@/store/pulse";
 import WorkStatusBar from "../components/User/WorkStatusBar";
 import { Toaster } from "@/components/ui/sonner";
-import {
-  RiRefreshLine,
-  RiShieldKeyholeLine,
-  RiSpyLine,
-} from "react-icons/ri";
+import { RiRefreshLine, RiShieldKeyholeLine, RiSpyLine } from "react-icons/ri";
 
 import { formatDate, formatIn } from "@/util/format-date";
 import { Button } from "@/components/ui/button";
@@ -58,10 +62,13 @@ const RootLayout = () => {
     prefs,
     impersonation,
     twoFactorPolicy,
-  } = liveIdentity?.base === loadedIdentity ? liveIdentity.value : loadedIdentity;
+  } = liveIdentity?.base === loadedIdentity
+    ? liveIdentity.value
+    : loadedIdentity;
   // Версию сервера приносит пульс: баннер «Доступна новая версия» появляется
   // после деплоя сам, без перезагрузки корневого лоадера
-  const appVersion = usePulseStore((state) => state.appVersion) ?? loadedAppVersion;
+  const appVersion =
+    usePulseStore((state) => state.appVersion) ?? loadedAppVersion;
   // Свой статус меняет и автоматика по графику — навбар берёт более свежий из
   // лоадера и живого табло присутствия
   const liveOwnWorkStatus = useWorkStatusesStore(
@@ -111,7 +118,6 @@ const RootLayout = () => {
   // дерево не нужно.
   const navigation = useNavigation();
   useNavWait(navigation.state !== "idle");
-
 
   // Идентификатор сборки сервера приходит с пульсом и из /api/app-version,
   // идентификатор клиента вшит в бандл при сборке (VITE_VERSION,
@@ -219,68 +225,85 @@ const RootLayout = () => {
           defaultAuthedUser.permissionCatalogue,
       }}
     >
-      {/* Живые обновления: один пульс на вкладку и единственный загрузчик
+      <SidebarProvider
+        defaultOpen={
+          !document.cookie.split("; ").includes("sidebar_state=false")
+        }
+        className="block"
+        style={{ "--sidebar-width": "var(--app-sidebar-width, 16rem)" }}
+      >
+        {/* Живые обновления: один пульс на вкладку и единственный загрузчик
           присутствия (docs/live-updates.md) — на обеих оболочках */}
-      {isLoggedIn && <PulseLoop />}
-      {isLoggedIn && (
-        <AccessSync onRefresh={(value) => setLiveIdentity({ base: loadedIdentity, value })} />
-      )}
-      {isLoggedIn && !userData?.isEndUser && <PresenceSync />}
-      {/* Счётчик «Ждут ответа» у пункта «Диалоги» — сотрудникам */}
-      {isLoggedIn && !userData?.isEndUser && <CountsSync />}
-      {isLoggedIn && (
-        <BrowserView>
-          <NavigationBar />
-          {/* Бар статусов: фиксирован к правому краю окна. Рендерим вне
+        {isLoggedIn && <PulseLoop />}
+        {isLoggedIn && (
+          <AccessSync
+            onRefresh={(value) =>
+              setLiveIdentity({ base: loadedIdentity, value })
+            }
+          />
+        )}
+        {isLoggedIn && !userData?.isEndUser && <PresenceSync />}
+        {/* Счётчик «Ждут ответа» у пункта «Диалоги» — сотрудникам */}
+        {isLoggedIn && !userData?.isEndUser && <CountsSync />}
+        {isLoggedIn && (
+          <BrowserView>
+            <AppSidebar />
+            <NavigationBar />
+            {/* Бар статусов: фиксирован к правому краю окна. Рендерим вне
               Transitions — transform у предка ломает position: fixed */}
-          {!userData?.isEndUser && !userData?.hideWorkStatus && (
-            <WorkStatusBar />
-          )}
-        </BrowserView>
-      )}
-      <Transitions>
-        <BrowserView>
-          {/* <Pro32Connect /> */}
-          {!plainCanvas && userData.backgroundImagePath && (
-            <div
-              // Декоративный слой обоев под контентом. top-14 — высота бара
-              // оболочки, без зазора-полосы; pointer-events-none обязателен:
-              // fixed-слой рисуется поверх статического контента и иначе
-              // съедает клики.
-              //
-              // Класс app-wallpaper — признак для канвы: по нему index.css
-              // гасит собственную фактуру (клетку и вуаль), потому что фон
-              // здесь задаёт пользователь.
-              className="app-wallpaper pointer-events-none fixed inset-x-0 top-14 bottom-0 bg-cover bg-center bg-no-repeat"
-              style={{
-                backgroundImage: `url("${import.meta.env.VITE_API_ADDRESS}/uploads/${userData.backgroundImagePath}")`,
-              }}
-            />
-          )}
-          {/* Контентная область оболочки. Ширина 1920 и отступ под фиксированный
+            {!userData?.isEndUser && !userData?.hideWorkStatus && (
+              <WorkStatusBar />
+            )}
+          </BrowserView>
+        )}
+        <Transitions>
+          <BrowserView>
+            {/* <Pro32Connect /> */}
+            {!plainCanvas && userData.backgroundImagePath && (
+              <div
+                // Декоративный слой обоев под контентом. Верх — высота бара
+                // оболочки, без зазора-полосы; pointer-events-none обязателен:
+                // fixed-слой рисуется поверх статического контента и иначе
+                // съедает клики.
+                //
+                // Класс app-wallpaper — признак для канвы: по нему index.css
+                // гасит собственную фактуру (клетку и вуаль), потому что фон
+                // здесь задаёт пользователь.
+                className="app-wallpaper pointer-events-none fixed inset-x-0 bottom-0 bg-cover bg-center bg-no-repeat"
+                style={{
+                  top: "var(--app-header-height)",
+                  backgroundImage: `url("${import.meta.env.VITE_API_ADDRESS}/uploads/${userData.backgroundImagePath}")`,
+                }}
+              />
+            )}
+            {/* Контентная область оболочки. Ширина 1920 и отступ под фиксированный
               бар — стилем: ни того, ни другого нет во встроенной сетке tw.
               has-ws-rail резервирует место под рейл статусов, has-ws-rail-open
               — под раскрытый: рейл стоит в потоке и сдвигает контент, а не
               накрывает его (правила в index.css). */}
-          <div
-            // 5rem = бар h-14 (3.5rem) + 1.5rem воздуха; в rem, потому что бар
-            // в rem, а личный масштаб текста двигает и то и другое
-            style={{ maxWidth: "1920px", paddingTop: "5rem" }}
-            className={cn(
-              "mx-auto w-full px-12 pb-12",
-              isLoggedIn &&
-                !userData?.isEndUser &&
-                !userData?.hideWorkStatus &&
-                "has-ws-rail",
-              isLoggedIn &&
-                !userData?.isEndUser &&
-                !userData?.hideWorkStatus &&
-                railOpen &&
-                "has-ws-rail-open",
-            )}
-          >
             <div
-              /* «Лист» страницы. relative — контент рисуется поверх fixed-слоя
+              // Общая высота шапки + 1rem до листа; обе величины следуют
+              // личному масштабу текста и совпадают с боковыми панелями.
+              style={{
+                maxWidth: "1920px",
+                paddingTop: "calc(var(--app-header-height) + 1rem)",
+              }}
+              className={cn(
+                "desktop-workspace mx-auto w-full px-12 pb-12",
+                isLoggedIn && "has-app-sidebar",
+                isLoggedIn &&
+                  !userData?.isEndUser &&
+                  !userData?.hideWorkStatus &&
+                  "has-ws-rail",
+                isLoggedIn &&
+                  !userData?.isEndUser &&
+                  !userData?.hideWorkStatus &&
+                  railOpen &&
+                  "has-ws-rail-open",
+              )}
+            >
+              <div
+                /* «Лист» страницы. relative — контент рисуется поверх fixed-слоя
                  обоев; без позиционирования он бы под ними исчез.
 
                  Лист рисуется всегда, кроме чистого вида. Раньше без обоев
@@ -294,147 +317,149 @@ const RootLayout = () => {
                  Лист обнимает контент по ширине его маршрута (sheetWidth), а не
                  тянется на всю рабочую область: пустых полей-«карточек» нет, а
                  под обоями они к тому же видны по бокам. */
-              className={cn(
-                "relative",
-                !plainCanvas && "mx-auto w-full rounded-2xl border bg-card p-4",
-              )}
-              style={{
-                minHeight: "calc(100svh - 6.5rem)",
-                ...(plainCanvas ? {} : { maxWidth: `${sheetWidth / 16}rem` }),
-              }}
-            >
-              {/* Баннеры — первыми элементами внутри листа, а не над ним:
+                className={cn(
+                  "relative",
+                  !plainCanvas &&
+                    "mx-auto w-full rounded-2xl border bg-card p-4",
+                )}
+                style={{
+                  minHeight: "calc(100svh - var(--app-header-height) - 2.5rem)",
+                  ...(plainCanvas ? {} : { maxWidth: `${sheetWidth / 16}rem` }),
+                }}
+              >
+                {/* Баннеры — первыми элементами внутри листа, а не над ним:
                   так они ровно по ширине карточки страницы. */}
-              {/* Работа под чужой учётной записью — состояние, о котором надо
+                {/* Работа под чужой учётной записью — состояние, о котором надо
                   помнить постоянно, поэтому полоса видна на каждой странице и
                   не закрывается. «Выйти» здесь — обычный выход: своя вкладка
                   администратора всё это время цела, возвращаться некуда. */}
-              {impersonation && (
-                <AppBanner
-                  tone="warning"
-                  icon={<RiSpyLine />}
-                  title={`Вы под учётной записью: ${impersonatedName}`}
-                  className={cn(
-                    "mb-4",
-                    plainCanvas && "mx-auto w-full max-w-7xl",
-                  )}
-                  action={
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        submit(null, { action: "/logout", method: "POST" })
-                      }
-                      className="max-md:w-full"
-                    >
-                      Выйти
-                    </Button>
-                  }
-                >
-                  Сеанс завершится сам {impersonationEnds}. Всё, что вы здесь
-                  сделаете, будет записано на этого человека.
-                </AppBanner>
-              )}
-              {/* Требование второго фактора уже включено, но отсрочка ещё не
+                {impersonation && (
+                  <AppBanner
+                    tone="warning"
+                    icon={<RiSpyLine />}
+                    title={`Вы под учётной записью: ${impersonatedName}`}
+                    className={cn(
+                      "mb-4",
+                      plainCanvas && "mx-auto w-full max-w-7xl",
+                    )}
+                    action={
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          submit(null, { action: "/logout", method: "POST" })
+                        }
+                        className="max-md:w-full"
+                      >
+                        Выйти
+                      </Button>
+                    }
+                  >
+                    Сеанс завершится сам {impersonationEnds}. Всё, что вы здесь
+                    сделаете, будет записано на этого человека.
+                  </AppBanner>
+                )}
+                {/* Требование второго фактора уже включено, но отсрочка ещё не
                   вышла: полоса называет дату, потому что после неё вход
                   закроется, и узнать об этом на экране входа — поздно. */}
-              {twoFactorPolicy && (
-                <AppBanner
-                  tone="warning"
-                  icon={<RiShieldKeyholeLine />}
-                  title="Настройте вход по коду из приложения"
-                  className={cn(
-                    "mb-4",
-                    plainCanvas && "mx-auto w-full max-w-7xl",
-                  )}
-                  action={
-                    <Button
-                      size="sm"
-                      onClick={() => navigate("/my-account#security")}
-                      className="max-md:w-full"
-                    >
-                      Настроить
-                    </Button>
-                  }
-                >
-                  {twoFactorPolicy.requiredUntil
-                    ? `Администраторам он обязателен. После ${formatDate(twoFactorPolicy.requiredUntil)} вход без него закроется.`
-                    : "Администраторам он обязателен — вход без него уже закрывается."}
-                </AppBanner>
-              )}
-              {versionMismatch && (
-                <AppBanner
-                  tone="warning"
-                  icon={<RiRefreshLine />}
-                  title="Доступна новая версия"
-                  className={cn(
-                    "mb-4",
-                    plainCanvas && "mx-auto w-full max-w-7xl",
-                  )}
-                  action={
-                    <Button
-                      size="sm"
-                      onClick={() => window.location.reload()}
-                      className="max-md:w-full"
-                    >
-                      <RiRefreshLine /> Обновить
-                    </Button>
-                  }
-                >
-                  Обновите страницу, чтобы загрузить последнюю версию. Не
-                  помогло — Ctrl&nbsp;+&nbsp;Shift&nbsp;+&nbsp;R.
-                </AppBanner>
-              )}
-              <div ref={pageRef}>
-                <RouteGuard>
-                  <Outlet />
-                </RouteGuard>
-              </div>
-            </div>
-            <Footer />
-          </div>
-        </BrowserView>
-      </Transitions>
-      <MobileView>
-        {isLoggedIn ? (
-          <div className="mobile-shell fixed inset-0 flex flex-col overflow-hidden">
-            <NavigationBar embedded />
-            {/* Ленты статусов в шелле больше нет: 56px на каждом экране ради
-                информации, которая нужна изредка. На телефоне команда — блок
-                «Команда сейчас» на главной (components/Dashboard/TeamNow) */}
-            <main
-              className={cn(
-                "mobile-shell__scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain",
-                phoneFullscreen && "mobile-shell__scroll--full",
-              )}
-              ref={mobileScrollRef}
-            >
-              {phoneFullscreen ? (
-                <div ref={pageRef} className="flex min-h-0 flex-1 flex-col">
+                {twoFactorPolicy && (
+                  <AppBanner
+                    tone="warning"
+                    icon={<RiShieldKeyholeLine />}
+                    title="Настройте вход по коду из приложения"
+                    className={cn(
+                      "mb-4",
+                      plainCanvas && "mx-auto w-full max-w-7xl",
+                    )}
+                    action={
+                      <Button
+                        size="sm"
+                        onClick={() => navigate("/my-account#security")}
+                        className="max-md:w-full"
+                      >
+                        Настроить
+                      </Button>
+                    }
+                  >
+                    {twoFactorPolicy.requiredUntil
+                      ? `Администраторам он обязателен. После ${formatDate(twoFactorPolicy.requiredUntil)} вход без него закроется.`
+                      : "Администраторам он обязателен — вход без него уже закрывается."}
+                  </AppBanner>
+                )}
+                {versionMismatch && (
+                  <AppBanner
+                    tone="warning"
+                    icon={<RiRefreshLine />}
+                    title="Доступна новая версия"
+                    className={cn(
+                      "mb-4",
+                      plainCanvas && "mx-auto w-full max-w-7xl",
+                    )}
+                    action={
+                      <Button
+                        size="sm"
+                        onClick={() => window.location.reload()}
+                        className="max-md:w-full"
+                      >
+                        <RiRefreshLine /> Обновить
+                      </Button>
+                    }
+                  >
+                    Обновите страницу, чтобы загрузить последнюю версию. Не
+                    помогло — Ctrl&nbsp;+&nbsp;Shift&nbsp;+&nbsp;R.
+                  </AppBanner>
+                )}
+                <div ref={pageRef}>
                   <RouteGuard>
                     <Outlet />
                   </RouteGuard>
                 </div>
-              ) : (
-                <div className="mx-auto w-full px-3 pt-3">
-                  <div ref={pageRef}>
+              </div>
+              <Footer />
+            </div>
+          </BrowserView>
+        </Transitions>
+        <MobileView>
+          {isLoggedIn ? (
+            <div className="mobile-shell fixed inset-0 flex flex-col overflow-hidden">
+              <NavigationBar embedded />
+              {/* Ленты статусов в шелле больше нет: 56px на каждом экране ради
+                информации, которая нужна изредка. На телефоне команда — блок
+                «Команда сейчас» на главной (components/Dashboard/TeamNow) */}
+              <main
+                className={cn(
+                  "mobile-shell__scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain",
+                  phoneFullscreen && "mobile-shell__scroll--full",
+                )}
+                ref={mobileScrollRef}
+              >
+                {phoneFullscreen ? (
+                  <div ref={pageRef} className="flex min-h-0 flex-1 flex-col">
                     <RouteGuard>
                       <Outlet />
                     </RouteGuard>
                   </div>
-                  <Footer />
-                </div>
-              )}
-            </main>
-            {!phoneFullscreen && <MobileBottomNavbar />}
-          </div>
-        ) : (
-          <div className="mx-auto w-full px-3 py-6">
-            <Outlet />
-          </div>
-        )}
-      </MobileView>
-      <Toaster />
+                ) : (
+                  <div className="mx-auto w-full px-3 pt-3">
+                    <div ref={pageRef}>
+                      <RouteGuard>
+                        <Outlet />
+                      </RouteGuard>
+                    </div>
+                    <Footer />
+                  </div>
+                )}
+              </main>
+              {!phoneFullscreen && <MobileBottomNavbar />}
+            </div>
+          ) : (
+            <div className="mx-auto w-full px-3 py-6">
+              <Outlet />
+            </div>
+          )}
+        </MobileView>
+        <Toaster />
+      </SidebarProvider>
     </AuthedUserContext.Provider>
   );
 };

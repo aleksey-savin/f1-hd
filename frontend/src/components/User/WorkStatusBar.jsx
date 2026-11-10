@@ -97,10 +97,13 @@ const WorkStatusBar = () => {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 right-0 flex flex-col overflow-hidden border-l border-border bg-card pt-16 transition-[width] duration-300 max-lg:hidden",
+        "fixed inset-y-0 right-0 flex flex-col overflow-hidden border-l border-border bg-card transition-[width] duration-300 max-lg:hidden",
         open ? "w-84" : "w-18",
       )}
-      style={{ zIndex: 1020 }}
+      style={{
+        zIndex: 1020,
+        paddingTop: "calc(var(--app-header-height) + 0.5rem)",
+      }}
     >
       <TooltipProvider delayDuration={150}>
         <button

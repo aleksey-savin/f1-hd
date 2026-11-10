@@ -70,6 +70,7 @@ class Storage {
 globalThis.localStorage = new Storage();
 globalThis.window = new EventTarget();
 globalThis.document = {
+  cookie: "",
   getElementById: () => null,
   querySelectorAll: () => [],
 };

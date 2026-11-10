@@ -24,8 +24,8 @@ import { useCan } from "../store/authed-user";
 import { ThemeContext } from "../store/theme-context";
 import { canOpenGlobalSettings } from "@/util/global-settings-access";
 
-// Бургер-Sheet навигации: мобильный shell и узкий десктоп (< xl, где пункты
-// не влезают в бар). Структура прежнего drawer сохранена: шапка пользователя,
+// Бургер-Sheet навигации мобильного shell. На десктопе, включая узкие окна,
+// навигацией управляет AppSidebar. Шапка пользователя,
 // скруглённые строки навигации (разделы — раскрывающиеся Collapsible), футер
 // с сегментом темы, «Мой аккаунт» и «Выйти».
 const itemClass = ({ isActive } = {}) =>
