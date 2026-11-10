@@ -1,10 +1,9 @@
 import { useContext } from "react";
-import { Form, NavLink } from "react-router";
+import { Form, NavLink, useLocation } from "react-router";
 
 import {
   RiArrowDownSLine,
   RiLogoutBoxRLine,
-  RiSettings3Line,
   RiUserSettingsLine,
 } from "react-icons/ri";
 
@@ -20,9 +19,8 @@ import { cn } from "@/lib/utils";
 
 import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
 import { AuthedUserContext } from "../store/authed-user-context";
-import { useCan } from "../store/authed-user";
 import { ThemeContext } from "../store/theme-context";
-import { canOpenGlobalSettings } from "@/util/global-settings-access";
+import { activeMenuKey } from "./Navigation/menu";
 
 // Бургер-Sheet навигации мобильного shell. На десктопе, включая узкие окна,
 // навигацией управляет AppSidebar. Шапка пользователя,
@@ -47,7 +45,8 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
     workStatus,
     hideWorkStatus,
   } = useContext(AuthedUserContext);
-  const can = useCan();
+  const { pathname } = useLocation();
+  const activeKey = activeMenuKey(items, pathname);
   const { theme, setTheme } = useContext(ThemeContext);
 
   const workStatusAvailable = !isEndUser && !hideWorkStatus;
@@ -103,7 +102,15 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
           </div>
           {items.map((item) =>
             item.groups ? (
-              <Collapsible key={item.key}>
+              <Collapsible
+                key={item.key}
+                defaultOpen={
+                  item.defaultOpen !== false ||
+                  item.groups.some((group) =>
+                    group.items.some((child) => child.key === activeKey),
+                  )
+                }
+              >
                 <CollapsibleTrigger
                   className={cn(
                     itemClass(),
@@ -191,12 +198,6 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
             <RiUserSettingsLine size={18} aria-hidden className={iconClass} />
             Мой аккаунт
           </NavLink>
-          {canOpenGlobalSettings(can) && (
-            <NavLink to="/preferences" onClick={close} className={itemClass}>
-              <RiSettings3Line size={18} aria-hidden className={iconClass} />
-              Настройки системы
-            </NavLink>
-          )}
           <Form action="/logout" method="POST">
             <button
               type="submit"

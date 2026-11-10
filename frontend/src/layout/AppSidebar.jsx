@@ -37,7 +37,7 @@ function NavigationSection({ item, activeKey, onNavigate }) {
   const active = item.groups.some((group) =>
     group.items.some((child) => child.key === activeKey),
   );
-  const [open, setOpen] = useState(active);
+  const [open, setOpen] = useState(active || item.defaultOpen !== false);
 
   // Переход по прямой ссылке или истории раскрывает текущую ветку.
   useEffect(() => {

@@ -1,6 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildMenu } from "./menu.js";
+import { makeCan } from "../../lib/access.ts";
+
+test("global settings are a top-level navigation link with the route's access requirements", () => {
+  for (const isEndUser of [false, true]) {
+    for (const [statements, visible] of [
+      [{ settings: ["manage"] }, true],
+      [{ taxi: ["configure"] }, true],
+      [{ taxi: ["read"] }, false],
+      [{}, false],
+    ]) {
+      const menu = buildMenu({
+        isEndUser,
+        can: makeCan(statements),
+        modules: {},
+      });
+      const settings = menu.filter((item) => item.to === "/preferences");
+      assert.equal(settings.length, Number(visible));
+      if (visible) assert.equal(settings[0].label, "Настройки системы");
+    }
+  }
+});
 
 const menuFor = (mikrotik, proxmox, rights = ["mikrotik", "proxmox"]) =>
   buildMenu({

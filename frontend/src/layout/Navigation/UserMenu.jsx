@@ -3,7 +3,6 @@ import { Form, NavLink } from "react-router";
 import {
   RiExpandUpDownLine,
   RiLogoutBoxRLine,
-  RiSettings3Line,
   RiUserSettingsLine,
 } from "react-icons/ri";
 
@@ -16,9 +15,7 @@ import ThemeSegment from "@/components/app/ThemeSegment";
 import WorkStatusAvatar from "@/components/User/WorkStatusAvatar";
 import WorkStatusSwitcher from "@/components/User/WorkStatusSwitcher";
 import { AuthedUserContext } from "@/store/authed-user-context";
-import { useCan } from "@/store/authed-user";
 import { ThemeContext } from "@/store/theme-context";
-import { canOpenGlobalSettings } from "@/util/global-settings-access";
 import { cn } from "@/lib/utils";
 
 export function UserMenuTrigger({ className, ...props }) {
@@ -89,7 +86,6 @@ export default function UserMenu({
   const [open, setOpen] = useState(false);
   const { isEndUser, hideWorkStatus } = useContext(AuthedUserContext);
   const { theme, setTheme } = useContext(ThemeContext);
-  const can = useCan();
   const close = () => {
     setOpen(false);
     onNavigate?.();
@@ -130,16 +126,6 @@ export default function UserMenu({
           />
           Мой аккаунт
         </NavLink>
-        {canOpenGlobalSettings(can) && (
-          <NavLink to="/preferences" onClick={close} className={menuItemClass}>
-            <RiSettings3Line
-              size={16}
-              aria-hidden
-              className="text-muted-foreground"
-            />
-            Настройки системы
-          </NavLink>
-        )}
         <div className="mx-2 my-1.5 h-px bg-border-soft" />
         <Form action="/logout" method="POST">
           <button

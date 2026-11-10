@@ -26,6 +26,7 @@ import {
   RiTaxiLine,
 } from "react-icons/ri";
 import { TAXI_REPORT_ACCESS } from "../../util/taxi-access.js";
+import { canOpenGlobalSettings } from "../../util/global-settings-access.ts";
 
 // Конфиг главной навигации — единый источник для левого sidebar и мобильного
 // бургер-Sheet. Структура — по согласованному макету
@@ -33,7 +34,7 @@ import { TAXI_REPORT_ACCESS } from "../../util/taxi-access.js";
 // доступом и не прыгают в «Администрирование», MikroTik и Proxmox — внутри
 // «Управления» (раздел сохраняется и с одним доступным модулем),
 // «Архив» (заявки + работы, /archive) — последний пункт, «Настройки системы»
-// живут в меню аватара. Раздел виден, если виден хотя бы один его пункт.
+// — отдельная ссылка перед ним. Раздел виден, если виден хотя бы один его пункт.
 // У клиента меню короче: «Главная» (она же его список заявок), «Устройства»,
 // «База знаний» и «Отчёты» по правам и модулям, «Архив»; пункта «Заявки» у
 // него нет — см. комментарий в ветке.
@@ -41,10 +42,11 @@ import { TAXI_REPORT_ACCESS } from "../../util/taxi-access.js";
 // Форма элемента:
 //   { key, label, icon, to, badge? }       — ссылка; badge:
 //     "conversations" — пилюля «Ждут ответа» (Conversation/NavBadges)
-//   { key, label, icon, groups: [...] }    — раскрывающийся раздел;
+//   { key, label, icon, groups: [...], defaultOpen?: boolean } — раздел;
 //     группа: { label?, items: [item, …] } — label — uppercase-заголовок
 //     («Администрирование» подписывает группы по модулям), группы рендерятся
 //     с разделителями. Sidebar и drawer показывают полные названия.
+//     Разделы открыты по умолчанию; defaultOpen: false сворачивает раздел.
 const link = (key, label, icon, to, extra = {}) => ({
   key,
   label,
@@ -101,6 +103,9 @@ export function buildMenu({
   const finances = !!modules?.finances?.isActive;
   const mikrotik = !!modules?.mikrotik?.isActive;
   const messaging = !!modules?.messaging?.isActive;
+  const settingsLink =
+    canOpenGlobalSettings(can) &&
+    link("preferences", "Настройки системы", RiSettings3Line, "/preferences");
 
   if (isEndUser) {
     const reports = [
@@ -164,6 +169,7 @@ export function buildMenu({
         icon: RiDraftLine,
         groups: [{ items: reports }],
       },
+      settingsLink,
       link("archive", "Архив", RiArchiveLine, "/archive"),
     ].filter(Boolean);
   }
@@ -220,8 +226,7 @@ export function buildMenu({
   ].filter((group) => group.items.length > 0);
 
   // Группы «Администрирования» подписаны по модулям; «Компании»,
-  // «Пользователи» и «Настройки системы» отсюда ушли (верхний уровень и
-  // меню аватара соответственно).
+  // «Пользователи» и «Настройки системы» находятся на верхнем уровне меню.
   //
   // ВНЕШНЕГО `isAdmin ?` здесь больше нет. Он закрывал всю ветку целиком, и
   // проверки прав у отдельных пунктов внутри были мертвы: человек с правом на
@@ -415,9 +420,11 @@ export function buildMenu({
       key: "admin",
       // Без короткой подписи намеренно: «Админ» читалось как роль, а не раздел
       label: "Администрирование",
+      defaultOpen: false,
       icon: RiSettings3Line,
       groups: administration,
     },
+    settingsLink,
     link("archive", "Архив", RiArchiveLine, "/archive"),
   ].filter(Boolean);
 }
