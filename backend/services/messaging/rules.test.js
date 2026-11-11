@@ -165,8 +165,8 @@ test("backoff grows 30 s → 30 min", () => {
 });
 
 test("a signature is the first name and the organisation — never contacts", () => {
-  assert.equal(signReply("Будем в 14:00.", { firstName: "Игорь", organization: "Техноцентр" }), "Будем в 14:00.\n\n— Игорь, Техноцентр");
-  assert.equal(signReply("Будем.", { firstName: "Игорь", organization: "" }), "Будем.\n\n— Игорь");
-  assert.equal(signReply("Будем.", { firstName: "", organization: "Техноцентр" }), "Будем.\n\n— Техноцентр");
+  assert.equal(signReply("Будем в 14:00.", { firstName: "Игорь", organization: "Техноцентр" }), "Будем в 14:00.\n\n- Игорь, Техноцентр");
+  assert.equal(signReply("Будем.", { firstName: "Игорь", organization: "" }), "Будем.\n\n- Игорь");
+  assert.equal(signReply("Будем.", { firstName: "", organization: "Техноцентр" }), "Будем.\n\n- Техноцентр");
   assert.equal(signReply("Будем.", {}), "Будем.");
 });

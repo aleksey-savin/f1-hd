@@ -1,6 +1,6 @@
 # Messaging («Диалоги») — Implementation Notes
 
-_Last updated: 2026-11-10. Current backend contracts include direct gateway
+_Last updated: 2026-11-11. Current backend contracts include direct gateway
 channels and Wazzup v3. The original design and mockup are in
 `docs/superpowers/specs/2026-09-24-omnichannel-dialogs-design.md`; verify these
 implementation notes against the code._
@@ -445,6 +445,19 @@ box (`deliverComment`) auto-binds the target **direct** chat exactly like
 **open** — sending itself is never blocked by this, only the auto-bind side
 effect is skipped for a closed ticket.
 
+**Reply defaults.** Creating a ticket from a conversation stores its immutable
+`Ticket.originConversationId` alongside the source. The field is `select:false`
+and is read explicitly only for route selection. That original conversation is
+the default if it is still an available route; an unavailable original falls back
+to `notify`, not a different recipient. Historical messenger tickets recover the
+origin from the earliest `Message.attachMode:"origin"`, then the earliest inbound
+comment, then a live binding. Ordinary tickets default to `notify` even after a
+messenger reply binds a chat. Both current `applicantId` and legacy
+`applicant._id` identify the applicant's available routes. The comment composer
+shows the selector after routes load, including when only `notify` exists.
+Labels contain only the network name; disabled routes retain their failure reason.
+Outgoing signatures use plain text `- First name, Organisation`.
+
 **Company identification stays conservative.** `applyOrigin`
 (`services/messaging/origin.js`, run right after "Создать заявку" saves the
 new ticket) never writes `ChannelIdentity.companyId` — only a **manual** link
@@ -474,7 +487,7 @@ rules.
 
 | Route / surface | Files | State |
 |---|---|---|
-| `/conversations` (list, queues, filters) | `pages/Conversation/Inbox.tsx`, `components/Conversation/{QueueChips,ConversationList,ConversationRow,ListFilter}.tsx` | `store/conversations.ts` |
+| `/conversations` (list, queues, filters) | `pages/Conversation/Inbox.tsx`, `components/Conversation/{QueueSelector,ConversationList,ConversationRow,ListFilter}.tsx` | `store/conversations.ts` |
 | `/conversations/:id` (thread + contact pane; phone full screen) | `pages/Conversation/Thread.tsx`, `components/Conversation/ConversationThread.tsx` (+ `ThreadHeader`, `MessagesPane`, `MessageBubble`, `MessageMedia`, `SystemLine`, `Composer`, `DecisionPrompt`, `ContextPane`, `ContactBlock`, `TicketBlock`, `OpenTickets`, `AssigneePicker`, `WhoIsThis`, `ThreadMenu`, `ContextSheet`) | route loader + `components/Conversation/use-thread.ts` |
 | `/conversations/:id/tickets/add` («Создать заявку») | `routes/ticket-forms.jsx` → `pages/Ticket/Add.jsx` (`?conversation=&messages=`), `components/Ticket/ticket-origin.js` | ticket form state (`use-ticket-form.js`) |
 | `/conversations/:id/users/add` («Новый пользователь») | `pages/Conversation/NewUser.tsx` → `components/User/UserForm.jsx` | — |

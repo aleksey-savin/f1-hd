@@ -1024,6 +1024,7 @@ exports.add = async (req, res, next) => {
         : now.setTime(now.getTime() + prefs.deadline * 60 * 60 * 1000),
       state: req.body.state,
       source: conversationOrigin ? conversationOrigin.source : req.body.source,
+      ...(conversationOrigin ? { originConversationId: conversationOrigin.conversation._id } : {}),
       ...(conversationOrigin?.realSender && !conversationOrigin.applicantId && !req.body.applicantId
         ? { realSender: conversationOrigin.realSender }
         : {}),

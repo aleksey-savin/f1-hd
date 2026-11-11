@@ -158,7 +158,7 @@ const backoffMs = (attempts) =>
  */
 const signReply = (text, { firstName = "", organization = "" } = {}) => {
   const who = [firstName, organization].filter(Boolean).join(", ");
-  return who ? `${text}\n\n— ${who}` : text;
+  return who ? `${text}\n\n- ${who}` : text;
 };
 
 module.exports = {

@@ -206,21 +206,47 @@ const ticketDraft = async ({ auth, conversationId, messageIds }) => {
 /**
  * Маршруты «Ответить через» для заявки: диалоги заявителя (личные и группы,
  * где он участник) и диалог, привязанный к этой заявке. Занятый другой открытой
- * заявкой — недоступен. По умолчанию: привязанный к этой заявке → канал
- * последнего сообщения клиента в заявке → «как сейчас» (уведомление).
+ * заявкой — недоступен. У созданной из диалога заявки по умолчанию исходный
+ * чат, у обычной — «Почта и бот». Последующие ответы этот выбор не меняют.
  */
 const deliveryRoutes = async (ticket) => {
   const Conversation = require("@/models/conversation");
   const ChannelIdentity = require("@/models/channelIdentity");
   const Channel = require("@/models/channel");
   const Comment = require("@/models/comment");
+  const Message = require("@/models/message");
   const { Ticket } = require("@/models/ticket");
 
-  const identities = ticket.applicantId ? await ChannelIdentity.find({ userId: ticket.applicantId }).select("_id").lean() : [];
+  let originalId = null;
+  if (Object.values(rules.TICKET_SOURCE).includes(ticket.source)) {
+    const saved = await Ticket.findById(ticket._id).select("+originConversationId").lean();
+    originalId = saved?.originConversationId ? String(saved.originConversationId) : null;
+    // Старые заявки ещё не хранили исходный диалог отдельно. Сначала берём
+    // сообщение из описания, затем первое входящее, затем живую привязку.
+    if (!originalId) {
+      const origin = await Message.findOne({ ticketId: ticket._id, attachMode: "origin" })
+        .sort({ sentAt: 1, seq: 1 }).select("conversationId").lean();
+      originalId = origin?.conversationId ? String(origin.conversationId) : null;
+    }
+    if (!originalId) {
+      const first = await Comment.findOne({ ticketId: ticket._id, "channel.direction": "in" })
+        .sort({ createdAt: 1 }).select("channel.conversationId").lean();
+      originalId = first?.channel?.conversationId ? String(first.channel.conversationId) : null;
+    }
+  }
+
+  const applicantId = ticket.applicantId?._id || ticket.applicantId || ticket.applicant?._id;
+  const identities = applicantId ? await ChannelIdentity.find({ userId: applicantId }).select("_id").lean() : [];
   const ids = identities.map((identity) => identity._id);
   const or = [{ "binding.ticketId": ticket._id }];
   if (ids.length) or.push({ counterpartIdentityId: { $in: ids } }, { "participants.identityId": { $in: ids } });
   const conversations = await Conversation.find({ $or: or, hidden: { $ne: true } }).sort({ "lastMessage.at": -1 }).limit(20).lean();
+  // Исходный диалог принадлежит заявке и после смены контакта/привязки.
+  // Лимит недавних чатов не должен вытеснить его из вариантов ответа.
+  if (originalId && !conversations.some((conversation) => String(conversation._id) === originalId)) {
+    const original = await Conversation.findOne({ _id: originalId, hidden: { $ne: true } }).lean();
+    if (original) conversations.push(original);
+  }
 
   const channels = new Map(
     (await Channel.find({ _id: { $in: conversations.map((c) => c.channelId) } }).select("type isActive").lean()).map((c) => [String(c._id), c]),
@@ -253,16 +279,11 @@ const deliveryRoutes = async (ticket) => {
     };
   });
 
-  let defaultRoute = routes.find((route) => route.boundHere && route.available)?.conversationId || null;
-  if (!defaultRoute) {
-    const last = await Comment.findOne({ ticketId: ticket._id, "channel.direction": "in" })
-      .sort({ createdAt: -1 })
-      .select("channel.conversationId")
-      .lean();
-    const id = last?.channel?.conversationId ? String(last.channel.conversationId) : null;
-    if (id && routes.some((route) => route.conversationId === id && route.available)) defaultRoute = id;
+  if (!originalId && Object.values(rules.TICKET_SOURCE).includes(ticket.source)) {
+    originalId ||= routes.find((route) => route.boundHere)?.conversationId || null;
   }
-  return { routes, defaultRoute: defaultRoute || "notify" };
+  const available = routes.find((route) => route.conversationId === originalId && route.available);
+  return { routes, defaultRoute: available?.conversationId || "notify" };
 };
 
 module.exports = { parseIds, describeAsHtml, prepareOrigin, applyOrigin, ticketDraft, deliveryRoutes };

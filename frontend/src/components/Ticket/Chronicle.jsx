@@ -405,7 +405,7 @@ const Chronicle = ({
   // человека переживает перечитывание маршрутов, пока он доступен; другая
   // заявка — выбор заново
   const routes = messaging?.routes ?? null;
-  const showRoutes = Boolean(messaging?.canReply && routes?.routes.length);
+  const showRoutes = Boolean(messaging?.canReply && routes);
   const [route, setRoute] = useState(NOTIFY_ROUTE);
   const routeChosen = useRef(false);
   useEffect(() => {
@@ -667,7 +667,7 @@ const Chronicle = ({
                 isMobile ? "max-h-32 min-h-14 text-base leading-5" : "max-h-40",
               )}
             />
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               {showRoutes && (
                 <ReplyRoute data={routes} value={route} onChange={pickRoute} />
               )}

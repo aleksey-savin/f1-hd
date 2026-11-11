@@ -1,33 +1,25 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router";
 import { RiGroupLine } from "react-icons/ri";
 
-import { ticketTone } from "@/components/Ticket/ticket-state";
 import { cn } from "@/lib/utils";
 import type { ConversationCard } from "@/types/conversation";
 import { plural } from "@/util/plural";
-import {
-  counterpartHandle,
-  networkLabel,
-  waitLabel,
-} from "@/util/conversation-format";
+import { counterpartHandle, networkLabel } from "@/util/conversation-format";
 
 import { ChannelIcon } from "./ChannelGlyph";
 
 /**
  * Шапка переписки (канва A1 — 64 px, B2 — плотная для телефона): имя, строка
- * «Telegram · @ник · ждёт ответа 12 мин» и действия справа.
+ * «Telegram · @ник» и действия справа. Ожидание видно только в списке.
  */
 const ThreadHeader = ({
   card,
-  now,
   compact = false,
   children,
 }: {
   card: ConversationCard;
-  now: Date;
   compact?: boolean;
-  /** Действия справа: номер заявки или «Создать заявку», «⋯». */
+  /** Действия справа: «Создать заявку», «⋯». */
   children?: ReactNode;
 }) => {
   const { conversation, counterpart, participants } = card;
@@ -47,13 +39,6 @@ const ThreadHeader = ({
     );
   } else if (!compact && counterpartHandle(counterpart)) {
     parts.push(<span key="handle">{counterpartHandle(counterpart)}</span>);
-  }
-  if (conversation.awaitingSince) {
-    parts.push(
-      <span key="wait" className="font-semibold text-warning-text">
-        ждёт ответа {waitLabel(conversation.awaitingSince, now)}
-      </span>,
-    );
   }
 
   return (
@@ -92,35 +77,6 @@ const ThreadHeader = ({
       </div>
       {children}
     </div>
-  );
-};
-
-/** Номер привязанной заявки со статусом — ссылкой на карточку (канва A1). */
-export const TicketChip = ({
-  num,
-  state,
-  small = false,
-}: {
-  num: number;
-  state?: string | null;
-  small?: boolean;
-}) => {
-  const tone = state ? ticketTone({ state }) : null;
-  const Glyph = tone?.glyph;
-  return (
-    <Link
-      to={`/tickets/${num}`}
-      className={cn(
-        "inline-flex flex-none items-center gap-1.5 rounded-lg border border-border font-semibold whitespace-nowrap text-foreground no-underline hover:bg-accent hover:text-foreground",
-        small ? "h-8 px-2.5 text-xs" : "h-9 px-3 text-sm",
-      )}
-    >
-      {Glyph && <Glyph size={16} aria-hidden className="text-muted-foreground" />}
-      №{num}
-      {!small && tone && (
-        <span className="font-normal text-muted-foreground">{tone.label}</span>
-      )}
-    </Link>
   );
 };
 

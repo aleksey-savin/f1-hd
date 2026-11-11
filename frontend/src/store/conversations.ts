@@ -18,34 +18,15 @@ import type {
  * «conversations»). Фоновые перечитывания сбои глотают — следующее изменение
  * подтянет данные (docs/live-updates.md).
  *
- * Очередь запоминается на устройстве: это удобство одного человека, а не
- * общее состояние.
+ * При загрузке страницы открываются все активные диалоги. Выбранный режим
+ * живёт в текущем сеансе страницы, прежний localStorage его не подменяет.
  */
 
-const QUEUE_KEY = "hd.conversations.queue";
 const PAGE = 50;
 // Фоновое перечитывание не тянет больше одной серверной страницы
 const REFRESH_MAX = 100;
 
 type BaseQueue = Exclude<ConversationQueue, "hidden">;
-const BASE_QUEUES: BaseQueue[] = ["awaiting", "mine", "unbound", "all"];
-
-const readQueue = (): BaseQueue => {
-  try {
-    const saved = localStorage.getItem(QUEUE_KEY);
-    return BASE_QUEUES.find((queue) => queue === saved) ?? "awaiting";
-  } catch {
-    return "awaiting";
-  }
-};
-
-const saveQueue = (queue: BaseQueue) => {
-  try {
-    localStorage.setItem(QUEUE_KEY, queue);
-  } catch {
-    // Хранилище недоступно (приватное окно) — очередь просто не запомнится
-  }
-};
 
 type Filters = {
   queue: BaseQueue;
@@ -93,7 +74,7 @@ const listUrl = (
 let generation = 0;
 
 const useConversationsStore = create<ConversationsState>()((set, get) => ({
-  queue: readQueue(),
+  queue: "all",
   q: "",
   company: null,
   hidden: false,
@@ -104,7 +85,6 @@ const useConversationsStore = create<ConversationsState>()((set, get) => ({
   loadingMore: false,
 
   setQueue: (queue) => {
-    saveQueue(queue);
     set({ queue, hidden: false });
     void get().load();
   },
@@ -183,7 +163,10 @@ const useConversationsStore = create<ConversationsState>()((set, get) => ({
       set((state) => {
         const known = new Set(state.items.map((row) => row.id));
         return {
-          items: [...state.items, ...data.items.filter((row) => !known.has(row.id))],
+          items: [
+            ...state.items,
+            ...data.items.filter((row) => !known.has(row.id)),
+          ],
           counts: data.counts,
           nextBefore: data.nextBefore,
         };

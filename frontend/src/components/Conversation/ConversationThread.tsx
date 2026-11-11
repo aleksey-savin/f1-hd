@@ -25,7 +25,7 @@ import ContextPane, { type ContextHandlers } from "./ContextPane";
 import ContextSheet from "./ContextSheet";
 import DecisionPrompt from "./DecisionPrompt";
 import MessagesPane from "./MessagesPane";
-import ThreadHeader, { TicketChip } from "./ThreadHeader";
+import ThreadHeader from "./ThreadHeader";
 import ThreadMenu, { useThreadActions } from "./ThreadMenu";
 import {
   answerNoTicket,
@@ -92,10 +92,14 @@ const ConversationThread = () => {
   }, [revalidate, thread]);
 
   const handlers: ContextHandlers = {
-    onBind: (num) => void bindConversation(conversationId, num).then((ok) => ok && refresh()),
-    onUnbind: () => void unbindConversation(conversationId).then((ok) => ok && refresh()),
+    onBind: (num) =>
+      void bindConversation(conversationId, num).then((ok) => ok && refresh()),
+    onUnbind: () =>
+      void unbindConversation(conversationId).then((ok) => ok && refresh()),
     onAssign: (userId) =>
-      void assignConversation(conversationId, userId).then((ok) => ok && refresh()),
+      void assignConversation(conversationId, userId).then(
+        (ok) => ok && refresh(),
+      ),
     onLinked: refresh,
   };
 
@@ -109,15 +113,21 @@ const ConversationThread = () => {
   };
 
   const retry = (messageId: string) =>
-    void thread.retry(messageId).catch((error) =>
-      useToastStore
-        .getState()
-        .showToast("danger", failureText(error, "Не удалось повторить отправку")),
-    );
+    void thread
+      .retry(messageId)
+      .catch((error) =>
+        useToastStore
+          .getState()
+          .showToast(
+            "danger",
+            failureText(error, "Не удалось повторить отправку"),
+          ),
+      );
 
   // «Создать заявку» — у личного чата без живой привязки. Группа (выбор
   // сообщений — этап P2) и форма сайта (P5) заявку отсюда не заводят
-  const canCreateTicket = conversation.kind === "direct" && !conversation.ticket;
+  const canCreateTicket =
+    conversation.kind === "direct" && !conversation.ticket;
 
   const composer = !canReply ? null : conversation.network === "site" ? (
     <HealthRow
@@ -141,7 +151,9 @@ const ConversationThread = () => {
         await thread.send(draft);
         refresh();
       }}
-      onHandled={() => markHandled(conversationId).then((ok) => ok && refresh())}
+      onHandled={() =>
+        markHandled(conversationId).then((ok) => ok && refresh())
+      }
     />
   );
 
@@ -171,14 +183,19 @@ const ConversationThread = () => {
       hasOlder={thread.hasOlder}
       loadingOlder={thread.loadingOlder}
       onLoadOlder={() =>
-        void thread.loadOlder().catch((error) =>
-          useToastStore
-            .getState()
-            .showToast(
-              "danger",
-              failureText(error, "Не удалось загрузить более старые сообщения"),
-            ),
-        )
+        void thread
+          .loadOlder()
+          .catch((error) =>
+            useToastStore
+              .getState()
+              .showToast(
+                "danger",
+                failureText(
+                  error,
+                  "Не удалось загрузить более старые сообщения",
+                ),
+              ),
+          )
       }
       canRetry={canReply}
       onRetry={retry}
@@ -196,7 +213,10 @@ const ConversationThread = () => {
     />
   );
 
-  const phoneActions = useThreadActions(card, { canManage, onChanged: refresh });
+  const phoneActions = useThreadActions(card, {
+    canManage,
+    onChanged: refresh,
+  });
   // Собеседник не опознан (не группа) — ContextPane рисует «Скрыть диалог»
   // прямо в WhoIsThis; тот же пункт списком действий внизу шторки был бы
   // виден дважды подряд. Но WhoIsThis умеет только скрывать: у уже скрытого
@@ -221,16 +241,12 @@ const ConversationThread = () => {
               Диалоги
             </Link>
           </nav>
-          <ThreadHeader card={card} now={now} compact>
-            {conversation.ticket ? (
-              <TicketChip num={conversation.ticket.num} small />
-            ) : (
-              canCreateTicket && (
-                <Button size="xs" onClick={createTicket}>
-                  <RiAddLine />
-                  Создать заявку
-                </Button>
-              )
+          <ThreadHeader card={card} compact>
+            {canCreateTicket && (
+              <Button size="xs" onClick={createTicket}>
+                <RiAddLine />
+                Создать заявку
+              </Button>
             )}
             <Button
               variant="outline"
@@ -289,19 +305,12 @@ const ConversationThread = () => {
   return (
     <>
       <section aria-label="Переписка" className="flex min-w-0 flex-1 flex-col">
-        <ThreadHeader card={card} now={now}>
-          {conversation.ticket ? (
-            <TicketChip
-              num={conversation.ticket.num}
-              state={card.ticket?.state ?? null}
-            />
-          ) : (
-            canCreateTicket && (
-              <Button size="sm" onClick={createTicket}>
-                <RiAddLine />
-                Создать заявку
-              </Button>
-            )
+        <ThreadHeader card={card}>
+          {canCreateTicket && (
+            <Button size="sm" onClick={createTicket}>
+              <RiAddLine />
+              Создать заявку
+            </Button>
           )}
           <ThreadMenu card={card} canManage={canManage} onChanged={refresh} />
         </ThreadHeader>
@@ -311,7 +320,7 @@ const ConversationThread = () => {
       </section>
       <aside
         aria-label="Контакт и заявка"
-        className="w-80 flex-none overflow-y-auto border-l border-border-soft px-5 py-4"
+        className="w-88 flex-none overflow-y-auto border-l border-border-soft px-5 py-4"
       >
         {context(false)}
       </aside>

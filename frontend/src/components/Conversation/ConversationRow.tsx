@@ -46,7 +46,8 @@ const ConversationRow = ({
       to={`/conversations/${row.id}`}
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "relative flex gap-3 px-4 py-3 text-foreground no-underline transition-colors hover:bg-accent hover:text-foreground",
+        "relative flex gap-3 text-foreground no-underline transition-colors hover:bg-accent hover:text-foreground",
+        phone ? "px-4 py-3" : "px-3 py-2.5",
         selected && "bg-primary/10 hover:bg-primary/10",
       )}
     >
@@ -58,8 +59,8 @@ const ConversationRow = ({
       )}
       <ChannelTile
         network={row.network}
-        iconSize={20}
-        className={cn("rounded-xl", phone ? "size-11" : "size-10")}
+        iconSize={phone ? 20 : 18}
+        className={cn("rounded-xl", phone ? "size-11" : "size-9")}
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">

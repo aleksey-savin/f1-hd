@@ -169,7 +169,7 @@ export const qrSecondsLeft = (expiresAt, now = new Date()) =>
 /** Подсказка свитча «Подписывать ответы»: пример подписи без контактов. */
 export const signatureExample = (firstName, organization) => {
   const who = [firstName, organization].filter(Boolean).join(", ");
-  return who ? `«— ${who}» — имя без контактов` : "Имя и организация — без контактов";
+  return who ? `«- ${who}» — имя без контактов` : "Имя и организация — без контактов";
 };
 
 /**

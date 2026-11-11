@@ -29,14 +29,14 @@ const tz = "Europe/Moscow";
 // 25.09.2026 11:00 по Москве
 const now = new Date("2026-09-25T08:00:00Z");
 
-test("очереди — в порядке канвы, точка только у «Ждут ответа»", () => {
+test("режимы — сначала все активные, точка только у «Ждут ответа»", () => {
   assert.deepEqual(
     QUEUES.map((queue) => queue.label),
-    ["Ждут ответа", "Мои", "Без заявки", "Все"],
+    ["Все", "Ждут ответа", "Мои", "Без заявки"],
   );
   assert.deepEqual(
     QUEUES.map((queue) => queue.dot),
-    ["warning", "none", "none", "none"],
+    ["none", "warning", "none", "none"],
   );
 });
 

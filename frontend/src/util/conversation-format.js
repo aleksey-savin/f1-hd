@@ -25,12 +25,12 @@ export const NETWORK_LABEL = {
 
 export const networkLabel = (network) => NETWORK_LABEL[network] ?? "Мессенджер";
 
-/** Очереди в порядке чипов; точка — только у «Ждут ответа» (канва A1). */
+/** Все активные первыми; точка — только у «Ждут ответа». */
 export const QUEUES = [
+  { value: "all", label: "Все", dot: "none" },
   { value: "awaiting", label: "Ждут ответа", dot: "warning" },
   { value: "mine", label: "Мои", dot: "none" },
   { value: "unbound", label: "Без заявки", dot: "none" },
-  { value: "all", label: "Все", dot: "none" },
 ];
 
 export const QUEUE_VALUES = QUEUES.map((queue) => queue.value);

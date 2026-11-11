@@ -42,36 +42,52 @@ const busy = {
   boundHere: false,
 };
 
-test("пункты меню: заголовок и подпись как на канве D1", () => {
-  assert.equal(routeTitle(marina, "Соколова Марина"), "Telegram · Соколова Марина");
-  assert.equal(routeTitle(busy, "Соколова Марина"), "WhatsApp · Соколова Марина");
-  assert.equal(routeSubtitle(marina), "личный чат · привязан к этой заявке");
-  assert.equal(routeSubtitle({ ...marina, boundHere: false }), "личный чат");
-  assert.equal(routeSubtitle(group), "группа компании");
+test("пункты меню: только канал, пояснение нужно лишь недоступному маршруту", () => {
+  assert.equal(routeTitle(marina, "Соколова Марина"), "Telegram");
+  assert.equal(routeTitle(busy, "Соколова Марина"), "WhatsApp");
+  assert.equal(routeSubtitle(marina), "");
+  assert.equal(routeSubtitle({ ...marina, boundHere: false }), "");
+  assert.equal(routeSubtitle(group), "");
   assert.equal(routeSubtitle(busy), "занят заявкой №56790");
 });
 
-test("кнопка выбора: короткое имя или «Почта и бот»", () => {
-  assert.equal(routeTriggerLabel(marina, ""), "Telegram · Соколова М.");
+test("кнопка выбора: только канал или «Почта и бот»", () => {
+  assert.equal(routeTriggerLabel(marina, ""), "Telegram");
   assert.equal(routeTriggerLabel(null, ""), "Почта и бот");
-  assert.equal(routeTriggerLabel({ ...marina, title: "" }, ""), "Telegram · собеседник");
+  assert.equal(routeTriggerLabel({ ...marina, title: "" }, ""), "Telegram");
 });
 
 test("initialRoute: занятый или пропавший маршрут не выбирается — «как сейчас»", () => {
   assert.equal(
-    initialRoute({ routes: [marina, busy], defaultRoute: "c-marina", applicantName: "" }),
+    initialRoute({
+      routes: [marina, busy],
+      defaultRoute: "c-marina",
+      applicantName: "",
+    }),
     "c-marina",
   );
   assert.equal(
-    initialRoute({ routes: [marina, busy], defaultRoute: "c-wa", applicantName: "" }),
+    initialRoute({
+      routes: [marina, busy],
+      defaultRoute: "c-wa",
+      applicantName: "",
+    }),
     NOTIFY_ROUTE,
   );
   assert.equal(
-    initialRoute({ routes: [marina], defaultRoute: "c-gone", applicantName: "" }),
+    initialRoute({
+      routes: [marina],
+      defaultRoute: "c-gone",
+      applicantName: "",
+    }),
     NOTIFY_ROUTE,
   );
   assert.equal(
-    initialRoute({ routes: [marina], defaultRoute: NOTIFY_ROUTE, applicantName: "" }),
+    initialRoute({
+      routes: [marina],
+      defaultRoute: NOTIFY_ROUTE,
+      applicantName: "",
+    }),
     NOTIFY_ROUTE,
   );
   assert.equal(initialRoute(null), NOTIFY_ROUTE);
@@ -79,12 +95,21 @@ test("initialRoute: занятый или пропавший маршрут не
 
 test("dialogRoute: привязанный чат, иначе чат последнего входящего", () => {
   const comments = [
-    { createdAt: "2026-09-25T06:00:00Z", channel: { conversationId: "c-group", direction: "in" } },
-    { createdAt: "2026-09-25T07:00:00Z", channel: { conversationId: "c-marina", direction: "out" } },
+    {
+      createdAt: "2026-09-25T06:00:00Z",
+      channel: { conversationId: "c-group", direction: "in" },
+    },
+    {
+      createdAt: "2026-09-25T07:00:00Z",
+      channel: { conversationId: "c-marina", direction: "out" },
+    },
     { createdAt: "2026-09-25T05:00:00Z", channel: null },
   ];
   assert.equal(dialogRoute([marina, group], comments), marina);
-  assert.equal(dialogRoute([{ ...marina, boundHere: false }, group], comments), group);
+  assert.equal(
+    dialogRoute([{ ...marina, boundHere: false }, group], comments),
+    group,
+  );
   assert.equal(dialogRoute([group], []), null);
   assert.equal(dialogRoute(null, comments), null);
 });
@@ -96,25 +121,42 @@ test("dialogLabel: сеть и вид чата", () => {
 
 test("chronicleAuthorName: без хвоста сети, «с телефона» остаётся, иначе автор", () => {
   assert.equal(
-    chronicleAuthorName({ channel: { network: "telegram", authorName: "Андрей · Telegram" } }, "Служба техподдержки"),
+    chronicleAuthorName(
+      { channel: { network: "telegram", authorName: "Андрей · Telegram" } },
+      "Служба техподдержки",
+    ),
     "Андрей",
   );
   assert.equal(
     chronicleAuthorName(
-      { channel: { network: "telegram", authorName: "Север Поддержка · с телефона" } },
+      {
+        channel: {
+          network: "telegram",
+          authorName: "Север Поддержка · с телефона",
+        },
+      },
       "Служба техподдержки",
     ),
     "Север Поддержка · с телефона",
   );
   // Связанный клиент: подписи нет — имя автора комментария
   assert.equal(
-    chronicleAuthorName({ channel: { network: "telegram", direction: "in" } }, "Соколова Марина"),
+    chronicleAuthorName(
+      { channel: { network: "telegram", direction: "in" } },
+      "Соколова Марина",
+    ),
     "Соколова Марина",
   );
-  assert.equal(chronicleAuthorName({ channel: null }, "Лебедев Игорь"), "Лебедев Игорь");
+  assert.equal(
+    chronicleAuthorName({ channel: null }, "Лебедев Игорь"),
+    "Лебедев Игорь",
+  );
   // Имя, совпадающее с хвостом целиком, не превращается в пустоту
   assert.equal(
-    chronicleAuthorName({ channel: { network: "telegram", authorName: " · Telegram" } }, "x"),
+    chronicleAuthorName(
+      { channel: { network: "telegram", authorName: " · Telegram" } },
+      "x",
+    ),
     "· Telegram",
   );
 });
@@ -122,19 +164,36 @@ test("chronicleAuthorName: без хвоста сети, «с телефона»
 test("chronicleAuthorName: письмо от незарегистрированного отправителя — realSender заявки, никогда имя служебной учётки", () => {
   const mail = {
     channel: null,
-    createdBy: { firstName: "Служба", lastName: "поддержки", isServiceAccount: true },
+    createdBy: {
+      firstName: "Служба",
+      lastName: "поддержки",
+      isServiceAccount: true,
+    },
   };
   assert.equal(
-    chronicleAuthorName(mail, "Служба поддержки", '"Иванов Пётр" <petr@corp.ru>'),
+    chronicleAuthorName(
+      mail,
+      "Служба поддержки",
+      '"Иванов Пётр" <petr@corp.ru>',
+    ),
     "Иванов Пётр <petr@corp.ru>",
   );
   // Без адреса в realSender (не распознан) — строка как есть
-  assert.equal(chronicleAuthorName(mail, "Служба поддержки", "Андрей"), "Андрей");
+  assert.equal(
+    chronicleAuthorName(mail, "Служба поддержки", "Андрей"),
+    "Андрей",
+  );
   // realSender не пришёл (не сотруднику) — «Отправитель письма», не имя учётки
-  assert.equal(chronicleAuthorName(mail, "Служба поддержки", ""), "Отправитель письма");
+  assert.equal(
+    chronicleAuthorName(mail, "Служба поддержки", ""),
+    "Отправитель письма",
+  );
   // С блоком канала (ответ «с телефона») — обычные правила, realSender не при чём
   const fromPhone = {
-    channel: { network: "telegram", authorName: "Север Поддержка · с телефона" },
+    channel: {
+      network: "telegram",
+      authorName: "Север Поддержка · с телефона",
+    },
     createdBy: { isServiceAccount: true },
   };
   assert.equal(

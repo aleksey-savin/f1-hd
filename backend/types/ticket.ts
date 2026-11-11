@@ -131,6 +131,7 @@ export interface ITicket extends ITicketDefaultFields {
   isClosed: boolean;
   realSender?: string;
   applicantId?: Types.ObjectId;
+  originConversationId?: Types.ObjectId;
   /** @deprecated legacy, removed after 1.8.9 */
   applicant?: {
     _id?: Types.ObjectId;

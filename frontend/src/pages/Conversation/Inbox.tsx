@@ -7,7 +7,7 @@ import PageHeader from "@/components/app/PageHeader";
 import SearchBar from "@/components/app/SearchBar";
 import ConversationList from "@/components/Conversation/ConversationList";
 import ListFilter from "@/components/Conversation/ListFilter";
-import QueueChips from "@/components/Conversation/QueueChips";
+import QueueSelector from "@/components/Conversation/QueueSelector";
 import useLiveTopic from "@/hooks/use-live-topic";
 import useConversationsStore from "@/store/conversations";
 
@@ -15,8 +15,8 @@ import useConversationsStore from "@/store/conversations";
  * «Диалоги» — рабочее место переписки с клиентами (канва A1/A2 — десктоп,
  * B1/B4 — телефон).
  *
- * Десктоп: шапка (заголовок со счётчиком, чипы очередей, поиск, фильтры) и одна
- * панель на три колонки — список 352 · переписка · контакт 320. Переписка и
+ * Десктоп: шапка (заголовок со счётчиком, режимы, поиск, фильтры) и одна
+ * панель на три колонки — список 288 · переписка · контакт 352. Переписка и
  * контакт — вложенный маршрут `:id` (pages/Conversation/Thread), список живёт
  * здесь и не перерисовывается при переходе между диалогами.
  *
@@ -80,12 +80,7 @@ const DesktopInbox = ({
     // снизу (1.5rem) и внутренние поля листа (2 × 1rem) — layout/Root
     <div className="flex h-[calc(100svh-8.5rem)] min-h-[34rem] flex-col">
       <PageHeader
-        title={
-          <div className="flex items-center gap-x-3">
-            <Title />
-            <QueueChips className="ms-4" />
-          </div>
-        }
+        title={<Title />}
         search={
           <SearchBar
             placeholder="Поиск по диалогам"
@@ -93,12 +88,17 @@ const DesktopInbox = ({
             onChange={search.onChange}
           />
         }
-        controls={<ListFilter />}
+        controls={
+          <>
+            <QueueSelector />
+            <ListFilter />
+          </>
+        }
       />
       <div className="mt-4 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
         <nav
           aria-label="Список диалогов"
-          className="w-88 flex-none overflow-y-auto border-r border-border-soft"
+          className="w-72 flex-none overflow-y-auto border-r border-border-soft"
         >
           <ConversationList selectedId={selectedId} />
         </nav>
@@ -130,7 +130,7 @@ const PhoneInbox = () => {
           value={search.value}
           onChange={search.onChange}
         />
-        <QueueChips size="sm" className="scrollbar-none overflow-x-auto" />
+        <QueueSelector compact />
       </div>
       <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
         <ConversationList phone />

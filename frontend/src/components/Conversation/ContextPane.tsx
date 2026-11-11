@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import type { ConversationCard } from "@/types/conversation";
 import { networkLabel } from "@/util/conversation-format";
 
-import AssigneePicker from "./AssigneePicker";
 import ContactBlock from "./ContactBlock";
 import OpenTickets from "./OpenTickets";
 import TicketBlock from "./TicketBlock";
@@ -16,9 +15,9 @@ import WhoIsThis from "./WhoIsThis";
  * Колонка «Контакт и заявка» справа от переписки (канва A1, C2) и её же
  * содержимое в шторке телефона (B3, `big`):
  *   • собеседник связан — карточка с каналами, привязанная заявка, открытые
- *     заявки компании, ответственный за диалог;
+ *     заявки компании;
  *   • не связан — «Кто это?»;
- *   • группа (выбор сообщений — этап P2) — участники и ответственный.
+ *   • группа (выбор сообщений — этап P2) — участники.
  */
 export type ContextHandlers = {
   onBind: (ticketNum: number) => void;
@@ -75,17 +74,6 @@ const ContextPane = ({
   handlers: ContextHandlers;
 }) => {
   const { conversation } = card;
-  const assignee = (
-    <>
-      <SubLabel className="mt-5">Ответственный за диалог</SubLabel>
-      <AssigneePicker
-        assignee={conversation.assignee}
-        disabled={!canManage}
-        onChange={handlers.onAssign}
-      />
-    </>
-  );
-
   if (conversation.kind === "group") {
     return (
       <>
@@ -106,19 +94,19 @@ const ContextPane = ({
           </div>
         </div>
         <Participants card={card} />
-        {assignee}
       </>
     );
   }
 
   if (!card.contact) {
-    // Собеседник не опознан — заявка и ответственный за диалог всё равно
-    // могли появиться (личный чат привязали заявкой, диалог назначили) и
-    // рисуются под «Кто это?» так же, как у опознанного собеседника (канва
-    // A1): те же пропсы и те же эйбрау
+    // У неопознанного собеседника тоже может быть привязанная заявка.
     return (
       <>
-        <WhoIsThis card={card} canManage={canManage} onLinked={handlers.onLinked} />
+        <WhoIsThis
+          card={card}
+          canManage={canManage}
+          onLinked={handlers.onLinked}
+        />
         {conversation.ticket && (
           <>
             <SubLabel className="mt-5">Заявка</SubLabel>
@@ -131,7 +119,6 @@ const ContextPane = ({
             />
           </>
         )}
-        {assignee}
       </>
     );
   }
@@ -153,10 +140,11 @@ const ContextPane = ({
       )}
       <OpenTickets
         card={card}
-        canBind={canManage && !conversation.ticket && conversation.kind === "direct"}
+        canBind={
+          canManage && !conversation.ticket && conversation.kind === "direct"
+        }
         onBind={handlers.onBind}
       />
-      {assignee}
     </>
   );
 };

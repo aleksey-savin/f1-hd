@@ -421,7 +421,7 @@ export function buildMenu({
       // Без короткой подписи намеренно: «Админ» читалось как роль, а не раздел
       label: "Администрирование",
       defaultOpen: false,
-      icon: RiSettings3Line,
+      icon: RiShieldKeyholeLine,
       groups: administration,
     },
     settingsLink,

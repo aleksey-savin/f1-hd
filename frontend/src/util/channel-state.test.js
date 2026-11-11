@@ -98,7 +98,7 @@ test("мелочи: хост прокси, секунды QR, пример по�
   assert.equal(qrSecondsLeft("2026-09-25T08:00:18Z", now), 18);
   assert.equal(qrSecondsLeft("2026-09-25T07:59:00Z", now), 0);
   assert.equal(qrSecondsLeft(null, now), null);
-  assert.equal(signatureExample("Игорь", "Север"), "«— Игорь, Север» — имя без контактов");
+  assert.equal(signatureExample("Игорь", "Север"), "«- Игорь, Север» — имя без контактов");
   assert.equal(signatureExample("", ""), "Имя и организация — без контактов");
   assert.equal(channelHint(channel()), "Север Поддержка · +7 (423) 200-00-00");
   assert.equal(channelHint({ account: {} }), "Корпоративный аккаунт не подключён");

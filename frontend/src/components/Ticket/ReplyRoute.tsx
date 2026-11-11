@@ -45,7 +45,7 @@ const optionsOf = (data: DeliveryRoutes): Option[] => [
   ...data.routes.map((route: DeliveryRoute) => ({
     value: route.conversationId,
     network: route.network,
-    title: routeTitle(route, data.applicantName),
+    title: routeTitle(route),
     subtitle: routeSubtitle(route),
     disabled: !route.available,
   })),
@@ -53,7 +53,7 @@ const optionsOf = (data: DeliveryRoutes): Option[] => [
     value: NOTIFY_ROUTE,
     network: "mail",
     title: "Почта и бот",
-    subtitle: "как сейчас — уведомление о комментарии",
+    subtitle: "",
     disabled: false,
   },
 ];
@@ -77,7 +77,9 @@ const Item = ({
     onClick={() => onPick(option.value)}
     className={cn(
       "flex w-full cursor-pointer appearance-none rounded-md border-0 text-left text-foreground outline-none focus-visible:ring-4 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-45",
-      big ? "items-center gap-3 bg-transparent px-1 py-2.5" : "items-start gap-2.5 p-2 hover:bg-accent",
+      big
+        ? "items-center gap-3 bg-transparent px-1 py-2.5"
+        : "items-start gap-2.5 p-2 hover:bg-accent",
       !big && selected && "bg-accent",
     )}
   >
@@ -88,7 +90,11 @@ const Item = ({
         className="size-9 rounded-lg"
       />
     ) : option.network === "mail" ? (
-      <RiMailLine size={16} aria-hidden className="mt-0.5 flex-none text-muted-foreground" />
+      <RiMailLine
+        size={16}
+        aria-hidden
+        className="mt-0.5 flex-none text-muted-foreground"
+      />
     ) : (
       <ChannelIcon network={option.network} size={16} className="mt-0.5" />
     )}
@@ -96,7 +102,11 @@ const Item = ({
       <span className={cn("block", big ? "text-base leading-6" : "text-sm")}>
         {option.title}
       </span>
-      <span className="block text-xs text-muted-foreground">{option.subtitle}</span>
+      {option.subtitle && (
+        <span className="block text-xs text-muted-foreground">
+          {option.subtitle}
+        </span>
+      )}
     </span>
     {big ? (
       <span
@@ -130,10 +140,24 @@ const List = ({
   return (
     <div role="radiogroup" aria-label="Канал ответа" className="flex flex-col">
       {options.slice(0, -1).map((option) => (
-        <Item key={option.value} option={option} selected={value === option.value} big={big} onPick={onPick} />
+        <Item
+          key={option.value}
+          option={option}
+          selected={value === option.value}
+          big={big}
+          onPick={onPick}
+        />
       ))}
-      <div aria-hidden className={cn("h-px bg-border-soft", big ? "my-1.5" : "-mx-1 my-1")} />
-      <Item option={notify} selected={value === notify.value} big={big} onPick={onPick} />
+      <div
+        aria-hidden
+        className={cn("h-px bg-border-soft", big ? "my-1.5" : "-mx-1 my-1")}
+      />
+      <Item
+        option={notify}
+        selected={value === notify.value}
+        big={big}
+        onPick={onPick}
+      />
     </div>
   );
 };
@@ -148,7 +172,8 @@ const ReplyRoute = ({
   onChange: (value: string) => void;
 }) => {
   const [open, setOpen] = useState(false);
-  const route = data.routes.find((item) => item.conversationId === value) ?? null;
+  const route =
+    data.routes.find((item) => item.conversationId === value) ?? null;
   const pick = (next: string) => {
     onChange(next);
     setOpen(false);
@@ -159,10 +184,10 @@ const ReplyRoute = ({
       type="button"
       aria-haspopup="true"
       aria-expanded={open}
-      aria-label={`Ответить через: ${routeTriggerLabel(route, data.applicantName)}`}
+      aria-label={`Ответить через: ${routeTriggerLabel(route)}`}
       onClick={isMobile ? () => setOpen(true) : undefined}
       className={cn(
-        "inline-flex min-w-0 flex-none cursor-pointer appearance-none items-center gap-1.5 rounded-lg border bg-card px-2.5 text-xs font-semibold whitespace-nowrap text-foreground outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
+        "inline-flex min-w-0 max-w-full shrink cursor-pointer appearance-none items-center gap-1.5 rounded-lg border bg-card px-2.5 text-xs font-semibold whitespace-nowrap text-foreground outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
         isMobile ? "h-9" : "h-8",
         open ? "border-primary" : "border-border",
       )}
@@ -170,10 +195,18 @@ const ReplyRoute = ({
       {route ? (
         <ChannelIcon network={route.network} size={14} />
       ) : (
-        <RiMailLine size={14} aria-hidden className="flex-none text-muted-foreground" />
+        <RiMailLine
+          size={14}
+          aria-hidden
+          className="flex-none text-muted-foreground"
+        />
       )}
-      <span className="truncate">{routeTriggerLabel(route, data.applicantName)}</span>
-      <RiArrowDownSLine size={14} aria-hidden className="flex-none text-muted-foreground" />
+      <span className="truncate">{routeTriggerLabel(route)}</span>
+      <RiArrowDownSLine
+        size={14}
+        aria-hidden
+        className="flex-none text-muted-foreground"
+      />
     </button>
   );
 
@@ -186,8 +219,12 @@ const ReplyRoute = ({
             side="bottom"
             className="max-h-[85dvh] gap-0 overflow-y-auto rounded-t-2xl border border-b-0 border-border px-4 pt-4.5 pb-6"
           >
-            <SheetTitle className="px-1 pb-2 text-lg font-semibold">Ответить через</SheetTitle>
-            <SheetDescription className="sr-only">Канал ответа клиенту</SheetDescription>
+            <SheetTitle className="px-1 pb-2 text-lg font-semibold">
+              Ответить через
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              Канал ответа клиенту
+            </SheetDescription>
             <List data={data} value={value} big onPick={pick} />
           </SheetContent>
         </Sheet>
@@ -199,7 +236,9 @@ const ReplyRoute = ({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align="start" className="w-76 p-1">
-        <div className="px-2 pt-1.5 pb-1 text-xs font-semibold text-faint">Ответить через</div>
+        <div className="px-2 pt-1.5 pb-1 text-xs font-semibold text-faint">
+          Ответить через
+        </div>
         <List data={data} value={value} big={false} onPick={pick} />
       </PopoverContent>
     </Popover>

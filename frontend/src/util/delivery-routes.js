@@ -6,7 +6,7 @@
  * Маршруты отдаёт `GET /api/tickets/:num/delivery-routes`
  * (backend/services/messaging/origin.js#deliveryRoutes).
  */
-import { NETWORK_LABEL, networkLabel, shortPersonName } from "./conversation-format.js";
+import { NETWORK_LABEL, networkLabel } from "./conversation-format.js";
 import { formatMailSender } from "./mail-sender.js";
 
 /**
@@ -19,35 +19,36 @@ import { formatMailSender } from "./mail-sender.js";
 export const NOTIFY_ROUTE = "notify";
 
 /** Источники заявки из мессенджеров (backend/services/messaging/rules.js#TICKET_SOURCE). */
-export const MESSENGER_SOURCES = new Set(["Telegram", "WhatsApp", "MAX", "Сайт"]);
+export const MESSENGER_SOURCES = new Set([
+  "Telegram",
+  "WhatsApp",
+  "MAX",
+  "Сайт",
+]);
 
 /**
- * Заголовок пункта меню: «Telegram · Соколова Марина».
+ * Заголовок пункта меню — только канал.
  * @param {DeliveryRoute} route
  * @param {string} [applicantName]
  */
-export const routeTitle = (route, applicantName = "") =>
-  `${networkLabel(route.network)} · ${route.title || applicantName || "собеседник"}`;
+export const routeTitle = (route) => networkLabel(route.network);
 
 /**
- * Вторая строка пункта: занят — причиной, иначе вид чата и привязка.
+ * Причина недоступности. Доступным каналам пояснение не нужно.
  * @param {DeliveryRoute} route
  */
 export const routeSubtitle = (route) => {
   if (!route.available) return route.reason || "недоступно";
-  if (route.kind === "group") return "группа компании";
-  return route.boundHere ? "личный чат · привязан к этой заявке" : "личный чат";
+  return "";
 };
 
 /**
- * Подпись кнопки выбора: «Telegram · Соколова М.»; без маршрута — «Почта и бот».
+ * Подпись кнопки выбора: канал; без маршрута — «Почта и бот».
  * @param {DeliveryRoute | null | undefined} route
  * @param {string} [applicantName]
  */
-export const routeTriggerLabel = (route, applicantName = "") =>
-  route
-    ? `${networkLabel(route.network)} · ${shortPersonName(route.title || applicantName) || "собеседник"}`
-    : "Почта и бот";
+export const routeTriggerLabel = (route) =>
+  route ? routeTitle(route) : "Почта и бот";
 
 /**
  * Маршрут, выбранный при открытии: тот, что предложил сервер, если он ещё
@@ -113,7 +114,11 @@ export const dialogLabel = (route) =>
  * @param {string} [realSender] — `ticket.realSender`, только для писем от незарегистрированных отправителей
  * @returns {string}
  */
-export const chronicleAuthorName = (comment, personName = "", realSender = "") => {
+export const chronicleAuthorName = (
+  comment,
+  personName = "",
+  realSender = "",
+) => {
   const authorName = comment?.channel?.authorName?.trim();
   if (authorName) {
     const suffix = ` · ${NETWORK_LABEL[comment.channel.network] ?? ""}`;
@@ -122,8 +127,15 @@ export const chronicleAuthorName = (comment, personName = "", realSender = "") =
       : authorName;
   }
   const author = comment?.createdBy;
-  if (!comment?.channel && author && typeof author === "object" && author.isServiceAccount) {
-    return formatMailSender(realSender) || realSender?.trim() || "Отправитель письма";
+  if (
+    !comment?.channel &&
+    author &&
+    typeof author === "object" &&
+    author.isServiceAccount
+  ) {
+    return (
+      formatMailSender(realSender) || realSender?.trim() || "Отправитель письма"
+    );
   }
   return personName;
 };
