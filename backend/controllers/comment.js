@@ -62,7 +62,7 @@ exports.add = async (req, res, next) => {
     // записи комментария — отказ по занятому диалогу не должен оставлять в
     // заявке ответ, который клиенту не ушёл
     const route = req.body.deliverVia
-      ? await validateDeliverRoute({ ticket, conversationId: req.body.deliverVia, auth: req.auth })
+      ? await validateDeliverRoute({ ticket, routeId: req.body.deliverVia, auth: req.auth })
       : null;
 
     const attachments = req.files
@@ -88,8 +88,8 @@ exports.add = async (req, res, next) => {
       ...(route
         ? {
             channel: commentChannel({
-              network: route.conversation.network,
-              conversationId: route.conversation._id,
+              network: route.channel.type,
+              conversationId: route.conversation?._id,
               direction: "out",
               status: "preparing",
             }),

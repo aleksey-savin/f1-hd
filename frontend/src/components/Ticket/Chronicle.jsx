@@ -416,7 +416,7 @@ const Chronicle = ({
       const stillThere =
         current === NOTIFY_ROUTE ||
         (routes?.routes ?? []).some(
-          (item) => item.conversationId === current && item.available,
+          (item) => item.id === current && item.available,
         );
       return routeChosen.current && stillThere ? current : initialRoute(routes);
     });

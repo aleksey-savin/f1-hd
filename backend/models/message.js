@@ -25,7 +25,11 @@ const attachmentSchema = new Schema(
  */
 const messageSchema = new Schema(
   {
-    conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", required: true },
+    conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", default: null,
+      required: function () { return !(this.direction === "out" && this.origin === "hd" && this.recipientPhone); } },
+    // Первый исходящий контакт: реальный chatId появится только в ответе API.
+    recipientPhone: { type: String, default: undefined },
+    recipientName: { type: String, default: undefined },
     channelId: { type: Schema.Types.ObjectId, ref: "Channel", required: true },
     externalChatId: { type: String, required: true },
     externalId: { type: String, default: undefined },

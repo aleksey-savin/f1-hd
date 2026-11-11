@@ -26,6 +26,12 @@ test("only the head of each conversation's queue is handed out", () => {
   assert.deepEqual(pickHeads(candidates, ["j1", "j4"], 2).map((job) => job._id), ["j1", "j3"]);
 });
 
+test("first contact is ordered by recipient before a conversation exists", () => {
+  const candidates = [{ _id: "first", conversationId: null, orderingKey: "phone:tg:79145550142" },
+    { _id: "second", conversationId: null, orderingKey: "phone:tg:79145550142" }, { _id: "command", conversationId: null }];
+  assert.deepEqual(pickHeads(candidates, ["first"], 10).map((job) => job._id), ["first", "command"]);
+});
+
 test("a successful ack finishes the job", () => {
   const patch = applyAck({ attempts: 0 }, { ok: true }, NOW);
   assert.equal(patch.state, "done");

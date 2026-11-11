@@ -5,6 +5,7 @@ const WazzupSettings = require('../../models/wazzupSettings');
 const WazzupEvent = require('../../models/wazzupEvent');
 const provider = require('./provider');
 const { createSender } = require('./sender');
+const { attachmentUrl } = require('./outgoing-media');
 const { createProcessor, aggregateStatus } = require('./processor');
 const { mediaUrl } = require('./events');
 const { eventKey } = require('./events');
@@ -16,14 +17,6 @@ const { advanceStatus } = require('../messaging/rules');
 const health = async (ok, message = '') => WazzupSettings.updateOne({ _id: 'wazzup' }, { $set: ok
   ? { 'health.lastOkAt': new Date(), 'health.lastError': '', 'health.lastErrorHint': '' }
   : { 'health.lastErrorAt': new Date(), 'health.lastError': message, 'health.lastErrorHint': 'Проверьте подключение в «Настройки системы → Диалоги»' } });
-const attachmentUrl = async attachment => {
-  const storage = require('../storage');
-  if (!storage.objectExistsLocally(attachment.name) && storage.isS3Configured()) return storage.presignGetUrl(attachment.name);
-  const url = new URL(process.env.APP_PUBLIC_URL || process.env.ADDRESS);
-  url.pathname = `/uploads/${encodeURIComponent(attachment.name)}`;
-  url.search = ''; url.hash = '';
-  return url.href;
-};
 
 const receiveMedia = async (raw, channel) => {
   const url = mediaUrl(raw.contentUri);
@@ -61,17 +54,38 @@ const sendOutbox = async settings => {
       const channel = await Channel.findById(job.channelId).lean();
       if (!settings?.isActive || !channel?.isActive || !settings.channelIds.includes(channel.providerChannelId) || preferences?.modules?.messaging?.isActive !== true) throw new provider.ProviderError('Подключение Wazzup или модуль «Диалоги» выключен');
       if (job.type !== 'send') throw new provider.ProviderError('Эта операция не поддерживается подключением Wazzup');
+      let dispatchJob = job;
+      const totalParts = job.payload.recipient ? require('./events').sendParts(job.payload, channel).length : 0;
+      const acceptedAll = totalParts > 0 && job.result?.chatId && job.result?.inFlightPart == null
+        && job.result?.nextPart >= totalParts && job.result?.externalIds?.length >= totalParts;
+      // Если HTTP уже завершён, разрешаем починить ссылки даже у занятого
+      // или скрытого чата. Реальная новая отправка всё ещё проверяет привязку.
+      if (job.payload.recipient && !acceptedAll) {
+        const inspected = await require('../messaging/first-contact').inspectPhoneJob(job, channel);
+        if (inspected.reason) throw new provider.ProviderError(inspected.reason);
+        if (inspected.conversation) dispatchJob = { ...job, payload: { ...job.payload, chatId: inspected.conversation.externalChatId } };
+      }
       const apiKey = decryptSecret(settings.apiKey);
+      let recipientLinked = false;
       // Mongo cannot set a dotted field under null; initialize once while leased.
       await ChannelJob.updateOne({ _id: job._id, leaseId: batch.leaseId, result: null }, { $set: { result: {} } });
       const sender = createSender({ send: body => provider.sendMessage(apiKey, body), attachmentUrl,
         checkpoint: async progress => {
-          const claim = await ChannelJob.updateOne({ _id: job._id, leaseId: batch.leaseId }, { $set: { 'result.nextPart': progress.nextPart, 'result.inFlightPart': progress.inFlightPart, 'result.externalIds': progress.externalIds, leaseUntil: new Date(Date.now() + 120_000) } });
+          const claim = await ChannelJob.updateOne({ _id: job._id, leaseId: batch.leaseId }, { $set: { 'result.nextPart': progress.nextPart, 'result.inFlightPart': progress.inFlightPart, 'result.externalIds': progress.externalIds, ...(progress.chatId ? { 'result.chatId': progress.chatId } : {}), leaseUntil: new Date(Date.now() + 120_000) } });
           if (!claim.matchedCount) throw new provider.ProviderError('Отправка прервана — проверьте переписку в Wazzup перед повтором');
           if (progress.externalIds.length) await Message.updateOne({ _id: job.messageId }, { $set: { externalId: progress.externalIds[0], externalIds: progress.externalIds } });
+          if (job.payload.recipient && progress.chatId && !recipientLinked) {
+            await require('../messaging/first-contact').attachFirstContact(job, channel, progress);
+            recipientLinked = true;
+          }
         },
       });
-      const result = await sender(job, channel);
+      const result = await sender(dispatchJob, channel);
+      if (job.payload.recipient) {
+        if (!recipientLinked) await require('../messaging/first-contact').attachFirstContact(job, channel, result);
+        result.recipientAttached = true;
+        result.sendComplete = true;
+      }
       await ackJobs(batch.leaseId, [{ id: job._id, ok: true, result }], { provider: 'wazzup' });
       await health(true);
     } catch (error) {
@@ -91,7 +105,7 @@ const drainInbox = async settings => {
   const process = createProcessor({
     findChannel: async remoteId => channels.find(channel => channel.providerChannelId === remoteId),
     findMessage,
-    hasSending: (channelId, chatId) => ChannelJob.exists({ provider: 'wazzup', channelId, type: 'send', state: 'pending', 'payload.chatId': chatId, leaseUntil: { $gt: new Date() } }),
+    hasSending: (channelId, chatId) => ChannelJob.exists({ provider: 'wazzup', channelId, type: 'send', state: 'pending', $or: [{ 'payload.chatId': chatId }, { 'payload.recipient.phone': { $exists: true } }], leaseUntil: { $gt: new Date() } }),
     media: receiveMedia,
     ingest: event => require('../messaging/ingest').ingestEvent(event),
     updateAccount: (id, state, reason) => WazzupSettings.updateOne({ _id: 'wazzup', 'accounts.id': id }, { $set: { 'accounts.$.state': state, 'accounts.$.reason': reason } }),

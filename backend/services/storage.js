@@ -126,6 +126,20 @@ const getObjectBuffer = async (name) => {
   return streamToBuffer(response.Body);
 };
 
+// Stream public uploads without buffering the entire attachment in the backend.
+const openObject = async (name) => {
+  if (objectExistsLocally(name)) {
+    const file = localPath(name);
+    const stat = await fs.promises.stat(file);
+    return { body: fs.createReadStream(file), contentLength: stat.size };
+  }
+  if (!s3Client) throw new Error('File not found');
+  const response = await s3Client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: path.basename(name) }),
+  );
+  return { body: response.Body, contentLength: response.ContentLength, contentType: response.ContentType };
+};
+
 // Presigned GET URL for the /uploads resolver to 302-redirect to (private bucket).
 const presignGetUrl = async (name) => {
   if (!s3Client) {
@@ -295,6 +309,7 @@ module.exports = {
   uploadStorage,
   objectExistsLocally,
   getObjectBuffer,
+  openObject,
   presignGetUrl,
   deleteObject,
   sseUploadOptions,

@@ -11,7 +11,7 @@ const stub = (name, exports) => {
   entry.exports = exports;
   require.cache[id] = entry;
 };
-let conversations, identities, channels, tickets, messages, comments;
+let conversations, identities, channels, tickets, messages, comments, users;
 const valueAt = (row, path) => path.split(".").reduce((value, key) => value?.[key], row);
 const query = (rows, one = false) => {
   let list = [...rows];
@@ -44,6 +44,7 @@ stub("@/models/channelIdentity", { find: (filter) => query(identities.filter(sif
 stub("@/models/channel", { find: (filter) => query(channels.filter(sift(filter))) });
 stub("@/models/message", { findOne: (filter) => query(messages.filter(sift(filter)), true) });
 stub("@/models/comment", { findOne: (filter) => query(comments.filter(sift(filter)), true) });
+stub("@/models/user", { findById: (id) => query(users.filter((user) => user._id === String(id)), true) });
 const { deliveryRoutes } = require("./origin");
 
 const ticket = { _id: "ticket", applicantId: "client", source: "Вручную" };
@@ -54,6 +55,7 @@ beforeEach(() => {
   tickets = [ticket];
   messages = [];
   comments = [];
+  users = [{ _id: "client", firstName: "Алексей", phone: "" }];
 });
 
 test("обычная заявка предлагает чаты заявителя, стандартный канал выбран по умолчанию", async () => {
@@ -127,4 +129,45 @@ test("чужие и скрытые чаты не становятся маршр
   conversations.push({ ...conversations[0], _id: "other-client", counterpartIdentityId: "stranger" });
   conversations.push({ ...conversations[0], _id: "hidden", hidden: true });
   assert.deepEqual((await deliveryRoutes(ticket)).routes.map((route) => route.conversationId), ["original"]);
+});
+
+test("старая обычная заявка без чатов и identities предлагает первый контакт по номеру во всех мессенджерах", async () => {
+  conversations = [];
+  identities = [];
+  users[0].phone = "+7 (914) 555-01-42";
+  channels = [
+    { _id: "tg", type: "telegram", provider: "wazzup", providerTransport: "tgapi", isActive: true },
+    { _id: "wa", type: "whatsapp", provider: "wazzup", providerTransport: "whatsapp", isActive: true },
+    { _id: "max", type: "max", provider: "wazzup", providerTransport: "max", isActive: true },
+  ];
+  const result = await deliveryRoutes(ticket);
+  assert.deepEqual(result.routes.map((route) => [route.id, route.target, route.conversationId, route.available]), [
+    ["phone:tg", "phone", null, true], ["phone:wa", "phone", null, true], ["phone:max", "phone", null, true],
+  ]);
+  assert.equal(result.defaultRoute, "notify");
+});
+
+test("бот, отключённый канал и отсутствие номера не обещают первый контакт", async () => {
+  conversations = [];
+  channels = [{ _id: "tg", type: "telegram", provider: "wazzup", providerTransport: "telegram", isActive: true },
+    { _id: "off", type: "whatsapp", provider: "wazzup", providerTransport: "whatsapp", isActive: false }];
+  users[0].phone = "79145550142";
+  let result = await deliveryRoutes(ticket);
+  assert.equal(result.routes.length, 1);
+  assert.equal(result.routes[0].available, false);
+  assert.match(result.routes[0].reason, /первым/);
+  channels[0].providerTransport = "tgapi";
+  users[0].phone = "";
+  result = await deliveryRoutes(ticket);
+  assert.equal(result.routes[0].available, false);
+  assert.match(result.routes[0].reason, /номер/);
+});
+
+test("исторические чаты одного номера и канала имеют разные id маршрутов", async () => {
+  users[0].phone = "79145550142";
+  conversations[0].deliveryPhone = "79145550142";
+  conversations.push({ ...conversations[0], _id: "another-chat" });
+  const result = await deliveryRoutes(ticket);
+  assert.deepEqual(result.routes.map((route) => route.id), ["original", "another-chat"]);
+  assert.equal(new Set(result.routes.map((route) => route.id)).size, result.routes.length);
 });

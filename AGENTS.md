@@ -17,6 +17,7 @@
 | --- | --- |
 | Неподтверждённые источником выводы ИИ отбрасываются отдельно, без ошибки анализа и ручного повтора; подтверждённые выводы сохраняются | `services/userReview/policy.test.js`, `services/userReview/detector.test.js`; прежние ошибки автоматически возвращаются в обработку — `services/userReview/store.test.js` |
 | Настройки модулей находятся только в глобальных настройках, без отдельных страниц и меню | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
+| Первое сообщение из существующей заявки доступно по номеру заявителя без предварительного чата или входящего сообщения; номер проверяется сервером, занятая привязка не перехватывается, принятые части не дублируются | `services/messaging/delivery-routes.test.js`, `services/messaging/first-contact-flow.test.js`, `services/messaging/bindings-first-contact.test.js`, `services/wazzup/sender.test.js` |
 | Даты и периоды вводятся общими `DateField` / `DateRangeField` / `DateTimeField`, без нативного календаря | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
 | Меню и маршрут отчёта такси используют одно требование доступа; API проверяет его независимо | `TAXI_REPORT_ACCESS`, тест меню, `controllers/taxi.test.js` |
 | Новые права такси доступны административным ролям при обновлении; пропущенная старая раздача исправляется новой миграцией | `grantTaxiPermissions.test.js`, `migrate.test.js`, `ci/tests/deploy_migrations.sh` |

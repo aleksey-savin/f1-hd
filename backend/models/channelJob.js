@@ -10,6 +10,7 @@ const Schema = mongoose.Schema;
  */
 const channelJobSchema = new Schema(
   {
+    orderingKey: { type: String, default: undefined },
     provider: { type: String, enum: ['gateway', 'wazzup'], default: 'gateway' },
     channelId: { type: Schema.Types.ObjectId, ref: "Channel", required: true },
     network: { type: String, enum: ["telegram", "whatsapp", "max", "site"], required: true },
@@ -35,6 +36,7 @@ const channelJobSchema = new Schema(
 
 channelJobSchema.index({ state: 1, network: 1, notBefore: 1, createdAt: 1 });
 channelJobSchema.index({ conversationId: 1, state: 1, createdAt: 1 });
+channelJobSchema.index({ orderingKey: 1, state: 1, createdAt: 1 }, { partialFilterExpression: { orderingKey: { $type: "string" } } });
 // repairOutbound.orphans ищет "уже есть задание на это сообщение?" по messageId
 channelJobSchema.index({ messageId: 1 });
 // Завершённые задания живут 30 дней — для разбора сбоев хватает

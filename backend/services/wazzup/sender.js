@@ -8,10 +8,13 @@ const createSender = ({ send, attachmentUrl, checkpoint }) => async (job, channe
   if (progress.inFlightPart !== null && progress.inFlightPart !== undefined) throw new ProviderError('Результат отправки неизвестен — проверьте переписку в Wazzup перед повтором');
   for (let index = progress.nextPart; index < parts.length; index++) {
     const part = parts[index];
+    const chatId = progress.chatId || job.payload.chatId;
+    const address = chatId ? { chatId } : channel.type === 'whatsapp'
+      ? { chatId: job.payload.recipient.phone } : { phone: job.payload.recipient.phone };
     const body = {
       channelId: channel.providerChannelId,
       chatType: job.payload.kind === 'group' ? { whatsapp: 'whatsgroup', telegram: 'telegroup', max: 'maxgroup' }[channel.type] : channel.type,
-      chatId: job.payload.chatId, crmMessageId: `${job._id}:${index}`,
+      ...address, crmMessageId: `${job._id}:${index}`,
       ...(part.text === undefined ? { contentUri: await attachmentUrl(part.attachment) } : { text: part.text }),
     };
     progress = { ...progress, inFlightPart: index };
@@ -23,7 +26,9 @@ const createSender = ({ send, attachmentUrl, checkpoint }) => async (job, channe
       throw error;
     }
     if (typeof result?.messageId !== 'string' || !result.messageId) throw new ProviderError('Результат отправки неизвестен — проверьте переписку в Wazzup перед повтором');
-    progress = { nextPart: index + 1, inFlightPart: null, externalIds: [...progress.externalIds, result.messageId] };
+    const resolved = typeof result.chatId === 'string' && result.chatId.length > 0 && result.chatId.length <= 200 ? result.chatId : chatId || (channel.type === 'whatsapp' ? address.chatId : null);
+    if (job.payload.recipient && !resolved) throw new ProviderError('Wazzup принял сообщение, но не вернул получателя — проверьте переписку перед повтором');
+    progress = { nextPart: index + 1, inFlightPart: null, externalIds: [...progress.externalIds, result.messageId], ...(resolved ? { chatId: resolved } : {}) };
     await checkpoint(progress);
   }
   return { ...progress, externalId: progress.externalIds[0] };

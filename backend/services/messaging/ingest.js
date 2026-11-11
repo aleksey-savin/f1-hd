@@ -429,4 +429,4 @@ const ingestEvent = async (event) => {
   }
 };
 
-module.exports = { ingestEvent };
+module.exports = { ingestEvent, upsertConversation };

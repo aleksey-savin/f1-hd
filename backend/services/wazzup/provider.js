@@ -13,6 +13,7 @@ const errorText = (status, code) => {
   if (code === 'REPEATED_CRM_MESSAGE_ID') return 'Wazzup уже получил это сообщение — проверьте переписку перед повтором';
   if (code === '24_HOURS_EXCEEDED') return 'Окно ответа WhatsApp Business закрыто — используйте шаблон в Wazzup';
   if (code === 'BAD_CONTACT') return 'Получатель не найден в мессенджере';
+  if (code === 'BAD_RESPONSE' || code === 'MESSAGE_DOWNLOAD_CONTENT_ERROR') return 'Wazzup не смог скачать вложение — проверьте доступность файла';
   return 'Wazzup не выполнил запрос — проверьте состояние аккаунта в Wazzup';
 };
 const createClient = ({ fetch: request = globalThis.fetch } = {}) => {

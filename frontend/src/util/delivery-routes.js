@@ -59,9 +59,9 @@ export const routeTriggerLabel = (route) =>
 export const initialRoute = (data) => {
   if (!data) return NOTIFY_ROUTE;
   const found = data.routes.find(
-    (route) => route.conversationId === data.defaultRoute && route.available,
+    (route) => route.id === data.defaultRoute && route.available,
   );
-  return found ? found.conversationId : NOTIFY_ROUTE;
+  return found ? found.id : NOTIFY_ROUTE;
 };
 
 /**

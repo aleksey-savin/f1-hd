@@ -174,18 +174,22 @@ export type TicketDraft = {
 
 /** Маршрут «Ответить через» — `GET /api/tickets/:num/delivery-routes`. */
 export type DeliveryRoute = {
-  conversationId: string;
+  id: string;
+  channelId: string;
   network: Network;
   kind: ConversationKind;
   title: string;
   available: boolean;
   reason: string | null;
   boundHere: boolean;
-};
+} & (
+  | { target: "conversation"; conversationId: string }
+  | { target: "phone"; conversationId: null; kind: "direct" }
+);
 
 export type DeliveryRoutes = {
   routes: DeliveryRoute[];
-  /** id диалога или `"notify"` — «Почта и бот, как сейчас». */
+  /** id маршрута или `"notify"` — «Почта и бот». */
   defaultRoute: string;
   applicantName: string;
 };

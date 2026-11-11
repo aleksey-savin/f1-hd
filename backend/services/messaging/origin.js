@@ -241,6 +241,14 @@ const deliveryRoutes = async (ticket) => {
   const or = [{ "binding.ticketId": ticket._id }];
   if (ids.length) or.push({ counterpartIdentityId: { $in: ids } }, { "participants.identityId": { $in: ids } });
   const conversations = await Conversation.find({ $or: or, hidden: { $ne: true } }).sort({ "lastMessage.at": -1 }).limit(20).lean();
+  const { ticketRecipient, phoneRoutes, findPhoneConversations } = require("./first-contact");
+  const recipient = await ticketRecipient(ticket);
+  if (recipient) {
+    const known = await findPhoneConversations(recipient.phone);
+    for (const conversation of known) {
+      if (!conversations.some((item) => String(item._id) === String(conversation._id))) conversations.push(conversation);
+    }
+  }
   // Исходный диалог принадлежит заявке и после смены контакта/привязки.
   // Лимит недавних чатов не должен вытеснить его из вариантов ответа.
   if (originalId && !conversations.some((conversation) => String(conversation._id) === originalId)) {
@@ -261,7 +269,9 @@ const deliveryRoutes = async (ticket) => {
   const routes = conversations.map((conversation) => {
     const channel = channels.get(String(conversation.channelId));
     const bound = conversation.binding?.ticketId && !conversation.binding.endedAt ? String(conversation.binding.ticketId) : null;
-    const reason = !channel?.isActive
+    const reason = conversation.hidden
+      ? "диалог скрыт — сначала верните его в список"
+      : !channel?.isActive
       ? "канал отключён"
       : channel.type === "site"
         ? "ответ на форму сайта — позже"
@@ -269,6 +279,9 @@ const deliveryRoutes = async (ticket) => {
           ? `занят заявкой №${conversation.binding.ticketNum}`
           : null;
     return {
+      id: String(conversation._id),
+      target: "conversation",
+      channelId: String(conversation.channelId),
       conversationId: String(conversation._id),
       network: conversation.network,
       kind: conversation.kind,
@@ -283,7 +296,8 @@ const deliveryRoutes = async (ticket) => {
     originalId ||= routes.find((route) => route.boundHere)?.conversationId || null;
   }
   const available = routes.find((route) => route.conversationId === originalId && route.available);
-  return { routes, defaultRoute: available?.conversationId || "notify" };
+  routes.push(...await phoneRoutes(ticket, conversations, recipient));
+  return { routes, defaultRoute: available?.id || "notify" };
 };
 
 module.exports = { parseIds, describeAsHtml, prepareOrigin, applyOrigin, ticketDraft, deliveryRoutes };

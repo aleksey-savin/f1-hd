@@ -10,6 +10,7 @@ const Schema = mongoose.Schema;
  */
 const conversationSchema = new Schema(
   {
+    deliveryPhone: { type: String, default: undefined },
     channelId: { type: Schema.Types.ObjectId, ref: "Channel", required: true },
     // Тип канала копией — для фильтра и значка без чтения канала
     network: { type: String, enum: ["telegram", "whatsapp", "max", "site"], required: true },
@@ -64,6 +65,7 @@ const conversationSchema = new Schema(
 );
 
 conversationSchema.index({ channelId: 1, externalChatId: 1 }, { unique: true });
+conversationSchema.index({ deliveryPhone: 1 }, { sparse: true });
 conversationSchema.index({ hidden: 1, awaitingSince: 1 });
 conversationSchema.index({ hidden: 1, "lastMessage.at": -1 });
 conversationSchema.index({ companyId: 1, "lastMessage.at": -1 });

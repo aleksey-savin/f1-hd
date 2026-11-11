@@ -28,7 +28,7 @@ import {
 
 /**
  * «Ответить через» в поле комментария заявки (канва D1 — меню, D3 — шторка
- * телефона): чаты заявителя и «Почта и бот — как сейчас». Занятый другой
+ * телефона): чаты заявителя, первый контакт по номеру и «Почта и бот». Занятый другой
  * заявкой чат виден, но погашен — с причиной. Выбор отправляет комментарий в
  * мессенджер (`deliverVia`), заявитель тогда не получает дубль письмом.
  */
@@ -43,7 +43,7 @@ type Option = {
 
 const optionsOf = (data: DeliveryRoutes): Option[] => [
   ...data.routes.map((route: DeliveryRoute) => ({
-    value: route.conversationId,
+    value: route.id,
     network: route.network,
     title: routeTitle(route),
     subtitle: routeSubtitle(route),
@@ -173,7 +173,7 @@ const ReplyRoute = ({
 }) => {
   const [open, setOpen] = useState(false);
   const route =
-    data.routes.find((item) => item.conversationId === value) ?? null;
+    data.routes.find((item) => item.id === value) ?? null;
   const pick = (next: string) => {
     onChange(next);
     setOpen(false);

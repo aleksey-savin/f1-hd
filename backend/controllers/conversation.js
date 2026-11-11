@@ -594,8 +594,9 @@ exports.unlinkIdentity = async (req, res, next) => {
 exports.deliveryRoutes = async (req, res, next) => {
   try {
     const result = await deliveryRoutes(req.ticket);
-    const applicant = req.ticket.applicantId
-      ? await User.findById(req.ticket.applicantId).select("firstName lastName").lean()
+    const applicantId = req.ticket.applicantId?._id || req.ticket.applicantId || req.ticket.applicant?._id;
+    const applicant = applicantId
+      ? await User.findById(applicantId).select("firstName lastName").lean()
       : null;
     res.status(200).json({ ...result, applicantName: userName(applicant) });
   } catch (error) {

@@ -49,25 +49,26 @@ const openBoundTicket = async (conversation) => {
   return ticket && !ticket.isClosed ? ticket : null;
 };
 
-const sendPayload = (conversation, text, attachments) => ({
-  chatId: conversation.externalChatId,
-  kind: conversation.kind,
+const sendPayload = (conversation, text, attachments, recipient) => ({
+  ...(conversation ? { chatId: conversation.externalChatId } : { recipient: { phone: recipient.phone } }),
+  kind: conversation?.kind || "direct",
   text,
   attachments: attachments.map(({ name, originalName, mimetype, size }) => ({ name, originalName, mimetype, size })),
 });
 
 /** Сообщение, задание шлюзу, сводка диалога и снятие «ждёт ответа». */
-const queueOutbound = async ({ conversation, channel, text, attachments, author, ticket, comment, prefs }) => {
+const queueOutbound = async ({ conversation, channel, text, attachments, author, ticket, comment, prefs, recipient }) => {
   const Message = require("@/models/message");
   const Conversation = require("@/models/conversation");
   const { bus } = require("@/services/pulse");
   const now = new Date();
   const kind = kindOf(text, attachments);
   const message = await Message.create({
-    conversationId: conversation._id,
+    conversationId: conversation?._id || null,
     channelId: channel._id,
-    externalChatId: conversation.externalChatId,
-    seq: await nextSeq(conversation._id),
+    externalChatId: conversation?.externalChatId || `phone:${recipient.phone}`,
+    seq: conversation ? await nextSeq(conversation._id) : 0,
+    ...(recipient ? { recipientPhone: recipient.phone, recipientName: recipient.name } : {}),
     direction: "out",
     origin: "hd",
     kind,
@@ -91,12 +92,13 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
     network: channel.type,
     provider: require("./transport").providerOf(channel),
     type: "send",
-    conversationId: conversation._id,
+    conversationId: conversation?._id || null,
+    orderingKey: recipient || conversation?.deliveryPhone ? `phone:${channel._id}:${recipient?.phone || conversation.deliveryPhone}` : undefined,
     messageId: message._id,
-    payload: sendPayload(conversation, signed, attachments),
+    payload: sendPayload(conversation, signed, attachments, recipient),
   });
   await Message.updateOne({ _id: message._id }, { $set: { jobId: job._id } });
-  await Conversation.updateOne(
+  if (conversation) await Conversation.updateOne(
     { _id: conversation._id, $or: [{ "lastMessage.at": null }, { "lastMessage.at": { $lte: now } }] },
     {
       $set: {
@@ -105,7 +107,7 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
     },
   );
   // Ответили — диалог больше не ждёт
-  await Conversation.updateOne({ _id: conversation._id, awaitingSince: { $ne: null } }, { $set: { awaitingSince: null } });
+  if (conversation) await Conversation.updateOne({ _id: conversation._id, awaitingSince: { $ne: null } }, { $set: { awaitingSince: null } });
   bus.bump({ topics: ["conversations"], ticketIds: ticket ? [ticket._id] : [] });
   return { ...message.toObject(), jobId: job._id };
 };
@@ -173,19 +175,26 @@ const sendFromInbox = async ({ conversationId, text, files = [], auth }) => {
  * тем же deliveryRoutes маршрут (I1). Общие ярусы видимости инбокса это не
  * расширяет — они остаются как есть (P1).
  */
-const validateDeliverRoute = async ({ ticket, conversationId, auth }) => {
+const validateDeliverRoute = async ({ ticket, routeId, auth }) => {
   const Preferences = require("@/models/preferences");
   const Conversation = require("@/models/conversation");
   const { deliveryRoutes } = require("./origin");
   const prefs = await Preferences.findOne({}).select("modules.messaging").lean();
   if (!prefs?.modules?.messaging?.isActive) throw fail("Модуль «Диалоги» выключен", 409);
   if (!auth.can({ conversation: ["reply"] })) throw fail("Недостаточно прав, чтобы отвечать через мессенджер", 403);
-  const conversation = await Conversation.findById(conversationId).lean();
-  if (!conversation) throw fail("Диалог не найден", 404);
   const { routes } = await deliveryRoutes(ticket);
-  const route = routes.find((item) => item.conversationId === String(conversation._id));
-  if (!route) throw fail("Диалог не найден", 404);
+  const route = routes.find((item) => item.id === String(routeId));
+  if (!route) throw fail("Канал ответа не найден", 404);
   if (!route.available) throw fail(`Ответить через этот диалог нельзя: ${route.reason}`, 409);
+  if (route.target === "phone") {
+    const { ticketRecipient } = require("./first-contact");
+    const recipient = await ticketRecipient(ticket);
+    if (!recipient) throw fail("У заявителя не указан действующий номер телефона", 409);
+    const channel = await channelFor({ channelId: route.channelId });
+    return { target: "phone", conversation: null, channel, recipient, skipApplicant: true };
+  }
+  const conversation = await Conversation.findById(route.conversationId).lean();
+  if (!conversation) throw fail("Диалог не найден", 404);
   const channel = await channelFor(conversation);
   return { conversation, channel, skipApplicant: await userTalksHere(conversation, ticket.applicantId) };
 };
@@ -194,12 +203,12 @@ const validateDeliverRoute = async ({ ticket, conversationId, auth }) => {
 const deliverComment = async ({ comment, ticket, route, author }) => {
   const Preferences = require("@/models/preferences");
   const storage = require("@/services/storage");
-  const { conversation, channel } = route;
+  const { conversation, channel, recipient } = route;
   const prefs = await Preferences.findOne({}).select("contacts").lean();
-  const binding = conversation.binding || {};
+  const binding = conversation?.binding || {};
   // Закрытую заявку не привязываем (M4) — отправка при этом всё равно идёт
-  if (conversation.kind === "direct" && !ticket.isClosed && (!binding.ticketId || binding.endedAt)) {
-    await bindConversation({ conversation, ticket, by: author, attachPending: true });
+  if (conversation?.kind === "direct" && !ticket.isClosed && (!binding.ticketId || binding.endedAt)) {
+    await bindConversation({ conversation, ticket, by: author, attachPending: true, onlyIfUnbound: true });
   }
   const attachments = [];
   for (const attachment of comment.attachments || []) {
@@ -211,7 +220,7 @@ const deliverComment = async ({ comment, ticket, route, author }) => {
       status: "ready",
     });
   }
-  const message = await queueOutbound({ conversation, channel, text: comment.content, attachments, author, ticket, comment, prefs });
+  const message = await queueOutbound({ conversation, channel, text: comment.content, attachments, author, ticket, comment, prefs, recipient });
   await markQueued(comment._id, message._id);
   return message;
 };
@@ -228,34 +237,40 @@ const retryMessage = async ({ messageId, auth }) => {
   if (!auth.can({ conversation: ["reply"] })) throw fail("Недостаточно прав, чтобы отвечать через мессенджер", 403);
   const message = await Message.findById(messageId);
   if (!message || message.direction !== "out" || message.origin !== "hd") throw fail("Сообщение не найдено", 404);
-  const conversation = await Conversation.findById(message.conversationId).lean();
-  if (!conversation) throw fail("Сообщение не найдено", 404);
+  const conversation = message.conversationId ? await Conversation.findById(message.conversationId).lean() : null;
+  if (!conversation && !message.recipientPhone) throw fail("Сообщение не найдено", 404);
   // Видимость диалога ИЛИ доступ к заявке, за которой оно числится (I1): своя
   // заявка своего яруса даёт право повторить попавший в неё ответ, даже если
   // общая видимость диалога (компания) отказала бы
-  let allowed = canSeeConversation(conversation, auth);
+  let allowed = conversation ? canSeeConversation(conversation, auth) : false;
   if (!allowed && message.ticketId) {
     const ticket = await Ticket.findById(message.ticketId).select("_id responsibles createdBy applicantId applicant company").lean();
     allowed = canAccessTicket(ticket, auth);
   }
   if (!allowed) throw fail("Сообщение не найдено", 404);
   if (message.status !== "failed") throw fail("Повторять нечего: сообщение не в ошибке", 409);
-  const channel = await channelFor(conversation);
+  const channel = await channelFor(conversation || { channelId: message.channelId });
   const previous = message.jobId ? await ChannelJob.findById(message.jobId).lean() : null;
+  // Это явный ручной повтор: принятые части сохраняем, неизвестную часть
+  // оператор разрешает повторить после проверки переписки.
+  const resume = message.recipientPhone && previous?.result?.chatId && !previous.result.sendComplete
+    ? { ...previous.result, inFlightPart: null } : null;
   const job = await enqueueJob({
     channelId: channel._id,
     network: channel.type,
     provider: require("./transport").providerOf(channel),
     type: "send",
-    conversationId: conversation._id,
+    conversationId: conversation?._id || null,
+    orderingKey: previous?.orderingKey,
     messageId: message._id,
-    payload: previous?.payload || sendPayload(conversation, message.text, message.attachments || []),
+    payload: previous?.payload || sendPayload(conversation, message.text, message.attachments || [], { phone: message.recipientPhone }),
+    ...(resume ? { result: resume } : {}),
   });
   // Повтор — единственный путь назад из «failed»: статус ставим прямо
   message.jobId = job._id;
   message.status = "queued";
   message.error = "";
-  if (channel.provider === 'wazzup') {
+  if (channel.provider === 'wazzup' && !resume) {
     // A retry is a new delivery attempt. Late receipts for the old attempt
     // must never make this queued attempt appear read before it was sent.
     message.externalId = undefined;
@@ -287,8 +302,8 @@ const repairOutbound = async () => {
 
   const orphans = await Message.find({ direction: "out", origin: "hd", status: "queued", jobId: null, createdAt: { $lte: cutoff } }).limit(50);
   for (const message of orphans) {
-    const conversation = await Conversation.findById(message.conversationId).lean();
-    const channel = conversation ? await Channel.findById(conversation.channelId).lean() : null;
+    const conversation = message.conversationId ? await Conversation.findById(message.conversationId).lean() : null;
+    const channel = await Channel.findById(conversation?.channelId || message.channelId).lean();
     if (!channel?.isActive) {
       message.status = "failed";
       message.error = "Канал отключён";
@@ -307,9 +322,10 @@ const repairOutbound = async () => {
       network: channel.type,
       provider: require("./transport").providerOf(channel),
       type: "send",
-      conversationId: conversation._id,
+      conversationId: conversation?._id || null,
+      orderingKey: message.recipientPhone ? `phone:${channel._id}:${message.recipientPhone}` : undefined,
       messageId: message._id,
-      payload: sendPayload(conversation, message.text, message.attachments || []),
+      payload: sendPayload(conversation, message.text, message.attachments || [], { phone: message.recipientPhone }),
     });
     message.jobId = job._id;
     await message.save();

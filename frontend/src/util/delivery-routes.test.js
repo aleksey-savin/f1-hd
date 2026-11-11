@@ -15,6 +15,9 @@ import {
 } from "./delivery-routes.js";
 
 const marina = {
+  id: "c-marina",
+  target: "conversation",
+  channelId: "tg",
   conversationId: "c-marina",
   network: "telegram",
   kind: "direct",
@@ -24,6 +27,9 @@ const marina = {
   boundHere: true,
 };
 const group = {
+  id: "c-group",
+  target: "conversation",
+  channelId: "tg",
   conversationId: "c-group",
   network: "telegram",
   kind: "group",
@@ -33,6 +39,9 @@ const group = {
   boundHere: false,
 };
 const busy = {
+  id: "c-wa",
+  target: "conversation",
+  channelId: "wa",
   conversationId: "c-wa",
   network: "whatsapp",
   kind: "direct",
@@ -91,6 +100,14 @@ test("initialRoute: занятый или пропавший маршрут не
     NOTIFY_ROUTE,
   );
   assert.equal(initialRoute(null), NOTIFY_ROUTE);
+});
+
+test("маршрут по номеру выбирается без conversationId; созданный диалог имеет собственный id", () => {
+  const first = { ...marina, id: "phone:tg", target: "phone", conversationId: null, boundHere: false };
+  assert.equal(initialRoute({ routes: [first], defaultRoute: "phone:tg" }), "phone:tg");
+  assert.equal(routeTriggerLabel(first), "Telegram");
+  assert.equal(dialogRoute([first], []), null);
+  assert.equal(initialRoute({ routes: [{ ...first, id: "real-chat", target: "conversation", conversationId: "real-chat" }], defaultRoute: "real-chat" }), "real-chat");
 });
 
 test("dialogRoute: привязанный чат, иначе чат последнего входящего", () => {

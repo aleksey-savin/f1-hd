@@ -33,3 +33,8 @@ test('uncertain send failure is terminal, rate rejection may wait without duplic
   const limited = createClient({ fetch: async () => new Response('{}', { status: 429, headers: { 'retry-after': '2' } }) });
   await assert.rejects(limited.sendMessage('secret', {}), error => error.retryable && error.retryAfterMs === 2000);
 });
+
+test('a rejected attachment download reports the media problem without exposing its signed URL', async () => {
+  const client = createClient({ fetch: async () => new Response(JSON.stringify({ error: 'BAD_RESPONSE', description: 'Bad response from https://storage.example/file?secret=token' }), { status: 400 }) });
+  await assert.rejects(client.sendMessage('secret', {}), error => /вложение/.test(error.message) && error.code === 'BAD_RESPONSE' && !JSON.stringify(error).includes('secret'));
+});

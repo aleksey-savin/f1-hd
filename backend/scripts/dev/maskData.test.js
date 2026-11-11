@@ -24,6 +24,15 @@ const ID = "64f1a2b3c4d5e6f708192a3b";
 const OTHER = "64f1a2b3c4d5e6f708192a3c";
 const GONE = "64f1a2b3c4d5e6f7081fffff";
 
+test("first-contact recipient snapshots are removed from development copies", () => {
+  const conversation = rewriteDocument("conversations", { _id: ID, deliveryPhone: "79145550142" }, {});
+  assert.equal(conversation.$unset.deliveryPhone, "");
+  const message = rewriteDocument("messages", { _id: ID, recipientPhone: "79145550142", recipientName: "Настоящее имя", text: "Свободный текст" }, {});
+  assert.equal(message.$unset.recipientPhone, "");
+  assert.equal(message.$unset.recipientName, "");
+  assert.equal(message.$set?.text, undefined);
+});
+
 test("a person is derived from the id alone and is stable", () => {
   const first = maskedPerson(ID, false);
   assert.deepEqual(maskedPerson(ID, false), first);

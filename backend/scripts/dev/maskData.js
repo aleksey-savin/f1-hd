@@ -549,18 +549,21 @@ const OWN_FIELDS = {
   // Диалоги: идентификаторы чатов мессенджеров. Уникальность (канал + чат)
   // сохраняется — новое значение выводится из идентификатора диалога.
   conversations: {
-    fields: ["externalChatId", "externalAliases", "title"],
-    masks: ["externalChatId", "externalAliases", "title"],
+    fields: ["externalChatId", "externalAliases", "title", "deliveryPhone"],
+    masks: ["externalChatId", "externalAliases", "title", "deliveryPhone"],
     apply(doc) {
+      delete doc.deliveryPhone;
       if ("externalChatId" in doc) doc.externalChatId = `masked-${String(doc._id)}`;
       if (Array.isArray(doc.externalAliases)) doc.externalAliases = [];
       if (filled(doc.title)) doc.title = `Диалог ${hex6(doc._id)}`;
     },
   },
   messages: {
-    fields: ["conversationId", "externalChatId", "externalId", "externalIds", "replyToExternalId"],
-    masks: ["externalChatId", "externalId", "externalIds", "replyToExternalId"],
+    fields: ["conversationId", "externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName"],
+    masks: ["externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName"],
     apply(doc) {
+      delete doc.recipientPhone;
+      delete doc.recipientName;
       if ("externalChatId" in doc) doc.externalChatId = `masked-${String(doc.conversationId ?? doc._id)}`;
       // Идентификатор сообщения в WhatsApp содержит номер собеседника
       if (filled(doc.externalId)) doc.externalId = `masked-${String(doc._id)}`;

@@ -61,10 +61,10 @@ const attachMessages = async ({ conversation, messages, ticket, mode }) => {
   return count;
 };
 
-const bindConversation = async ({ conversation, ticket, by, attachPending = true, eventKind = "bound" }) => {
+const bindConversation = async ({ conversation, ticket, by, attachPending = true, eventKind = "bound", onlyIfUnbound = false }) => {
   const Conversation = require("@/models/conversation");
-  await Conversation.updateOne(
-    { _id: conversation._id },
+  const claimed = await Conversation.updateOne(
+    { _id: conversation._id, ...(onlyIfUnbound ? { $or: [{ "binding.ticketId": null }, { "binding.endedAt": { $ne: null } }] } : {}) },
     {
       $set: {
         binding: {
@@ -79,6 +79,7 @@ const bindConversation = async ({ conversation, ticket, by, attachPending = true
       },
     },
   );
+  if (onlyIfUnbound && !claimed.matchedCount) return false;
   await addSystemLine(conversation, { kind: eventKind, ticketNum: ticket.num, by });
   // Неотвеченное клиента — тоже в заявку: ради него и привязывают
   if (attachPending && conversation.awaitingSince) {

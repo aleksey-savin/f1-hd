@@ -113,3 +113,17 @@ test("a name with path separators never escapes uploads/", async () => {
     await storage.deleteObject(saved.name);
   }
 });
+
+test("openObject streams local upload bytes and reports their length", async () => {
+  const bytes = Buffer.from("[Interface]\n# test only, no keys\n");
+  const saved = await storage.putObject(bytes, { originalName: "test.conf" });
+  try {
+    const object = await storage.openObject(saved.name);
+    assert.equal(object.contentLength, bytes.length);
+    const chunks = [];
+    for await (const chunk of object.body) chunks.push(chunk);
+    assert.deepEqual(Buffer.concat(chunks), bytes);
+  } finally {
+    await storage.deleteObject(saved.name);
+  }
+});

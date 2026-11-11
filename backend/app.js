@@ -149,6 +149,10 @@ require("./middleware/bodyParsers").mountBodyParsers(app);
 
 mongoose.set("strictQuery", false);
 
+// Wazzup needs a direct response, including for private S3-backed uploads.
+// This exposes the same upload keys as /uploads/:name; it never reads private artifacts.
+app.get("/uploads/direct/:name/:filename", require("./services/wazzup/outgoing-media").createMediaHandler());
+
 // File serving for uploads. Legacy files (old tickets) live on the local/shared
 // volume; new uploads live in S3. Serve local-first so old URLs keep working
 // unchanged, otherwise 302-redirect to a short-lived presigned S3 URL. The

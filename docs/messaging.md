@@ -458,6 +458,38 @@ shows the selector after routes load, including when only `notify` exists.
 Labels contain only the network name; disabled routes retain their failure reason.
 Outgoing signatures use plain text `- First name, Organisation`.
 
+**First outbound contact from an existing ticket.** Reply routes include active
+messenger accounts even when the applicant has never written to HD and has no
+`ChannelIdentity` or conversation. Routes are discriminated by `target`:
+`conversation` carries an existing `conversationId`; `phone` carries a `channelId`
+and `conversationId:null`. Each has a unique `id`; `deliverVia` submits that id.
+The server reads the applicant's canonical phone from `User` (legacy tickets use
+`applicant._id`), rechecks route membership, module and reply permission, and never
+accepts a recipient number from the comment request.
+
+Wazzup personal Telegram (`tgapi`) and MAX (`max`) initiate through `phone`;
+WhatsApp (`whatsapp`) uses the phone as `chatId`. Telegram/MAX bots cannot initiate
+a conversation, and WABA requires an approved template. The external direct
+gateway has no recipient-by-phone resolution contract; its new-contact options
+remain unavailable, while existing direct chats keep working.
+
+The comment and an outbound HD `Message` are saved before dispatch. Only this
+pending first-contact message may have `conversationId:null`; `recipientPhone`
+holds its address, and the comment has a real message id for status and retry.
+`ChannelJob.orderingKey` serializes the channel/phone queue before a conversation
+exists. Immediately before sending, the worker rechecks any newly created/hidden
+or busy canonical conversation. A first response checkpoints both accepted
+message ids and the resolved `chatId`, then links the existing message/comment/job
+to the canonical conversation through the common ingest/identity helpers. A
+conditional bind cannot replace a concurrent foreign binding. Incoming replies
+then mirror into the existing ticket.
+
+Multipart sends continue through the resolved chat id. A crash resumes accepted
+parts; uncertain acceptance never automatically resends. An explicit manual retry
+keeps proven accepted parts and clears only the uncertain in-flight latch. The
+`sendComplete` receipt distinguishes a completed attempt from a partially sent
+or partially linked first contact. Old ticket defaults remain `notify`.
+
 **Company identification stays conservative.** `applyOrigin`
 (`services/messaging/origin.js`, run right after "Создать заявку" saves the
 new ticket) never writes `ChannelIdentity.companyId` — only a **manual** link
@@ -665,8 +697,14 @@ lower of `Channel.settings.maxMediaMb` and 50 MiB, checked both from
 `Content-Length` and while streaming. Oversized attachments are marked
 `skipped`; an expired 404/410 URL is marked `failed`; other download failures
 retry through the durable event queue. Accepted bytes go into HD storage.
-Outgoing attachments use a presigned S3 GET URL when the file is held in S3,
-or the public HD `/uploads/` URL for a local file.
+Outgoing attachments use the public HD
+`/uploads/direct/:name/:filename` endpoint for both local and S3-backed uploads.
+It streams the bytes in a single response, supports GET/HEAD, preserves the
+original filename through Content-Disposition and applies the upload sandbox
+headers. It exposes the same public upload keys as `/uploads/:name`, never the
+private-artifact namespace. Wazzup's content store rejected our otherwise valid
+presigned S3 URLs with `BAD_RESPONSE`; direct HD responses were accepted in a
+targeted live check with PNG and a synthetic `.conf` file on 2026-11-11.
 
 Persistent health is written by real incoming processing and outgoing sends:
 `lastOkAt`, `lastMessageAt`, `lastError`, `lastErrorHint`, `lastErrorAt`.

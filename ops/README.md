@@ -100,7 +100,8 @@ What is rewritten:
 - Other identifying fields: directory logins and computer names in the company
   log, recipients in the notification queue, the sender of a mailed ticket and
   the Message-ID of mailed tickets and comments (it carries the sender's mail
-  host, usually the client's domain), messenger chat ids in conversations, the
+  host, usually the client's domain), messenger chat ids and first-contact
+  recipient phone/name snapshots in conversations and messages, the
   organization name.
 - Credentials: every password becomes `DEV_PASSWORD`; legacy password and token
   fields, two-factor secrets, report approval links, remote-access session

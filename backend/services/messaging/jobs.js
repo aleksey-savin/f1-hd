@@ -30,7 +30,7 @@ signal.setMaxListeners(100);
 /** Голова очереди каждого диалога + задания без диалога. Чисто. */
 const pickHeads = (candidates, headIds, limit) => {
   const heads = new Set(headIds.map(String));
-  return candidates.filter((job) => !job.conversationId || heads.has(String(job._id))).slice(0, limit);
+  return candidates.filter((job) => (!job.conversationId && !job.orderingKey) || heads.has(String(job._id))).slice(0, limit);
 };
 
 /** Поля задания после ответа шлюза. Чисто. */
@@ -70,16 +70,17 @@ const leaseJobs = async ({ networks, provider = 'gateway', limit = 10, now = new
     .limit(limit * 5)
     .lean();
   const conversationIds = [...new Set(candidates.map((job) => job.conversationId).filter(Boolean).map(String))];
-  const heads = conversationIds.length
+  const orderingKeys = [...new Set(candidates.map((job) => job.orderingKey).filter(Boolean))];
+  const heads = conversationIds.length || orderingKeys.length
     ? await ChannelJob.aggregate([
         {
           $match: {
             state: "pending",
-            conversationId: { $in: conversationIds.map((id) => new mongoose.Types.ObjectId(id)) },
+            $or: [{ conversationId: { $in: conversationIds.map((id) => new mongoose.Types.ObjectId(id)) } }, { orderingKey: { $in: orderingKeys } }],
           },
         },
         { $sort: { createdAt: 1 } },
-        { $group: { _id: "$conversationId", jobId: { $first: "$_id" } } },
+        { $group: { _id: { $ifNull: ["$orderingKey", "$conversationId"] }, jobId: { $first: "$_id" } } },
       ])
     : [];
 

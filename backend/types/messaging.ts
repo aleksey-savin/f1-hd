@@ -71,6 +71,7 @@ export interface IChannelIdentity {
 }
 
 export interface IConversation {
+  deliveryPhone?: string;
   channelId: Types.ObjectId;
   network: Network;
   kind: ConversationKind;
@@ -111,7 +112,9 @@ export interface IMessageAttachment {
 }
 
 export interface IMessage {
-  conversationId: Types.ObjectId;
+  conversationId: Types.ObjectId | null;
+  recipientPhone?: string;
+  recipientName?: string;
   channelId: Types.ObjectId;
   externalChatId: string;
   externalId?: string;
@@ -148,6 +151,7 @@ export interface IMessage {
 }
 
 export interface IChannelJob {
+  orderingKey?: string;
   provider?: 'gateway' | 'wazzup';
   channelId: Types.ObjectId;
   network: Network;
