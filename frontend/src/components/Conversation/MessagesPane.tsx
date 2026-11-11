@@ -5,9 +5,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { RiArrowDownLine } from "react-icons/ri";
+import { RiArrowDownLine, RiHistoryLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
+import Segmented from "@/components/app/Segmented";
 import { Checkbox } from "@/components/ui/checkbox";
 import useMinuteTick from "@/hooks/use-minute-tick";
 import { cn } from "@/lib/utils";
@@ -122,27 +123,36 @@ const MessagesPane = ({
   return (
     <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
       {onShowAllChange && (
-        <label className="flex flex-none cursor-pointer items-center gap-2 border-b border-border-soft px-4 py-2 text-sm text-muted-foreground">
-          <Checkbox checked={showAll} onCheckedChange={(value) => onShowAllChange(value === true)} />
-          Вся переписка
-        </label>
+        <div className="flex-none border-b border-border-soft bg-card px-3 py-2">
+          <Segmented
+            ariaLabel="Просмотр переписки"
+            value={showAll ? "all" : "context"}
+            onChange={(value) => onShowAllChange(value === "all")}
+            options={[
+              { value: "context", label: "Текущая тема" },
+              { value: "all", label: "Вся история", icon: <RiHistoryLine aria-hidden /> },
+            ]}
+            className="w-full [&_button]:min-h-11"
+          />
+        </div>
       )}
       <div
         ref={scroller}
         onScroll={onScroll}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain"
       >
         <div
           className={cn(
-            "mt-auto flex flex-col",
+            "mt-auto flex shrink-0 flex-col",
             compact ? "px-3 pt-3 pb-3" : "px-5 pt-3 pb-4",
           )}
         >
           {hasOlder && (
             <div className="mb-2 text-center">
               <Button
-                variant="ghost"
-                size="xs"
+                variant="outline"
+                size="sm"
+                className="bg-card pointer-coarse:min-h-11"
                 disabled={loadingOlder}
                 onClick={onLoadOlder}
               >

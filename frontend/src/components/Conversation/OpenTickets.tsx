@@ -1,3 +1,4 @@
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Link } from "react-router";
 import { RiLinkM } from "react-icons/ri";
 
@@ -21,9 +22,11 @@ const OpenTickets = ({
   canBind: boolean;
   onBind: (num: number) => void;
 }) => {
+  const fromState = useCrumbFrom("Диалог");
   const tickets = card.openTickets;
   if (!tickets.length) return null;
-  const company = card.contact?.company || card.conversation.company?.alias || "";
+  const company =
+    card.contact?.company || card.conversation.company?.alias || "";
 
   return (
     <>
@@ -47,6 +50,7 @@ const OpenTickets = ({
             <span className="min-w-0 flex-1">
               <Link
                 to={`/tickets/${ticket.num}`}
+                state={fromState}
                 className="block truncate text-sm text-foreground no-underline hover:underline"
               >
                 {ticket.title}
@@ -54,7 +58,9 @@ const OpenTickets = ({
               <span
                 className={cn(
                   "inline-flex items-center gap-1 text-xs",
-                  tone.tone === "warn" ? "text-warning-text" : "text-muted-foreground",
+                  tone.tone === "warn"
+                    ? "text-warning-text"
+                    : "text-muted-foreground",
                 )}
               >
                 <Glyph size={13} aria-hidden />
@@ -62,7 +68,11 @@ const OpenTickets = ({
               </span>
             </span>
             {canBind && (
-              <Button variant="outline" size="xs" onClick={() => onBind(ticket.num)}>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => onBind(ticket.num)}
+              >
                 <RiLinkM />
                 Привязать
               </Button>

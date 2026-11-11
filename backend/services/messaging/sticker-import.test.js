@@ -2,13 +2,13 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { parseSetName, createImporter } = require("./sticker-import");
 test("only Telegram sticker-set links or names are accepted", () => {
-  assert.equal(parseSetName("https://t.me/addstickers/F1Lab"), "F1Lab");
-  assert.equal(parseSetName("F1Lab"), "F1Lab");
+  assert.equal(parseSetName("https://t.me/addstickers/SupportStickers"), "SupportStickers");
+  assert.equal(parseSetName("SupportStickers"), "SupportStickers");
   for (const value of [
-    "https://evil.test/addstickers/F1Lab",
-    "https://t.me@evil.test/addstickers/F1Lab",
+    "https://evil.test/addstickers/SupportStickers",
+    "https://t.me@evil.test/addstickers/SupportStickers",
     "../secret",
-    "https://t.me/addstickers/F1Lab?x=1",
+    "https://t.me/addstickers/SupportStickers?x=1",
   ])
     assert.throws(() => parseSetName(value));
 });
@@ -17,8 +17,8 @@ test("repeat import reuses catalogue entries and rejects animation before downlo
   let writes = 0,
     downloads = 0;
   let set = {
-    name: "F1Lab",
-    title: "F1Lab",
+    name: "SupportStickers",
+    title: "SupportStickers",
     stickers: [
       {
         file_id: "f",
@@ -44,8 +44,8 @@ test("repeat import reuses catalogue entries and rejects animation before downlo
     },
     remove: async () => {},
   });
-  assert.equal((await run("F1Lab")).count, 1);
-  await run("https://t.me/addstickers/F1Lab");
+  assert.equal((await run("SupportStickers")).count, 1);
+  await run("https://t.me/addstickers/SupportStickers");
   assert.equal(writes, 1);
   assert.equal(downloads, 1);
   set.stickers.push({
@@ -53,18 +53,18 @@ test("repeat import reuses catalogue entries and rejects animation before downlo
     file_unique_id: "a",
     is_animated: true,
   });
-  await assert.rejects(run("F1Lab"), /статич/);
+  await assert.rejects(run("SupportStickers"), /статич/);
   assert.equal(downloads, 1);
 });
 test('download failure does not publish a partial new pack',async()=>{
  let saved=0;
  const run=createImporter({getSet:async()=>({stickers:[{file_id:'a',file_unique_id:'a',type:'regular'},{file_id:'b',file_unique_id:'b',type:'regular'}]}),find:async()=>null,download:async s=>{if(s.file_id==='b')throw Error('offline');return Buffer.from('a')},validate:()=>{},put:async()=>{saved++;},save:async()=>{},remove:async()=>{}});
- await assert.rejects(run('F1Lab'),/offline/);assert.equal(saved,0);
+ await assert.rejects(run('SupportStickers'),/offline/);assert.equal(saved,0);
 });
 test('telegram client sanitizes upstream errors that may contain the token',async()=>{
  const {telegramClient}=require('./sticker-import');
  const client=telegramClient('secret-token',async()=>{throw Error('https://api.telegram.org/botsecret-token/getStickerSet')});
- await assert.rejects(client.getSet('F1Lab'),error=>!error.message.includes('secret-token')&&error.statusCode===502);
+ await assert.rejects(client.getSet('SupportStickers'),error=>!error.message.includes('secret-token')&&error.statusCode===502);
 });
 test('switches the single pack only after all files and records are ready',async()=>{
  let pack={name:'Old',keys:['old']};let failSave=true;

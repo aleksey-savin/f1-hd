@@ -270,7 +270,7 @@ Types and payloads (`models/channelJob.js`, `services/messaging/jobs.js`):
 | `fetchMedia` | — | Not yet enqueued by any P0 endpoint (contract for a later re-fetch of skipped/deferred media); the ack consumer already exists — a `done` result's `result.attachments[]` (≤20) replaces the message's attachment list |
 | `login` | `{step: "start"\|"phone"\|"code"\|"password", value}` | `POST /channels/:id/login`; `value` is `secretBox`-ciphertext at rest, decrypted only in the `GET /gateway/jobs` response, and nulled out on ack |
 | `logout` | `{}` | `POST /channels/:id/logout` |
-| `testProxy` | `{}` | `POST /channels/:id/test` |
+| `testProxy` | `{}` | `POST /channels/:id/test`; checks the saved proxy without saving the settings draft |
 | `loadHistory` | `{days}` (1–90) | `POST /channels/:id/history` |
 
 **Leasing** (`leaseJobs`): a 2-minute lease (`LEASE_MS`) per batch (`leaseId`),
@@ -455,6 +455,7 @@ into a neighboring router:
 | `POST /conversations/:id/assign` | manage | Set/clear the assignee |
 | `POST /conversations/:id/bind` | manage | Bind a **direct** chat to an open ticket |
 | `POST /conversations/:id/unbind` | manage | End a live binding |
+| `GET /conversations/:id/mapping-tickets` | manage | Search accessible company tickets by number/title, including closed, for historical message mapping |
 | `POST /conversations/:id/attach` | manage | Assign/reassign `{messageIds,ticketNum}`; null marks intentional free discussion |
 | `POST /conversations/:id/context` | reply | Choose this staff member's reply context: `{ticketNum:number|null}`, null means intentional free discussion |
 | `POST /conversations/:id/decision` | manage | Answer "about ticket #X?" (`{action: "none"}`) |
@@ -524,11 +525,20 @@ API wiring, scope, pagination and absence of ticket collection scans.
 
 **Multiple-ticket direct conversations and reply context.** `conversation.tickets`
 contains live link summaries; card `tickets` contains their accessible details.
+`ConversationTicket.otherDialogs` contains accessible, non-hidden conversations
+other than the current one, joined by active binding or non-deleted mapped
+messages. Only IDs, networks and display names are returned; ticket message
+read scope applies before lookup. The sidebar exposes these as compact links.
+
 Legacy `ticket` remains for old clients; an absent `ticketBindings` array uses
 the historical single binding, while an explicit empty array means no links.
 Bind adds a link; unbind accepts `ticketNum` and checks the affected ticket scope.
 Attaching selected messages to another open ticket also adds its direct-chat
-link without sweeping unrelated messages. Groups never receive whole-chat links.
+link without sweeping unrelated messages. A manager may also map historical
+messages to an accessible closed ticket: this updates its chronicle without
+reopening it, creating an active chat binding or enabling replies. The mapping
+picker searches both open and closed company tickets within the existing ticket
+access scope. Groups never receive whole-chat links.
 
 `card.replyContext` is per staff member, backed by `ConversationRead.replyContext`:
 `{ticketId,withoutTicket,expiresAt,updatedAt,required}`. The timestamp orders

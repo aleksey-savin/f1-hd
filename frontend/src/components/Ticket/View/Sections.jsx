@@ -636,6 +636,7 @@ export const FactsSection = ({
             {dialogLabel(dialog)}
             <Link
               to={`/conversations/${dialog.conversationId}`}
+              state={fromState}
               className="ms-1.5 inline-flex items-center gap-1 font-semibold text-accent-text no-underline hover:underline"
             >
               Открыть диалог

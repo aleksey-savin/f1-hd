@@ -11,7 +11,8 @@ exports.add = [
     .withMessage("Ticket ID is required")
     .isMongoId()
     .withMessage("Invalid Ticket ID"),
-  body("content").trim().notEmpty().withMessage("Content is required"),
+  body("content").trim().custom((value, { req }) => Boolean(value) || Boolean(req.files?.length))
+    .withMessage("Напишите сообщение или прикрепите файл"),
 ];
 
 exports.delete = [

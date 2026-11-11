@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import Field from "@/components/app/Field";
+import { SubLabel } from "@/components/app/Panel";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -56,40 +58,39 @@ export default function CorporateStickers() {
   };
   return (
     <div className="border-t border-border-soft px-5 py-4">
-      <h3 className="mb-1 text-sm font-semibold">Корпоративные стикеры</h3>
-      <p className="mb-3 text-sm text-muted-foreground">
+      <SubLabel>Корпоративные стикеры</SubLabel>
+      <p className="mt-2 mb-3 text-sm text-muted-foreground">
         Один общий статичный набор Telegram для всех сотрудников. Новая ссылка
         заменяет текущий набор; отправленные стикеры остаются в истории.
       </p>
-      <label
+      <Field
+        label="Ссылка на набор Telegram"
         htmlFor="corporate-sticker-set"
-        className="mb-1.5 block text-sm font-medium"
+        className="mb-0"
       >
-        Ссылка на набор Telegram
-      </label>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          id="corporate-sticker-set"
-          value={setUrl}
-          onChange={(event) => setSetUrl(event.target.value)}
-          placeholder="https://t.me/addstickers/НазваниеНабора"
-          disabled={busy}
-          className="min-w-60 flex-1"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy || !setUrl.trim() || error}
-          onClick={() => void connect()}
-        >
-          {busy
-            ? "Загрузка…"
-            : pack && setUrl.trim() === pack.url
-              ? "Обновить набор"
-              : "Подключить набор"}
-        </Button>
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            id="corporate-sticker-set"
+            value={setUrl}
+            onChange={(event) => setSetUrl(event.target.value)}
+            placeholder="https://t.me/addstickers/НазваниеНабора"
+            disabled={busy}
+            className="min-w-60 flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || !setUrl.trim() || error}
+            onClick={() => void connect()}
+          >
+            {busy
+              ? "Загрузка…"
+              : pack && setUrl.trim() === pack.url
+                ? "Обновить набор"
+                : "Подключить набор"}
+          </Button>
+        </div>
+      </Field>
       <p className="mt-1.5 text-xs text-muted-foreground">
         Изменения применяются сразу после успешной загрузки. Чтобы получить
         новые стикеры из Telegram, обновите набор.

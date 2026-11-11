@@ -14,7 +14,7 @@ stub('@/models/message',{
  updateOne:async(filter,change)=>{if(!sift(filter)(message))return {matchedCount:0};update(message,change);return {matchedCount:1};},
 });
 stub('@/models/comment',{findOne:()=>q(comment),updateOne:async(filter,change)=>update(comment,change)});
-stub('@/models/ticket',{Ticket:{findById:id=>q({_id:id,num:id==='b'?2:1}),updateOne:async(filter,change)=>{
+stub('@/models/ticket',{Ticket:{findById:id=>q(tickets[id] ? {_id:id,num:id==='b'?2:1,...tickets[id]} : null),updateOne:async(filter,change)=>{
  if(change.$pull&&failPull){failPull=false;throw Error('temporary failure');}
  const ticket=tickets[filter._id];if(!ticket)return;
  if(change.$pull)ticket.comments=ticket.comments.filter(id=>id!==change.$pull.comments);
@@ -79,4 +79,22 @@ test('remapping retains previous ticket IDs for removal from restricted live thr
  assert.deepEqual(message.previousTicketIds,['a']);
  await remapMessages({conversation,messages:[message],ticket:null});
  assert.deepEqual(message.previousTicketIds,['a','b']);
+});
+
+test('historical mapping to a closed ticket preserves closure and never binds the conversation, including retry', async () => {
+ tickets.b.isClosed=true;
+ const direct={...conversation,kind:'direct'};
+ const target={_id:'b',num:2,isClosed:true};
+ await remapMessages({conversation:direct,messages:[message],ticket:target});
+ await remapMessages({conversation:direct,messages:[message],ticket:target});
+ assert.equal(message.ticketId,'b');
+ assert.deepEqual(tickets.b.comments,['comment']);
+ assert.equal(tickets.b.isClosed,true);
+ assert.deepEqual(links,[]);
+});
+
+test('historical mapping still rejects a deleted target', async () => {
+ tickets.b.deletedAt=new Date();
+ await assert.rejects(remapMessages({conversation,messages:[message],ticket:{_id:'b',num:2}}),/удалена/);
+ assert.equal(message.ticketId,'a');
 });

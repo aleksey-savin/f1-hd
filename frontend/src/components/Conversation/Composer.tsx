@@ -6,7 +6,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { RiAttachment2, RiCloseLine, RiSendPlane2Line } from "react-icons/ri";
+import { RiAttachment2, RiCheckDoubleLine, RiCloseLine, RiSendPlane2Line } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -245,13 +245,15 @@ const Composer = ({
           </Button>
         </div>
         {awaiting && (
-          <div className="mt-1.5 text-right">
+          <div className="mt-2">
             <Button
               type="button"
-              variant="ghost"
-              size="xs"
+              variant="outline"
+              size="sm"
+              className="min-h-11 w-full bg-accent text-foreground"
               onClick={() => void onHandled()}
             >
+              <RiCheckDoubleLine aria-hidden />
               Ответ не нужен
             </Button>
           </div>
@@ -289,10 +291,12 @@ const Composer = ({
         {awaiting && (
           <Button
             type="button"
-            variant="ghost"
-            size="xs"
+            variant="outline"
+            size="sm"
+            className="bg-accent text-foreground pointer-coarse:min-h-11"
             onClick={() => void onHandled()}
           >
+            <RiCheckDoubleLine aria-hidden />
             Ответ не нужен
           </Button>
         )}

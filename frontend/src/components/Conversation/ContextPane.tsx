@@ -169,6 +169,7 @@ const ContextPane = ({
           <div className="mt-4 flex flex-col gap-3" aria-busy={contextBusy}>
             {linked.map((ticket) => (
               <TicketBlock
+                showOtherDialogs
                 key={ticket.id}
                 card={card}
                 ticket={ticket}

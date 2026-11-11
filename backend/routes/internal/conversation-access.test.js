@@ -80,3 +80,10 @@ test('handled triage requires manage and readAll without requiring reply',async(
  assert.equal((await check(['conversation.read','conversation.manage'],'/conversations/chat/handled','POST')).status,403);
  assert.equal((await check(['conversation.readAll','conversation.manage'],'/conversations/chat/handled','POST')).status,200);
 });
+
+test('historical mapping targets require manager and full conversation read access', async () => {
+ for (const actions of [['conversation.readAll'],['conversation.read','conversation.manage'],['ticket.sendMessage']]) {
+  assert.equal((await check(actions,'/conversations/chat/mapping-tickets')).status,403);
+ }
+ assert.equal((await check(['conversation.readAll','conversation.manage'],'/conversations/chat/mapping-tickets')).status,200);
+});

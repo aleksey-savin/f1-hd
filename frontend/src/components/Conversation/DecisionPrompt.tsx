@@ -1,3 +1,4 @@
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Link } from "react-router";
 
 import HealthRow from "@/components/app/HealthRow";
@@ -20,32 +21,35 @@ const DecisionPrompt = ({
   canManage: boolean;
   onNewTicket: () => void;
   onNoTicket: () => void;
-}) => (
-  <HealthRow
-    state="warning"
-    title={`По заявке ${ticketNum} (закрыта)?`}
-    className="flex-none"
-    action={
-      <div className="flex flex-wrap items-center gap-2">
-        <Button asChild variant="outline" size="xs">
-          <Link
-            to={`/tickets/${ticketNum}`}
-            state={{ openAction: "backToWork" }}
-          >
-            Вернуть в работу
-          </Link>
-        </Button>
-        <Button variant="outline" size="xs" onClick={onNewTicket}>
-          Новая заявка
-        </Button>
-        {canManage && (
-          <Button variant="ghost" size="xs" onClick={onNoTicket}>
-            Без заявки
+}) => {
+  const fromState = useCrumbFrom("Диалог");
+  return (
+    <HealthRow
+      state="warning"
+      title={`По заявке ${ticketNum} (закрыта)?`}
+      className="flex-none"
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="xs">
+            <Link
+              to={`/tickets/${ticketNum}`}
+              state={{ ...fromState, openAction: "backToWork" }}
+            >
+              Вернуть в работу
+            </Link>
           </Button>
-        )}
-      </div>
-    }
-  />
-);
+          <Button variant="outline" size="xs" onClick={onNewTicket}>
+            Новая заявка
+          </Button>
+          {canManage && (
+            <Button variant="ghost" size="xs" onClick={onNoTicket}>
+              Без заявки
+            </Button>
+          )}
+        </div>
+      }
+    />
+  );
+};
 
 export default DecisionPrompt;

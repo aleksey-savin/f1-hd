@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import useLiveTopic from "@/hooks/use-live-topic";
 import { api } from "@/lib/api";
+import { formatPhone } from "@/util/phone";
 import { formatAgo } from "@/util/format-date";
 
 import SectionForm from "./SectionForm";
@@ -315,7 +316,7 @@ export default function Wazzup({
                   : networkNames[account.type]
               }
               htmlFor={`prefs-wazzup-account-${account.id}`}
-              hint={`${account.account || networkNames[account.type]} · через Wazzup`}
+              hint={`${(/^[+\d\s().-]+$/.test(account.account) ? formatPhone(account.account) : account.account) || networkNames[account.type]} · через Wazzup`}
               leading={
                 <ChannelIcon
                   network={account.type}

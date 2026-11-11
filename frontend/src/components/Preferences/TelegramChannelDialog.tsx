@@ -34,6 +34,7 @@ import {
   loginStage,
   loginStepPending,
   qrSecondsLeft,
+  proxyDraftChanged,
   signatureExample,
   splitProxyPassword,
 } from "@/util/channel-state";
@@ -44,8 +45,8 @@ import { plural } from "@/util/plural";
  * «Telegram — вход» (канва E3 для WhatsApp, перенесённая на Telegram): слева
  * вход — QR-код, код из Telegram или SMS, пароль двухэтапной проверки; справа
  * шаги, ключи приложения Telegram и прокси с «Проверить»; ниже — настройки
- * канала свитчами. «Сохранить» пишет настройки и секреты канала; вход и
- * проверка сначала сохраняют введённое — шлюз читает канал из базы.
+ * канала свитчами. «Сохранить» пишет настройки и секреты канала;
+ * вход сохраняет введённое; проверка использует только сохранённый прокси.
  *
  * Состояние входа пишет шлюз (`channel.state`), страница узнаёт о нём из
  * пульса (тема «channels»); пока вход или проверка идут, пульс чаще — 2 с.
@@ -170,7 +171,9 @@ const TelegramChannelDialog = ({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [proxy, setProxy] = useState<ProxyCheck>({ state: "idle" });
-  const [loginStepStatus, setLoginStepStatus] = useState<LoginStepStatus>({ phase: "idle" });
+  const [loginStepStatus, setLoginStepStatus] = useState<LoginStepStatus>({
+    phase: "idle",
+  });
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
@@ -193,7 +196,10 @@ const TelegramChannelDialog = ({
     loginStepStatus.phase === "pending" &&
     loginStepPending(loginStepStatus.since, channel);
   const waitingGateway =
-    stage === "waiting" || stage === "qr" || proxy.state === "busy" || loginPending;
+    stage === "waiting" ||
+    stage === "qr" ||
+    proxy.state === "busy" ||
+    loginPending;
 
   // Пока ждём шлюз — пульс чаще, чтобы QR, итог проверки и шаг входа приходили быстро
   useEffect(() => {
@@ -216,7 +222,9 @@ const TelegramChannelDialog = ({
     if (loginStepStatus.phase !== "pending") return undefined;
     const timer = setTimeout(() => {
       setLoginStepStatus((current) =>
-        current.phase === "pending" ? { phase: "timedOut", step: current.step } : current,
+        current.phase === "pending"
+          ? { phase: "timedOut", step: current.step }
+          : current,
       );
     }, LOGIN_STEP_TIMEOUT_MS);
     return () => clearTimeout(timer);
@@ -231,8 +239,12 @@ const TelegramChannelDialog = ({
         `/api/channels/${channel.id}/jobs/${proxy.jobId}`,
       );
       if (job.state === "done") {
-        const latency = (job.result as { latencyMs?: number } | null)?.latencyMs;
-        setProxy({ state: "ok", latencyMs: typeof latency === "number" ? latency : null });
+        const latency = (job.result as { latencyMs?: number } | null)
+          ?.latencyMs;
+        setProxy({
+          state: "ok",
+          latencyMs: typeof latency === "number" ? latency : null,
+        });
       } else if (job.state === "failed" || job.state === "cancelled") {
         setProxy({ state: "error", error: job.error || "Прокси не отвечает" });
       }
@@ -254,7 +266,11 @@ const TelegramChannelDialog = ({
       if (job.state === "done") {
         setLoginStepStatus({ phase: "idle" });
       } else if (job.state === "failed" || job.state === "cancelled") {
-        setLoginStepStatus({ phase: "failed", step, error: job.error || "Telegram не ответил" });
+        setLoginStepStatus({
+          phase: "failed",
+          step,
+          error: job.error || "Telegram не ответил",
+        });
       }
     },
     { enabled: loginStepStatus.phase === "pending" },
@@ -273,7 +289,9 @@ const TelegramChannelDialog = ({
     setDraft((current) => (current ? { ...current, ...values } : current));
 
   const keysSet = channel.secrets.tgApiId && channel.secrets.tgApiHash;
-  const keysReady = Boolean(keysSet || (draft.apiId.trim() && draft.apiHash.trim()));
+  const keysReady = Boolean(
+    keysSet || (draft.apiId.trim() && draft.apiHash.trim()),
+  );
 
   /**
    * Настройки и непустые секреты — в канал. Пустой секрет значит «не менять».
@@ -320,39 +338,49 @@ const TelegramChannelDialog = ({
     }
   };
 
-  const loginStep = (step: "start" | "phone" | "code" | "password", value?: string) =>
-    run(
-      async () => {
-        const { jobId } = await api<{ jobId: string }>(`/api/channels/${channel.id}/login`, {
+  const loginStep = (
+    step: "start" | "phone" | "code" | "password",
+    value?: string,
+  ) =>
+    run(async () => {
+      const { jobId } = await api<{ jobId: string }>(
+        `/api/channels/${channel.id}/login`,
+        {
           method: "POST",
           body: value === undefined ? { step } : { step, value },
+        },
+      );
+      // «start» получает `connecting` синхронно на сервере — это уже видно
+      // через waitingGateway (stage === "waiting"). Для остальных шагов
+      // бэкенд не пишет промежуточное состояние синхронно — ждём итог
+      // задания (выше) до сдвига состояния/стадии или до таймаута.
+      if (step !== "start") {
+        setLoginStepStatus({
+          phase: "pending",
+          step,
+          since: { state: channel.state, stage },
+          jobId,
         });
-        // «start» получает `connecting` синхронно на сервере — это уже видно
-        // через waitingGateway (stage === "waiting"). Для остальных шагов
-        // бэкенд не пишет промежуточное состояние синхронно — ждём итог
-        // задания (выше) до сдвига состояния/стадии или до таймаута.
-        if (step !== "start") {
-          setLoginStepStatus({
-            phase: "pending",
-            step,
-            since: { state: channel.state, stage },
-            jobId,
-          });
-        }
-      },
-      "Не удалось передать шлюзу шаг входа",
-    );
+      }
+    }, "Не удалось передать шлюзу шаг входа");
 
+  const proxyChanged = proxyDraftChanged(channel.settings, draft);
   const checkProxy = async () => {
+    if (proxyChanged || !draft.proxyUrl.trim() || busy) return;
     setBusy(true);
     try {
-      await save();
-      const { jobId } = await api<{ jobId: string }>(`/api/channels/${channel.id}/test`, {
-        method: "POST",
-      });
+      const { jobId } = await api<{ jobId: string }>(
+        `/api/channels/${channel.id}/test`,
+        {
+          method: "POST",
+        },
+      );
       setProxy({ state: "busy", jobId });
     } catch (error) {
-      setProxy({ state: "error", error: failureText(error, "Проверка не запустилась") });
+      setProxy({
+        state: "error",
+        error: failureText(error, "Проверка не запустилась"),
+      });
     } finally {
       setBusy(false);
     }
@@ -405,7 +433,11 @@ const TelegramChannelDialog = ({
     if (stage === "connected") {
       return (
         <div className="rounded-xl border border-border p-4">
-          <ChannelTile network="telegram" iconSize={22} className="size-11 rounded-xl" />
+          <ChannelTile
+            network="telegram"
+            iconSize={22}
+            className="size-11 rounded-xl"
+          />
           <div className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-accent-text">
             <RiCheckLine size={16} aria-hidden />
             Подключён
@@ -462,7 +494,11 @@ const TelegramChannelDialog = ({
             )}
           </Button>
           <StepError
-            text={timedOutFor("code") ? "Telegram не ответил — попробуйте ещё раз" : ""}
+            text={
+              timedOutFor("code")
+                ? "Telegram не ответил — попробуйте ещё раз"
+                : ""
+            }
           />
           <StepError text={failedError("code")} />
           <StepError text={channel.stateReason} />
@@ -505,7 +541,11 @@ const TelegramChannelDialog = ({
             )}
           </Button>
           <StepError
-            text={timedOutFor("password") ? "Telegram не ответил — попробуйте ещё раз" : ""}
+            text={
+              timedOutFor("password")
+                ? "Telegram не ответил — попробуйте ещё раз"
+                : ""
+            }
           />
           <StepError text={failedError("password")} />
           <StepError text={channel.stateReason} />
@@ -573,7 +613,11 @@ const TelegramChannelDialog = ({
             <QrCode data={channel.login.qr} size={168} />
           ) : stage === "waiting" ? (
             <span className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
-              <RiLoader4Line size={24} aria-hidden className="animate-spin text-primary" />
+              <RiLoader4Line
+                size={24}
+                aria-hidden
+                className="animate-spin text-primary"
+              />
               Получаем код…
             </span>
           ) : (
@@ -597,7 +641,9 @@ const TelegramChannelDialog = ({
         </QrBox>
         {stage === "qr" && seconds !== null && (
           <div className="mt-2.5 text-center text-xs text-muted-foreground">
-            {seconds > 0 ? `Код обновится через ${seconds} с` : "Код обновляется…"}
+            {seconds > 0
+              ? `Код обновится через ${seconds} с`
+              : "Код обновляется…"}
           </div>
         )}
         <div className="mt-1 text-center">
@@ -638,18 +684,21 @@ const TelegramChannelDialog = ({
           <div className="mt-5 flex flex-col gap-6 md:flex-row">
             <div className="w-full flex-none md:w-54">{loginPanel}</div>
             <div className="min-w-0 flex-1">
-              {stage !== "connected" && !codeLogin && stage !== "code" && stage !== "password" && (
-                <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
-                  {steps.map((step, index) => (
-                    <li key={step} className="flex gap-2.5 text-sm">
-                      <span className="grid size-5 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              )}
+              {stage !== "connected" &&
+                !codeLogin &&
+                stage !== "code" &&
+                stage !== "password" && (
+                  <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
+                    {steps.map((step, index) => (
+                      <li key={step} className="flex gap-2.5 text-sm">
+                        <span className="grid size-5 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground">
+                          {index + 1}
+                        </span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
 
               {!keysSet && (
                 <div className="mt-4.5">
@@ -663,11 +712,14 @@ const TelegramChannelDialog = ({
                       value={draft.apiId}
                       onChange={(event) => patch({ apiId: event.target.value })}
                     />
-                    <Input
+                    <PasswordInput
+                      autoComplete="new-password"
                       aria-label="api_hash"
                       placeholder="api_hash"
                       value={draft.apiHash}
-                      onChange={(event) => patch({ apiHash: event.target.value })}
+                      onChange={(event) =>
+                        patch({ apiHash: event.target.value })
+                      }
                     />
                   </div>
                   <p className="mt-1.5 mb-0 text-sm text-muted-foreground">
@@ -693,25 +745,42 @@ const TelegramChannelDialog = ({
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={busy || proxy.state === "busy" || !draft.proxyUrl.trim()}
+                    disabled={
+                      busy ||
+                      proxy.state === "busy" ||
+                      proxyChanged ||
+                      !draft.proxyUrl.trim()
+                    }
                     onClick={() => void checkProxy()}
                   >
                     Проверить
                   </Button>
                 </span>
               </label>
+              <p className="mt-1.5 mb-0 text-sm text-muted-foreground">
+                {proxyChanged
+                  ? "Сначала сохраните параметры прокси, затем откройте подключение и нажмите «Проверить»."
+                  : "Проверяется сохранённый прокси. Настройки не изменяются."}
+              </p>
               {draft.proxyUrl.includes("@") && (
                 <Field
                   label="Пароль прокси"
                   htmlFor="tg-proxy-password"
-                  hint={channel.secrets.proxyPassword ? "Задан — пусто значит «не менять»" : undefined}
+                  hint={
+                    channel.secrets.proxyPassword
+                      ? "Задан — пусто значит «не менять»"
+                      : undefined
+                  }
                   className="mt-3 mb-0"
                 >
                   <PasswordInput
                     id="tg-proxy-password"
                     autoComplete="new-password"
                     value={draft.proxyPassword}
-                    onChange={(event) => patch({ proxyPassword: event.target.value })}
+                    onChange={(event) => {
+                      patch({ proxyPassword: event.target.value });
+                      setProxy({ state: "idle" });
+                    }}
                   />
                 </Field>
               )}
@@ -719,24 +788,40 @@ const TelegramChannelDialog = ({
                 <div className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
                   {proxy.state === "busy" && (
                     <>
-                      <RiLoader4Line size={16} aria-hidden className="animate-spin" />
+                      <RiLoader4Line
+                        size={16}
+                        aria-hidden
+                        className="animate-spin"
+                      />
                       Проверяем…
                     </>
                   )}
                   {proxy.state === "ok" && (
                     <>
-                      <RiCheckLine size={16} aria-hidden className="text-accent-text" />
+                      <RiCheckLine
+                        size={16}
+                        aria-hidden
+                        className="text-accent-text"
+                      />
                       <span>
-                        <span className="font-semibold text-accent-text">Прокси отвечает</span>
+                        <span className="font-semibold text-accent-text">
+                          Прокси отвечает
+                        </span>
                         {proxy.latencyMs !== null && ` · ${proxy.latencyMs} мс`}
                       </span>
                     </>
                   )}
                   {proxy.state === "error" && (
                     <>
-                      <RiErrorWarningLine size={16} aria-hidden className="text-destructive" />
+                      <RiErrorWarningLine
+                        size={16}
+                        aria-hidden
+                        className="text-destructive"
+                      />
                       <span>
-                        <span className="font-semibold text-destructive">Прокси не отвечает</span>
+                        <span className="font-semibold text-destructive">
+                          Прокси не отвечает
+                        </span>
                         {` · ${proxy.error}`}
                       </span>
                     </>

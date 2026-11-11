@@ -43,7 +43,10 @@ const connectionHint = (channel) => {
  * @param {{ now?: Date, ago?: (date: string) => string | null }} [options]
  * @returns {{ state: "ok" | "error" | "warning" | "busy" | "idle", title: string, meta?: string, hint?: string, action?: "login" }}
  */
-export const channelHealth = (channel, { now = new Date(), ago = () => "" } = {}) => {
+export const channelHealth = (
+  channel,
+  { now = new Date(), ago = () => "" } = {},
+) => {
   if (!channel) {
     return {
       state: "idle",
@@ -60,19 +63,28 @@ export const channelHealth = (channel, { now = new Date(), ago = () => "" } = {}
   }
   switch (channel.state) {
     case "connected": {
-      const seenAt = channel.gatewaySeenAt ? new Date(channel.gatewaySeenAt) : null;
-      if (!seenAt || new Date(now).getTime() - seenAt.getTime() > GATEWAY_SILENCE_MS) {
+      const seenAt = channel.gatewaySeenAt
+        ? new Date(channel.gatewaySeenAt)
+        : null;
+      if (
+        !seenAt ||
+        new Date(now).getTime() - seenAt.getTime() > GATEWAY_SILENCE_MS
+      ) {
         return {
           state: "warning",
           title: "Шлюз не отвечает",
-          meta: seenAt ? `последний сигнал ${ago(channel.gatewaySeenAt)}` : "сигнала не было",
+          meta: seenAt
+            ? `последний сигнал ${ago(channel.gatewaySeenAt)}`
+            : "сигнала не было",
           hint: "Сообщения не приходят, пока не запущен сервис msg-gateway",
         };
       }
       return {
         state: "ok",
         title: "Подключён",
-        meta: channel.lastMessageAt ? `сообщение ${ago(channel.lastMessageAt)}` : undefined,
+        meta: channel.lastMessageAt
+          ? `сообщение ${ago(channel.lastMessageAt)}`
+          : undefined,
         hint: connectionHint(channel),
       };
     }
@@ -158,18 +170,26 @@ export const loginStage = (channel) => {
  * @returns {boolean}
  */
 export const loginStepPending = (since, channel) =>
-  (channel?.state ?? null) === since.state && loginStage(channel) === since.stage;
+  (channel?.state ?? null) === since.state &&
+  loginStage(channel) === since.stage;
 
 /** Сколько секунд живёт QR-код; нет срока — null. */
 export const qrSecondsLeft = (expiresAt, now = new Date()) =>
   expiresAt
-    ? Math.max(0, Math.ceil((new Date(expiresAt).getTime() - new Date(now).getTime()) / 1000))
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(expiresAt).getTime() - new Date(now).getTime()) / 1000,
+        ),
+      )
     : null;
 
 /** Подсказка свитча «Подписывать ответы»: пример подписи без контактов. */
 export const signatureExample = (firstName, organization) => {
   const who = [firstName, organization].filter(Boolean).join(", ");
-  return who ? `«- ${who}» — имя без контактов` : "Имя и организация — без контактов";
+  return who
+    ? `«- ${who}» — имя без контактов`
+    : "Имя и организация — без контактов";
 };
 
 /**
@@ -201,5 +221,13 @@ export const channelHint = (channel) => {
     formatPhone(account.phone) ||
     (account.username ? `@${account.username}` : "");
   const parts = [account.displayName, handle].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "Корпоративный аккаунт не подключён";
+  return parts.length
+    ? parts.join(" · ")
+    : "Корпоративный аккаунт не подключён";
 };
+
+/** Проверка шлюзом использует только сохранённый прокси. */
+export const proxyDraftChanged = (settings, draft) =>
+  (draft.proxyUrl || "").trim() !== (settings.proxyUrl || "").trim() ||
+  Boolean(draft.proxyPassword) ||
+  Boolean(splitProxyPassword(draft.proxyUrl || "").password);

@@ -1,3 +1,4 @@
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import {
   RiCheckboxLine,
   RiCheckDoubleLine,
@@ -185,6 +186,7 @@ const MessageBubble = ({
   onRetry: (id: string) => void;
   actions?: ReactNode;
 }) => {
+  const fromState = useCrumbFrom("Диалог");
   const sticker =
     !message.deletedAt &&
     (message.kind === "sticker" ||
@@ -241,9 +243,11 @@ const MessageBubble = ({
           <div className="mt-1 ml-1">
             <Link
               to={`/tickets/${message.ticket.num}`}
+              state={fromState}
               className="inline-flex h-5 items-center gap-1 rounded-md bg-accent px-1.75 text-xs font-semibold text-muted-foreground no-underline hover:text-foreground"
             >
-              <RiCheckboxLine size={12} aria-hidden />{message.ticket.num}
+              <RiCheckboxLine size={12} aria-hidden />
+              {message.ticket.num}
             </Link>
           </div>
         )}

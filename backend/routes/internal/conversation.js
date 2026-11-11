@@ -59,6 +59,7 @@ router.post("/messages/:id/retry", ...canRetryMessengerMessage, messagingModuleI
 router.post("/conversations/:id/assign", ...manage, conversation.assign);
 router.post("/conversations/:id/bind", ...manage, conversation.bind);
 router.post("/conversations/:id/unbind", ...manage, conversation.unbind);
+router.get("/conversations/:id/mapping-tickets", ...manage, conversation.mappingTickets);
 router.post("/conversations/:id/attach", ...manage, conversation.attach);
 router.post("/conversations/:id/decision", ...manage, conversation.decision);
 router.post("/conversations/:id/hide", ...manage, conversation.hide);

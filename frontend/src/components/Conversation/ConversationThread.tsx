@@ -1,9 +1,9 @@
+import Crumbs, { type CrumbOrigin } from "@/components/app/Crumbs";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLoaderData, useNavigate } from "react-router";
+import { useLoaderData, useNavigate, useLocation } from "react-router";
 import { isMobile } from "react-device-detect";
 import {
   RiAddLine,
-  RiArrowLeftSLine,
   RiCloseLine,
   RiMoreLine,
 } from "react-icons/ri";
@@ -69,6 +69,8 @@ const ConversationThread = () => {
   const { conversation, channel } = card;
   const conversationId = conversation.id;
   const navigate = useNavigate();
+  const location = useLocation();
+  const origin = (location.state as { from?: CrumbOrigin } | null)?.from;
   const revalidate = useDeferredRevalidate();
   const canReply = card.access?.reply === true;
   const canManage = card.access?.manage === true;
@@ -473,18 +475,17 @@ const ConversationThread = () => {
       : null;
   return (
     <>
-      <section aria-label="Переписка" className="flex min-w-0 flex-1 flex-col">
+      <section aria-label="Переписка" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {!isMobile && origin && (
+          <div className="border-b border-border-soft px-4 py-2 [&>nav]:mb-0">
+            <Crumbs />
+          </div>
+        )}
         {isMobile && (
           <div className="flex-none border-b border-border-soft bg-card">
-            <nav aria-label="Навигация" className="px-3 pt-2.5">
-              <Link
-                to="/conversations"
-                className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline"
-              >
-                <RiArrowLeftSLine size={16} aria-hidden />
-                Диалоги
-              </Link>
-            </nav>
+            <div className="px-3 pt-2.5 [&>nav]:mb-0">
+              <Crumbs />
+            </div>
             <ThreadHeader card={card} compact>
               <Button
                 variant="outline"

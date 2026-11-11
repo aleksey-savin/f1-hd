@@ -522,7 +522,7 @@ const Chronicle = ({
 
   const submit = (submitEvent) => {
     submitEvent.preventDefault();
-    if (!content.trim() || stickerBusy.current || isLoading) return;
+    if ((!content.trim() && !files.length) || stickerBusy.current || isLoading) return;
 
     const formData = new FormData();
     formData.append("intent", "addComment");
@@ -792,7 +792,7 @@ const Chronicle = ({
                   size="icon-sm"
                   aria-label="Отправить"
                   className="ms-auto"
-                  disabled={isLoading || stickerSending || !content.trim()}
+                  disabled={isLoading || stickerSending || (!content.trim() && !files.length)}
                 >
                   <RiSendPlaneLine />
                 </Button>
@@ -801,7 +801,7 @@ const Chronicle = ({
                   type="submit"
                   size="xs"
                   className="ms-auto"
-                  disabled={isLoading || stickerSending || !content.trim()}
+                  disabled={isLoading || stickerSending || (!content.trim() && !files.length)}
                 >
                   <RiSendPlaneLine />
                   {isLoading ? "Отправка…" : "Отправить"}

@@ -1,8 +1,11 @@
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Link } from "react-router";
 import { RiLinkUnlink, RiTimeLine, RiUserLine } from "react-icons/ri";
 
 import { deadlineText, ticketTone } from "@/components/Ticket/ticket-state";
 import { Button } from "@/components/ui/button";
+import TicketDialogLinks from "./TicketDialogLinks";
+
 import { cn } from "@/lib/utils";
 import type { ConversationCard } from "@/types/conversation";
 
@@ -11,6 +14,7 @@ const TicketBlock = ({
   card,
   ticket: detail,
   selected = false,
+  showOtherDialogs = false,
   onSelect,
   canManage,
   onUnbind,
@@ -18,6 +22,7 @@ const TicketBlock = ({
   card: ConversationCard;
   ticket?: ConversationCard["ticket"];
   selected?: boolean;
+  showOtherDialogs?: boolean;
   onSelect?: () => void;
   canManage: boolean;
   /** Сохранены для существующих вызовов компонента. */
@@ -25,6 +30,7 @@ const TicketBlock = ({
   timeZone?: string;
   onUnbind: () => void;
 }) => {
+  const fromState = useCrumbFrom("Диалог");
   const ticket = detail === undefined ? card.ticket : detail;
   const bound = ticket ?? card.conversation.ticket;
   if (!bound) return null;
@@ -71,6 +77,7 @@ const TicketBlock = ({
       <div className="flex min-h-10 items-center justify-between gap-2 px-4 pt-2">
         <Link
           to={`/tickets/${bound.num}`}
+          state={fromState}
           aria-label={`Открыть заявку ${bound.num}`}
           className="inline-flex items-center max-sm:min-h-11 rounded text-xs font-semibold text-muted-foreground tabular-nums no-underline outline-none hover:text-accent-text hover:underline focus-visible:ring-4 focus-visible:ring-ring/50"
         >
@@ -107,6 +114,7 @@ const TicketBlock = ({
       ) : (
         body && <div className="px-4 pt-1 pb-4">{body}</div>
       )}
+      {showOtherDialogs && ticket && <TicketDialogLinks ticket={ticket} />}
     </article>
   );
 };

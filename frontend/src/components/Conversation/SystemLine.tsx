@@ -1,3 +1,4 @@
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import type { IconType } from "react-icons";
 import {
   RiCheckLine,
@@ -37,7 +38,10 @@ const SystemLine = ({
   note?: string;
   compact?: boolean;
 }) => {
-  const Icon = message ? (ICON[message.event?.kind ?? ""] ?? RiInformationLine) : RiInformationLine;
+  const fromState = useCrumbFrom("Диалог");
+  const Icon = message
+    ? (ICON[message.event?.kind ?? ""] ?? RiInformationLine)
+    : RiInformationLine;
   const parts = message
     ? systemLineParts(message.event, { compact })
     : [{ text: note ?? "" }];
@@ -53,6 +57,7 @@ const SystemLine = ({
               <Link
                 key={index}
                 to={`/tickets/${part.ticket}`}
+                state={fromState}
                 className="font-semibold text-accent-text no-underline hover:underline"
               >
                 {part.ticket}

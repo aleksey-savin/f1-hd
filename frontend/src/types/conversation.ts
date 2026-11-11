@@ -124,6 +124,7 @@ export type ConversationPerson = {
 };
 
 export type ConversationTicket = {
+  otherDialogs?: { id: string; network: Network; title: string }[];
   canReply?: boolean;
   id: string;
   num: number;

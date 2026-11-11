@@ -59,15 +59,43 @@ const loadVisible = async (req) => {
   return conversation;
 };
 
-const loadOpenTicket = async (req, num) => {
+const loadMappingTicket = async (req, num) => {
   const ticketNum = Number(num);
   if (!Number.isInteger(ticketNum)) throw new AppError("Укажите номер заявки", 400);
   const ticket = await Ticket.findOne({ num: ticketNum })
     .select("_id num isClosed deletedAt applicantId responsibles createdBy company applicant")
     .lean();
   if (!ticket || ticket.deletedAt || !canAccessTicket(ticket, req.auth)) throw new AppError("Заявка не найдена", 404);
+  return ticket;
+};
+
+const loadOpenTicket = async (req, num) => {
+  const ticket = await loadMappingTicket(req, num);
   if (ticket.isClosed) throw new AppError("Заявка закрыта — сначала верните её в работу", 409);
   return ticket;
+};
+
+/** Historical message targets are distinct from active chat bindings. */
+exports.mappingTickets = async (req, res, next) => {
+  try {
+    const conversation = await loadVisible(req);
+    if (!readsAll(req.auth) || !req.auth.can({ conversation: ["manage"] })) throw new AppError("Недостаточно прав", 403);
+    const q = String(req.query?.q || "").trim().slice(0, 200);
+    const filters = [{ deletedAt: null }, ticketListFilter(req.auth)];
+    if (conversation.companyId) filters.push({ "company._id": conversation.companyId });
+    else if (!q) return res.status(200).json({ items: [] });
+    if (q) {
+      const number = q.replace(/^[№#]\s*/, "");
+      filters.push(/^\d+$/.test(number) ? { num: Number(number) } : { title: { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" } });
+    }
+    const tickets = await Ticket.find({ $and: filters }).sort({ createdAt: -1 }).limit(30)
+      .select("num title state deadline responsibles").lean();
+    res.status(200).json({ items: tickets.map(ticket => ({
+      id: String(ticket._id), num: ticket.num, title: ticket.title, state: ticket.state,
+      deadline: ticket.deadline || null, responsibles: (ticket.responsibles || []).map(userName),
+      canReply: false, boundAt: null,
+    })) });
+  } catch (error) { next(wrap(error, "Не удалось найти заявки")); }
 };
 
 /** Справочники строк списка: собеседники, люди, компании, непрочитанное. */
@@ -204,8 +232,10 @@ exports.get = async (req, res, next) => {
       : await Ticket.find({ _id: { $in: [...historicalIds, ...activeBindings(conversation).map(link => link.ticketId)].filter(id => req.auth.messagingScope.ticketIds.some(allowed => String(allowed) === String(id))) }, deletedAt: null }).lean();
     const ticket = linkedTickets.find((ticket) => String(ticket._id) === String(binding.ticketId)) || linkedTickets[0] || null;
     const replyAllowed = ticket => activeBindings(conversation).some(link => String(link.ticketId) === String(ticket._id)) && canReplyToTicket(ticket, req.auth);
+    const dialogsByTicket = await require("@/services/messaging/ticket-dialogs").ticketDialogs({ tickets: linkedTickets, currentId: conversation._id, auth: req.auth });
     const detail = (ticket) => ({
       id: String(ticket._id), num: ticket.num, title: ticket.title, state: ticket.state, deadline: ticket.deadline,
+      otherDialogs: dialogsByTicket.get(String(ticket._id)) || [],
       responsibles: (ticket.responsibles || []).map((r) => userName(r)),
       canReply: req.auth.can({conversation:["reply"]}) && replyAllowed(ticket),
       boundAt: activeBindings(conversation).find((link) => String(link.ticketId) === String(ticket._id))?.boundAt || null,
@@ -521,7 +551,7 @@ exports.unbind = async (req, res, next) => {
 exports.attach = async (req, res, next) => {
   try {
     const conversation = await loadVisible(req);
-    const ticket = req.body?.ticketNum === null ? null : await loadOpenTicket(req, req.body?.ticketNum);
+    const ticket = req.body?.ticketNum === null ? null : await loadMappingTicket(req, req.body?.ticketNum);
     const ids = (Array.isArray(req.body?.messageIds) ? req.body.messageIds : []).filter(isId).slice(0, 200);
     if (!ids.length) return next(new AppError("Выберите сообщения", 400));
     const messages = await Message.find({ _id: { $in: ids }, conversationId: conversation._id, direction: { $ne: "system" } })

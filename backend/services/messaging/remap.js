@@ -52,7 +52,7 @@ const remapMessages = async ({ conversation, messages, ticket, auth, by }) => {
     if (ticket) {
       const live = await require("@/models/ticket").Ticket.findById(ticket._id).lean();
       if (live && auth && !require("@/services/ticketAccess").canAccessTicket(live, auth)) throw new (require("@/middleware/errorHandling").AppError)("Заявка не найдена", 404);
-      if (!live || live.isClosed || live.deletedAt) throw new (require("@/middleware/errorHandling").AppError)("Заявка закрыта или удалена", 409);
+      if (!live || live.deletedAt) throw new (require("@/middleware/errorHandling").AppError)("Заявка удалена", 409);
     }
     if (message.mappingIntent) {
       const pendingTicket = message.ticketId ? await require('@/models/ticket').Ticket.findById(message.ticketId).lean() : null;
@@ -70,7 +70,9 @@ const remapMessages = async ({ conversation, messages, ticket, auth, by }) => {
     count++;
   });
   if (!count && ticket && conversation.kind === "direct") {
-    await require("./bindings").bindConversation({ conversation, ticket, by, attachPending: false });
+    const live = await require("@/models/ticket").Ticket.findById(ticket._id).lean();
+    if (!live || live.isClosed || live.deletedAt) return count;
+    await require("./bindings").bindConversation({ conversation, ticket: live, by, attachPending: false });
   }
   return count;
 };
