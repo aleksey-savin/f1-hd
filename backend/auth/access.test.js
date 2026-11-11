@@ -18,7 +18,7 @@ const {
 
 test("dictionary keeps the agreed order and adds corporate taxi actions", () => {
   assert.equal(GROUPS.length, 19);
-  assert.equal(ALL_ACTIONS.length, 73);
+  assert.equal(ALL_ACTIONS.length, 75);
   assert.deepEqual(ALL_ACTIONS.slice(0, 8), [
     "ticket.readCompanies",
     "ticket.readAll",
@@ -33,7 +33,7 @@ test("dictionary keeps the agreed order and adds corporate taxi actions", () => 
   assert.equal(GROUPS[1].key, "conversations");
   assert.deepEqual(
     GROUPS[1].actions.map((action) => action.id),
-    ["conversation.read", "conversation.reply", "conversation.manage"],
+    ["conversation.read", "conversation.readAll", "conversation.reply", "conversation.start", "conversation.manage"],
   );
   assert.equal(ALL_ACTIONS.at(-1), "settings.manage");
   // «ИИ» — предпоследняя группа: настройки замыкают словарь
@@ -64,7 +64,7 @@ test("every action has an audience; clientHint only on both", () => {
     for (const action of group.actions) {
       assert.ok(["staff", "client", "both"].includes(action.audience), action.id);
       if (action.clientHint) assert.equal(action.audience, "both", action.id);
-      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Утверждать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться|Отвечать|Отправлять|Обновлять|Заказывать) /, action.id);
+      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Утверждать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться|Отвечать|Отправлять|Обновлять|Заказывать|Начинать|Разбирать) /, action.id);
     }
   }
 });
@@ -79,6 +79,8 @@ test("audiences of the spec's special cases", () => {
   assert.equal(audienceOfAction("ai.use"), "staff");
   // Переписка с клиентом — инструмент сотрудника
   assert.equal(audienceOfAction("conversation.read"), "staff");
+  assert.equal(audienceOfAction("conversation.readAll"), "staff");
+  assert.equal(audienceOfAction("conversation.start"), "staff");
   assert.equal(audienceOfAction("conversation.reply"), "staff");
   assert.equal(audienceOfAction("conversation.manage"), "staff");
   assert.equal(audienceOfAction("nope.nothing"), "staff");

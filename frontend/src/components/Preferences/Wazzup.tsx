@@ -6,6 +6,7 @@ import HealthRow from "@/components/app/HealthRow";
 import PasswordInput from "@/components/app/PasswordInput";
 import { SubLabel } from "@/components/app/Panel";
 import SettingRow from "@/components/app/SettingRow";
+import type { DraftPayload } from "@/components/app/draft-context";
 import { ChannelIcon } from "@/components/Conversation/ChannelGlyph";
 import { failureText } from "@/components/Conversation/conversation-actions";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,13 @@ const tiles = {
   max: "bg-channel-max-tint text-channel-max inset-ring-transparent",
 };
 
-export default function Wazzup({ settings }: { settings?: WazzupSettings }) {
+export default function Wazzup({
+  settings,
+  additionalDraft,
+}: {
+  settings?: WazzupSettings;
+  additionalDraft?: { payload: DraftPayload; blockedReason?: string | null };
+}) {
   // Метаданные сервера обновляются отдельно от пользовательского черновика.
   const [server, setServer] = useState({ value: settings, revision: 0 });
   const sequence = useRef(0);
@@ -241,8 +248,11 @@ export default function Wazzup({ settings }: { settings?: WazzupSettings }) {
         <SubLabel>Через Wazzup</SubLabel>
       </div>
       <SectionForm
-        blockedReason={blockedReason}
-        buildPayload={() => ({ wazzup: { isActive, apiKey, channelIds } })}
+        blockedReason={blockedReason || additionalDraft?.blockedReason || null}
+        buildPayload={() => ({
+          ...additionalDraft?.payload,
+          wazzup: { isActive, apiKey, channelIds },
+        })}
       >
         <SettingRow
           title="Подключить Wazzup"

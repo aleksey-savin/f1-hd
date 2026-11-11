@@ -487,23 +487,23 @@ module.exports.canManageSettings = requirePermission(
 // --- «Диалоги» -------------------------------------------------------------
 
 module.exports.canReadConversations = requirePermission(
-  { conversation: ["read"] },
+  [{ conversation: ["read"] }, { conversation: ["readAll"] }],
   PAGE,
 );
 module.exports.canReplyConversations = requirePermission(
-  { conversation: ["reply"] },
+  [{ conversation: ["read", "reply"] }, { conversation: ["readAll", "reply"] }],
   "Недостаточно прав, чтобы отвечать в диалогах",
 );
 module.exports.canManageConversations = requirePermission(
-  { conversation: ["manage"] },
+  { conversation: ["readAll", "manage"] },
   "Недостаточно прав, чтобы вести диалоги",
 );
 module.exports.canReadTicketMessageRoutes = requirePermission(
-  [{ ticket: ["sendMessage"] }, { conversation: ["read"] }],
+  [{ ticket: ["sendMessage"] }, { conversation: ["read"] }, { conversation: ["readAll"] }],
   "Недостаточно прав для выбора канала ответа",
 );
 module.exports.canRetryMessengerMessage = requirePermission(
-  [{ ticket: ["sendMessage"] }, { conversation: ["read", "reply"] }],
+  [{ ticket: ["sendMessage"] }, { conversation: ["read", "reply"] }, { conversation: ["readAll", "reply"] }],
   "Недостаточно прав для повторной отправки сообщения",
 );
 
@@ -516,3 +516,5 @@ module.exports.mikrotikIsActive = modules.mikrotikIsActive;
 module.exports.financesModuleIsActive = modules.financesModuleIsActive;
 module.exports.knowledgeBaseModuleIsActive = modules.knowledgeBaseModuleIsActive;
 module.exports.messagingModuleIsActive = modules.messagingModuleIsActive;
+
+module.exports.canStartConversations = requirePermission([{ conversation: ["read", "reply", "start"] }, { conversation: ["readAll", "reply", "start"] }], "Недостаточно прав, чтобы начать диалог");

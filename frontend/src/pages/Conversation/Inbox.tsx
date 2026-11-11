@@ -21,7 +21,7 @@ import { inboxOutletState } from "@/util/new-conversation";
  * B1/B4 — телефон).
  *
  * Десктоп: шапка (заголовок со счётчиком, режимы, поиск, фильтры) и одна
- * панель на три колонки — список 288 · переписка · контакт 352. Переписка и
+ * панель на три колонки — список 256 · переписка · контакт 352. Переписка и
  * контакт — вложенный маршрут `:id` (pages/Conversation/Thread), список живёт
  * здесь и не перерисовывается при переходе между диалогами.
  *
@@ -74,7 +74,7 @@ const Title = ({ phone = false }: { phone?: boolean }) => {
 
 const NewDialogueButton = ({ phone = false }: { phone?: boolean }) => {
   const { isEndUser } = useAuthedUser();
-  const canReply = useCan()({ conversation: ["reply"] });
+  const canReply = useCan()({ conversation: ["reply", "start"] });
   if (isEndUser || !canReply) return null;
   return (
     <Button asChild size={phone ? "icon" : "default"}>
@@ -118,7 +118,7 @@ const DesktopInbox = ({
       <div className="mt-4 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
         <nav
           aria-label="Список диалогов"
-          className="w-72 flex-none overflow-y-auto border-r border-border-soft"
+          className="w-64 flex-none overflow-y-auto border-r border-border-soft"
         >
           <ConversationList selectedId={selectedId} />
         </nav>

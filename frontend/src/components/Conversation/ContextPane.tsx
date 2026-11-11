@@ -1,27 +1,27 @@
-import { RiGroupLine } from "react-icons/ri";
+import type { ReactNode } from "react";
+import { RiAddLine, RiCheckLine } from "react-icons/ri";
 
 import { SubLabel } from "@/components/app/Panel";
 import { monogramFor } from "@/components/app/monogram";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ConversationCard } from "@/types/conversation";
-import { networkLabel } from "@/util/conversation-format";
+import type {
+  ConversationCard,
+  ConversationReplySelection,
+} from "@/types/conversation";
+import { counterpartHandle, networkLabel } from "@/util/conversation-format";
+import { conversationTickets } from "@/util/conversation-context";
 
 import ContactBlock from "./ContactBlock";
+import ContactChannelRow from "./ContactChannelRow";
 import OpenTickets from "./OpenTickets";
+import { FreeDiscussionChoice } from "./ReplyContextPicker";
 import TicketBlock from "./TicketBlock";
 import WhoIsThis from "./WhoIsThis";
 
-/**
- * Колонка «Контакт и заявка» справа от переписки (канва A1, C2) и её же
- * содержимое в шторке телефона (B3, `big`):
- *   • собеседник связан — карточка с каналами, привязанная заявка, открытые
- *     заявки компании;
- *   • не связан — «Кто это?»;
- *   • группа (выбор сообщений — этап P2) — участники.
- */
 export type ContextHandlers = {
   onBind: (ticketNum: number) => void;
-  onUnbind: () => void;
+  onUnbind: (ticketNum?: number) => void;
   onAssign: (userId: string | null) => void;
   onLinked: () => void;
 };
@@ -58,6 +58,7 @@ const Participants = ({ card }: { card: ConversationCard }) => (
   </>
 );
 
+/** Same context and choices in the desktop pane and the mobile context sheet. */
 const ContextPane = ({
   card,
   canManage,
@@ -65,6 +66,14 @@ const ContextPane = ({
   now,
   timeZone,
   handlers,
+  selection,
+  onSelectContext,
+  onCreateTicket,
+  onChooseContext,
+  actions,
+  decision,
+  contextBusy = false,
+  contextPaused = false,
 }: {
   card: ConversationCard;
   canManage: boolean;
@@ -72,81 +81,122 @@ const ContextPane = ({
   now: Date;
   timeZone: string;
   handlers: ContextHandlers;
+  selection: ConversationReplySelection;
+  onSelectContext: (ticketNum: number | null) => void;
+  onCreateTicket: () => void;
+  onChooseContext: () => void;
+  actions?: ReactNode;
+  decision?: ReactNode;
+  contextBusy?: boolean;
+  contextPaused?: boolean;
 }) => {
   const { conversation } = card;
-  if (conversation.kind === "group") {
-    return (
-      <>
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="grid size-11 flex-none place-items-center rounded-[25%] bg-accent text-muted-foreground inset-ring inset-ring-border"
-          >
-            <RiGroupLine size={22} />
-          </span>
-          <div className="min-w-0">
-            <div className="truncate text-base leading-6 font-semibold">
-              {conversation.title}
-            </div>
-            <div className="truncate text-sm text-muted-foreground">
-              {networkLabel(conversation.network)} · группа
-            </div>
-          </div>
-        </div>
-        <Participants card={card} />
-      </>
-    );
-  }
-
-  if (!card.contact) {
-    // У неопознанного собеседника тоже может быть привязанная заявка.
-    return (
-      <>
-        <WhoIsThis
-          card={card}
-          canManage={canManage}
-          onLinked={handlers.onLinked}
-        />
-        {conversation.ticket && (
-          <>
-            <SubLabel className="mt-5">Заявка</SubLabel>
-            <TicketBlock
-              card={card}
-              canManage={canManage}
-              now={now}
-              timeZone={timeZone}
-              onUnbind={handlers.onUnbind}
-            />
-          </>
-        )}
-      </>
-    );
-  }
-
+  const linked = conversationTickets(card);
+  const otherTickets = {
+    ...card,
+    openTickets: card.openTickets.filter(
+      (ticket) => !linked.some((item) => item.id === ticket.id),
+    ),
+  };
   return (
     <>
-      <ContactBlock card={card} big={big} />
-      {conversation.ticket && (
+      <div className="mb-4 border-b border-border-soft pb-3">
+        {card.contact ? (
+          <ContactBlock card={card} big={big} actions={actions} />
+        ) : (
+          <>
+            <ContactChannelRow
+              channel={conversation.network}
+              label={networkLabel(conversation.network)}
+              value={
+                counterpartHandle(card.counterpart) ||
+                networkLabel(conversation.network)
+              }
+              current
+              big={big}
+              actions={actions}
+            />
+            {conversation.kind !== "group" && (
+              <WhoIsThis
+                card={card}
+                canManage={canManage}
+                onLinked={handlers.onLinked}
+                showIdentity={false}
+              />
+            )}
+          </>
+        )}
+      </div>
+      {conversation.kind === "group" ? (
+        <Participants card={card} />
+      ) : (
         <>
-          <SubLabel className="mt-5">Заявка</SubLabel>
-          <TicketBlock
-            card={card}
-            canManage={canManage}
-            now={now}
-            timeZone={timeZone}
-            onUnbind={handlers.onUnbind}
+          {decision && <div className="mb-4">{decision}</div>}
+          {card.access?.all && card.access?.reply && <FreeDiscussionChoice
+            selected={selection.mode === "free"}
+            disabled={contextBusy}
+            onSelect={() => onSelectContext(null)}
+          />}
+          {canManage && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-2 w-full"
+              onClick={onCreateTicket}
+            >
+              <RiAddLine />
+              Создать заявку
+            </Button>
+          )}
+          {card.access?.reply && selection.mode === "choose" && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold text-warning-text">
+              <span>
+                {contextPaused
+                  ? "Переписка была приостановлена"
+                  : "Выберите тему для ответа"}
+              </span>
+              <Button
+                type="button"
+                variant="link"
+                size="xs"
+                onClick={onChooseContext}
+              >
+                Выбрать
+              </Button>
+            </div>
+          )}
+          <div className="mt-4 flex flex-col gap-3" aria-busy={contextBusy}>
+            {linked.map((ticket) => (
+              <TicketBlock
+                key={ticket.id}
+                card={card}
+                ticket={ticket}
+                canManage={canManage}
+                now={now}
+                timeZone={timeZone}
+                onUnbind={() => handlers.onUnbind(ticket.num)}
+                selected={selection.ticket?.id === ticket.id}
+                onSelect={() => {
+                  if (!contextBusy) onSelectContext(ticket.num);
+                }}
+              />
+            ))}
+          </div>
+          <OpenTickets
+            card={otherTickets}
+            canBind={canManage && conversation.kind === "direct"}
+            onBind={handlers.onBind}
           />
+          {!linked.length && selection.mode === "free" && (
+            <span className="sr-only">
+              <RiCheckLine />
+              Диалог без заявки
+            </span>
+          )}
         </>
       )}
-      <OpenTickets
-        card={card}
-        canBind={
-          canManage && !conversation.ticket && conversation.kind === "direct"
-        }
-        onBind={handlers.onBind}
-      />
     </>
   );
 };
-
 export default ContextPane;

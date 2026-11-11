@@ -1,26 +1,14 @@
 const mongoose = require("mongoose");
 
-const { ticketTier, scopeCompanyIds } = require("@/services/ticketScope");
+const { scopeCompanyIds } = require("@/services/ticketScope");
 
-/**
- * Кто какие диалоги видит — ярусы как у заявок (services/ticketScope.js): все,
- * своих компаний, свои. Неопознанных собеседников (компания не известна) видят
- * все, кто видит диалоги: их кто-то должен разобрать. Назначенный диалог виден
- * назначенному всегда. Чисто относительно базы — тесты рядом.
- */
-
-const oid = (id) => new mongoose.Types.ObjectId(String(id));
-
-const visibilityFilter = (auth) => {
-  const tier = ticketTier(auth);
-  if (tier === "all") return {};
-  const or = [{ companyId: null }, { assigneeId: oid(auth.userId) }];
-  if (tier === "companies") {
-    const ids = scopeCompanyIds(auth);
-    if (ids.length) or.push({ companyId: { $in: ids.map(oid) } });
-  }
-  return { $or: or };
-};
+const { readsAll, canReadInbox } = require('./access');
+const oid = id => new mongoose.Types.ObjectId(String(id));
+const visibilityFilter = auth => readsAll(auth) ? {} : { $or: [
+  { _id: { $in: (auth.messagingScope?.conversationIds || []).map(oid) } },
+  { 'ticketBindings.ticketId': { $in: (auth.messagingScope?.ticketIds || []).map(oid) } },
+  { ticketBindings: { $exists: false }, 'binding.ticketId': { $in: (auth.messagingScope?.ticketIds || []).map(oid) } },
+] };
 
 const QUEUES = ["awaiting", "mine", "unbound", "all", "hidden"];
 
@@ -31,6 +19,7 @@ const queueFilter = (queue, auth) => {
     case "awaiting":
       return { ...shown, awaitingSince: { $ne: null } };
     case "mine":
+      if (!readsAll(auth)) return shown;
       return {
         ...shown,
         $or: [
@@ -39,7 +28,10 @@ const queueFilter = (queue, auth) => {
         ],
       };
     case "unbound":
-      return { ...shown, $or: [{ "binding.ticketId": null }, { "binding.endedAt": { $ne: null } }] };
+      return { ...shown, $or: [
+        { ticketBindings: { $exists: false }, $or: [{ "binding.ticketId": null }, { "binding.endedAt": { $ne: null } }] },
+        { ticketBindings: { $exists: true, $not: { $elemMatch: { ticketId: { $ne: null }, endedAt: null } } } },
+      ] };
     case "all":
       return shown;
     case "hidden":
@@ -59,10 +51,12 @@ const listFilter = (queue, auth, extra = {}) => {
 
 /** Виден ли человеку этот диалог — то же правило в памяти, для карточки. */
 const canSeeConversation = (conversation, auth) => {
-  const tier = ticketTier(auth);
-  if (tier === "all" || !conversation.companyId) return true;
-  if (conversation.assigneeId && String(conversation.assigneeId) === String(auth.userId)) return true;
-  return tier === "companies" && scopeCompanyIds(auth).includes(String(conversation.companyId));
+  if (!canReadInbox(auth)) return false;
+  if (readsAll(auth)) return true;
+  if ((auth.messagingScope?.conversationIds || []).some(id => String(id) === String(conversation._id))) return true;
+  const ids = new Set((auth.messagingScope?.ticketIds || []).map(String));
+  const links = Array.isArray(conversation.ticketBindings) ? conversation.ticketBindings : [conversation.binding || {}];
+  return links.some(link => ids.has(String(link.ticketId)));
 };
 
 module.exports = { QUEUES, visibilityFilter, queueFilter, listFilter, canSeeConversation };

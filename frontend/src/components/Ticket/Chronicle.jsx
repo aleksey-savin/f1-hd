@@ -45,6 +45,10 @@ import {
 } from "../../util/ticket-events";
 import AttachmentChip from "./View/AttachmentChip";
 import ChannelMarker from "./ChannelMarker";
+import StickerAttachment from "@/components/Conversation/StickerAttachment";
+import StickerPicker from "@/components/Conversation/StickerPicker";
+import useToastStore from "@/store/toast-store";
+import { failureText } from "@/components/Conversation/conversation-actions";
 import ReplyRoute from "./ReplyRoute";
 
 /**
@@ -160,7 +164,8 @@ const Bubble = ({ row, viewer, canRetry, onRetried, realSender }) => {
   const { comment, side } = row;
   const out = side === "out";
   const name = row.showName
-    ? chronicleAuthorName(comment, personName(comment.createdBy), realSender) || "—"
+    ? chronicleAuthorName(comment, personName(comment.createdBy), realSender) ||
+      "—"
     : "";
   const marker = commentMarker(comment, { viewer, side });
   const attachments = comment.attachments ?? [];
@@ -199,19 +204,29 @@ const Bubble = ({ row, viewer, canRetry, onRetried, realSender }) => {
         <div
           className={cn(
             "text-sm leading-5 break-words text-foreground",
-            out
-              ? "rounded-[14px_14px_4px_14px] bg-bubble-out"
-              : "rounded-[14px_14px_14px_4px] bg-bubble-in",
+            comment.channel?.isSticker
+              ? "bg-transparent"
+              : out
+                ? "rounded-[14px_14px_4px_14px] bg-bubble-out"
+                : "rounded-[14px_14px_14px_4px] bg-bubble-in",
             media ? "p-1 pb-1.5" : "px-3 pt-2 pb-1.5",
           )}
         >
           {photos.map((attachment) => (
             <div key={attachment.name} className="mb-1 last:mb-0">
-              <PhotoAttachment
-                attachment={asMedia(attachment)}
-                kind="photo"
-                compact={isMobile}
-              />
+              {comment.channel?.isSticker ? (
+                <StickerAttachment
+                  attachment={asMedia(attachment)}
+                  kind="sticker"
+                  compact={isMobile}
+                />
+              ) : (
+                <PhotoAttachment
+                  attachment={asMedia(attachment)}
+                  kind="photo"
+                  compact={isMobile}
+                />
+              )}
             </div>
           ))}
           {videos.map((attachment) => (
@@ -222,7 +237,7 @@ const Bubble = ({ row, viewer, canRetry, onRetried, realSender }) => {
               />
             </div>
           ))}
-          {comment.content && (
+          {comment.content && !comment.channel?.isSticker && (
             <p
               className={cn("m-0 whitespace-pre-wrap", media && "px-2 pt-1.5")}
             >
@@ -399,7 +414,7 @@ const Chronicle = ({
   const [mode, setMode] = useState("comments");
   const [content, setContent] = useState("");
   const [files, setFiles] = useState([]);
-  // Причина отказа сервера (например, «занят заявкой №56790»): по коду её не
+  // Причина отказа сервера (например, «занят заявкой 56790»): по коду её не
   // угадать, useHttp отдаёт только statusText
   const [serverMessage, setServerMessage] = useState(null);
   const fileInput = useRef(null);
@@ -445,7 +460,11 @@ const Chronicle = ({
         comment._id === commentId
           ? {
               ...comment,
-              channel: { ...comment.channel, status: "queued", error: undefined },
+              channel: {
+                ...comment.channel,
+                status: "queued",
+                error: undefined,
+              },
             }
           : comment,
       ),
@@ -467,9 +486,43 @@ const Chronicle = ({
     textarea.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [commentDraft, clearCommentDraft]);
 
+  const [stickerSending, setStickerSending] = useState(false);
+  const stickerBusy = useRef(false);
+  const canSendSticker =
+    showRoutes &&
+    routes?.routes.some(
+      (item) => item.id === route && item.available && item.stickersAvailable,
+    );
+  const sendSticker = async (stickerId) => {
+    if (stickerBusy.current || isLoading)
+      throw new Error("Отправка уже выполняется");
+    stickerBusy.current = true;
+    setStickerSending(true);
+    try {
+      const body = new FormData();
+      body.append("intent", "addComment");
+      body.append("ticketId", ticket._id);
+      body.append("content", "Стикер");
+      body.append("deliverVia", route);
+      body.append("stickerId", stickerId);
+      const data = await api("/api/comments/add/", { method: "POST", body });
+      forceBottom.current = true;
+      updateComments([{ ...data.comment, createdBy: authedUser }, ...comments]);
+      messaging?.onRoutesChanged?.();
+    } catch (error) {
+      useToastStore
+        .getState()
+        .showToast("danger", failureText(error, "Не удалось отправить стикер"));
+      throw error;
+    } finally {
+      stickerBusy.current = false;
+      setStickerSending(false);
+    }
+  };
+
   const submit = (submitEvent) => {
     submitEvent.preventDefault();
-    if (!content.trim()) return;
+    if (!content.trim() || stickerBusy.current || isLoading) return;
 
     const formData = new FormData();
     formData.append("intent", "addComment");
@@ -673,7 +726,9 @@ const Chronicle = ({
               value={content}
               aria-label={viewer.isClient ? "Сообщение" : "Комментарий"}
               placeholder={
-                viewer.isClient ? "Написать сообщение…" : "Написать комментарий…"
+                viewer.isClient
+                  ? "Написать сообщение…"
+                  : "Написать комментарий…"
               }
               onChange={(changeEvent) => setContent(changeEvent.target.value)}
               // Поле растёт с текстом, но ленту не съедает: потолок — 160 px
@@ -723,13 +778,21 @@ const Chronicle = ({
                   </label>
                 </Button>
               )}
+              {canSendSticker && (
+                <StickerPicker
+                  onSend={sendSticker}
+                  disabled={isLoading || stickerSending}
+                  phone={isMobile}
+                  catalogueUrl={`/api/tickets/${ticket.num}/stickers`}
+                />
+              )}
               {isMobile ? (
                 <Button
                   type="submit"
                   size="icon-sm"
                   aria-label="Отправить"
                   className="ms-auto"
-                  disabled={isLoading || !content.trim()}
+                  disabled={isLoading || stickerSending || !content.trim()}
                 >
                   <RiSendPlaneLine />
                 </Button>
@@ -738,7 +801,7 @@ const Chronicle = ({
                   type="submit"
                   size="xs"
                   className="ms-auto"
-                  disabled={isLoading || !content.trim()}
+                  disabled={isLoading || stickerSending || !content.trim()}
                 >
                   <RiSendPlaneLine />
                   {isLoading ? "Отправка…" : "Отправить"}

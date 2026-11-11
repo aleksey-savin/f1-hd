@@ -559,13 +559,15 @@ const OWN_FIELDS = {
     },
   },
   messages: {
-    fields: ["conversationId", "externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName", "clientRequestId", "retryIntent"],
-    masks: ["externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName", "clientRequestId", "retryIntent"],
+    fields: ["conversationId", "externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName", "clientRequestId", "retryIntent", "mappingLock", "mappingIntent"],
+    masks: ["externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName", "clientRequestId", "retryIntent", "mappingLock", "mappingIntent"],
     apply(doc) {
       delete doc.recipientPhone;
       delete doc.recipientName;
       delete doc.clientRequestId;
       delete doc.retryIntent;
+      delete doc.mappingLock;
+      delete doc.mappingIntent;
       if ("externalChatId" in doc) doc.externalChatId = `masked-${String(doc.conversationId ?? doc._id)}`;
       // Идентификатор сообщения в WhatsApp содержит номер собеседника
       if (filled(doc.externalId)) doc.externalId = `masked-${String(doc._id)}`;
@@ -669,6 +671,7 @@ const KEPT_LOCAL = ["preferences", "channels", "channeljobs", "taxisettings", "w
  * Запись — поле или его начало: "attachments" покрывает всё, что внутри.
  */
 const FREE_TEXT = {
+  messagingstickers: ["label"],
   absences: ["comment", "decisionComment"],
   aifeedbacks: ["text"],
   checklisttemplates: ["title", "items[].description"],
@@ -713,6 +716,8 @@ const FREE_TEXT = {
  * отчёт показывает отдельной группой и провалом не считает.
  */
 const LABELS = {
+  messagingstickerpacks: ["_id", "name", "title", "keys[]"],
+  messagingstickers: ["name", "sourceKey"], // Generated storage key; contains no original filename.
   absences: ["timeRange.start", "timeRange.end"],
   attributegroups: ["name"],
   clientdevices: ["*"],

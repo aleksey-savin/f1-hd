@@ -16,7 +16,7 @@ const nextSeq = async (conversationId) => {
   return doc.lastSeq;
 };
 
-/** Системная строка ленты («Создана заявка №…», «Ответ не нужен · …»). */
+/** Системная строка ленты («Создана заявка …», «Ответ не нужен · …»). */
 const addSystemLine = async (conversation, { kind, ticketNum, by, targetName, count }) => {
   const Message = require("@/models/message");
   const seq = await nextSeq(conversation._id);

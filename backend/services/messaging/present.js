@@ -5,6 +5,8 @@
  */
 const { NETWORK_LABEL, identityName, previewOf } = require("./rules");
 
+const { activeBindings } = require("./multi-ticket");
+
 const idOf = (value) => (value ? String(value._id ?? value) : null);
 const userName = (user) => (user ? `${user.lastName || ""} ${user.firstName || ""}`.trim() : "");
 
@@ -49,7 +51,7 @@ const conversationRow = (conversation, ctx = {}) => {
   const user = counterpart?.userId ? get(ctx.users, counterpart.userId) : undefined;
   const company = get(ctx.companies, conversation.companyId);
   const assignee = get(ctx.users, conversation.assigneeId);
-  const binding = conversation.binding || {};
+  const binding = activeBindings(conversation)[0] || {};
   const last = conversation.lastMessage || {};
   const title =
     conversation.kind === "direct"
@@ -67,6 +69,7 @@ const conversationRow = (conversation, ctx = {}) => {
       : null,
     awaitingSince: conversation.awaitingSince || null,
     unread: Math.min(get(ctx.unread, idOf(conversation)) || 0, 99),
+    tickets: activeBindings(conversation).map((link) => ({ id: idOf(link.ticketId), num: link.ticketNum })),
     ticket: binding.ticketId && !binding.endedAt ? { id: idOf(binding.ticketId), num: binding.ticketNum } : null,
     decision: conversation.decision?.ticketId
       ? { ticketId: idOf(conversation.decision.ticketId), ticketNum: conversation.decision.ticketNum }
@@ -127,7 +130,7 @@ const messageRow = (message, ctx = {}) => {
       : null,
     status: message.status,
     error: message.error || "",
-    ticket: message.ticketId ? { id: idOf(message.ticketId), num: message.ticketNum } : null,
+    ticket: message.ticketId ? { id: idOf(message.ticketId), num: message.ticketNum, ...(get(ctx.tickets, message.ticketId)?.title ? { title: get(ctx.tickets, message.ticketId).title } : {}) } : null,
     attachMode: message.attachMode || null,
     suggestTicketId: idOf(message.suggestTicketId),
     event:

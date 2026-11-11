@@ -339,7 +339,7 @@ test("текст From и Authentication-Results в строках о письм�
   const from = `"${"Я".repeat(500)}" <ivan@client.ru>`;
   const authResults = `mx.client.ru; ${"x-pad=none; ".repeat(400)}`;
   const { log } = await runIntake(t, [
-    // Ответ в №77, которого нет: строка «заведён новой заявкой» несёт оба заголовка
+    // Ответ в 77, которого нет: строка «заведён новой заявкой» несёт оба заголовка
     rawMail({
       from,
       subject: `${ticketSubjectTag(77)} Re: Printer is broken`,
@@ -651,7 +651,7 @@ const staffOutsider = {
 };
 
 const TICKET_NUM = 77;
-const NOT_PARTICIPANT = `<p>Письмо пришло ответом на заявку №${TICKET_NUM}, но отправитель в ней не участвует</p>`;
+const NOT_PARTICIPANT = `<p>Письмо пришло ответом на заявку ${TICKET_NUM}, но отправитель в ней не участвует</p>`;
 
 // `req.auth` в форме buildAuthContext, но без базы. `companies` — роль
 // «Видеть заявки своих компаний»: клиенту открывает все заявки его компании
@@ -663,7 +663,7 @@ const authOf = (user, { companies = false } = {}) => ({
   legacy: { ...user, userId: String(user._id) },
 });
 
-// Заявка №77 клиента: заявитель — client, у неё один сотрудник-ответственный
+// Заявка 77 клиента: заявитель — client, у неё один сотрудник-ответственный
 const replyTicket = (fields = {}) => ({
   _id: oid(),
   num: TICKET_NUM,
@@ -675,7 +675,7 @@ const replyTicket = (fields = {}) => ({
   ...fields,
 });
 
-// Один заход с ответом `sender` на №77. Возвращает комментарии, что дошли до
+// Один заход с ответом `sender` на 77. Возвращает комментарии, что дошли до
 // сохранения, и то, что сделал обработчик
 const runReply = async (
   t,
@@ -722,14 +722,14 @@ const runReply = async (
 
 const assertCommented = ({ ticket, saved }, sender) => {
   assert.equal(created.length, 0, "новой заявки быть не должно");
-  assert.equal(saved.length, 1, "комментарий в №77 должен лечь");
+  assert.equal(saved.length, 1, "комментарий в 77 должен лечь");
   assert.equal(String(saved[0].ticketId), String(ticket._id));
   assert.equal(String(saved[0].createdBy), String(sender._id));
 };
 
 const assertFiledAsNewTicket = ({ saved }) => {
-  // В №77 не пишется ничего; ответ — обычная новая заявка с причиной первой строкой
-  assert.equal(saved.length, 0, "в №77 писать нельзя");
+  // В 77 не пишется ничего; ответ — обычная новая заявка с причиной первой строкой
+  assert.equal(saved.length, 0, "в 77 писать нельзя");
   assert.equal(created.length, 1);
   assert.ok(
     created[0].description.startsWith(NOT_PARTICIPANT),
@@ -762,7 +762,7 @@ const REPLY_SCENARIOS = [
 ];
 
 for (const [name, sender, options, commented] of REPLY_SCENARIOS) {
-  test(`ответ в №77: ${name} — ${commented ? "комментарий" : "новая заявка"}`, async (t) => {
+  test(`ответ в 77: ${name} — ${commented ? "комментарий" : "новая заявка"}`, async (t) => {
     const outcome = await runReply(t, sender, options);
     if (commented) assertCommented(outcome, sender);
     else assertFiledAsNewTicket(outcome);

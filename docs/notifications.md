@@ -115,6 +115,18 @@ no branch of its own), `notifyCommentEvent`, `notifyWorksEvent`.
 call `pushInApp` with their explicit recipient lists (`linkFor` gives the
 approver a personal `/approval/<token>` path).
 
+Messages originating in «Диалоги» carry
+`Comment.notifications.fromConversation:true` (legacy inbound mirrors also
+have `channel.direction:"in"`). Only their per-message **Telegram** copies are
+suppressed in `createCommentNotifications`; the in-app and e-mail branches
+still run. Ordinary comments, incoming e-mail and messenger replies written
+from the ticket card keep the existing audience and delivery behavior. A
+separate `services/messaging/waiting-notifications.js` job sends one Telegram
+reminder after two minutes without an answer and escalates once to the team
+group after ten minutes. Read watermarks do not end waiting. Timing, access,
+preference gates and restart-safe outbox keys are documented in
+`docs/messaging.md`, «Telegram waiting reminders».
+
 ### Mikrotik change requests (`mikrotikChange`)
 
 Category `mikrotikChange` (`services/notificationCategories.js`,

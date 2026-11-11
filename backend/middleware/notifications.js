@@ -1713,6 +1713,10 @@ exports.createCommentNotifications = async () => {
     // Ответ ушёл клиенту мессенджером (services/messaging): заявителю тот же
     // текст ни ботом, ни письмом не дублируем
     const skipApplicant = comment.notifications?.skipApplicant === true;
+    // Только реплики модуля «Диалоги». Исходящий channel есть и у обычного
+    // ответа из карточки заявки — его рассылку сохраняем. Входящие зеркала
+    // узнаём также без флага, чтобы не разослать старый pending-хвост.
+    const telegramForComment = comment.notifications?.fromConversation !== true && comment.channel?.direction !== "in";
 
     // Канал «в приложении» — заявителю и ответственным, кроме автора
     try {
@@ -1730,6 +1734,7 @@ exports.createCommentNotifications = async () => {
         // notifying applicant
         try {
           if (
+            telegramForComment &&
             !skipApplicant &&
             String(applicant?._id) !== authorId &&
             notifyTg(applicant, "ticketNewComment")
@@ -1761,7 +1766,7 @@ exports.createCommentNotifications = async () => {
 
         // notifying global
         try {
-          if (notifyTgGroup) {
+          if (telegramForComment && notifyTgGroup) {
             const newCommentNotification = new Notification({
               instrument: "telegram",
               commentId: comment._id,
@@ -1790,6 +1795,7 @@ exports.createCommentNotifications = async () => {
             const user = await User.findById(responsible._id);
 
             if (
+              telegramForComment &&
               String(user?._id) !== authorId &&
               notifyTg(user, "ticketNewComment")
             ) {

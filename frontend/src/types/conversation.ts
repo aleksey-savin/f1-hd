@@ -33,6 +33,8 @@ export type ConversationRow = {
   awaitingSince: string | null;
   unread: number;
   ticket: { id: string; num: number } | null;
+  /** Все живые привязки; ticket сохраняется для старых клиентов. */
+  tickets?: { id: string; num: number }[];
   decision: { ticketId: string; ticketNum: number } | null;
   assignee: { id: string; name: string } | null;
   hidden: boolean;
@@ -87,7 +89,7 @@ export type MessageRow = {
   replyTo: { id: string; authorName: string; text: string } | null;
   status: MessageStatus;
   error: string;
-  ticket: { id: string; num: number } | null;
+  ticket: { id: string; num: number; title?: string } | null;
   attachMode: string | null;
   suggestTicketId: string | null;
   event: {
@@ -105,6 +107,7 @@ export type MessagesPage = { items: MessageRow[]; serverTime: string };
 /** Ответ опроса `changedSince`. */
 export type MessagesChanges = {
   items: MessageRow[];
+  removedIds?: string[];
   serverTime: string;
   hasMore: boolean;
   afterId?: string;
@@ -120,11 +123,40 @@ export type ConversationPerson = {
   isStaff: boolean;
 };
 
+export type ConversationTicket = {
+  canReply?: boolean;
+  id: string;
+  num: number;
+  title: string;
+  state: string;
+  deadline: string | null;
+  responsibles: string[];
+  boundAt: string | null;
+};
+
+/** Контекст ответа принадлежит сотруднику, а не всему диалогу. */
+export type ConversationReplyContext = {
+  ticketId: string | null;
+  withoutTicket: boolean;
+  expiresAt: string | null;
+  required: boolean;
+  updatedAt?: string | null;
+};
+
+export type ConversationReplySelection = {
+  mode: "ticket" | "free" | "choose";
+  ticket: ConversationTicket | null;
+  expiresAt: string | null;
+  updatedAt?: string | null;
+};
+
 /** Карточка диалога — `GET /api/conversations/:id`. */
 export type ConversationCard = {
+  access: { all: boolean; reply: boolean; manage: boolean; start: boolean };
   conversation: ConversationRow;
   channel: {
     id: string;
+    provider?: "gateway" | "wazzup";
     type: Network;
     name: string;
     state: string;
@@ -145,15 +177,9 @@ export type ConversationCard = {
     handle: string;
     conversationId: string | null;
   }[];
-  ticket: {
-    id: string;
-    num: number;
-    title: string;
-    state: string;
-    deadline: string | null;
-    responsibles: string[];
-    boundAt: string | null;
-  } | null;
+  ticket: ConversationTicket | null;
+  tickets?: ConversationTicket[];
+  replyContext?: ConversationReplyContext;
   openTickets: {
     id: string;
     num: number;
@@ -174,6 +200,7 @@ export type TicketDraft = {
 
 /** Маршрут «Ответить через» — `GET /api/tickets/:num/delivery-routes`. */
 export type DeliveryRoute = {
+  stickersAvailable?: boolean;
   id: string;
   channelId: string;
   network: Network;
@@ -188,6 +215,7 @@ export type DeliveryRoute = {
 );
 
 export type DeliveryRoutes = {
+  canSend?: boolean;
   routes: DeliveryRoute[];
   /** id маршрута или `"notify"` — «Почта и бот». */
   defaultRoute: string;
@@ -292,6 +320,7 @@ export type ChannelJobView = {
 
 /** Блок `channel` комментария-зеркала (backend/services/messaging/present.js). */
 export type CommentChannel = {
+  isSticker?: boolean;
   network: Network;
   conversationId: string;
   messageId?: string;

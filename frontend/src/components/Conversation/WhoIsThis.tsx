@@ -38,10 +38,12 @@ const WhoIsThis = ({
   card,
   canManage,
   onLinked,
+  showIdentity = true,
 }: {
   card: ConversationCard;
   canManage: boolean;
   onLinked: () => void;
+  showIdentity?: boolean;
 }) => {
   const { conversation, counterpart } = card;
   const navigate = useNavigate();
@@ -77,7 +79,11 @@ const WhoIsThis = ({
   const link = async (person: IdentityCandidate) => {
     if (!counterpart) return;
     setLinking(person.id);
-    const ok = await linkIdentity(counterpart.identityId, person.id, person.name);
+    const ok = await linkIdentity(
+      counterpart.identityId,
+      person.id,
+      person.name,
+    );
     setLinking(null);
     if (ok) onLinked();
   };
@@ -91,22 +97,26 @@ const WhoIsThis = ({
   return (
     <>
       <SubLabel>Кто это?</SubLabel>
-      <div className="flex items-center gap-3">
-        <span
-          aria-hidden
-          className="grid size-11 flex-none place-items-center rounded-[25%] bg-accent text-muted-foreground inset-ring inset-ring-border"
-        >
-          <RiUserLine size={22} />
-        </span>
-        <div className="min-w-0">
-          <div className="truncate text-base leading-6 font-semibold">
-            {conversation.title || counterpart?.name || "Собеседник"}
-          </div>
-          <div className="truncate text-sm text-muted-foreground">
-            {[networkLabel(conversation.network), handle].filter(Boolean).join(" · ")}
+      {showIdentity && (
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className="grid size-11 flex-none place-items-center rounded-[25%] bg-accent text-muted-foreground inset-ring inset-ring-border"
+          >
+            <RiUserLine size={22} />
+          </span>
+          <div className="min-w-0">
+            <div className="truncate text-base leading-6 font-semibold">
+              {conversation.title || counterpart?.name || "Собеседник"}
+            </div>
+            <div className="truncate text-sm text-muted-foreground">
+              {[networkLabel(conversation.network), handle]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
           </div>
         </div>
-      </div>
+      )}
       <p className="mt-3 mb-0 text-sm text-muted-foreground">
         {linkAdvice(conversation.network)}
       </p>
@@ -150,9 +160,13 @@ const WhoIsThis = ({
                   {monogramFor(person.name)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{person.name}</div>
+                  <div className="truncate text-sm font-medium">
+                    {person.name}
+                  </div>
                   <div className="truncate text-xs text-muted-foreground">
-                    {[person.company, person.position].filter(Boolean).join(" · ")}
+                    {[person.company, person.position]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </div>
                 </div>
                 <Button
@@ -175,13 +189,23 @@ const WhoIsThis = ({
       {(canManage || canManageUsers) && (
         <div className="mt-3.5 flex flex-col gap-2 border-t border-border-soft pt-3.5">
           {canManage && canManageUsers && counterpart && (
-            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate("users/add")}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => navigate("users/add")}
+            >
               <RiAddLine />
               Новый пользователь
             </Button>
           )}
           {canManage && (
-            <Button variant="ghost" size="sm" className="w-full" onClick={() => void hide()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => void hide()}
+            >
               <RiEyeOffLine />
               Скрыть диалог
             </Button>

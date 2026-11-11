@@ -147,7 +147,7 @@ export const rowMeta = (row) => {
     parts.push({ text: row.company.alias, tone: "muted" });
   }
   if (row.ticket) {
-    parts.push({ text: `№${row.ticket.num}`, tone: "muted" });
+    parts.push({ text: `${row.ticket.num}`, tone: "muted" });
   } else if (row.unknown && row.kind === "direct") {
     parts.push({ text: unknownLabel(row.network), tone: "faint" });
   } else {
@@ -223,27 +223,27 @@ export const systemLineParts = (event, { compact = false } = {}) => {
   switch (event?.kind) {
     case "ticketCreated":
       return compact
-        ? [{ text: "Создана заявка " }, ticket, { text: " — переписка идёт в неё" }]
+        ? [{ text: "Создана заявка " }, ticket, { text: "" }]
         : [
             { text: "Создана заявка " },
             ticket,
-            { text: ` — дальше переписка идёт в неё${by}` },
+            { text: by },
           ];
     case "bound":
-      return [{ text: "Диалог привязан к заявке " }, ticket, { text: by }];
+      return [{ text: "Привязана заявка " }, ticket, { text: by }];
     case "unbound":
       return [{ text: "Диалог отвязан от заявки " }, ticket, { text: by }];
     case "bindingEnded":
       return [
-        { text: "Заявка " },
+        { text: "Привязка к заявке " },
         ticket,
-        { text: " закрыта — диалог больше не привязан" },
+        { text: " завершена" },
       ];
     case "bindingRestored":
       return [
-        { text: "Заявку " },
+        { text: "Заявка " },
         ticket,
-        { text: " вернули в работу — переписка снова идёт в неё" },
+        { text: " снова в работе" },
       ];
     case "handled":
       return [{ text: `Ответ не нужен${by}` }];
@@ -255,6 +255,10 @@ export const systemLineParts = (event, { compact = false } = {}) => {
             : `Ответственный за диалог снят${by}`,
         },
       ];
+    case "freed": {
+      const count = event.count ?? 0;
+      return [{ text: `${count} ${plural(count, "сообщение оставлено", "сообщения оставлены", "сообщений оставлено")} без заявки${by}` }];
+    }
     case "attached": {
       const count = event.count ?? 0;
       return [
@@ -315,11 +319,11 @@ export const linkAdvice = (network) =>
 /** Подсказка в поле ответа на десктопе (канва A1). */
 export const composerPlaceholder = (network, ticketNum) =>
   ticketNum
-    ? `Сообщение в ${networkLabel(network)} — попадёт в заявку №${ticketNum}`
+    ? `Сообщение в ${networkLabel(network)} — попадёт в заявку ${ticketNum}`
     : `Сообщение в ${networkLabel(network)}`;
 
 /** Строка над полем ответа на телефоне (канва B2). */
 export const phoneComposerHint = (network, ticketNum) =>
   ticketNum
-    ? `Ответ уйдёт в ${networkLabel(network)} и попадёт в заявку №${ticketNum}`
+    ? `Ответ уйдёт в ${networkLabel(network)} и попадёт в заявку ${ticketNum}`
     : `Ответ уйдёт в ${networkLabel(network)}`;

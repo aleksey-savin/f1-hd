@@ -38,11 +38,14 @@ const inspectPhoneJob = async (job, channel) => {
   const ticket = message.ticketId ? await Ticket.findById(message.ticketId).lean() : null;
   if (message.ticketId && !ticket) return { reason: "Заявка удалена — сообщение не отправлено" };
   let auth = null;
-  if (!message.ticketId) {
+  {
     const author = await require("@/models/user").findById(message.authorUserId);
     const { buildAuthContext, isDeniedAccount } = require("@/services/authContext");
     if (!author || isDeniedAccount(author)) return { reason: "Сотрудник отключён — сообщение не отправлено" };
     auth = await buildAuthContext(author);
+    if (ticket && ((!auth.can({ ticket: ["sendMessage"] }) && !(require("./access").canReadInbox(auth) && auth.can({ conversation: ["reply"] }))) || !require("./access").canReplyToTicket(ticket, auth))) return { reason: "Заявка недоступна для отправки" };
+  }
+  if (!message.ticketId) {
     try {
       const { requireStartAccess, recipientOf } = require("./start");
       await requireStartAccess(auth);
@@ -54,16 +57,23 @@ const inspectPhoneJob = async (job, channel) => {
       return { reason: error.statusCode && error.statusCode < 500 ? error.message : "Не удалось проверить права отправки" };
     }
   }
-  const allConversations = await findPhoneConversations(message.recipientPhone, auth ? null : channel._id, message.recipientUserId);
+  if (!ticket) auth = { ...auth, messagingScope: await require("./access").loadMessageScope(auth) };
+  const allConversations = await findPhoneConversations(message.recipientPhone, ticket ? channel._id : null, message.recipientUserId);
   const conversations = allConversations.filter(conversation => String(conversation.channelId) === String(channel._id));
-  const inspectedConversations = auth ? allConversations : conversations;
+  const inspectedConversations = ticket ? conversations : allConversations;
   for (const conversation of inspectedConversations) {
     if (conversation.hidden) return { reason: "Диалог скрыт — сообщение не отправлено" };
-    if (auth && !require("./visibility").canSeeConversation(conversation, auth)) return { reason: "Диалог недоступен — сообщение не отправлено" };
-    const binding = conversation.binding || {};
-    if (ticket && binding.ticketId && !binding.endedAt && String(binding.ticketId) !== String(ticket?._id)) {
+    const continuesOwnStart = !ticket && require("./start").isOwnStartRequest(message, auth)
+      && String(message.conversationId) === String(conversation._id)
+      && String(message.channelId) === String(channel._id)
+      && String(conversation.channelId) === String(channel._id)
+      && job.result?.chatId === conversation.externalChatId
+      && (job.result?.nextPart > 0 || job.result?.externalIds?.length > 0);
+    if (!ticket && !continuesOwnStart && !require("./visibility").canSeeConversation(conversation, auth)) return { reason: "Диалог недоступен — сообщение не отправлено" };
+    const bindings = require("./multi-ticket").activeBindings(conversation);
+    for (const binding of bindings) if (ticket && binding.ticketId && !binding.endedAt && String(binding.ticketId) !== String(ticket?._id)) {
       const bound = await Ticket.findById(binding.ticketId).select("isClosed").lean();
-      if (bound && !bound.isClosed) return { reason: `Диалог занят заявкой №${binding.ticketNum} — сообщение не отправлено` };
+      if (bound && !bound.isClosed) return { reason: `Диалог занят заявкой ${binding.ticketNum} — сообщение не отправлено` };
     }
   }
   return { conversation: conversations[0] || null };
@@ -78,7 +88,7 @@ const phoneRoutes = async (ticket, conversations, recipient) => {
   )).map((channel) => {
     const reason = firstContactReason(channel, recipient);
     return { id: `phone:${channel._id}`, target: "phone", channelId: String(channel._id), conversationId: null,
-      network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: !reason, reason };
+      network: channel.type, stickersAvailable: channel.type === "telegram" && channel.provider === "wazzup", kind: "direct", title: channel.name || "", boundHere: false, available: !reason, reason };
   });
 };
 
@@ -113,11 +123,11 @@ const attachFirstContact = async (job, channel, result) => {
   const binding = conversation.binding || {};
   // Существующую чужую привязку никогда не перехватываем.
   if (ticket && !ticket.isClosed && (!binding.ticketId || binding.endedAt)) {
-    await require("./bindings").bindConversation({ conversation, ticket, by: { _id: message.authorUserId, firstName: message.authorName }, attachPending: true, onlyIfUnbound: true });
+    await require("./bindings").bindConversation({ conversation, ticket, by: { _id: message.authorUserId, firstName: message.authorName }, attachPending: false, onlyIfUnbound: true });
   }
   await Conversation.updateOne({ _id: conversation._id, $or: [{ "lastMessage.at": null }, { "lastMessage.at": { $lte: message.sentAt } }] },
     { $set: { lastMessage: { at: message.sentAt, direction: "out", origin: "hd", preview: require("./rules").previewOf(message), authorName: message.authorName } } });
-  await Conversation.updateOne({ _id: conversation._id, awaitingSince: { $lte: message.sentAt } }, { $set: { awaitingSince: null } });
+  if (ticket) await require("./outbound").clearWaitingForReply({ conversation, ticket, sentAt: message.sentAt });
   require("@/services/pulse").bus.bump({ topics: ["conversations"], ticketIds: message.ticketId ? [message.ticketId] : [] });
 };
 

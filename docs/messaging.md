@@ -67,8 +67,8 @@ direct connections. One messenger account must use one connection method.
   `{userId}` (reverse lookup once linked), sparse `{phone}`.
 - **`conversations`** (`models/conversation.js`) — one row per chat per
   channel: a direct chat, a group, or a site-form "conversation". Carries the
-  denormalized `lastMessage` summary, the `binding` to an open ticket (direct
-  chats only), the post-close `decision` prompt, and `awaitingSince`/
+  denormalized `lastMessage` summary, `ticketBindings` to open tickets (direct
+  chats only; an absent array falls back to the legacy `binding`), the post-close `decision` prompt, and `awaitingSince`/
   `waitNotifiedAt` for the "waiting for us" clock. Unique
   `{channelId: 1, externalChatId: 1}` is the dedup key `upsertConversation`
   relies on (`findOneAndUpdate` with `upsert: true`; a duplicate-key race from
@@ -173,10 +173,13 @@ called by the gateway (`POST /gateway/events`) and the Wazzup inbox worker
   wait — a direct chat is the corporate account talking to one external party,
   regardless of which HD user that party's identity happens to be linked to.
   `imported` and `system` messages never touch the clock.
-- **Attach rules** (`decideAttach`, `rules.js`). A **direct** chat with a live,
-  open binding attaches as `"bound"`. A **group** reply-quote to a message
-  already in an *open* ticket attaches as `"reply"`; quoting one from a
-  *closed* ticket only sets `suggestTicketId` (a hint, not an attach). A
+- **Attach rules** (`decideAttach`, `rules.js`). A **direct** chat with exactly
+  one live open link normally attaches as `"bound"`. With multiple links,
+  explicit quotes of a linked open ticket route as `"reply"`; other messages
+  stay unresolved unless the optional classifier produces a supported result.
+  Quoting a *closed* ticket only sets `suggestTicketId`, never falls through to
+  another unrelated open ticket. A **group** quote routes per message, with no
+  whole-chat binding. A
   binding whose ticket was closed or deleted out of band ends itself right
   here; a client message arriving within 30 days (`DECISION_WINDOW_MS`) of a
   **closed**-reason ending opens the "about ticket #X?" prompt
@@ -208,8 +211,14 @@ called by the gateway (`POST /gateway/events`) and the Wazzup inbox worker
   `Preferences.defaultApplicant` (an unlinked client). When several messages of the same
   conversation/ticket/direction mirror in a burst, only the **newest** comment
   keeps `notifications.pending: true` (`mirrorToTicket`'s own `updateMany`
-  clears it on the older, not-yet-notified ones) — the notification cron fires
-  exactly once, with the latest text.
+  clears it on the older, not-yet-notified ones) — the comment notification
+  cron uses the latest text for the in-app and e-mail channels. Mirrors and
+  replies written from the inbox carry `notifications.fromConversation:true`:
+  they do **not** produce per-message Telegram comment notifications.
+  Legacy inbound mirrors are also recognized by `channel.direction:"in"`.
+  Ordinary ticket comments, incoming e-mail comments and replies sent from the
+  ticket card through a messenger retain their existing notification rules;
+  `channel.direction:"out"` alone does not suppress them.
 - **The "waiting" bell** (`notifyWaiting`, `services/messaging/notify.js`):
   category `conversationMessage`, kind `conversationWaiting`
   (`EXTRA_KINDS`, `models/inAppNotification.js`), link
@@ -225,6 +234,30 @@ called by the gateway (`POST /gateway/events`) and the Wazzup inbox worker
   period. `inAppNotifications`' `insert`/`pushInApp` return the number of
   documents **actually inserted** (`InAppNotification.insertMany(...).length`),
   not the recipient count — a muted or already-covered recipient doesn't count.
+- **Telegram waiting reminders** (`services/messaging/waiting-notifications.js`)
+  run in the existing ten-second notification cron, independently of comment
+  delivery. An unanswered conversation gets one personal reminder after two
+  minutes from `awaitingSince` and one escalation to the configured team
+  group/topic after ten minutes. Additional incoming messages and reading the
+  conversation do not restart the timer or count as an answer. Replying or
+  marking «Ответ не нужен» ends the waiting period; hidden conversations and a
+  disabled messaging module stay silent. Personal recipients: the assignee
+  with an available, subscribed Telegram destination, otherwise responsibles
+  of the open tickets receiving messages in
+  this waiting period, otherwise the existing company/manager fallback. Account
+  status and access are rechecked; a ticket responsible without inbox access
+  receives a ticket link and a preview only from their accessible tickets,
+  without conversation-wide sender information. Personal reminders use the existing global and
+  personal Telegram `ticketNewComment` switches; escalation uses the existing
+  Telegram group switch and forum topic. E-mail and in-app comment rules are
+  unchanged. Each stage is checkpointed in `waitTelegramNotifiedAt` /
+  `waitTelegramGroupNotifiedAt` using the waiting-period timestamp. Outbox IDs
+  derive from conversation, waiting period, stage and destination, so a crash
+  after enqueue but before checkpoint or competing cron runs cannot enqueue a
+  duplicate. `Notification.conversationWait` carries the waiting period; bot
+  outbox pull discards stale reminders after an answer, manual handling,
+  hiding/deletion, a newer waiting period or disabling the module. Ordinary
+  notifications do not consult conversation state.
 
 ## 5. Jobs
 
@@ -295,6 +328,34 @@ staff-only and are never copied into `channel.error`. Every write of
 {"channel.error": undefined}` is silently stripped by Mongoose and clears
 nothing.
 
+### Corporate Telegram stickers
+
+The shared static WebP pack is managed in global messaging settings. Active
+`MessagingSticker` records are listed by `GET /conversation-stickers` (inbox
+read) or `GET /settings/conversation-stickers` (settings manage). Upload and
+removal require settings manage. `POST /conversation-stickers/import` accepts a
+Telegram addstickers link or short name and uses the configured `TG_TOKEN` for
+read-only Bot API calls. All files are checked before catalogue writes; a unique
+source key makes repeated/concurrent imports reuse records. The singleton
+`MessagingStickerPack` switches its ordered source keys only after all files and
+records are ready. List and send both use that pointer: replacing a link replaces
+the one shared pack atomically. Failure leaves the old pack usable. Historical
+files remain stored; manual additions/removals are refused once a pack is linked.
+ Removal deactivates a record; stored bytes
+remain available to historical messages and queued jobs.
+
+Ticket replies also accept `stickerId` through the existing comment endpoint,
+only with a validated messenger route and no text/file draft. The comment stores
+`channel.isSticker` and a separate file copy; its delivery queues only the sticker.
+`GET /tickets/:num/stickers` checks ticket access and ticket messaging permissions
+without granting access to inbox APIs.
+
+Inbox sends accept `stickerId`, mutually exclusive with text and uploaded files.
+The server resolves an active catalogue entry, checks the conversation and reply
+context, and permits Telegram via Wazzup only. A sticker uses the existing durable
+queue with one WebP attachment and no ticket-number/signature text. The composer
+keeps its text and file draft. Other message sends retain their existing numbering.
+
 ## 6. Gateway API
 
 `routes/gateway.js` + `controllers/gateway.js`, all under `/api/gateway/*`,
@@ -354,18 +415,30 @@ doesn't get rejected):
 own gate list rather than one shared prefix middleware, so the gates can't leak
 into a neighboring router:
 
-- **read** = `conversation.read` + `Preferences.modules.messaging.isActive`.
-- **reply** = `conversation.reply` + module switch.
-- **start** = `conversation.read` + `conversation.reply` + module switch.
-- **ticket messaging** = `ticket.sendMessage` + module switch + access to the ticket;
-  this does not grant the inbox or conversation reads.
-- **manage** = `conversation.manage` + module switch.
+- **read** = `conversation.read` or `conversation.readAll`, plus module switch.
+  `read` exposes only messages assigned to tickets where the viewer is or was
+  responsible (`messagingReaderIds` retains historical membership). `readAll`
+  exposes the full inbox independently of ticket-reading permissions. Neither
+  grants sending. Unresolved/free messages are visible only to global readers.
+- **reply** = inbox read + `conversation.reply`, plus module switch. Restricted
+  senders must currently be responsible for the open linked ticket; global
+  readers may reply globally, including free discussion. Closed tickets cannot
+  be used as a send context.
+- **start** = inbox read + `conversation.reply` + `conversation.start`, plus
+  module switch. This permission initiates without a ticket; it does not grant
+  reading unrelated/free history. Specialists initiate from their own ticket.
+- **ticket messaging** = `ticket.sendMessage` OR inbox read + `conversation.reply`,
+  plus module switch and ticket access. The ticket must be open and the sender
+  currently responsible, unless they have `conversation.readAll`. Standalone
+  `ticket.sendMessage` does not grant inbox reads. Routes return `canSend`.
+- **manage** = `conversation.readAll` + `conversation.manage`, plus module switch.
+  Ticket creation still requires the normal ticket creation permission.
 - **settings** = `settings.manage` **only** — channels can be connected and
   test-driven before the module is switched on for everyone.
 
 | Method & path | Gate | What |
 |---|---|---|
-| `GET /conversations` | read | Paged list (`queue`: awaiting\|mine\|unbound\|all\|hidden; filters `network`, `company`, `q` — a substring of the title, last-message preview or author; a whole-number `q` also matches its digits across separators in titles and author names; per-queue counts) |
+| `GET /conversations` | read | Paged list (`queue`: awaiting\|mine\|unbound\|all\|hidden; filters `network`, `company`, `q`; server search across conversation, contact, company, accessible related tickets and message history, before pagination; per-queue counts) |
 | `GET /conversations/counts` | read | `{counts: {awaiting, mine, unbound, all}}` only — the navigation badge; declared before `/conversations/:id` |
 | `GET /conversations/recipients?q=` | start | Scoped HD recipient search by name, phone or email |
 | `GET /conversations/start-routes?userId=…` or `?phone=…` | start | Existing direct chats and first-contact options for one recipient |
@@ -382,7 +455,8 @@ into a neighboring router:
 | `POST /conversations/:id/assign` | manage | Set/clear the assignee |
 | `POST /conversations/:id/bind` | manage | Bind a **direct** chat to an open ticket |
 | `POST /conversations/:id/unbind` | manage | End a live binding |
-| `POST /conversations/:id/attach` | manage | Attach selected messages to an open ticket |
+| `POST /conversations/:id/attach` | manage | Assign/reassign `{messageIds,ticketNum}`; null marks intentional free discussion |
+| `POST /conversations/:id/context` | reply | Choose this staff member's reply context: `{ticketNum:number|null}`, null means intentional free discussion |
 | `POST /conversations/:id/decision` | manage | Answer "about ticket #X?" (`{action: "none"}`) |
 | `POST /conversations/:id/hide` | manage | Hide/unhide from the default queues |
 | `PATCH /conversations/:id` | manage | Change `companyId` |
@@ -403,6 +477,96 @@ into a neighboring router:
 | `POST /channels/:id/test` | settings | Proxy test |
 | `POST /channels/:id/history` | settings | Request history import (`days`) |
 | `GET /channels/:id/jobs/:jobId` | settings | Poll a command job's outcome |
+
+**Message access boundary.** List summaries, timestamps, unread counts, search,
+message pages, quoted previews and ticket contexts use the same message scope.
+The card returns `access.{all,reply,manage,start}` and each ticket `canReply`.
+Historical unbound tickets stay readable but are not reply contexts. Remapping
+retains `previousTicketIds`; incremental pages return only `removedIds` for
+messages that left the viewer's scope, without their new text or metadata.
+The client discards these rows and prevents stale page responses restoring them.
+Opening a restricted or read-only inbox never marks the whole external chat read.
+Automatic links created by sending never sweep unresolved history into the
+ticket. A ticket reply preserves shared waiting state when another ticket or
+an unresolved incoming message still awaits a response.
+
+Message uploads (including mirrored copies) require the matching reader scope.
+Provider fetches use key-bound, one-hour signed direct URLs; the ordinary upload
+route never accepts those tokens. Other public uploads keep their existing
+contract. Protected responses use private/no-store caching; already downloaded
+files cannot be revoked. Unresolved-message notifications target global readers;
+personal reminders for restricted readers use only their ticket messages.
+
+Migration `2026-11-12-upgradeConversationAccess` preserves former global readers
+without extending a shared restricted role, and backfills `messagingReaderIds`
+only from reliable current/surviving former responsible IDs. Previously erased
+responsibility history cannot be reconstructed from name-only logs.
+
+**List search** (`services/messaging/search.js`). Literal case-insensitive terms,
+up to 100 characters and eight terms; all terms must match somewhere in the same
+conversation. A formatted phone is one term, with separator and Russian 7/8
+variants; `№58956`, `№ 58956` and `#58956` match ticket numbers. The aggregation
+starts with normal visibility, queue, company/network and cursor filters, sorts
+before enrichment, and limits only after matches. No search-only fields escape
+into the API response.
+
+Search covers current identity/HD names, usernames, current direct-peer phone and
+email, company alias/full title, accessible ticket numbers/titles/descriptions/
+states (live, ended, message-linked and original requests), actual old message
+text/authors/form values and attachment names, plus channel labels. Deleted
+message bodies are excluded from the history lookup; file bytes and media
+transcripts are not indexed. Group HD names can match but private HD staff phone
+and email cannot become an indirect group search field. Ticket lookups use
+`ticketListFilter(auth)` and the `_id`/sparse `originConversationId` indexes;
+the index is declared in `models/ticket.js`. Integration tests use an isolated
+local MongoDB via `HD_DIALOG_SEARCH_MONGO_URI` and verify real aggregate results,
+API wiring, scope, pagination and absence of ticket collection scans.
+
+**Multiple-ticket direct conversations and reply context.** `conversation.tickets`
+contains live link summaries; card `tickets` contains their accessible details.
+Legacy `ticket` remains for old clients; an absent `ticketBindings` array uses
+the historical single binding, while an explicit empty array means no links.
+Bind adds a link; unbind accepts `ticketNum` and checks the affected ticket scope.
+Attaching selected messages to another open ticket also adds its direct-chat
+link without sweeping unrelated messages. Groups never receive whole-chat links.
+
+`card.replyContext` is per staff member, backed by `ConversationRead.replyContext`:
+`{ticketId,withoutTicket,expiresAt,updatedAt,required}`. The timestamp orders
+context changes so an older in-flight route response cannot roll a new choice
+back. `POST /context {ticketNum:null}` deliberately chooses free discussion.
+Inbox sends carry `ticketNum` or `withoutTicket:true`; the server validates the
+ticket and link, then refreshes that staff member's context. Default timeout is
+30 minutes (`messaging.replyContextTimeoutMinutes`, 5–240). Groups always have
+free, non-expiring reply context. The ticket selector additionally filters the already authorized server history locally:
+selected ticket plus every unassigned/free message; polling stays unfiltered so
+manual moves disappear from the previous view as well as appearing in the new one.
+The «Вся переписка» switch includes closed and unlinked ticket history without
+changing the selected reply context or its timeout.
+
+Manual mapping uses `attachMode:"manual"`; deliberate free messages use `"free"`;
+unresolved messages have no mapping. Moving a message reuses its comment and
+attachment copies, removes previous ticket membership and repairs interrupted
+mapping intents through the existing ingest repair job. Mirror and mapping work
+share a renewable checked message lease. Original request descriptions and
+already-queued outbound payloads remain historical snapshots.
+
+Free discussion is based on actual exchanges, not a manager merely selecting a
+composer option: quoting a free message preserves its free mapping, and a recent
+actual free exchange carries that topic forward within the configured timeout.
+Newer ticketed exchanges supersede that implicit free context; an explicit quote
+takes precedence. Inherited free messages are guarded against manual mapping
+races, stored as `attachMode:"free"`, and bypass both mirroring and optional AI.
+
+The optional `messaging.aiTicketRouting` setting defaults to false and shares the
+global Messaging draft with connection settings. It uses the existing active AI
+provider only for multiple eligible linked tickets. Unsupported IDs, ungrounded
+evidence, ambiguity, low confidence, provider errors or timeout leave the message
+unresolved; no ingest error/retry is raised for optional inference failure.
+
+Native quote replies accept an optional same-conversation `replyToId` only for
+Wazzup. Its provider message ID becomes `job.payload.replyToExternalId`, then v3
+`refMessageId` on each text/file part; retries preserve both reference and accepted
+parts. Unsupported direct gateways reject quoting instead of silently dropping it.
 
 **The `changedSince` polling contract**
 (`GET /conversations/:id/messages?changedSince=<ISO>&afterId=<id>`, both query
@@ -446,12 +610,13 @@ own-tier engineer responsible for a ticket with a company can reply through
 any route that ticket's own `deliveryRoutes` offers, even to a conversation
 the general inbox visibility tiers would otherwise hide from them. Those
 general tiers are deliberately **not** widened by this — ledgered for P1.
-`prepareOrigin` additionally refuses (409) a **direct** chat still bound to a
-different **open** ticket. Replying **via** a route from the ticket's comment
-box (`deliverComment`) auto-binds the target **direct** chat exactly like
+`prepareOrigin` accepts a new ticket even while other links are open, but its
+selected source messages must still be unassigned. Replying **via** a known route
+from the ticket's comment box (`deliverComment`) adds the target **direct** link exactly like
 `POST /conversations/:id/bind` would, but only while the ticket is still
 **open** — sending itself is never blocked by this, only the auto-bind side
-effect is skipped for a closed ticket.
+effect is skipped for a closed ticket. A phone first-contact job retains its
+occupied-link guard: resolving a number must never hijack an existing binding.
 
 **Reply defaults.** Creating a ticket from a conversation stores its immutable
 `Ticket.originConversationId` alongside the source. The field is `select:false`

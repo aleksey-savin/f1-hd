@@ -10,7 +10,7 @@ const Company = require("@/models/company");
 const { Ticket } = require("@/models/ticket");
 const { AppError } = require("@/middleware/errorHandling");
 const { canAccessTicket } = require("@/services/ticketAccess");
-const { ticketListFilter, ticketInScope } = require("@/services/ticketScope");
+const { ticketListFilter } = require("@/services/ticketScope");
 const { isBanned } = require("@/services/authBan");
 const { bus } = require("@/services/pulse");
 const storage = require("@/services/storage");
@@ -18,19 +18,33 @@ const { QUEUES, listFilter, canSeeConversation } = require("@/services/messaging
 const { conversationRow, messageRow, userName, candidateRow } = require("@/services/messaging/present");
 const { NETWORKS, GATEWAY_NETWORKS, identityName } = require("@/services/messaging/rules");
 const { addSystemLine } = require("@/services/messaging/conversationStore");
-const { bindConversation, unbindConversation, attachMessages } = require("@/services/messaging/bindings");
+const { bindConversation, unbindConversation } = require("@/services/messaging/bindings");
 const { sendFromInbox, retryMessage } = require("@/services/messaging/outbound");
 const { ticketDraft, deliveryRoutes } = require("@/services/messaging/origin");
 const { enqueueJob } = require("@/services/messaging/jobs");
+const { activeBindings, linkedOpenTickets } = require("@/services/messaging/multi-ticket");
+const { chooseReplyContext, loadReplyContext } = require("@/services/messaging/reply-context");
+const { remapMessages } = require("@/services/messaging/remap");
 const { personSearchClauses } = require("@/services/personSearch");
-const { phoneSearchDigits, phoneDigitsPattern } = require("@/services/phone");
+const { conversationSearchPipeline } = require("@/services/messaging/search");
 
 /** «Диалоги» для сотрудников. Маршруты — routes/internal/conversation.js. */
 
+const { readsAll, canReadInbox, canReadTicketMessages, canReplyToTicket, messageFilter, scopeAuth, scopedConversationStages } = require('@/services/messaging/access');
+const prepareScope = async req => { req.auth = await scopeAuth(req.auth); };
+const scopedRow = (conversation, ctx, auth) => {
+  const row = conversationRow(conversation, ctx);
+  if (!readsAll(auth)) {
+    const ids = new Set((auth.messagingScope?.ticketIds || []).map(String));
+    row.tickets = row.tickets.filter(ticket => ids.has(ticket.id));
+    if (!ids.has(row.ticket?.id)) row.ticket = null;
+    row.decision = null;
+  }
+  return row;
+};
 const oid = (id) => new mongoose.Types.ObjectId(String(id));
 const isId = (id) => mongoose.isValidObjectId(id);
 const idOf = (value) => (value ? String(value._id ?? value) : null);
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const wrap = (error, fallback) =>
   error instanceof AppError ? error : new AppError(fallback, 500, true, error);
 const byId = (list) => new Map(list.map((item) => [String(item._id), item]));
@@ -39,6 +53,7 @@ const me = (req) => User.findById(req.auth.userId).select("firstName lastName").
 /** Диалог по :id с проверкой видимости; чужой — 404, даже фактом не выдаём. */
 const loadVisible = async (req) => {
   if (!isId(req.params.id)) throw new AppError("Диалог не найден", 404);
+  await prepareScope(req);
   const conversation = await Conversation.findById(req.params.id).lean();
   if (!conversation || !canSeeConversation(conversation, req.auth)) throw new AppError("Диалог не найден", 404);
   return conversation;
@@ -48,15 +63,15 @@ const loadOpenTicket = async (req, num) => {
   const ticketNum = Number(num);
   if (!Number.isInteger(ticketNum)) throw new AppError("Укажите номер заявки", 400);
   const ticket = await Ticket.findOne({ num: ticketNum })
-    .select("_id num isClosed applicantId responsibles createdBy company applicant")
+    .select("_id num isClosed deletedAt applicantId responsibles createdBy company applicant")
     .lean();
-  if (!ticket || !canAccessTicket(ticket, req.auth)) throw new AppError("Заявка не найдена", 404);
+  if (!ticket || ticket.deletedAt || !canAccessTicket(ticket, req.auth)) throw new AppError("Заявка не найдена", 404);
   if (ticket.isClosed) throw new AppError("Заявка закрыта — сначала верните её в работу", 409);
   return ticket;
 };
 
 /** Справочники строк списка: собеседники, люди, компании, непрочитанное. */
-const rowContext = async (items, userId) => {
+const rowContext = async (items, userId, auth) => {
   const identities = byId(
     await ChannelIdentity.find({ _id: { $in: items.map((c) => c.counterpartIdentityId).filter(Boolean) } }).lean(),
   );
@@ -75,6 +90,7 @@ const rowContext = async (items, userId) => {
     items.map((conversation) =>
       Message.countDocuments(
         {
+          ...messageFilter(auth),
           conversationId: conversation._id,
           direction: "in",
           imported: { $ne: true },
@@ -94,7 +110,8 @@ const rowContext = async (items, userId) => {
 const queueCounts = async (auth) => {
   const counts = {};
   for (const queue of ["awaiting", "mine", "unbound", "all"]) {
-    counts[queue] = await Conversation.countDocuments(listFilter(queue, auth));
+    counts[queue] = readsAll(auth) ? await Conversation.countDocuments(listFilter(queue, auth))
+      : (await Conversation.aggregate([...scopedConversationStages(auth), { $match: listFilter(queue, auth) }, { $count: 'count' }]))[0]?.count || 0;
   }
   return counts;
 };
@@ -102,6 +119,7 @@ const queueCounts = async (auth) => {
 /** Счётчики очередей без списка — пилюля «Ждут ответа» у пункта меню. */
 exports.counts = async (req, res, next) => {
   try {
+    await prepareScope(req);
     res.status(200).json({ counts: await queueCounts(req.auth) });
   } catch (error) {
     next(wrap(error, "Не удалось посчитать диалоги"));
@@ -110,30 +128,25 @@ exports.counts = async (req, res, next) => {
 
 exports.list = async (req, res, next) => {
   try {
+    await prepareScope(req);
     const queue = String(req.query.queue || "all");
     if (!QUEUES.includes(queue)) return next(new AppError("Неизвестная очередь", 400));
     const extra = {};
     if (NETWORKS.includes(req.query.network)) extra.network = req.query.network;
     if (isId(req.query.company)) extra.companyId = oid(req.query.company);
     const q = String(req.query.q || "").trim().slice(0, 100);
-    if (q) {
-      const pattern = new RegExp(escapeRegExp(q), "i");
-      extra.$or = [{ title: pattern }, { "lastMessage.preview": pattern }, { "lastMessage.authorName": pattern }];
-      // Номер — ещё и по цифрам через разделители, в заголовке и авторе (превью — длинный текст, \D* склеил бы соседние номера)
-      for (const digits of phoneSearchDigits(q)) {
-        const byDigits = phoneDigitsPattern(digits);
-        extra.$or.push({ title: byDigits }, { "lastMessage.authorName": byDigits });
-      }
-    }
     const filter = listFilter(queue, req.auth, extra);
     const before = req.query.before ? new Date(req.query.before) : null;
     if (before && !Number.isNaN(before.getTime())) filter.$and.push({ "lastMessage.at": { $lt: before } });
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
-    const page = await Conversation.find(filter).sort({ "lastMessage.at": -1, _id: -1 }).limit(limit + 1).lean();
+    const page = q
+      ? await Conversation.aggregate(conversationSearchPipeline({ filter, query: q, auth: req.auth, limit: limit + 1 }))
+      : readsAll(req.auth) ? await Conversation.find(filter).sort({ "lastMessage.at": -1, _id: -1 }).limit(limit + 1).lean()
+      : await Conversation.aggregate([...scopedConversationStages(req.auth), { $match: filter }, { $sort: { 'lastMessage.at': -1, _id: -1 } }, { $limit: limit + 1 }]);
     const items = page.slice(0, limit);
-    const ctx = await rowContext(items, req.auth.userId);
+    const ctx = await rowContext(items, req.auth.userId, req.auth);
     res.status(200).json({
-      items: items.map((conversation) => conversationRow(conversation, ctx)),
+      items: items.map((conversation) => scopedRow(conversation, ctx, req.auth)),
       counts: await queueCounts(req.auth),
       nextBefore: page.length > limit ? items.at(-1)?.lastMessage?.at || null : null,
     });
@@ -161,8 +174,11 @@ const otherChannelsOf = async (userId, exceptId) => {
 exports.get = async (req, res, next) => {
   try {
     const conversation = await loadVisible(req);
-    const ctx = await rowContext([conversation], req.auth.userId);
-    const channel = await Channel.findById(conversation.channelId).select("type name state isActive").lean();
+    const presented = readsAll(req.auth) ? conversation : (await Conversation.aggregate([
+      { $match: { _id: conversation._id } }, ...scopedConversationStages(req.auth),
+    ]))[0];
+    const ctx = await rowContext([conversation], req.auth.userId, req.auth);
+    const channel = await Channel.findById(conversation.channelId).select("type name state isActive provider").lean();
     const participantIds = [conversation.counterpartIdentityId, ...(conversation.participants || []).map((p) => p.identityId)].filter(Boolean);
     const identities = await ChannelIdentity.find({ _id: { $in: participantIds } }).lean();
     const people = byId(
@@ -182,25 +198,29 @@ exports.get = async (req, res, next) => {
     const counterpart = identities.find((i) => String(i._id) === String(conversation.counterpartIdentityId)) || null;
     const contactUser = counterpart?.userId ? people.get(String(counterpart.userId)) : null;
     const binding = conversation.binding || {};
-    const boundTicket =
-      binding.ticketId && !binding.endedAt
-        ? await Ticket.findById(binding.ticketId)
-            .select("num title state deadline responsibles createdBy applicantId applicant company")
-            .lean()
-        : null;
-    // Вне яруса заявок читателя карточка её не раскрывает (M7) — строка диалога
-    // (conversationRow) при этом всё равно несёт номер заявки, это отдельное поле
-    const ticket = boundTicket && ticketInScope(boundTicket, req.auth) ? boundTicket : null;
-    const openTickets = conversation.companyId
-      ? await Ticket.find({ $and: [{ "company._id": conversation.companyId, isClosed: false }, ticketListFilter(req.auth)] })
+    const historicalIds = readsAll(req.auth) ? [] : await Message.distinct('ticketId', { conversationId: conversation._id, ...messageFilter(req.auth) });
+    const linkedTickets = readsAll(req.auth)
+      ? await linkedOpenTickets(conversation)
+      : await Ticket.find({ _id: { $in: [...historicalIds, ...activeBindings(conversation).map(link => link.ticketId)].filter(id => req.auth.messagingScope.ticketIds.some(allowed => String(allowed) === String(id))) }, deletedAt: null }).lean();
+    const ticket = linkedTickets.find((ticket) => String(ticket._id) === String(binding.ticketId)) || linkedTickets[0] || null;
+    const replyAllowed = ticket => activeBindings(conversation).some(link => String(link.ticketId) === String(ticket._id)) && canReplyToTicket(ticket, req.auth);
+    const detail = (ticket) => ({
+      id: String(ticket._id), num: ticket.num, title: ticket.title, state: ticket.state, deadline: ticket.deadline,
+      responsibles: (ticket.responsibles || []).map((r) => userName(r)),
+      canReply: req.auth.can({conversation:["reply"]}) && replyAllowed(ticket),
+      boundAt: activeBindings(conversation).find((link) => String(link.ticketId) === String(ticket._id))?.boundAt || null,
+    });
+    const openTickets = readsAll(req.auth) && req.auth.can({conversation:["manage"]}) && conversation.companyId
+      ? await Ticket.find({ $and: [{ "company._id": conversation.companyId, isClosed: false, _id: { $nin: linkedTickets.map((ticket) => ticket._id) } }, ticketListFilter(req.auth)] })
           .sort({ createdAt: -1 })
-          .limit(6)
+          .limit(5)
           .select("num title state deadline")
           .lean()
       : [];
     res.status(200).json({
-      conversation: conversationRow(conversation, ctx),
-      channel: channel ? { id: String(channel._id), type: channel.type, name: channel.name, state: channel.state, isActive: channel.isActive } : null,
+      conversation: scopedRow(presented, ctx, req.auth),
+      access: { all: readsAll(req.auth), reply: req.auth.can({conversation:['reply']}) && (readsAll(req.auth) || linkedTickets.some(replyAllowed)), manage: readsAll(req.auth) && req.auth.can({conversation:['manage']}), start: canReadInbox(req.auth) && req.auth.can({conversation:['reply','start']}) },
+      channel: channel ? { id: String(channel._id), type: channel.type, name: channel.name, state: channel.state, isActive: channel.isActive, provider: channel.provider || "gateway" } : null,
       counterpart: counterpart ? person(counterpart) : null,
       participants: conversation.kind === "group" ? identities.map(person) : [],
       contact: contactUser
@@ -213,21 +233,11 @@ exports.get = async (req, res, next) => {
             email: contactUser.email || "",
           }
         : null,
-      otherChannels: contactUser ? await otherChannelsOf(contactUser._id, conversation._id) : [],
-      ticket: ticket
-        ? {
-            id: String(ticket._id),
-            num: ticket.num,
-            title: ticket.title,
-            state: ticket.state,
-            deadline: ticket.deadline,
-            responsibles: (ticket.responsibles || []).map((r) => userName(r)),
-            boundAt: binding.boundAt || null,
-          }
-        : null,
+      otherChannels: readsAll(req.auth) && contactUser ? await otherChannelsOf(contactUser._id, conversation._id) : [],
+      ticket: ticket ? detail(ticket) : null,
+      tickets: linkedTickets.map(detail),
+      replyContext: await loadReplyContext({ conversation, auth: req.auth }),
       openTickets: openTickets
-        .filter((t) => !ticket || String(t._id) !== String(ticket._id))
-        .slice(0, 5)
         .map((t) => ({ id: String(t._id), num: t.num, title: t.title, state: t.state, deadline: t.deadline })),
     });
   } catch (error) {
@@ -236,9 +246,9 @@ exports.get = async (req, res, next) => {
 };
 
 /** Собеседники, авторы и цитируемые сообщения для рядов ленты. */
-const messageRefs = async (rows) => {
+const messageRefs = async (rows, auth) => {
   const identities = byId(await ChannelIdentity.find({ _id: { $in: rows.map((m) => m.identityId).filter(Boolean) } }).lean());
-  const replies = byId(await Message.find({ _id: { $in: rows.map((m) => m.replyToId).filter(Boolean) } }).lean());
+  const replies = byId(await Message.find({ ...messageFilter(auth), deletedAt: null, _id: { $in: rows.map((m) => m.replyToId).filter(Boolean) } }).lean());
   const users = byId(
     await User.find({
       _id: {
@@ -252,7 +262,9 @@ const messageRefs = async (rows) => {
       .select("firstName lastName")
       .lean(),
   );
-  return { identities, users, replies };
+  const referenced = await Ticket.find({ _id: { $in: rows.map((m) => m.ticketId).filter(Boolean) } }).select("title responsibles messagingReaderIds createdBy applicantId applicant company").lean();
+  const tickets = byId(referenced.filter((ticket) => canReadTicketMessages(ticket, auth)));
+  return { identities, users, replies, tickets };
 };
 
 exports.messages = async (req, res, next) => {
@@ -268,7 +280,9 @@ exports.messages = async (req, res, next) => {
       // Без afterId: хотя бы раз (клиент сольёт повтор по id) — так страница на
       // границе окна не теряет строки. С afterId: строго после этой пары —
       // одинаковый updatedAt у нескольких строк не потерять и не повторить.
+      const scope = messageFilter(req.auth);
       const filter = {
+        ...(!readsAll(req.auth) ? { $and: [{ $or: [scope, { previousTicketIds: scope.ticketId }] }] } : {}),
         conversationId: conversation._id,
         ...(afterIdRaw
           ? { $or: [{ updatedAt: { $gt: since } }, { updatedAt: since, _id: { $gt: oid(afterIdRaw) } }] }
@@ -282,16 +296,18 @@ exports.messages = async (req, res, next) => {
       // Порядок — по изменению (updatedAt, _id), не по seq: правку и смену
       // статуса сортируем по времени правки. Ленту клиент показывает по seq.
       const rows = await Message.find(filter).sort({ updatedAt: 1, _id: 1 }).limit(limit).lean();
-      const refs = await messageRefs(rows);
-      const items = rows.map((m) => messageRow(m, refs));
+      const visible = readsAll(req.auth) ? rows : rows.filter(message => req.auth.messagingScope.ticketIds.some(id => String(id) === String(message.ticketId)));
+      const removedIds = rows.filter(message => !visible.includes(message)).map(message => String(message._id));
+      const refs = await messageRefs(visible, req.auth);
+      const items = visible.map((m) => messageRow(m, refs));
       if (rows.length === limit) {
         const last = rows[rows.length - 1];
-        return res.status(200).json({ items, serverTime: last.updatedAt, afterId: String(last._id), hasMore: true });
+        return res.status(200).json({ items, removedIds, serverTime: last.updatedAt, afterId: String(last._id), hasMore: true });
       }
-      return res.status(200).json({ items, serverTime: capturedAt, hasMore: false });
+      return res.status(200).json({ items, removedIds, serverTime: capturedAt, hasMore: false });
     }
 
-    const filter = { conversationId: conversation._id };
+    const filter = { ...messageFilter(req.auth), conversationId: conversation._id };
     if (req.query.before) {
       const before = new Date(req.query.before);
       const seq = Number(req.query.beforeSeq);
@@ -304,7 +320,7 @@ exports.messages = async (req, res, next) => {
     const serverTime = new Date();
     const rows = await Message.find(filter).sort({ sentAt: -1, seq: -1 }).limit(limit).lean();
     rows.reverse();
-    const refs = await messageRefs(rows);
+    const refs = await messageRefs(rows, req.auth);
     res.status(200).json({ items: rows.map((m) => messageRow(m, refs)), serverTime });
   } catch (error) {
     next(wrap(error, "Не удалось загрузить сообщения"));
@@ -331,7 +347,7 @@ exports.seen = async (req, res, next) => {
     ).lean();
     // «Прочитано» у клиента — только если с прошлого открытия пришло новое
     const channel = await Channel.findById(conversation.channelId).select("type isActive settings provider").lean();
-    if (channel?.isActive && channel.provider !== 'wazzup' && GATEWAY_NETWORKS.includes(channel.type) && channel.settings?.markReadOnOpen !== false) {
+    if (readsAll(req.auth) && req.auth.can({conversation:['reply']}) && channel?.isActive && channel.provider !== 'wazzup' && GATEWAY_NETWORKS.includes(channel.type) && channel.settings?.markReadOnOpen !== false) {
       const latest = await Message.findOne({
         conversationId: conversation._id,
         direction: "in",
@@ -364,8 +380,12 @@ exports.send = async (req, res, next) => {
     const message = await sendFromInbox({
       conversationId: req.params.id,
       text: req.body?.text,
+      stickerId: req.body?.stickerId,
       files: req.files || [],
       auth: req.auth,
+      ticketNum: req.body?.ticketNum,
+      replyToId: req.body?.replyToId,
+      withoutTicket: req.body?.withoutTicket === true || req.body?.withoutTicket === "true",
     });
     res.status(201).json({ message: messageRow(message, {}) });
   } catch (error) {
@@ -416,6 +436,7 @@ exports.startRequestStatus = async (req, res, next) => {
 
 exports.handled = async (req, res, next) => {
   try {
+    if (!readsAll(req.auth) || !req.auth.can({conversation:["manage"]})) throw new AppError("Недостаточно прав для обработки всего диалога", 403);
     const conversation = await loadVisible(req);
     const result = await Conversation.updateOne(
       { _id: conversation._id, awaitingSince: { $ne: null } },
@@ -468,22 +489,30 @@ exports.bind = async (req, res, next) => {
       return next(new AppError("Групповой чат к заявке не привязывается — добавьте в заявку нужные сообщения", 409));
     }
     const ticket = await loadOpenTicket(req, req.body?.ticketNum);
-    const binding = conversation.binding || {};
-    if (binding.ticketId && !binding.endedAt && String(binding.ticketId) !== String(ticket._id)) {
-      const current = await Ticket.findById(binding.ticketId).select("isClosed").lean();
-      if (current && !current.isClosed) return next(new AppError(`Диалог уже привязан к заявке №${binding.ticketNum}`, 409));
-    }
     await bindConversation({ conversation, ticket, by: await me(req) });
+    if (req.auth.can({ conversation: ["reply"] })) {
+      const fresh = await Conversation.findById(conversation._id).lean();
+      await chooseReplyContext({ conversation: fresh, auth: req.auth, ticketNum: ticket.num });
+    }
     res.status(200).json({ ok: true });
   } catch (error) {
     next(wrap(error, "Не удалось привязать диалог"));
   }
 };
 
+exports.context = async (req, res, next) => {
+  try {
+    const conversation = await loadVisible(req);
+    if (!Object.hasOwn(req.body || {}, "ticketNum")) throw new AppError("Выберите заявку или «Без заявки»", 400);
+    const replyContext = await chooseReplyContext({ conversation, auth: req.auth, ticketNum: req.body.ticketNum });
+    res.status(200).json({ replyContext });
+  } catch (error) { next(wrap(error, "Не удалось выбрать контекст ответа")); }
+};
+
 exports.unbind = async (req, res, next) => {
   try {
     const conversation = await loadVisible(req);
-    res.status(200).json({ ok: await unbindConversation({ conversation, by: await me(req) }) });
+    res.status(200).json({ ok: await unbindConversation({ conversation, by: await me(req), ticketNum: req.body?.ticketNum, auth: req.auth }) });
   } catch (error) {
     next(wrap(error, "Не удалось отвязать диалог"));
   }
@@ -492,15 +521,20 @@ exports.unbind = async (req, res, next) => {
 exports.attach = async (req, res, next) => {
   try {
     const conversation = await loadVisible(req);
-    const ticket = await loadOpenTicket(req, req.body?.ticketNum);
+    const ticket = req.body?.ticketNum === null ? null : await loadOpenTicket(req, req.body?.ticketNum);
     const ids = (Array.isArray(req.body?.messageIds) ? req.body.messageIds : []).filter(isId).slice(0, 200);
     if (!ids.length) return next(new AppError("Выберите сообщения", 400));
     const messages = await Message.find({ _id: { $in: ids }, conversationId: conversation._id, direction: { $ne: "system" } })
       .sort({ sentAt: 1, seq: 1 })
       .lean();
-    const count = await attachMessages({ conversation, messages, ticket, mode: "manual" });
-    if (count) await addSystemLine(conversation, { kind: "attached", ticketNum: ticket.num, by: await me(req), count });
-    bus.bump({ topics: ["conversations"], ticketIds: [ticket._id] });
+    if (messages.length !== new Set(ids.map(String)).size) throw new AppError("Сообщения не из этого диалога", 400);
+    const sourceIds = [...new Set(messages.map((message) => message.ticketId).filter(Boolean).map(String))];
+    const sources = sourceIds.length ? await Ticket.find({ _id: { $in: sourceIds } }).lean() : [];
+    if (sources.some((source) => !canAccessTicket(source, req.auth))) throw new AppError("Заявка не найдена", 404);
+    const actor = await me(req);
+    const count = await remapMessages({ conversation, messages, ticket, auth: req.auth, by: actor });
+    if (count) await addSystemLine(conversation, { kind: ticket ? "attached" : "freed", ticketNum: ticket?.num, by: actor, count });
+    bus.bump({ topics: ["conversations"], ticketIds: [...sourceIds, ...(ticket ? [ticket._id] : [])] });
     res.status(200).json({ attached: count });
   } catch (error) {
     next(wrap(error, "Не удалось добавить сообщения в заявку"));
@@ -513,10 +547,14 @@ exports.decision = async (req, res, next) => {
     // «Вернуть в работу» — действие заявки (хук возврата сам восстановит
     // привязку), «Новая заявка» — форма заявки; здесь только «Без заявки»
     if (req.body?.action !== "none") return next(new AppError("Ожидается action: none", 400));
+    if (Array.isArray(conversation.ticketBindings) && conversation.decision?.ticketId) {
+      await Conversation.updateOne({ _id: conversation._id }, { $set: { "ticketBindings.$[link].endReason": "manual" } },
+        { arrayFilters: [{ "link.ticketId": conversation.decision.ticketId, "link.endReason": "closed" }] });
+    }
     await Conversation.updateOne({ _id: conversation._id }, { $set: { decision: { ticketId: null, ticketNum: null, at: null } } });
     // «Без заявки» обязано закрыть вопрос НАВСЕГДА для этого закрытия: не
     // сменить endReason на "manual" — rules.decideAttach снова спросит
-    // «По заявке №X?» на следующее сообщение клиента (окно 30 дней после
+    // «По заявке X?» на следующее сообщение клиента (окно 30 дней после
     // "closed" не смотрит на пустой decision.ticketId)
     await Conversation.updateOne(
       { _id: conversation._id, "binding.endedAt": { $ne: null } },
@@ -635,7 +673,7 @@ exports.deliveryRoutes = async (req, res, next) => {
     const applicant = applicantId
       ? await User.findById(applicantId).select("firstName lastName").lean()
       : null;
-    res.status(200).json({ ...result, applicantName: userName(applicant) });
+    res.status(200).json({ ...result, canSend: canReplyToTicket(req.ticket, req.auth) && (req.auth.can({ticket:["sendMessage"]}) || (canReadInbox(req.auth) && req.auth.can({conversation:["reply"]}))), applicantName: userName(applicant) });
   } catch (error) {
     next(wrap(error, "Не удалось подобрать каналы ответа"));
   }

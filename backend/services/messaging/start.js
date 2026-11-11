@@ -4,7 +4,7 @@ const { isBanned } = require("@/services/authBan");
 const { isValidPhone, parsePhoneInput, toCanonicalPhone } = require("@/services/phone");
 const { personSearchClauses } = require("@/services/personSearch");
 const { canSeeConversation } = require("./visibility");
-const { ticketTier, scopeCompanyIds } = require("@/services/ticketScope");
+const { canReadInbox, loadMessageScope } = require("./access");
 const { userName } = require("./present");
 const { firstContactReason } = require("./first-contact");
 const { attachmentsOf, queueOutbound } = require("./outbound");
@@ -12,7 +12,7 @@ const { attachmentsOf, queueOutbound } = require("./outbound");
 const fail = (message, status = 400) => new AppError(message, status);
 const USER_FIELDS = "_id firstName lastName company phone email deletedAt banned banExpires isServiceAccount isCloudTelephony";
 const eligible = (user) => user && !user.deletedAt && !isBanned(user) && !user.isServiceAccount && !user.isCloudTelephony && user.company?.isActive !== false;
-const canContact = (user, auth) => canSeeConversation({ companyId: user.company?._id || null }, auth);
+const canContact = (_user, auth) => canReadInbox(auth) && auth.can({ conversation: ["start", "reply"] });
 
 /** Parse the public recipient boundary without coercing arrays or objects into addresses.
  * @param {{userId?: unknown, phone?: unknown}} input
@@ -34,7 +34,7 @@ const requestIdInput = (value) => {
   return value.toLowerCase();
 };
 const requireStartAccess = async (auth) => {
-  if (!auth?.can({ conversation: ["read", "reply"] })) throw fail("Недостаточно прав, чтобы начать диалог", 403);
+  if (!canReadInbox(auth) || !auth?.can({ conversation: ["start", "reply"] })) throw fail("Недостаточно прав, чтобы начать диалог", 403);
   const prefs = await require("@/models/preferences").findOne({}).select("modules.messaging contacts").lean();
   if (!prefs?.modules?.messaging?.isActive) throw fail("Модуль «Диалоги» выключен", 409);
   return prefs;
@@ -46,7 +46,7 @@ const recipientOf = async (input, auth) => {
     const phone = toCanonicalPhone(user.phone || "");
     return { userId: String(user._id), name: userName(user), phone: isValidPhone(phone) ? phone : "" };
   }
-  // An entered number cannot bypass the eligibility/scope of a known HD card.
+  // An entered number cannot bypass eligibility checks on a known HD card.
   // Multiple matches remain unlinked; every known owner must be contactable.
   const known = await require("@/models/user").find({ phone: input.phone }).select(USER_FIELDS).limit(20).lean();
   if (known.length >= 20 || known.some(user => !eligible(user) || !canContact(user, auth))) throw fail("Получатель не найден", 404);
@@ -58,14 +58,13 @@ const startRecipients = async ({ q, auth }) => {
   const terms = personSearchClauses(q.slice(0, 100), ["firstName", "lastName", "phone", "email", "company.alias"], 4);
   if (!terms.length) return { items: [] };
   const filter = { deletedAt: null, isServiceAccount: { $ne: true }, isCloudTelephony: { $ne: true }, "company.isActive": { $ne: false } };
-  const tier = ticketTier(auth);
-  if (tier !== "all") filter.$or = [{ "company._id": null }, ...(tier === "companies" ? [{ "company._id": { $in: scopeCompanyIds(auth).map(id => new mongoose.Types.ObjectId(id)) } }] : [])];
   const users = await require("@/models/user").find({ $and: [filter, ...terms] }).select(USER_FIELDS).sort({ lastName: 1, firstName: 1 }).limit(30).lean();
   return { items: users.filter(user => eligible(user) && canContact(user, auth)).slice(0, 15).map(user => ({
     id: String(user._id), name: userName(user), company: user.company?.alias || "", phone: user.phone || "", email: user.email || "",
   })) };
 };
 const routesFor = async (recipient, auth) => {
+  auth = { ...auth, messagingScope: await loadMessageScope(auth) };
   const identityOr = [...(recipient.userId ? [{ userId: recipient.userId }] : []), ...(recipient.phone ? [{ phone: recipient.phone }] : [])];
   const identities = identityOr.length ? await require("@/models/channelIdentity").find({ $or: identityOr }).select("_id").lean() : [];
   const conversations = await require("@/models/conversation").find({ kind: "direct", $or: [
@@ -95,11 +94,14 @@ const startRoutes = async ({ userId, phone, auth }) => {
   return { recipient, routes: (await routesFor(recipient, auth)).routes };
 };
 const receipt = message => ({ messageId: String(message._id), conversationId: message.conversationId ? String(message.conversationId) : null, status: message.status, ...(message.error ? { error: message.error } : {}) });
+// This proves ownership of one durable start request, never chat-history access.
+const isOwnStartRequest = (message, auth) => Boolean(message && !message.ticketId && message.recipientPhone && message.clientRequestId && message.direction === "out" && message.origin === "hd" && String(message.authorUserId) === String(auth.userId));
 const visibleOutgoing = async (message, auth) => {
   if (!message || message.direction !== "out" || message.origin !== "hd" || String(message.authorUserId) !== String(auth.userId)) throw fail("Сообщение не найдено", 404);
   if (message.conversationId) {
+    auth = { ...auth, messagingScope: await loadMessageScope(auth) };
     const conversation = await require("@/models/conversation").findById(message.conversationId).lean();
-    if (!conversation || conversation.hidden || !canSeeConversation(conversation, auth)) throw fail("Сообщение не найдено", 404);
+    if (!conversation || conversation.hidden || (!isOwnStartRequest(message, auth) && !canSeeConversation(conversation, auth))) throw fail("Сообщение не найдено", 404);
   } else if (message.recipientUserId) {
     await recipientOf({ userId: String(message.recipientUserId) }, auth);
   }
@@ -162,4 +164,4 @@ const startConversation = async ({ userId, phone, routeId, text, files = [], cli
     return duplicateReceipt(await visibleOutgoing(winner, auth), files);
   }
 };
-module.exports = { recipientInput, requestIdInput, requireStartAccess, recipientOf, startRecipients, startRoutes, startConversation, outgoingStatus, startRequestStatus, rejectedUploadKeys };
+module.exports = { isOwnStartRequest, recipientInput, requestIdInput, requireStartAccess, recipientOf, startRecipients, startRoutes, startConversation, outgoingStatus, startRequestStatus, rejectedUploadKeys };

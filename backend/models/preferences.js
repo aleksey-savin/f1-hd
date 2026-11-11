@@ -203,6 +203,10 @@ const preferencesSchema = new Schema({
     // «Диалоги»: переписка из Telegram, WhatsApp, MAX и формы сайта в HD
     messaging: { isActive: { type: Boolean, default: false } },
   },
+  messaging: {
+    aiTicketRouting: { type: Boolean, default: false },
+    replyContextTimeoutMinutes: { type: Number, default: 30, min: 5, max: 240 },
+  },
   // Согласование отчётов по услугам со стороны клиента.
   // Срок берётся из договора («клиент обязан согласовать в течение N дней»):
   // молчание после срока — тоже решение, и отчёт подписывается автоматически,

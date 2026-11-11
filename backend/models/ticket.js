@@ -179,6 +179,8 @@ const ticketSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Conversation",
       select: false,
+      index: true,
+      sparse: true,
     },
     // Устройство, о котором заявка (авто-заявки мониторинга Mikrotik: офлайн /
     // изменение конфигурации). Питает вкладку «Окружение» — у таких заявок
@@ -298,6 +300,8 @@ const ticketSchema = new Schema(
         },
       },
     ],
+    // Permanent read history; notification delivery may clear removedFromResponsibles.
+    messagingReaderIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     removedFromResponsibles: [
       {
         _id: {
@@ -508,6 +512,25 @@ const ticketSchema = new Schema(
   },
   { timestamps: true },
 );
+
+// Capture the loaded assignments before controllers replace or remove them.
+ticketSchema.post("init", function rememberMessagingResponsibles(doc) {
+  doc.$locals.messagingResponsibles = (doc.responsibles || []).map(person => person._id);
+});
+ticketSchema.pre("save", function retainMessagingReaders() {
+  const ids = [...(this.$locals.messagingResponsibles || []), ...(this.responsibles || []).map(person => person._id)].filter(Boolean);
+  if (!ids.length) return;
+  if (!this.messagingReaderIds) {
+    if (this.isModified("responsibles")) throw Error("Load messagingReaderIds before changing ticket responsibles");
+    return;
+  }
+  // addToSet remains atomic when another request saves an assignment concurrently.
+  this.messagingReaderIds.addToSet(...ids);
+});
+ticketSchema.post("save", function rememberSavedMessagingResponsibles(doc) {
+  doc.$locals.messagingResponsibles = (doc.responsibles || []).map(person => person._id);
+});
+ticketSchema.index({ messagingReaderIds: 1 });
 
 // Mongoose 9: middleware без `next`. Ошибка пробрасывается броском — прежний
 // `next(error)` в асинхронном хуке делал ровно то же самое.

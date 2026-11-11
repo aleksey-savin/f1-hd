@@ -4,6 +4,7 @@ export interface INotification {
   instrument?: "email" | "telegram";
   ticketId?: Types.ObjectId;
   commentId?: Types.ObjectId;
+  conversationWait?: { conversationId: Types.ObjectId; awaitingSince: Date };
   to?: {
     chatId?: string;
     globalChat?: boolean;

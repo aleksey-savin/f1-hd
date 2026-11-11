@@ -56,12 +56,34 @@ const NONE = Object.freeze({ mode: null, ticketId: null, ticketNum: null });
  *   form — никогда.
  * История и отправленное из HD сюда не попадают: второе кладёт в заявку отправка.
  */
-const decideAttach = ({ conversation, message, boundTicket = null, replyToTicket = null }) => {
+const decideAttach = ({ conversation, message, boundTicket = null, replyToTicket = null, linkedTickets, replyToMessage = null, recentExchange = null, freeWindowMs = 30 * 60_000 }) => {
   if (message.imported || message.origin === "hd" || message.direction === "system") return { ...NONE };
   const fromClient = message.direction === "in" && message.origin === "client";
 
   if (conversation.kind === "direct") {
-    const binding = conversation.binding || {};
+    const free = { mode: "free", ticketId: null, ticketNum: null };
+    const actualExchange = (exchange) => exchange && !exchange.imported && !exchange.deletedAt &&
+      (exchange.direction === "in" || (exchange.direction === "out" && ["sent", "delivered", "read"].includes(exchange.status)));
+    const quoteAccepted = actualExchange(replyToMessage) ||
+      (replyToMessage?.direction === "out" && (replyToMessage.externalId || replyToMessage.externalIds?.length));
+    const quotedFree = replyToMessage?.attachMode === "free" && !replyToMessage.ticketId &&
+      !replyToMessage.imported && !replyToMessage.deletedAt && quoteAccepted;
+    if (quotedFree) return free;
+    const age = recentExchange ? time(message.sentAt) - time(recentExchange.sentAt) : Infinity;
+    if (fromClient && !replyToTicket && actualExchange(recentExchange) && recentExchange?.attachMode === "free" && !recentExchange.ticketId && age >= 0 && age <= freeWindowMs) return free;
+    if (replyToTicket?.isClosed || replyToTicket?.deletedAt) return { ...NONE, suggestTicketId: replyToTicket._id };
+    if (linkedTickets) {
+      const open = linkedTickets.filter((ticket) => !ticket.isClosed && !ticket.deletedAt);
+      const quoted = replyToTicket && open.find((ticket) => String(ticket._id) === String(replyToTicket._id));
+      if (replyToTicket && !quoted) return { ...NONE, suggestTicketId: replyToTicket._id };
+      const target = quoted || (open.length === 1 ? open[0] : null);
+      if (open.length) return target ? { mode: quoted ? "reply" : "bound", ticketId: target._id, ticketNum: target.num } : { ...NONE };
+    }
+    if (replyToTicket && String(replyToTicket._id) !== String(boundTicket?._id)) return { ...NONE, suggestTicketId: replyToTicket._id };
+    const binding = Array.isArray(conversation.ticketBindings)
+      ? conversation.ticketBindings.filter((link) => link.endedAt)
+        .sort((a, b) => time(b.endedAt) - time(a.endedAt))[0] || {}
+      : conversation.binding || {};
     if (!binding.ticketId) return { ...NONE };
     if (!binding.endedAt) {
       if (boundTicket && !boundTicket.isClosed) {

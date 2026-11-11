@@ -147,7 +147,7 @@ export default function AllocationDialog({
             }
             options={candidates.map((ticket) => ({
               value: ticket._id,
-              label: `№${ticket.num} · ${ticket.title}`,
+              label: `${ticket.num} · ${ticket.title}`,
               disabled:
                 trip.workTicketIds.includes(ticket._id) &&
                 !trip.directTicketIds.includes(ticket._id),
@@ -170,7 +170,7 @@ export default function AllocationDialog({
                     to={`/tickets/${ticket.num}#ticket-works`}
                     className="text-accent-text"
                   >
-                    №{ticket.num}
+                    {ticket.num}
                   </Link>
                 </span>
               ))}

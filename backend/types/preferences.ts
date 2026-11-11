@@ -96,6 +96,10 @@ export interface IPreferences {
     icon: string;
   };
   getScreen: { isActive: boolean };
+  messaging: {
+    aiTicketRouting: boolean;
+    replyContextTimeoutMinutes: number;
+  };
   modules: {
     timeTracking: { isActive: boolean };
     finances: { isActive: boolean };

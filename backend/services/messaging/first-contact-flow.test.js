@@ -9,15 +9,17 @@ const stub = (path, exports) => {
 };
 const query = (value) => ({ then(resolve, reject) { return Promise.resolve(value).then(resolve, reject); }, select() { return this; }, lean: async () => value });
 const TICKET = "64f600000000000000000001", CHANNEL = "64f600000000000000000002", MESSAGE = "64f600000000000000000003", CONVERSATION = "64f600000000000000000004";
-let recipient, routeList, message, jobs, commentWrites, canonical, bindings, seq, failLink, known, networkAuth, createdComments;
-const ticket = { _id: TICKET, num: 42, applicantId: "client", isClosed: false };
+let recipient, routeList, message, jobs, commentWrites, canonical, bindings, seq, failLink, known, networkAuth, createdComments, savedContext, bindingCalls, foreignWaiting, conversationWrites;
+const ticket = { _id: TICKET, num: 42, applicantId: "client", responsibles: [{ _id: "staff" }], isClosed: false };
 const channel = { _id: CHANNEL, type: "telegram", provider: "wazzup", providerTransport: "tgapi", providerChannelId: "remote", isActive: true, settings: { signReplies: true } };
+stub("@/models/conversationRead", { findOne: () => query(savedContext ? { replyContext: savedContext } : null), updateOne: async (_filter, update) => { savedContext = update.$set.replyContext; } });
 stub("@/models/ticket", { Ticket: { findById: () => query(ticket), updateOne: async () => {} } });
 stub("@/models/user", { findById: () => query(recipient) });
 stub("@/models/preferences", { findOne: () => query({ modules: { messaging: { isActive: true } }, contacts: { title: "Техноцентр" } }) });
 stub("@/models/channel", { findById: () => query(channel) });
 stub("@/models/comment", { create: async data => { const comment = { ...data, _id: "comment" }; createdComments.push(comment); return comment; }, updateOne: async (filter, update) => commentWrites.push({ filter, update }) });
 stub("@/models/message", {
+  exists: async () => foreignWaiting ? { _id: "foreign" } : null,
   create: async (data) => { message = { ...data, _id: data._id || MESSAGE, save: async () => {}, toObject() { return this; } }; return message; },
   findById: () => Object.assign(Promise.resolve(message), query(message)),
   updateOne: async (filter, update) => {
@@ -38,7 +40,7 @@ stub("@/models/conversation", {
   find: () => query(known),
   findById: () => query(canonical),
   findOneAndUpdate: () => query({ lastSeq: ++seq }),
-  updateOne: async () => {},
+  updateOne: async (filter, change) => { conversationWrites.push({filter,change}); },
 });
 stub("@/models/channelIdentity", { find: () => query([]) });
 stub("@/services/ticketSeen", { markSeen: async () => {} });
@@ -47,7 +49,7 @@ stub("@/services/storage", { copyObject: async () => assert.fail("no attachments
 stub("./origin", { deliveryRoutes: async () => ({ routes: routeList }) });
 stub("./identity", { resolveIdentity: async () => ({ _id: "identity", userId: null }), modelDeps: () => ({}) });
 stub("./ingest", { upsertConversation: async () => canonical });
-stub("./bindings", { bindConversation: async ({ conversation, ticket }) => { bindings++; conversation.binding = { ticketId: ticket._id }; } });
+stub("./bindings", { bindConversation: async (options) => { const { conversation, ticket } = options; bindingCalls.push(options); bindings++; conversation.binding = { ticketId: ticket._id }; } });
 const { validateDeliverRoute, deliverComment, retryMessage } = require("./outbound");
 const { attachFirstContact, inspectPhoneJob } = require("./first-contact");
 const auth = { userId: "staff", isAdmin: true, can: () => true };
@@ -55,9 +57,9 @@ stub("@/services/authContext", { buildAuthContext: async () => networkAuth, isDe
 beforeEach(() => {
   recipient = { _id: "client", firstName: "Клиент", phone: "+7 (914) 555-01-42" };
   routeList = [{ id: `phone:${CHANNEL}`, target: "phone", channelId: CHANNEL, conversationId: null, available: true }];
-  jobs = []; commentWrites = []; bindings = 0; seq = 0; failLink = false; message = null;
+  jobs = []; commentWrites = []; bindings = 0; bindingCalls = []; seq = 0; failLink = false; message = null;
   canonical = { _id: CONVERSATION, channelId: CHANNEL, externalChatId: "remote-peer", network: "telegram", kind: "direct", binding: {} };
-  known = []; networkAuth = auth; createdComments = []; ticket.isClosed = false;
+  foreignWaiting = false; conversationWrites = []; known = []; networkAuth = auth; createdComments = []; savedContext = null; ticket.isClosed = false;
 });
 const send = async () => {
   const route = await validateDeliverRoute({ ticket, routeId: `phone:${CHANNEL}`, auth });
@@ -131,7 +133,7 @@ test("two tickets queued before chat exists: second is blocked before HTTP once 
   const job = await send();
   assert.equal((await inspectPhoneJob(job, channel)).reason, undefined);
   known = [{ ...canonical, binding: { ticketId: "other-ticket", ticketNum: 77 } }];
-  assert.match((await inspectPhoneJob(job, channel)).reason, /занят заявкой №77/);
+  assert.match((await inspectPhoneJob(job, channel)).reason, /занят заявкой 77/);
   known[0].binding.ticketId = TICKET;
   assert.equal((await inspectPhoneJob(job, channel)).reason, undefined);
   known[0].hidden = true;
@@ -155,7 +157,7 @@ test("real outbox worker rechecks first-contact binding before network and links
   await sendOutbox(settings);
   assert.equal(sends.length, 0);
   assert.equal(acks[0].ok, false);
-  assert.match(acks[0].error, /занят заявкой №77/);
+  assert.match(acks[0].error, /занят заявкой 77/);
   known = [];
   await sendOutbox(settings);
   assert.equal(sends.length, 1);
@@ -185,7 +187,7 @@ test("inbox-only first contact attaches a canonical chat without ticket or comme
 test("ticket messenger reply requires ticket.sendMessage independently from inbox reply", async () => {
   const ticketOnly = { ...auth, can: request => Boolean(request.ticket?.includes("sendMessage")) };
   await validateDeliverRoute({ ticket, routeId: `phone:${CHANNEL}`, auth: ticketOnly });
-  await assert.rejects(validateDeliverRoute({ ticket, routeId: `phone:${CHANNEL}`, auth: { ...auth, can: request => Boolean(request.conversation?.includes("reply")) } }), /прав/);
+  await assert.rejects(validateDeliverRoute({ ticket, routeId: `phone:${CHANNEL}`, auth: { ...auth, isAdmin: false, can: request => Boolean(request.conversation?.includes("reply")) } }), /прав/);
 });
 
 test("inbox worker rechecks current author permission, server phone and hidden chat before HTTP", async () => {
@@ -223,12 +225,120 @@ test("inbox reply decorates a live bound-ticket send while stored message and co
   canonical.binding = { ticketId: TICKET };
   await sendFromInbox({ conversationId: CONVERSATION, text: "Ответ клиенту", auth });
   assert.equal(message.text, "Ответ клиенту"); assert.equal(createdComments[0].content, "Ответ клиенту");
+  assert.equal(createdComments[0].notifications.fromConversation, true);
   assert.equal(jobs[0].payload.text, "Ответ клиенту\n\n42\n\n- Клиент, Техноцентр");
   canonical.binding.endedAt = new Date();
-  await sendFromInbox({ conversationId: CONVERSATION, text: "Без заявки", auth });
+  await sendFromInbox({ conversationId: CONVERSATION, text: "Без заявки", auth, withoutTicket: true });
   assert.equal(message.ticketId, null); assert.equal(jobs[1].payload.text, "Без заявки\n\n- Клиент, Техноцентр");
   canonical.binding.endedAt = null; ticket.isClosed = true;
-  await sendFromInbox({ conversationId: CONVERSATION, text: "Заявка закрыта", auth });
+  await sendFromInbox({ conversationId: CONVERSATION, text: "Заявка закрыта", auth, withoutTicket: true });
   assert.equal(message.ticketId, null); assert.equal(jobs[2].payload.text, "Заявка закрыта\n\n- Клиент, Техноцентр");
   assert.equal(createdComments.length, 1);
+});
+
+
+test("an implicit remembered free reply stays deliberately free when pending messages are later attached", async () => {
+  savedContext = { ticketId: null, withoutTicket: true, expiresAt: new Date(Date.now() + 60_000) };
+  await require("./outbound").sendFromInbox({ conversationId: CONVERSATION, text: "Личный вопрос", auth });
+  assert.equal(message.ticketId, null);
+  assert.equal(message.attachMode, "free");
+});
+
+
+test("known legacy direct chat adds an explicit ticket reply without requiring inbox read or manual binding", async () => {
+  canonical.binding = { ticketId: "other-ticket", ticketNum: 77 };
+  routeList = [{ id: CONVERSATION, conversationId: CONVERSATION, available: true }];
+  const ticketOnly = { userId: "staff", can: request => Boolean(request.ticket?.includes("sendMessage")) };
+  const route = await validateDeliverRoute({ ticket, routeId: CONVERSATION, auth: ticketOnly });
+  await deliverComment({ ticket, route, comment: { _id: "comment", content: "Ответ по второй заявке", attachments: [] }, author: { _id: "staff", firstName: "Алексей" } });
+  assert.equal(bindingCalls.length, 1);
+  assert.equal(bindingCalls[0].onlyIfUnbound, false);
+  assert.equal(bindingCalls[0].attachPending, false);
+  assert.equal(message.ticketId, TICKET);
+  assert.equal(jobs.length, 1);
+});
+
+test("first-contact phone guard still rejects a foreign canonical link after multi-ticket migration", async () => {
+  const job = await send();
+  known = [{ ...canonical, binding: { ticketId: TICKET }, ticketBindings: [{ ticketId: "other-ticket", ticketNum: 77 }] }];
+  assert.match((await inspectPhoneJob(job, channel)).reason, /занят заявкой 77/);
+});
+test('ticket sticker uses the messenger queue without sending the comment label or signature',async()=>{
+ const storage=require('@/services/storage');const original=storage.copyObject;
+ storage.copyObject=async name=>`copy-${name}`;
+ try{
+  const comment={_id:'sticker-comment',content:'Стикер',channel:{isSticker:true},attachments:[{name:'sticker.webp',originalName:'sticker.webp',mimetype:'image/webp'}]};
+  await deliverComment({comment,ticket,route:{conversation:null,channel,recipient:{phone:'79145550142'}},author:{_id:'staff',firstName:'Алексей'}});
+  assert.equal(message.kind,'sticker');assert.equal(message.text,'');
+  assert.equal(jobs.at(-1).payload.text,'');assert.equal(jobs.at(-1).payload.attachments.length,1);
+ }finally{storage.copyObject=original;}
+});
+
+test('ticket sending and retry reject former responsibility and closed tickets',async()=>{
+ const restricted={userId:'staff',can:r=>Object.entries(r).every(([key,values])=>values.every(v=>['ticket.sendMessage','conversation.read','conversation.reply'].includes(`${key}.${v}`)))};
+ const job=await send();
+ ticket.messagingReaderIds=['staff']; ticket.responsibles=[];
+ try {
+  await assert.rejects(validateDeliverRoute({ticket,routeId:`phone:${CHANNEL}`,auth:restricted}),/недоступна/);
+  await assert.rejects(retryMessage({messageId:message._id,auth:restricted}),/не найдено/);
+  networkAuth=restricted;
+  assert.match((await inspectPhoneJob(job,channel)).reason,/недоступна/);
+  ticket.responsibles=[{_id:'staff'}]; ticket.isClosed=true;
+  await assert.rejects(validateDeliverRoute({ticket,routeId:`phone:${CHANNEL}`,auth:restricted}),/недоступна/);
+  assert.match((await inspectPhoneJob(job,channel)).reason,/недоступна/);
+ } finally {ticket.responsibles=[{_id:'staff'}];ticket.isClosed=false;delete ticket.messagingReaderIds;}
+});
+test('own-ticket inbox reply can initiate without ticket.sendMessage',async()=>{
+ const specialist={userId:'staff',can:r=>Object.entries(r).every(([key,values])=>values.every(v=>['conversation.read','conversation.reply'].includes(`${key}.${v}`)))};
+ assert.equal((await validateDeliverRoute({ticket,routeId:`phone:${CHANNEL}`,auth:specialist})).target,'phone');
+});
+
+test('worker continues only the exact accepted own start after canonical attachment',async(t)=>{
+ const job=await send();
+ message.ticketId=null; message.commentId=null;
+ message.clientRequestId='2dd2b92e-94f4-4d2c-9e1d-6711b1b61d55';
+ message.conversationId=CONVERSATION;
+ networkAuth={userId:'staff',can:r=>Boolean(r.conversation)&&r.conversation.every(v=>['read','reply','start'].includes(v))};
+ t.mock.method(require('./access'),'loadMessageScope',async()=>({all:false,ticketIds:[],conversationIds:[]}));
+ t.mock.method(require('./start'),'recipientOf',async()=>({phone:message.recipientPhone}));
+ known=[canonical];job.result={chatId:canonical.externalChatId,nextPart:1,externalIds:['accepted']};
+ assert.equal((await inspectPhoneJob(job,channel)).reason,undefined);
+ job.result.chatId='unrelated';
+ assert.match((await inspectPhoneJob(job,channel)).reason,/недоступен/);
+ job.result.chatId=canonical.externalChatId;
+ known.push({...canonical,_id:'other-chat',externalChatId:'foreign-chat'});
+ assert.match((await inspectPhoneJob(job,channel)).reason,/недоступен/);
+});
+
+test('automatic first-contact binding does not attach unresolved backlog',async()=>{
+ const job=await send();
+ await attachFirstContact(job,channel,{chatId:'remote-peer'});
+ assert.equal(bindingCalls[0].attachPending,false);
+});
+test('ticket replies preserve waiting for unrelated or unresolved messages',async(t)=>{
+ const {clearWaitingForReply}=require('./outbound');
+ const since=new Date(Date.now()-10000),sentAt=new Date();
+ const chat={...canonical,awaitingSince:since};
+ foreignWaiting=true;
+ const model=require('@/models/message');
+ const filters=[];
+ t.mock.method(model,'exists',async filter=>{filters.push(filter);return foreignWaiting ? {_id:'foreign'} : null;});
+ await clearWaitingForReply({conversation:chat,ticket,sentAt});
+ assert.deepEqual(filters[0].ticketId,{$ne:ticket._id});
+ assert.deepEqual(filters[0].sentAt,{$gte:since});
+ assert.equal(conversationWrites.length,0);
+ foreignWaiting=false;
+ await clearWaitingForReply({conversation:chat,ticket,sentAt});
+ assert.equal(conversationWrites.length,1);
+ assert.equal(conversationWrites[0].change.$set.awaitingSince,null);
+ assert.equal(conversationWrites[0].filter.awaitingSince,since);
+});
+
+test('first-contact reply preserves other pending tickets and own free start never handles the chat',async()=>{
+ const job=await send(); canonical.awaitingSince=new Date(Date.now()-10000);foreignWaiting=true;
+ await attachFirstContact(job,channel,{chatId:'remote-peer'});
+ assert.equal(conversationWrites.some(write=>write.change.$set?.awaitingSince===null),false);
+ message.ticketId=null;message.commentId=null;foreignWaiting=false;conversationWrites=[];
+ await attachFirstContact(job,channel,{chatId:'remote-peer'});
+ assert.equal(conversationWrites.some(write=>write.change.$set?.awaitingSince===null),false);
 });

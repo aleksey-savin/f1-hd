@@ -18,7 +18,7 @@ export type MessageStatus = "received" | "queued" | "sent" | "delivered" | "read
 export type MessageKind =
   | "text" | "photo" | "voice" | "audio" | "video" | "document"
   | "sticker" | "location" | "contact" | "form" | "other" | "event";
-export type AttachMode = "bound" | "reply" | "manual" | "origin" | "deliver" | null;
+export type AttachMode = "bound" | "reply" | "manual" | "origin" | "deliver" | "free" | "ai" | null;
 export type JobType = "send" | "markRead" | "fetchMedia" | "login" | "logout" | "loadHistory" | "testProxy";
 
 export interface IChannel {
@@ -81,6 +81,7 @@ export interface IConversation {
   counterpartIdentityId: Types.ObjectId | null;
   participants: { identityId: Types.ObjectId; isStaff: boolean }[];
   companyId: Types.ObjectId | null;
+  ticketBindings?: IConversation["binding"][];
   binding: {
     ticketId: Types.ObjectId | null;
     ticketNum: number | null;
@@ -93,6 +94,8 @@ export interface IConversation {
   assigneeId: Types.ObjectId | null;
   awaitingSince: Date | null;
   waitNotifiedAt: Date | null;
+  waitTelegramNotifiedAt: Date | null;
+  waitTelegramGroupNotifiedAt: Date | null;
   handled: { at: Date | null; by: Types.ObjectId | null; how: string | null };
   lastMessage: { at: Date | null; direction: MessageDirection | null; origin: MessageOrigin | null; preview: string; authorName: string };
   lastSeq: number;
@@ -118,6 +121,8 @@ export interface IMessage {
   recipientUserId?: Types.ObjectId | null;
   clientRequestId?: string;
   retryIntent?: Record<string, unknown>;
+  mappingLock?: { token: string; until: Date };
+  mappingIntent?: { previousTicketId: Types.ObjectId | null; ticketId: Types.ObjectId | null; ticketNum: number | null };
   channelId: Types.ObjectId;
   externalChatId: string;
   externalId?: string;
@@ -177,7 +182,13 @@ export interface IChannelJob {
 export interface IConversationRead {
   userId: Types.ObjectId;
   conversationId: Types.ObjectId;
-  seenAt: Date;
+  seenAt: Date | null;
+  replyContext?: {
+    ticketId: Types.ObjectId | null;
+    withoutTicket: boolean;
+    expiresAt: Date | null;
+    updatedAt: Date | null;
+  };
   createdAt: Date;
   updatedAt: Date;
 }

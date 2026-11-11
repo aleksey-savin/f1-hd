@@ -80,7 +80,7 @@ export default function TicketExpenses({ ticketId }: { ticketId: string }) {
                           className="text-accent-text"
                           to={`/tickets/${ticket.num}`}
                         >
-                          №{ticket.num}
+                          {ticket.num}
                         </Link>
                       </span>
                     ))}

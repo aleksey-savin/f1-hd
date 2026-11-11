@@ -1,3 +1,4 @@
+import { CONVERSATION_READ_ACCESS } from "@/util/conversation-access";
 import { useEffect } from "react";
 
 import FilterChip from "@/components/app/FilterChip";
@@ -37,7 +38,7 @@ const FacetChips = ({ scroll = false, className }: Props) => {
   );
   const isEndUser = useAuthedUser().isEndUser;
   const facets = visibleFacets({
-    messaging: messagingOn && can({ conversation: ["read"] }),
+    messaging: messagingOn && can(CONVERSATION_READ_ACCESS),
     mikrotik: mikrotikOn && !isEndUser,
     inventory: inventoryOn && !isEndUser,
     userReview: !isEndUser && can({ userReview: ["read"] }),

@@ -147,7 +147,7 @@ const EventRow = ({ event, fromState }) => {
                   to={`/tickets/${event.ticketNum}`}
                   className="text-inherit underline decoration-border underline-offset-4 hover:text-foreground"
                 >
-                  Заявка № {event.ticketNum}
+                  Заявка {event.ticketNum}
                 </Link>
               </>
             )}

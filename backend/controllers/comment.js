@@ -47,6 +47,7 @@ exports.add = async (req, res, next) => {
   // объекты, а человек получил бы отказ на то, что уже произошло.
   let comment = null;
   let attached = false;
+  let stickerCopy = null;
 
   try {
     const authData = req.auth?.legacy ?? null;
@@ -74,8 +75,10 @@ exports.add = async (req, res, next) => {
         })
       : [];
 
+    const sticker = await require("../services/messaging/stickers").ticketSticker({stickerId:req.body.stickerId,route,content,files:req.files||[]});
+    if(sticker){stickerCopy=await storage.copyObject(sticker.name);attachments.push({name:stickerCopy,originalName:"sticker.webp",mimetype:"image/webp"});}
     comment = new Comment({
-      content: content,
+      content: sticker ? "Стикер" : content,
       ticketId: ticketId,
       attachments: attachments,
       notifications: {
@@ -99,6 +102,7 @@ exports.add = async (req, res, next) => {
       updatedBy: authData.userId,
     });
 
+    if(sticker)comment.set("channel.isSticker",true);
     await comment.save();
 
     // Комментарий без `_id` в `ticket.comments` интерфейс не покажет, а крон
@@ -156,6 +160,7 @@ exports.add = async (req, res, next) => {
     });
   } catch (error) {
     if (!attached) {
+      if(stickerCopy)await storage.deleteObject(stickerCopy).catch(()=>{});
       // `isNew` снимается только успешным save: комментарий есть в базе
       if (comment && !comment.isNew) {
         await Comment.deleteOne({ _id: comment._id }).catch(

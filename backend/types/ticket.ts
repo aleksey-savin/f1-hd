@@ -154,6 +154,7 @@ export interface ITicket extends ITicketDefaultFields {
   comments?: Types.ObjectId[];
   source: TicketSource;
   responsibles?: ITicketResponsible[];
+  messagingReaderIds?: Types.ObjectId[];
   removedFromResponsibles?: {
     _id?: Types.ObjectId;
     firstName?: string;

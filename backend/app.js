@@ -150,14 +150,15 @@ require("./middleware/bodyParsers").mountBodyParsers(app);
 mongoose.set("strictQuery", false);
 
 // Wazzup needs a direct response, including for private S3-backed uploads.
-// This exposes the same upload keys as /uploads/:name; it never reads private artifacts.
-app.get("/uploads/direct/:name/:filename", require("./services/wazzup/outgoing-media").createMediaHandler());
+// Message attachments require a scoped session or a short-lived provider signature.
+const { createMediaAccess } = require("./services/messaging/media-access");
+app.get("/uploads/direct/:name/:filename", createMediaAccess({ direct: true }), require("./services/wazzup/outgoing-media").createMediaHandler());
 
 // File serving for uploads. Legacy files (old tickets) live on the local/shared
 // volume; new uploads live in S3. Serve local-first so old URLs keep working
 // unchanged, otherwise 302-redirect to a short-lived presigned S3 URL. The
 // /uploads/<name> URL is therefore identical for old and new files.
-app.get("/uploads/:name", async (req, res) => {
+app.get("/uploads/:name", createMediaAccess(), async (req, res) => {
   /**
    * ЗАГРУЖЕННЫЙ ФАЙЛ — ЧУЖОЙ КОД НА НАШЕМ ДОМЕНЕ.
    *
@@ -184,7 +185,7 @@ app.get("/uploads/:name", async (req, res) => {
   if (storage.objectExistsLocally(name)) {
     return res.sendFile(
       path.resolve("uploads", name),
-      { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
+      { headers: { "Cache-Control": req.privateMessagingMedia ? "private, no-store" : "public, max-age=31536000, immutable" } },
       (error) => {
         if (error && !res.headersSent) {
           logger.warn(`File not found: ${redactUrl(req.originalUrl)}`);
@@ -315,6 +316,7 @@ jobs.register(
 const notificationJobs = [
   ["ticket notifications", createTicketNotifications],
   ["comment notifications", createCommentNotifications],
+  ["conversation waiting notifications", () => require("./services/messaging/waiting-notifications").createWaitingNotifications()],
   ["scheduled work notifications", createScheduledWorkNotifications],
 ];
 jobs.register(

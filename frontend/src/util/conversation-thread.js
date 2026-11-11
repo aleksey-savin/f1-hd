@@ -32,12 +32,27 @@ const bySeq = (a, b) =>
  * @template {{ id: string, seq: number, sentAt: string }} T
  * @param {T[]} current
  * @param {T[] | null | undefined} incoming
+ * @param {string[]} [removedIds] Messages revoked by the server's visibility scope.
+ * @param {boolean} [accessRevoked] A definitive 404 clears history until the thread is reopened.
  * @returns {T[]}
  */
-export const mergeMessages = (current, incoming) => {
-  if (!incoming?.length) return current;
-  const byId = new Map(current.map((message) => [message.id, message]));
-  for (const message of incoming) byId.set(message.id, message);
+export const mergeMessages = (
+  current,
+  incoming,
+  removedIds = [],
+  accessRevoked = false,
+) => {
+  if (accessRevoked) return [];
+  if (!incoming?.length && !removedIds.length) return current;
+  const removed = new Set(removedIds);
+  const byId = new Map(
+    current
+      .filter((message) => !removed.has(message.id))
+      .map((message) => [message.id, message]),
+  );
+  for (const message of incoming ?? []) {
+    if (!removed.has(message.id)) byId.set(message.id, message);
+  }
   return [...byId.values()].sort(bySeq);
 };
 
@@ -81,7 +96,7 @@ export const hasNewInbound = (changed, knownIds) =>
 /**
  * Ряды ленты в мессенджерном порядке (старые сверху, канва A1):
  *   day     — метка дня перед первым сообщением дня;
- *   system  — системная строка («Создана заявка №…»);
+ *   system  — системная строка («Создана заявка …»);
  *   message — пузырь; `gap` — отступ сверху в px (4 — та же сторона,
  *             12 — смена стороны, 6 — после метки дня или системной строки),
  *             `showAuthor` — подпись автора над исходящим, `showName` — имя

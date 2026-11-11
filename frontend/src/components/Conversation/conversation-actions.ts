@@ -4,7 +4,7 @@ import useToastStore from "@/store/toast-store";
 /**
  * Действия с диалогом (docs/messaging.md, «Staff API»). Каждое — запрос и
  * тост: при отказе человек видит причину сервера («Диалог уже привязан к
- * заявке №56790»), а не общую фразу. Возвращает true, если получилось.
+ * заявке 56790»), а не общую фразу. Возвращает true, если получилось.
  */
 
 const toast = (variant: "success" | "danger", message: string) =>
@@ -42,15 +42,34 @@ export const assignConversation = (id: string, userId: string | null) =>
 
 export const bindConversation = (id: string, ticketNum: number) =>
   run(() => post(`/api/conversations/${id}/bind`, { ticketNum }), {
-    done: `Диалог привязан к заявке №${ticketNum}`,
+    done: `Диалог привязан к заявке ${ticketNum}`,
     failed: "Не удалось привязать диалог",
   });
 
-export const unbindConversation = (id: string) =>
-  run(() => post(`/api/conversations/${id}/unbind`), {
+export const unbindConversation = (id: string, ticketNum?: number) =>
+  run(() => post(`/api/conversations/${id}/unbind`, { ticketNum }), {
     done: "Диалог отвязан от заявки",
     failed: "Не удалось отвязать диалог",
   });
+
+export const chooseReplyContext = (id: string, ticketNum: number | null) =>
+  post(`/api/conversations/${id}/context`, { ticketNum });
+
+export const assignMessages = (
+  id: string,
+  messageIds: string[],
+  ticketNum: number | null,
+) =>
+  run(
+    () => post(`/api/conversations/${id}/attach`, { messageIds, ticketNum }),
+    {
+      done:
+        ticketNum === null
+          ? "Сообщения оставлены без заявки"
+          : `Сообщения отнесены к заявке ${ticketNum}`,
+      failed: "Не удалось изменить привязку сообщений",
+    },
+  );
 
 export const answerNoTicket = (id: string) =>
   run(() => post(`/api/conversations/${id}/decision`, { action: "none" }), {
@@ -65,7 +84,11 @@ export const setHidden = (id: string, hidden: boolean) =>
     failed: hidden ? "Не удалось скрыть диалог" : "Не удалось вернуть диалог",
   });
 
-export const linkIdentity = (identityId: string, userId: string, name: string) =>
+export const linkIdentity = (
+  identityId: string,
+  userId: string,
+  name: string,
+) =>
   run(() => post(`/api/identities/${identityId}/link`, { userId }), {
     done: `Собеседник связан: ${name}`,
     failed: "Не удалось связать собеседника",

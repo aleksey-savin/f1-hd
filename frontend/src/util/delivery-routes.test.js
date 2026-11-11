@@ -48,7 +48,7 @@ const busy = {
   kind: "direct",
   title: "",
   available: false,
-  reason: "занят заявкой №56790",
+  reason: "занят заявкой 56790",
   boundHere: false,
 };
 
@@ -58,7 +58,7 @@ test("пункты меню: только канал, пояснение нуж�
   assert.equal(routeSubtitle(marina), "");
   assert.equal(routeSubtitle({ ...marina, boundHere: false }), "");
   assert.equal(routeSubtitle(group), "");
-  assert.equal(routeSubtitle(busy), "занят заявкой №56790");
+  assert.equal(routeSubtitle(busy), "занят заявкой 56790");
 });
 
 test("кнопка выбора: только канал или «Почта и бот»", () => {
@@ -67,17 +67,16 @@ test("кнопка выбора: только канал или «Почта и 
   assert.equal(routeTriggerLabel({ ...marina, title: "" }, ""), "Telegram");
 });
 
-test("переключатель сохраняет адресата каждого маршрута и всегда предлагает почту и бот", () => {
+test("переключатель сохраняет адресатов доступных маршрутов и скрывает недоступные", () => {
   const options = replyRouteOptions({ routes: [marina, group, busy], defaultRoute: 'c-marina' });
-  assert.deepEqual(options.map(option => option.value), ['notify', 'c-marina', 'c-group', 'c-wa']);
-  assert.deepEqual(options.map(option => option.label), ['Почта и бот', 'Telegram', 'Telegram', 'WhatsApp']);
+  assert.deepEqual(options.map(option => option.value), ['notify', 'c-marina', 'c-group']);
+  assert.deepEqual(options.map(option => option.label), ['Комментарий в заявке', 'Telegram', 'Telegram']);
   assert.equal(options[0].disabled, false);
   assert.equal(options[1].reason, '');
-  assert.equal(options[3].disabled, true);
-  assert.equal(options[3].reason, 'занят заявкой №56790');
+  assert.deepEqual(replyRouteOptions({ routes: [busy] }), []);
   const phone = { ...marina, id: 'phone:tg', target: 'phone', conversationId: null };
   assert.equal(replyRouteOptions({ routes: [phone] })[1].value, 'phone:tg');
-  assert.deepEqual(replyRouteOptions({ routes: [] }).map(option => option.value), ['notify']);
+  assert.deepEqual(replyRouteOptions({ routes: [] }), []);
 });
 
 test("initialRoute: занятый или пропавший маршрут не выбирается — «как сейчас»", () => {

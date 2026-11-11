@@ -35,7 +35,7 @@ function TicketCandidates({
   }, [ticket._id, fetcher.data, onResult]);
   return fetcher.data?.error ? (
     <p className="my-1 text-sm text-muted-foreground">
-      Не удалось проверить такси по №{ticket.num}. Заявку можно закрыть.{" "}
+      Не удалось проверить такси по заявке {ticket.num}. Заявку можно закрыть.{" "}
       <Button
         type="button"
         size="xs"
@@ -91,7 +91,7 @@ function RideBinding({
         ariaLabel="Связать поездку с заявками"
         options={tickets.map((ticket) => ({
           value: ticket._id,
-          label: `№${ticket.num}`,
+          label: `${ticket.num}`,
         }))}
       />
       <Button
@@ -215,7 +215,7 @@ export default function ClosingReminder({
                     className="ml-2 text-accent-text"
                     to={`/tickets/${ticket.num}#ticket-works`}
                   >
-                    Работы по №{ticket.num}
+                    Работы по заявке {ticket.num}
                   </Link>
                 ))}
               </div>

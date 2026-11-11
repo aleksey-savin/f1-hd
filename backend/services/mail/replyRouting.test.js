@@ -346,21 +346,21 @@ test("route: outsiders, unknown senders and missing tickets get a new ticket", (
 test("note: names the ticket and the reason", () => {
   assert.equal(
     rerouteNote({ ticketNum: 45926, ticket: null, authVerdict: "fail" }),
-    "Письмо пришло ответом на заявку №45926, но такой заявки нет",
+    "Письмо пришло ответом на заявку 45926, но такой заявки нет",
   );
   assert.equal(
     rerouteNote({ ticketNum: 45926, ticket: TICKET, authVerdict: "fail" }),
-    "Письмо пришло ответом на заявку №45926, но не прошло проверку отправителя",
+    "Письмо пришло ответом на заявку 45926, но не прошло проверку отправителя",
   );
   assert.equal(
     rerouteNote({ ticketNum: 45926, ticket: TICKET, authVerdict: "none" }),
-    "Письмо пришло ответом на заявку №45926, но отправитель в ней не участвует",
+    "Письмо пришло ответом на заявку 45926, но отправитель в ней не участвует",
   );
 });
 
 test("description: the note is its own paragraph above the mail text", () => {
   const note =
-    "Письмо пришло ответом на заявку №45926, но отправитель в ней не участвует";
+    "Письмо пришло ответом на заявку 45926, но отправитель в ней не участвует";
   assert.equal(
     withRerouteNote("Добрый день!\nПринтер снова не печатает", note),
     `<p>${note}</p>\nДобрый день!\nПринтер снова не печатает`,
@@ -404,7 +404,7 @@ test("plan: anything else is a new ticket carrying the note", () => {
     }),
     {
       action: "newTicket",
-      note: "Письмо пришло ответом на заявку №45926, но отправитель в ней не участвует",
+      note: "Письмо пришло ответом на заявку 45926, но отправитель в ней не участвует",
     },
   );
   // Коллега из компании заявки, которому она не видна в интерфейсе (обычная
@@ -420,7 +420,7 @@ test("plan: anything else is a new ticket carrying the note", () => {
     }),
     {
       action: "newTicket",
-      note: "Письмо пришло ответом на заявку №45926, но отправитель в ней не участвует",
+      note: "Письмо пришло ответом на заявку 45926, но отправитель в ней не участвует",
     },
   );
   assert.deepEqual(
@@ -434,7 +434,7 @@ test("plan: anything else is a new ticket carrying the note", () => {
     }),
     {
       action: "newTicket",
-      note: "Письмо пришло ответом на заявку №45926, но не прошло проверку отправителя",
+      note: "Письмо пришло ответом на заявку 45926, но не прошло проверку отправителя",
     },
   );
   assert.deepEqual(
@@ -447,7 +447,7 @@ test("plan: anything else is a new ticket carrying the note", () => {
     }),
     {
       action: "newTicket",
-      note: "Письмо пришло ответом на заявку №99999, но такой заявки нет",
+      note: "Письмо пришло ответом на заявку 99999, но такой заявки нет",
     },
   );
 });
@@ -513,7 +513,7 @@ for (const [kind, sender, address] of [
       });
     const closed = { ...TICKET, isClosed: true };
     const note =
-      "Письмо пришло ответом на заявку №45926, но отправитель в ней не участвует";
+      "Письмо пришло ответом на заявку 45926, но отправитель в ней не участвует";
 
     // Заявка видна — всё, как у любого участника
     assert.deepEqual(plan({ inScope: true }), { action: "comment", note: null });
@@ -527,7 +527,7 @@ for (const [kind, sender, address] of [
     });
 
     // Не видна (или вызывающий не сказал) — новая заявка с пометкой; у робота —
-    // только строка в логе №N, открыта заявка или закрыта
+    // только строка в логе N, открыта заявка или закрыта
     const robot = { fromMachine: true, fromAddress: address };
     const robotLine = {
       action: "logOnly",
@@ -555,7 +555,7 @@ test("plan: a denied account's reply is handled like an outsider's", () => {
     }),
     {
       action: "newTicket",
-      note: "Письмо пришло ответом на заявку №45926, но отправитель в ней не участвует",
+      note: "Письмо пришло ответом на заявку 45926, но отправитель в ней не участвует",
     },
   );
   assert.deepEqual(

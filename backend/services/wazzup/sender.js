@@ -15,6 +15,7 @@ const createSender = ({ send, attachmentUrl, checkpoint }) => async (job, channe
       channelId: channel.providerChannelId,
       chatType: job.payload.kind === 'group' ? { whatsapp: 'whatsgroup', telegram: 'telegroup', max: 'maxgroup' }[channel.type] : channel.type,
       ...address, crmMessageId: `${job._id}:${index}`,
+      ...(job.payload.replyToExternalId ? { refMessageId: job.payload.replyToExternalId } : {}),
       ...(part.text === undefined ? { contentUri: await attachmentUrl(part.attachment) } : { text: part.text }),
     };
     progress = { ...progress, inFlightPart: index };

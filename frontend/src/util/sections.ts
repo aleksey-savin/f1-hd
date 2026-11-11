@@ -1,3 +1,4 @@
+import { CONVERSATION_READ_ACCESS } from "./conversation-access.js";
 import type { AccessRequest } from "@/lib/access";
 
 /**
@@ -113,7 +114,7 @@ export const SECTIONS: Section[] = [
     key: "conversations",
     listTo: "/conversations",
     label: "Диалоги",
-    can: { conversation: ["read"] },
+    can: CONVERSATION_READ_ACCESS,
     acc: "диалог",
     pronoun: "его",
     backLabel: "К диалогам",

@@ -1,18 +1,13 @@
 import type { ReactNode } from "react";
-import { RiFileCopyLine } from "react-icons/ri";
+import { RiCheckLine, RiFileCopyLine } from "react-icons/ri";
 
 import { copyText } from "@/components/app/PropRow";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { ChannelTile } from "./ChannelGlyph";
+import { ChannelIcon } from "./ChannelGlyph";
 
-/**
- * Строка канала связи в карточке собеседника (канва A1, B3): плитка канала,
- * подпись, значение и действие справа («Написать» — в другой диалог этого
- * человека, копирование — у почты и телефона). Текущий диалог обведён
- * бирюзой. Геометрия — как у каналов `User/ContactCard`.
- */
+/** Компактная строка контакта; текущий диалог отмечен галочкой. */
 const ContactChannelRow = ({
   channel,
   label,
@@ -20,6 +15,7 @@ const ContactChannelRow = ({
   current = false,
   big = false,
   action,
+  actions,
 }: {
   channel: string;
   label: string;
@@ -27,31 +23,35 @@ const ContactChannelRow = ({
   current?: boolean;
   big?: boolean;
   action?: ReactNode;
+  /** Меню текущего диалога после копирования адреса. */
+  actions?: ReactNode;
 }) => (
   <div
     className={cn(
-      "flex items-center gap-2 rounded-xl border p-1.5",
-      current ? "border-primary/35" : "border-border",
+      "flex items-center gap-1.5 text-sm",
+      big ? "min-h-11" : "min-h-9",
     )}
   >
-    <ChannelTile
-      network={channel}
-      iconSize={18}
-      neutralClassName="bg-primary/15 text-accent-text"
-      className="size-9 rounded-lg"
-    />
-    <span className="block min-w-0 flex-1">
-      <span className="block text-xs text-faint">{label}</span>
-      <span
-        className={cn(
-          "block truncate leading-5 font-medium tabular-nums",
-          big ? "text-base" : "text-sm",
-        )}
-      >
-        {value}
-      </span>
+    <span title={label} className="mr-0.5 flex-none text-muted-foreground">
+      <ChannelIcon network={channel} size={18} />
+      <span className="sr-only">{label}</span>
     </span>
-    {action}
+    <span
+      className="min-w-0 flex-1 truncate tabular-nums select-text"
+      title={value}
+    >
+      {value}
+    </span>
+    {current && (
+      <span title="Этот диалог" className="flex flex-none text-accent-text">
+        <RiCheckLine size={16} aria-hidden />
+        <span className="sr-only">Этот диалог</span>
+      </span>
+    )}
+    {action ?? (
+      <CopyAction value={value} label="Адрес" what="адрес" big={big} />
+    )}
+    {actions}
   </div>
 );
 
@@ -60,16 +60,19 @@ export const CopyAction = ({
   value,
   label,
   what,
+  big = false,
 }: {
   value: string;
   /** Для тоста: «Почта скопирован» не скажем — «Адрес», «Телефон». */
   label: string;
   /** Для подсказки: «почту», «телефон». */
   what: string;
+  big?: boolean;
 }) => (
   <Button
+    type="button"
     variant="ghost"
-    size="icon-xs"
+    size={big ? "icon-lg" : "icon-xs"}
     aria-label={`Скопировать ${what}`}
     title={`Скопировать ${what}`}
     className="text-faint hover:text-muted-foreground"

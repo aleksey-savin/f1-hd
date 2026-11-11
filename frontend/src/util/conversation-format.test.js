@@ -94,7 +94,7 @@ test("rowMeta: заявка, «без заявки», неизвестный с�
     rowMeta({ kind: "direct", network: "telegram", company, ticket: { num: 56812 }, unknown: false }),
     [
       { text: "Ромашка", tone: "muted" },
-      { text: "№56812", tone: "muted" },
+      { text: "56812", tone: "muted" },
     ],
   );
   assert.deepEqual(
@@ -149,12 +149,12 @@ test("systemLineParts: безлично, с номером заявки отде
   assert.deepEqual(systemLineParts(created), [
     { text: "Создана заявка " },
     { ticket: 56812 },
-    { text: " — дальше переписка идёт в неё · Лебедев Игорь" },
+    { text: " · Лебедев Игорь" },
   ]);
   assert.deepEqual(systemLineParts(created, { compact: true }), [
     { text: "Создана заявка " },
     { ticket: 56812 },
-    { text: " — переписка идёт в неё" },
+    { text: "" },
   ]);
   assert.deepEqual(systemLineParts({ kind: "handled", byName: "Лебедев Игорь" }), [
     { text: "Ответ не нужен · Лебедев Игорь" },
@@ -172,7 +172,7 @@ test("systemLineParts: безлично, с номером заявки отде
   ]);
   // Номера нет — ссылки нет, строка не ломается
   assert.deepEqual(systemLineParts({ kind: "bound", ticketNum: null, byName: "" }), [
-    { text: "Диалог привязан к заявке " },
+    { text: "Привязана заявка " },
     { text: "" },
     { text: "" },
   ]);
@@ -207,12 +207,19 @@ test("подписи по сети: номер у WhatsApp, аккаунт у о
 test("поле ответа называет канал и заявку", () => {
   assert.equal(
     composerPlaceholder("telegram", 56812),
-    "Сообщение в Telegram — попадёт в заявку №56812",
+    "Сообщение в Telegram — попадёт в заявку 56812",
   );
   assert.equal(composerPlaceholder("telegram", null), "Сообщение в Telegram");
   assert.equal(
     phoneComposerHint("telegram", 56812),
-    "Ответ уйдёт в Telegram и попадёт в заявку №56812",
+    "Ответ уйдёт в Telegram и попадёт в заявку 56812",
   );
   assert.equal(phoneComposerHint("telegram", null), "Ответ уйдёт в Telegram");
+});
+
+
+test("system mapping events describe one link without claiming the entire conversation", () => {
+  assert.deepEqual(systemLineParts({kind: "freed", count: 3, byName: "Мария"}), [{text: "3 сообщения оставлены без заявки · Мария"}]);
+  assert.deepEqual(systemLineParts({kind: "bindingEnded", ticketNum: 58960}), [{text: "Привязка к заявке "}, {ticket: 58960}, {text: " завершена"}]);
+  assert.deepEqual(systemLineParts({kind: "bindingRestored", ticketNum: 58960}), [{text: "Заявка "}, {ticket: 58960}, {text: " снова в работе"}]);
 });

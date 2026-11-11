@@ -1,3 +1,4 @@
+import { CONVERSATION_READ_ACCESS } from "@/util/conversation-access";
 import TaxiReport from "./pages/Taxi/Report";
 import { TAXI_REPORT_ACCESS } from "./util/taxi-access";
 import { GLOBAL_SETTINGS_ACCESS } from "./util/global-settings-access";
@@ -646,13 +647,13 @@ function App() {
             // он занимает экран целиком (handle.phoneFullscreen, layout/Root)
             {
               path: "conversations",
-              handle: { module: "messaging", can: { conversation: ["read"] } },
+              handle: { module: "messaging", can: CONVERSATION_READ_ACCESS },
               element: <ConversationsInbox />,
               loader: conversationsLoader,
               children: [
                 {
                   path: "new",
-                  handle: { can: { conversation: ["reply"] }, ...SHEET_MD },
+                  handle: { can: { conversation: ["reply", "start"] }, ...SHEET_MD },
                   element: <ConversationNewPage />,
                   loader: conversationNewLoader,
                 },

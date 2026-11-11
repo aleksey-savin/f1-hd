@@ -2,6 +2,7 @@ import type { Types } from "mongoose";
 import type { IAttachment } from "./_shared";
 
 export interface ICommentChannel {
+  isSticker?: boolean;
   network?: "telegram" | "whatsapp" | "max" | "site";
   conversationId?: Types.ObjectId;
   messageId?: Types.ObjectId;
@@ -21,7 +22,7 @@ export interface IComment {
   /** @deprecated legacy ticket number, removed after 1.8.9 */
   ticket?: number;
   ticketId: Types.ObjectId;
-  notifications?: { lastAction?: string; pending?: boolean; skipApplicant?: boolean };
+  notifications?: { lastAction?: string; pending?: boolean; skipApplicant?: boolean; fromConversation?: boolean };
   channel?: ICommentChannel;
   createdBy: Types.ObjectId;
   updatedBy: Types.ObjectId;

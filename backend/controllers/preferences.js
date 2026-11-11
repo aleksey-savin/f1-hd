@@ -313,6 +313,18 @@ exports.update = async (req, res, next) => {
     const taxiForbidden = has("taxiBusiness") && !hasTaxiPermission(req.auth, "configure");
     const generalForbidden = (generalChanged || has("wazzup") || !has("taxiBusiness")) && !canManageGeneral(req.auth);
     if (taxiForbidden || generalForbidden) throw new AppError("Недостаточно прав для изменения настроек", 403);
+    if (has("messaging")) {
+      const incoming = body.messaging;
+      if (!incoming || typeof incoming !== "object" || Array.isArray(incoming) || Object.keys(incoming).some((key) => !["aiTicketRouting", "replyContextTimeoutMinutes"].includes(key))) {
+        throw new AppError("Некорректные настройки диалогов", 400);
+      }
+      if (Object.prototype.hasOwnProperty.call(incoming, "aiTicketRouting") && typeof incoming.aiTicketRouting !== "boolean") {
+        throw new AppError("Автоматический выбор заявки должен быть включён или выключен", 400);
+      }
+      if (Object.prototype.hasOwnProperty.call(incoming, "replyContextTimeoutMinutes") && (!Number.isInteger(incoming.replyContextTimeoutMinutes) || incoming.replyContextTimeoutMinutes < 5 || incoming.replyContextTimeoutMinutes > 240)) {
+        throw new AppError("Контекст ответа сохраняется от 5 до 240 минут", 400);
+      }
+    }
     // Validate the taxi draft before mutating any general preference fields.
     const taxiDraft = has("taxiBusiness") ? await taxiConfiguration.prepareConfiguration(body.taxiBusiness) : null;
     const wazzupDraft = has("wazzup") ? await wazzupConfiguration.prepareConfiguration(body.wazzup) : null;
@@ -502,6 +514,12 @@ exports.update = async (req, res, next) => {
         proxmox: { isActive: !!modules.proxmox?.isActive },
         messaging: { isActive: !!modules.messaging?.isActive },
       };
+    }
+
+    if (has("messaging")) {
+      for (const [key, value] of Object.entries(body.messaging)) {
+        preferences.set(`messaging.${key}`, value);
+      }
     }
 
     // «ИИ»: форма присылает группу целиком (все провайдеры разом), но health

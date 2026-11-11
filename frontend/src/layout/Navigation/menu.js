@@ -1,3 +1,4 @@
+import { CONVERSATION_READ_ACCESS } from "../../util/conversation-access.js";
 import {
   RiApps2Line,
   RiArchiveLine,
@@ -7,6 +8,7 @@ import {
   RiCalendar2Line,
   RiCheckboxLine,
   RiContactsLine,
+  RiComputerLine,
   RiDashboard2Line,
   RiDeviceLine,
   RiDiscussLine,
@@ -24,15 +26,16 @@ import {
   RiSettings3Line,
   RiTeamLine,
   RiTaxiLine,
+  RiToolsLine,
 } from "react-icons/ri";
 import { TAXI_REPORT_ACCESS } from "../../util/taxi-access.js";
 import { canOpenGlobalSettings } from "../../util/global-settings-access.ts";
 
 // Конфиг главной навигации — единый источник для левого sidebar и мобильного
 // бургер-Sheet. Структура — по согласованному макету
-// реорганизации меню (2026-07): «Компании» и «Пользователи» видны всем ролям с
+// реорганизации меню: «Компании» и «Пользователи» видны всем ролям с
 // доступом и не прыгают в «Администрирование», MikroTik и Proxmox — внутри
-// «Управления» (раздел сохраняется и с одним доступным модулем),
+// «Инфраструктуры» (раздел сохраняется и с одним доступным модулем),
 // «Архив» (заявки + работы, /archive) — последний пункт, «Настройки системы»
 // — отдельная ссылка перед ним. Раздел виден, если виден хотя бы один его пункт.
 // У клиента меню короче: «Главная» (она же его список заявок), «Устройства»,
@@ -43,9 +46,9 @@ import { canOpenGlobalSettings } from "../../util/global-settings-access.ts";
 //   { key, label, icon, to, badge? }       — ссылка; badge:
 //     "conversations" — пилюля «Ждут ответа» (Conversation/NavBadges)
 //   { key, label, icon, groups: [...], defaultOpen?: boolean } — раздел;
-//     группа: { label?, items: [item, …] } — label — uppercase-заголовок
-//     («Администрирование» подписывает группы по модулям), группы рендерятся
-//     с разделителями. Sidebar и drawer показывают полные названия.
+//     группа: { label?, items: [item, …] } — label — подпись группы
+//     («Справочники» внутри «Учёта техники»). Sidebar и drawer показывают
+//     полные названия.
 //     Разделы открыты по умолчанию; defaultOpen: false сворачивает раздел.
 const link = (key, label, icon, to, extra = {}) => ({
   key,
@@ -54,6 +57,22 @@ const link = (key, label, icon, to, extra = {}) => ({
   to,
   ...extra,
 });
+
+// После проверки прав раздел с одной ссылкой становится обычным пунктом.
+// Инфраструктура сохраняет устойчивое место даже с одним доступным модулем.
+function singleLinkSection(item) {
+  if (!item.groups || item.key === "management") return item;
+  const children = item.groups.flatMap((group) => group.items);
+  if (children.length !== 1) return item;
+  const child = children[0];
+  if (item.key !== "reports") return child;
+  const labels = {
+    "report-companies": "Отчёт по компаниям",
+    "fin-employees": "Отчёт по сотрудникам",
+    "report-taxi": "Отчёт по такси",
+  };
+  return { ...child, label: labels[child.key] ?? child.label };
+}
 
 // Вложенный справочник /tickets/checklist-templates принадлежит
 // «Администрированию», а не одновременно двум пунктам меню.
@@ -81,7 +100,6 @@ export function buildMenu({
   const canReadChecklistTemplates = can({ checklistTemplate: ["read"] });
   const canReadCompanies = can({ company: ["read"] });
   const canReadUsers = can({ user: ["read"] });
-  const canPerformTickets = can({ ticket: ["perform"] });
   const canReadRoles = can({ role: ["read"] });
   const canReadRoutineTasks = can({ routineTask: ["read"] });
   const canReadCompaniesReport = can({ report: ["companies"] });
@@ -95,7 +113,7 @@ export function buildMenu({
   const canReadKnowledge = can({ knowledge: ["read"] });
   const canReadApproval = can({ approval: ["read"] });
   const canReadSchedule = can({ schedule: ["read"] });
-  const canReadConversations = can({ conversation: ["read"] });
+  const canReadConversations = can(CONVERSATION_READ_ACCESS);
 
   const timeTracking = !!modules?.timeTracking?.isActive;
   const inventory = !!modules?.inventory?.isActive;
@@ -171,7 +189,9 @@ export function buildMenu({
       },
       settingsLink,
       link("archive", "Архив", RiArchiveLine, "/archive"),
-    ].filter(Boolean);
+    ]
+      .filter(Boolean)
+      .map(singleLinkSection);
   }
 
   // --- Сотрудник ---
@@ -225,126 +245,112 @@ export function buildMenu({
     },
   ].filter((group) => group.items.length > 0);
 
-  // Группы «Администрирования» подписаны по модулям; «Компании»,
-  // «Пользователи» и «Настройки системы» находятся на верхнем уровне меню.
-  //
-  // ВНЕШНЕГО `isAdmin ?` здесь больше нет. Он закрывал всю ветку целиком, и
-  // проверки прав у отдельных пунктов внутри были мертвы: человек с правом на
-  // регламенты, категории или услуги не видел пункта нигде, хотя сервер его
-  // пускал. Теперь у каждого пункта работает его собственное право, а пустая
-  // группа отсеивается ниже (`group.items.length > 0`).
-  const accessGroup = canReadRoles
-    ? [
-        {
-          label: "Доступ",
-          items: [link("adm-roles", "Роли", RiShieldKeyholeLine, "/roles")],
-        },
-      ]
-    : [];
+  // Рабочий список техники и его справочники находятся в одном разделе.
+  const inventoryCatalogItems = (
+    inventory
+      ? [
+          canReadDevices &&
+            link(
+              "adm-locations",
+              "Расположения",
+              RiMapPinLine,
+              "/inventory/locations",
+            ),
+          canReadInventoryCatalog &&
+            link(
+              "adm-device-types",
+              "Типы устройств",
+              RiApps2Line,
+              "/inventory/device-types",
+            ),
+          canReadInventoryCatalog &&
+            link(
+              "adm-vendors",
+              "Вендоры",
+              RiBuilding4Line,
+              "/inventory/vendors",
+            ),
+          canReadInventoryCatalog &&
+            link(
+              "adm-device-attributes",
+              "Атрибуты устройств",
+              RiListSettingsLine,
+              "/inventory/device-attributes",
+            ),
+          canReadInventoryCatalog &&
+            link(
+              "adm-device-models",
+              "Модели устройств",
+              RiDeviceLine,
+              "/inventory/device-models",
+            ),
+          canReadSuppliers &&
+            link(
+              "adm-suppliers",
+              "Поставщики",
+              RiShoppingCart2Line,
+              "/inventory/suppliers",
+            ),
+        ]
+      : []
+  ).filter(Boolean);
 
-  const adminGroups = [
+  const inventoryGroups = [
     {
-      label: "Заявки",
       items: [
-        canReadTicketTemplates &&
+        inventory &&
+          canReadDevices &&
           link(
-            "adm-ticket-templates",
-            "Шаблоны заявок",
-            RiFileList3Line,
-            "/ticket-templates",
-          ),
-        canReadChecklistTemplates &&
-          link(
-            "adm-checklist-templates",
-            "Шаблоны чек-листов",
-            RiListCheck2,
-            "/tickets/checklist-templates",
-          ),
-        canReadRoutineTasks &&
-          link(
-            "adm-routine-tasks",
-            "Регламенты",
-            RiCalendar2Line,
-            "/routine-tasks",
-          ),
-        canReadTicketCategories &&
-          link(
-            "adm-ticket-categories",
-            "Категории",
-            RiServerLine,
-            "/ticket-categories",
+            "client-devices",
+            "Устройства",
+            RiDeviceLine,
+            "/inventory/client-devices",
           ),
       ].filter(Boolean),
     },
-    {
-      label: "Финансы",
-      items: [
-        // Модульный гейт как у API: /finances закрыт financesModuleIsActive
-        finances &&
-          canReadServicePlans &&
-          link(
-            "adm-service-plans",
-            "Услуги",
-            RiPriceTag3Line,
-            "/finances/service-plans",
-          ),
-      ].filter(Boolean),
-    },
-    {
-      label: "Учёт техники",
-      // Модульный гейт как у API; право у каждого справочника своё —
-      // раздать поставщиков, не раздавая всю технику, теперь можно
-      items: (inventory
-        ? [
-            canReadDevices &&
-              link(
-                "adm-locations",
-                "Расположения",
-                RiMapPinLine,
-                "/inventory/locations",
-              ),
-            canReadInventoryCatalog &&
-              link(
-                "adm-device-types",
-                "Типы устройств",
-                RiApps2Line,
-                "/inventory/device-types",
-              ),
-            canReadInventoryCatalog &&
-              link(
-                "adm-vendors",
-                "Вендоры",
-                RiBuilding4Line,
-                "/inventory/vendors",
-              ),
-            canReadInventoryCatalog &&
-              link(
-                "adm-device-attributes",
-                "Атрибуты устройств",
-                RiListSettingsLine,
-                "/inventory/device-attributes",
-              ),
-            canReadInventoryCatalog &&
-              link(
-                "adm-device-models",
-                "Модели устройств",
-                RiDeviceLine,
-                "/inventory/device-models",
-              ),
-            canReadSuppliers &&
-              link(
-                "adm-suppliers",
-                "Поставщики",
-                RiShoppingCart2Line,
-                "/inventory/suppliers",
-              ),
-          ]
-        : []
-      ).filter(Boolean),
-    },
+    { label: "Справочники", items: inventoryCatalogItems },
   ].filter((group) => group.items.length > 0);
 
-  const administration = [...accessGroup, ...adminGroups];
+  // У каждого справочника собственное право, без общего административного гейта.
+  const administration = [
+    canReadRoles && link("adm-roles", "Роли", RiShieldKeyholeLine, "/roles"),
+    canReadTicketTemplates &&
+      link(
+        "adm-ticket-templates",
+        "Шаблоны заявок",
+        RiFileList3Line,
+        "/ticket-templates",
+      ),
+    canReadChecklistTemplates &&
+      link(
+        "adm-checklist-templates",
+        "Шаблоны чек-листов",
+        RiListCheck2,
+        "/tickets/checklist-templates",
+      ),
+    canReadRoutineTasks &&
+      link(
+        "adm-routine-tasks",
+        "Регламенты",
+        RiCalendar2Line,
+        "/routine-tasks",
+      ),
+    canReadTicketCategories &&
+      link(
+        "adm-ticket-categories",
+        "Категории",
+        RiServerLine,
+        "/ticket-categories",
+      ),
+    finances &&
+      canReadServicePlans &&
+      link(
+        "adm-service-plans",
+        "Услуги",
+        RiPriceTag3Line,
+        "/finances/service-plans",
+      ),
+  ].filter(Boolean);
   const managementItems = [
     mikrotik &&
       canReadMikrotik &&
@@ -381,50 +387,39 @@ export function buildMenu({
         RiCalendar2Line,
         "/team/calendar",
       ),
-    inventory &&
-      canReadDevices &&
-      link(
-        "client-devices",
-        "Устройства",
-        RiDeviceLine,
-        "/inventory/client-devices",
-      ),
     knowledgeBase &&
       canReadKnowledge &&
       link("knowledge-base", "База знаний", RiBookOpenLine, "/knowledge-base"),
-    // Только тем, кто заявки НЕ выполняет: у исполнителя шаблоны и так под
-    // рукой в форме заявки, а в «Администрировании» есть полный список для
-    // того, кому доверены чужие заготовки. Право обязательно: страница за
-    // `ticketTemplate.read`, и без него пункт вёл на 403.
-    !canPerformTickets &&
-      canReadTicketTemplates &&
-      link(
-        "ticket-templates",
-        "Шаблоны заявок",
-        RiFileList3Line,
-        "/ticket-templates",
-      ),
+    managementItems.length > 0 && {
+      key: "management",
+      label: "Инфраструктура",
+      icon: RiPulseLine,
+      groups: [{ items: managementItems }],
+    },
+    inventoryGroups.length > 0 && {
+      key: "inventory",
+      label: "Учёт техники",
+      defaultOpen: false,
+      icon: RiComputerLine,
+      groups: inventoryGroups,
+    },
     reportGroups.length > 0 && {
       key: "reports",
       label: "Отчёты",
       icon: RiDraftLine,
       groups: reportGroups,
     },
-    managementItems.length > 0 && {
-      key: "management",
-      label: "Управление",
-      icon: RiPulseLine,
-      groups: [{ items: managementItems }],
-    },
     administration.length > 0 && {
       key: "admin",
       // Без короткой подписи намеренно: «Админ» читалось как роль, а не раздел
       label: "Администрирование",
       defaultOpen: false,
-      icon: RiShieldKeyholeLine,
-      groups: administration,
+      icon: RiToolsLine,
+      groups: [{ items: administration }],
     },
     settingsLink,
     link("archive", "Архив", RiArchiveLine, "/archive"),
-  ].filter(Boolean);
+  ]
+    .filter(Boolean)
+    .map(singleLinkSection);
 }

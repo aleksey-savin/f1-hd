@@ -78,6 +78,9 @@ exports.update = [
 
   body("getScreen").optional().isObject(),
   body("modules").optional().isObject(),
+  body("messaging").optional().isObject(),
+  body("messaging.aiTicketRouting").optional().isBoolean(),
+  body("messaging.replyContextTimeoutMinutes").optional().isInt({ min: 5, max: 240 }),
   body("knowledgeBase").optional().isObject(),
   body("staleTickets").optional().isObject(),
   body("staleTickets.thresholdDays").optional().isInt({ min: 1, max: 60 }),

@@ -107,7 +107,7 @@ export default function TaxiTripDetail() {
                     className="text-accent-text"
                     to={`/tickets/${ticket.num}`}
                   >
-                    №{ticket.num} · {ticket.title}
+                    {ticket.num} · {ticket.title}
                   </Link>
                 ))}
               </div>

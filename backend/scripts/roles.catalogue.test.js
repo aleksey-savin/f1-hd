@@ -65,3 +65,13 @@ test("каждое действие каталога есть в словаре 
     assert.deepEqual(unknown, [], `роль «${role.key}»: действий нет в словаре`);
   }
 });
+
+test("dialogue defaults preserve the former global readers without widening first-line access", () => {
+  const actions = key => roles.find(role => role.key === key).actions;
+  for (const key of ['admin', 'it-second-line']) {
+    assert.ok(actions(key).includes('conversation.readAll'));
+    assert.ok(actions(key).includes('conversation.start'));
+  }
+  assert.ok(!actions('it-first-line').includes('conversation.readAll'));
+  assert.ok(actions('it-first-line').includes('conversation.start'));
+});

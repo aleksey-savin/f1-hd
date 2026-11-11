@@ -23,8 +23,7 @@ const DecisionPrompt = ({
 }) => (
   <HealthRow
     state="warning"
-    title={`По заявке №${ticketNum} (закрыта)?`}
-    hint="Клиент написал после закрытия заявки"
+    title={`По заявке ${ticketNum} (закрыта)?`}
     className="flex-none"
     action={
       <div className="flex flex-wrap items-center gap-2">

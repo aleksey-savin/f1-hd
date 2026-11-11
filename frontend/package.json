@@ -17,6 +17,7 @@
     "dompurify": "^3.2.5",
     "exceljs": "^4.4.0",
     "framer-motion": "^12.10.0",
+    "lottie-web": "^5.13.0",
     "qr-code-styling": "^1.9.2",
     "radix-ui": "^1.6.2",
     "react": "^19.1.0",

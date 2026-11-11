@@ -44,11 +44,20 @@ test("mergeMessages: замена по id, новые по месту, поря�
 
 test("nextCursor: полная страница дочитывается с afterId, неполная — от метки сервера", () => {
   assert.deepEqual(
-    nextCursor({ items: [], serverTime: "2026-09-25T08:00:05Z", afterId: "m9", hasMore: true }),
+    nextCursor({
+      items: [],
+      serverTime: "2026-09-25T08:00:05Z",
+      afterId: "m9",
+      hasMore: true,
+    }),
     { since: "2026-09-25T08:00:05Z", afterId: "m9", drain: true },
   );
   assert.deepEqual(
-    nextCursor({ items: [], serverTime: "2026-09-25T08:00:07Z", hasMore: false }),
+    nextCursor({
+      items: [],
+      serverTime: "2026-09-25T08:00:07Z",
+      hasMore: false,
+    }),
     { since: "2026-09-25T08:00:07Z", afterId: null, drain: false },
   );
 });
@@ -67,7 +76,10 @@ test("changesQuery: afterId только когда он есть", () => {
 test("hasNewInbound: только новое входящее, не правка известного", () => {
   const known = new Set(["a"]);
   assert.equal(hasNewInbound([msg("a", 1)], known), false);
-  assert.equal(hasNewInbound([msg("b", 2, { direction: "out" })], known), false);
+  assert.equal(
+    hasNewInbound([msg("b", 2, { direction: "out" })], known),
+    false,
+  );
   assert.equal(hasNewInbound([msg("c", 3)], known), true);
 });
 
@@ -76,11 +88,23 @@ test("threadRows: метки дней и отступы как на канве A
     [
       msg("m1", 1, { sentAt: "2026-09-24T06:58:00Z" }),
       msg("m2", 2),
-      msg("r1", 3, { direction: "out", author: { name: "Лебедев Игорь", userId: "u-igor" } }),
+      msg("r1", 3, {
+        direction: "out",
+        author: { name: "Лебедев Игорь", userId: "u-igor" },
+      }),
       msg("s1", 4, { direction: "system", event: { kind: "ticketCreated" } }),
-      msg("r2", 5, { direction: "out", author: { name: "Лебедев Игорь", userId: "u-igor" } }),
-      msg("r3", 6, { direction: "out", author: { name: "Лебедев Игорь", userId: "u-igor" } }),
-      msg("r4", 7, { direction: "out", author: { name: "Орлова Анна", userId: "u-anna" } }),
+      msg("r2", 5, {
+        direction: "out",
+        author: { name: "Лебедев Игорь", userId: "u-igor" },
+      }),
+      msg("r3", 6, {
+        direction: "out",
+        author: { name: "Лебедев Игорь", userId: "u-igor" },
+      }),
+      msg("r4", 7, {
+        direction: "out",
+        author: { name: "Орлова Анна", userId: "u-anna" },
+      }),
       msg("m3", 8),
       msg("m4", 9),
     ],
@@ -123,9 +147,11 @@ test("threadRows: в группе имя над входящим при смен
     group.map((row) => row.showName),
     [true, false, true],
   );
-  const direct = threadRows([msg("d1", 1), msg("d2", 2)], { kind: "direct", timeZone: tz, now }).filter(
-    (row) => row.type === "message",
-  );
+  const direct = threadRows([msg("d1", 1), msg("d2", 2)], {
+    kind: "direct",
+    timeZone: tz,
+    now,
+  }).filter((row) => row.type === "message");
   assert.deepEqual(
     direct.map((row) => row.showName),
     [false, false],
@@ -144,4 +170,31 @@ test("defaultDraftMessageIds: хвост до первого сообщения 
   assert.deepEqual(defaultDraftMessageIds(messages), ["a", "b", "c"]);
   assert.deepEqual(defaultDraftMessageIds(messages, { limit: 2 }), ["b", "c"]);
   assert.deepEqual(defaultDraftMessageIds([]), []);
+});
+
+test("mergeMessages removes revoked history even on a tombstone-only page", () => {
+  const current = [msg("own", 1), msg("moved", 2)];
+  assert.deepEqual(
+    mergeMessages(current, [], ["moved"]).map((item) => item.id),
+    ["own"],
+  );
+  assert.deepEqual(
+    mergeMessages(current, [msg("new", 3), msg("moved", 2)], ["moved"]).map(
+      (item) => item.id,
+    ),
+    ["own", "new"],
+  );
+  assert.deepEqual(
+    mergeMessages(mergeMessages(current, [], ["moved"]), [msg("moved", 2)]).map(
+      (item) => item.id,
+    ),
+    ["own", "moved"],
+  );
+});
+
+test("revoked conversation clears cached history and rejects stale loader or send responses", () => {
+  const cached = [msg("moved", 1)];
+  assert.deepEqual(mergeMessages(cached, [], [], true), []);
+  assert.deepEqual(mergeMessages([], cached, [], true), []);
+  assert.deepEqual(mergeMessages(cached, [], [], false), cached);
 });

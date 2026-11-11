@@ -37,7 +37,7 @@ test("диалог по адресу относится к «Диалогам»"
   const section = sectionForPath("/conversations/68f1a2b3c4d5e6f708192a3b");
   assert.equal(section?.key, "conversations");
   assert.equal(section?.label, "Диалоги");
-  assert.deepEqual(section?.can, { conversation: ["read"] });
+  assert.deepEqual(section?.can, { conversation: { actions: ["read", "readAll"], connector: "OR" } });
   // Форма поверх диалога — тот же раздел
   assert.equal(
     sectionForPath("/conversations/68f1a2b3c4d5e6f708192a3b/tickets/add")?.key,

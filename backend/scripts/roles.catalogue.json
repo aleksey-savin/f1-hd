@@ -128,7 +128,9 @@
         "ai.use",
         "settings.manage",
         "conversation.read",
+        "conversation.readAll",
         "conversation.reply",
+        "conversation.start",
         "conversation.manage"
       ]
     },
@@ -160,7 +162,8 @@
         "remoteSupport.use",
         "ai.use",
         "conversation.read",
-        "conversation.reply"
+        "conversation.reply",
+        "conversation.start"
       ]
     },
     {
@@ -212,7 +215,9 @@
         "remoteSupport.use",
         "ai.use",
         "conversation.read",
-        "conversation.reply"
+        "conversation.readAll",
+        "conversation.reply",
+        "conversation.start"
       ]
     },
     {

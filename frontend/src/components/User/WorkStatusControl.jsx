@@ -33,19 +33,19 @@ export default function WorkStatusControl({ compact = false }) {
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
+          size={compact ? "icon-lg" : "xs"}
           aria-label={`Мой статус: ${status.label}`}
           title="Изменить статус"
           className={
             compact
-              ? "size-11 shrink-0 p-0"
-              : "h-8 shrink-0 gap-2 border border-border px-2.5"
+              ? "shrink-0 p-0"
+              : "shrink-0 gap-2 border border-border px-2.5 text-sm"
           }
         >
           <Icon
-            size={18}
+            size={16}
             aria-hidden
-            className="size-4.5 shrink-0"
+            className="size-4 shrink-0"
             style={{ color: status.color }}
           />
           {!compact && (
@@ -54,7 +54,7 @@ export default function WorkStatusControl({ compact = false }) {
               <RiArrowDownSLine
                 size={14}
                 aria-hidden
-                className="text-muted-foreground"
+                className="size-3.5 text-muted-foreground"
               />
             </>
           )}

@@ -6,6 +6,10 @@ import {
   RiTimeLine,
 } from "react-icons/ri";
 import { Link } from "react-router";
+import type { ReactNode } from "react";
+
+import StickerAttachment from "./StickerAttachment";
+import { stickerFormat } from "@/util/sticker-media";
 
 import { cn } from "@/lib/utils";
 import type { MessageRow } from "@/types/conversation";
@@ -15,13 +19,14 @@ import {
   FileAttachment,
   PhotoAttachment,
   VoiceAttachment,
+  VideoAttachment,
   isPhotoMessage,
 } from "./MessageMedia";
 
 /**
  * Пузырь сообщения — мессенджерный порядок (решение владельца 24.09, канва A1,
  * вариант A): входящие слева на сером, наши справа на бирюзовом, время и
- * статус доставки в углу. Цитата — полосой сверху; номер заявки («№56801») —
+ * статус доставки в углу. Цитата — полосой сверху; номер заявки («56801») —
  * только в группе, где сообщения разных заявок идут вперемешку.
  */
 
@@ -70,7 +75,10 @@ const Body = ({
   if (message.deletedAt) {
     return <p className="my-0 text-faint italic">Сообщение удалено</p>;
   }
-  const photo = isPhotoMessage(message.kind, message.attachments);
+  const sticker =
+    message.kind === "sticker" ||
+    message.attachments.some((item) => stickerFormat(message.kind, item));
+  const photo = !sticker && isPhotoMessage(message.kind, message.attachments);
   // Анкета формы сайта (карточка — P5): поля строками «Имя: …»
   const text =
     message.text ||
@@ -94,6 +102,15 @@ const Body = ({
           </div>
         </div>
       )}
+      {sticker &&
+        message.attachments.map((attachment, index) => (
+          <StickerAttachment
+            key={`${attachment.name}-${index}`}
+            attachment={attachment}
+            kind={message.kind}
+            compact={compact}
+          />
+        ))}
       {photo &&
         message.attachments.map((attachment, index) => (
           <PhotoAttachment
@@ -112,19 +129,33 @@ const Body = ({
           />
         ))}
       {text && (
-        <p className={cn("my-0 whitespace-pre-wrap break-words", photo && "px-2 pt-1.5")}>
+        <p
+          className={cn(
+            "my-0 whitespace-pre-wrap break-words",
+            photo && "px-2 pt-1.5",
+          )}
+        >
           {text}
         </p>
       )}
-      {!photo &&
+      {!sticker &&
+        !photo &&
         message.kind !== "voice" &&
-        message.attachments.map((attachment, index) => (
-          <FileAttachment
-            key={`${attachment.name}-${index}`}
-            attachment={attachment}
-            kind={message.kind}
-          />
-        ))}
+        message.attachments.map((attachment, index) =>
+          attachment.mimetype?.startsWith("video/") ? (
+            <VideoAttachment
+              attachment={attachment}
+              compact={compact}
+              key={`${attachment.name}-${index}`}
+            />
+          ) : (
+            <FileAttachment
+              key={`${attachment.name}-${index}`}
+              attachment={attachment}
+              kind={message.kind}
+            />
+          ),
+        )}
     </>
   );
 };
@@ -140,6 +171,7 @@ const MessageBubble = ({
   timeZone,
   canRetry,
   onRetry,
+  actions,
 }: {
   message: MessageRow;
   side: "in" | "out";
@@ -151,8 +183,16 @@ const MessageBubble = ({
   timeZone: string;
   canRetry: boolean;
   onRetry: (id: string) => void;
+  actions?: ReactNode;
 }) => {
-  const photo = !message.deletedAt && isPhotoMessage(message.kind, message.attachments);
+  const sticker =
+    !message.deletedAt &&
+    (message.kind === "sticker" ||
+      message.attachments.some((item) => stickerFormat(message.kind, item)));
+  const photo =
+    !sticker &&
+    !message.deletedAt &&
+    isPhotoMessage(message.kind, message.attachments);
   const time = (
     <div
       className={cn(
@@ -185,22 +225,25 @@ const MessageBubble = ({
         <div
           className={cn(
             "text-sm text-foreground",
-            side === "out"
-              ? "rounded-[14px] rounded-br-sm bg-bubble-out"
-              : "rounded-[14px] rounded-bl-sm bg-bubble-in",
+            sticker
+              ? "bg-transparent"
+              : side === "out"
+                ? "rounded-[14px] rounded-br-sm bg-bubble-out"
+                : "rounded-[14px] rounded-bl-sm bg-bubble-in",
             photo ? "p-1 pb-1.5" : "px-3 pt-2 pb-1.5",
           )}
         >
           <Body message={message} compact={compact} />
           {time}
         </div>
-        {group && message.ticket && (
+        {actions}
+        {!actions && group && message.ticket && (
           <div className="mt-1 ml-1">
             <Link
               to={`/tickets/${message.ticket.num}`}
               className="inline-flex h-5 items-center gap-1 rounded-md bg-accent px-1.75 text-xs font-semibold text-muted-foreground no-underline hover:text-foreground"
             >
-              <RiCheckboxLine size={12} aria-hidden />№{message.ticket.num}
+              <RiCheckboxLine size={12} aria-hidden />{message.ticket.num}
             </Link>
           </div>
         )}

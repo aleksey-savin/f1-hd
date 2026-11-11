@@ -36,7 +36,15 @@ const conversationSchema = new Schema(
       endedAt: { type: Date, default: null },
       endReason: { type: String, enum: ["closed", "deleted", "manual", null], default: null },
     },
-    // Клиент написал после закрытия привязанной заявки: «по заявке №X?»
+    ticketBindings: { type: [{
+      _id: false,
+      ticketId: { type: Schema.Types.ObjectId, ref: "Ticket" },
+      ticketNum: Number, boundAt: Date,
+      boundBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+      endedAt: { type: Date, default: null },
+      endReason: { type: String, enum: ["closed", "deleted", "manual", null], default: null },
+    }], default: undefined },
+    // Клиент написал после закрытия привязанной заявки: «по заявке X?»
     decision: {
       ticketId: { type: Schema.Types.ObjectId, ref: "Ticket", default: null },
       ticketNum: { type: Number, default: null },
@@ -46,6 +54,9 @@ const conversationSchema = new Schema(
     awaitingSince: { type: Date, default: null },
     // Отметка «звонок уже был» для текущего ожидания — колокольчик не дублируется
     waitNotifiedAt: { type: Date, default: null },
+    // Для каждого периода ожидания: личное напоминание и эскалация в группу.
+    waitTelegramNotifiedAt: { type: Date, default: null },
+    waitTelegramGroupNotifiedAt: { type: Date, default: null },
     handled: {
       at: { type: Date, default: null },
       by: { type: Schema.Types.ObjectId, ref: "User", default: null },
@@ -71,6 +82,7 @@ conversationSchema.index({ hidden: 1, "lastMessage.at": -1 });
 conversationSchema.index({ companyId: 1, "lastMessage.at": -1 });
 conversationSchema.index({ assigneeId: 1, "lastMessage.at": -1 });
 conversationSchema.index({ "binding.ticketId": 1 });
+conversationSchema.index({ "ticketBindings.ticketId": 1 });
 conversationSchema.index({ counterpartIdentityId: 1 });
 conversationSchema.index({ "participants.identityId": 1 });
 

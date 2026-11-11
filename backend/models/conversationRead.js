@@ -7,7 +7,13 @@ const conversationReadSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", required: true },
-    seenAt: { type: Date, required: true },
+    seenAt: { type: Date, default: null },
+    replyContext: {
+      ticketId: { type: Schema.Types.ObjectId, ref: "Ticket", default: null },
+      withoutTicket: { type: Boolean, default: false },
+      expiresAt: { type: Date, default: null },
+      updatedAt: { type: Date, default: null },
+    },
   },
   { timestamps: true },
 );

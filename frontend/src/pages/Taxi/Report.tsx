@@ -427,7 +427,7 @@ function TaxiReportView({
                               to={`/tickets/${ticket.num}`}
                               className="text-accent-text"
                             >
-                              №{ticket.num}
+                              {ticket.num}
                             </Link>
                           ))}
                         </div>

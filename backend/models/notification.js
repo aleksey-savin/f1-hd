@@ -18,6 +18,14 @@ const notificationSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Comment",
     },
+    // Проверяется перед выдачей боту: после ответа старое напоминание гаснет.
+    conversationWait: {
+      type: new Schema({
+        conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", required: true },
+        awaitingSince: { type: Date, required: true },
+      }, { _id: false }),
+      default: undefined,
+    },
     to: {
       chatId: String,
       globalChat: Boolean,

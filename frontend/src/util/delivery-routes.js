@@ -52,19 +52,24 @@ export const routeTriggerLabel = (route) =>
 
 /**
  * Постоянно видимые варианты ответа. ID сохраняется для каждого адресата:
- * личный чат и группа одной сети не подменяют друг друга.
+ * личный чат и группа одной сети не подменяют друг друга. Без доступных
+ * маршрутов переключатель не нужен — остаётся обычный комментарий.
  * @param {DeliveryRoutes} data
  */
-export const replyRouteOptions = (data) => [
-  { value: NOTIFY_ROUTE, network: "mail", label: "Почта и бот", disabled: false, reason: "" },
-  ...data.routes.map((route) => ({
-    value: route.id,
-    network: route.network,
-    label: routeTitle(route),
-    disabled: !route.available,
-    reason: routeSubtitle(route),
-  })),
-];
+export const replyRouteOptions = (data) => {
+  const available = data.routes.filter((route) => route.available);
+  if (!available.length) return [];
+  return [
+    { value: NOTIFY_ROUTE, network: "mail", label: "Комментарий в заявке", disabled: false, reason: "" },
+    ...available.map((route) => ({
+      value: route.id,
+      network: route.network,
+      label: routeTitle(route),
+      disabled: !route.available,
+      reason: routeSubtitle(route),
+    })),
+  ];
+};
 
 /**
  * Маршрут, выбранный при открытии: тот, что предложил сервер, если он ещё

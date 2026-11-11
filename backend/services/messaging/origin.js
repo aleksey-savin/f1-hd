@@ -61,28 +61,18 @@ const loadVisibleConversation = async (conversationId, auth) => {
 const prepareOrigin = async ({ auth, conversationId, messageIds }) => {
   const Preferences = require("@/models/preferences");
   const Message = require("@/models/message");
-  const { Ticket } = require("@/models/ticket");
   const ChannelIdentity = require("@/models/channelIdentity");
   const prefs = await Preferences.findOne({}).select("modules.messaging").lean();
   if (!prefs?.modules?.messaging?.isActive) throw fail("Модуль «Диалоги» выключен", 409);
-  if (!auth.can({ conversation: ["read"] })) throw fail("Недостаточно прав для диалогов", 403);
+  if (!require("./access").readsAll(auth) || !auth.can({ conversation: ["manage"] })) throw fail("Недостаточно прав для разбора обращений", 403);
   const conversation = await loadVisibleConversation(conversationId, auth);
-  // Живая привязка к другой открытой заявке: «Создать заявку» не должно молча
-  // забрать чат — сначала его нужно отвязать (то же правило, что в deliveryRoutes)
-  const binding = conversation.binding || {};
-  if (conversation.kind === "direct" && binding.ticketId && !binding.endedAt) {
-    const boundTicket = await Ticket.findById(binding.ticketId).select("_id isClosed").lean();
-    if (boundTicket && !boundTicket.isClosed) {
-      throw fail(`Диалог привязан к заявке №${binding.ticketNum} — отвяжите его, чтобы начать новую заявку`, 409);
-    }
-  }
   const ids = parseIds(messageIds);
   const messages = ids.length
     ? await Message.find({ _id: { $in: ids }, conversationId: conversation._id, direction: { $ne: "system" } }).sort({ sentAt: 1, seq: 1 }).lean()
     : [];
   if (messages.length !== ids.length) throw fail("Сообщения не из этого диалога", 400);
   const taken = messages.find((message) => message.ticketId);
-  if (taken) throw fail(`Сообщение уже в заявке №${taken.ticketNum}`, 409);
+  if (taken) throw fail(`Сообщение уже в заявке ${taken.ticketNum}`, 409);
   const counterpartId =
     conversation.counterpartIdentityId ||
     messages.find((message) => message.direction === "in" && message.identityId)?.identityId ||
@@ -126,34 +116,50 @@ const applyOrigin = async ({ ticket, origin, by }) => {
   const { bus } = require("@/services/pulse");
   const { conversation, messages } = origin;
 
-  if (messages.length) {
-    await Message.updateMany(
-      { _id: { $in: messages.map((message) => message._id) }, ticketId: null },
-      { $set: { ticketId: ticket._id, ticketNum: ticket.num, attachMode: "origin" } },
-    );
-    const copies = [];
-    for (const message of messages) {
-      for (const attachment of message.attachments || []) {
-        if (attachment.status !== "ready" || !attachment.name) continue;
-        try {
-          copies.push({
-            mimetype: attachment.mimetype,
-            mimeType: attachment.mimetype,
-            name: await storage.copyObject(attachment.name),
-            originalName: attachment.originalName,
-            size: attachment.size,
-          });
-        } catch {
-          // файла уже нет — заявка важнее вложения
+  for (const snapshot of messages) {
+    try {
+      await require("./message-lease").withMessageLease(snapshot._id, async (message, lease) => {
+        // Ticket creation can take time after prepareOrigin. A later manual
+        // choice wins; the saved request description remains its historical text.
+        if (message.ticketId || message.mappingIntent || (message.attachMode || null) !== (snapshot.attachMode || null)) return;
+        await lease.assertOwned();
+        const claimed = await Message.updateOne(
+          { _id: message._id, ticketId: null, attachMode: snapshot.attachMode || null, mappingIntent: { $exists: false } },
+          { $set: { ticketId: ticket._id, ticketNum: ticket.num, attachMode: "origin", "effects.attach": true } },
+        );
+        if (!claimed.matchedCount) return;
+        const copies = [];
+        for (const attachment of message.attachments || []) {
+          if (attachment.status !== "ready" || !attachment.name) continue;
+          try {
+            copies.push({
+              mimetype: attachment.mimetype, mimeType: attachment.mimetype,
+              name: await storage.copyObject(attachment.name), originalName: attachment.originalName, size: attachment.size,
+            });
+          } catch {
+            // The ticket has already been saved; an unavailable attachment must not discard it.
+          }
         }
-      }
+        await lease.assertOwned();
+        if (copies.length) await Ticket.updateOne({ _id: ticket._id }, { $push: { attachments: { $each: copies } } });
+      });
+    } catch (error) {
+      // A live mapping lease belongs to a newer action. Do not overwrite or
+      // fail the already-created ticket merely because that action is finishing.
+      if (error?.statusCode !== 409) throw error;
     }
-    if (copies.length) await Ticket.updateOne({ _id: ticket._id }, { $push: { attachments: { $each: copies } } });
   }
 
   if (conversation.kind === "direct") {
     // Выбранные сообщения уже в описании — привязываем без повторного вложения
     await bindConversation({ conversation, ticket, by, attachPending: false, eventKind: "ticketCreated" });
+    if (by?._id) {
+      const { CONTEXT_MS } = require("./multi-ticket");
+      const prefs = await require("@/models/preferences").findOne({}).select("messaging.replyContextTimeoutMinutes").lean();
+      const timeout = prefs?.messaging?.replyContextTimeoutMinutes ? prefs.messaging.replyContextTimeoutMinutes * 60_000 : CONTEXT_MS;
+      await require("@/models/conversationRead").updateOne({ conversationId: conversation._id, userId: by._id },
+        { $set: { replyContext: { updatedAt: new Date(), ticketId: ticket._id, withoutTicket: false, expiresAt: new Date(Date.now() + timeout) } } }, { upsert: true });
+    }
   } else {
     await addSystemLine(conversation, { kind: "ticketCreated", ticketNum: ticket.num, by });
   }
@@ -205,8 +211,8 @@ const ticketDraft = async ({ auth, conversationId, messageIds }) => {
 
 /**
  * Маршруты «Ответить через» для заявки: диалоги заявителя (личные и группы,
- * где он участник) и диалог, привязанный к этой заявке. Занятый другой открытой
- * заявкой — недоступен. У созданной из диалога заявки по умолчанию исходный
+ * где он участник) и диалог, связанный с этой заявкой. Один известный личный
+ * чат поддерживает несколько заявок. У созданной из диалога заявки по умолчанию исходный
  * чат, у обычной — «Почта и бот». Последующие ответы этот выбор не меняют.
  */
 const deliveryRoutes = async (ticket) => {
@@ -238,7 +244,7 @@ const deliveryRoutes = async (ticket) => {
   const applicantId = ticket.applicantId?._id || ticket.applicantId || ticket.applicant?._id;
   const identities = applicantId ? await ChannelIdentity.find({ userId: applicantId }).select("_id").lean() : [];
   const ids = identities.map((identity) => identity._id);
-  const or = [{ "binding.ticketId": ticket._id }];
+  const or = [{ "binding.ticketId": ticket._id }, { "ticketBindings.ticketId": ticket._id }];
   if (ids.length) or.push({ counterpartIdentityId: { $in: ids } }, { "participants.identityId": { $in: ids } });
   const conversations = await Conversation.find({ $or: or, hidden: { $ne: true } }).sort({ "lastMessage.at": -1 }).limit(20).lean();
   const { ticketRecipient, phoneRoutes, findPhoneConversations } = require("./first-contact");
@@ -257,38 +263,29 @@ const deliveryRoutes = async (ticket) => {
   }
 
   const channels = new Map(
-    (await Channel.find({ _id: { $in: conversations.map((c) => c.channelId) } }).select("type isActive").lean()).map((c) => [String(c._id), c]),
+    (await Channel.find({ _id: { $in: conversations.map((c) => c.channelId) } }).select("type isActive provider").lean()).map((c) => [String(c._id), c]),
   );
-  const elsewhere = conversations
-    .filter((c) => c.binding?.ticketId && !c.binding.endedAt && String(c.binding.ticketId) !== String(ticket._id))
-    .map((c) => c.binding.ticketId);
-  const openElsewhere = new Set(
-    (elsewhere.length ? await Ticket.find({ _id: { $in: elsewhere }, isClosed: false }).select("_id").lean() : []).map((t) => String(t._id)),
-  );
-
   const routes = conversations.map((conversation) => {
     const channel = channels.get(String(conversation.channelId));
-    const bound = conversation.binding?.ticketId && !conversation.binding.endedAt ? String(conversation.binding.ticketId) : null;
     const reason = conversation.hidden
       ? "диалог скрыт — сначала верните его в список"
       : !channel?.isActive
       ? "канал отключён"
       : channel.type === "site"
         ? "ответ на форму сайта — позже"
-        : bound && bound !== String(ticket._id) && openElsewhere.has(bound)
-          ? `занят заявкой №${conversation.binding.ticketNum}`
-          : null;
+        : null;
     return {
       id: String(conversation._id),
       target: "conversation",
       channelId: String(conversation.channelId),
       conversationId: String(conversation._id),
       network: conversation.network,
+      stickersAvailable: channel?.type === "telegram" && channel?.provider === "wazzup",
       kind: conversation.kind,
       title: conversation.title || "",
       available: !reason,
       reason,
-      boundHere: bound === String(ticket._id),
+      boundHere: require("./multi-ticket").activeBindings(conversation).some((link) => String(link.ticketId) === String(ticket._id)),
     };
   });
 

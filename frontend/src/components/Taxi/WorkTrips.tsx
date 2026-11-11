@@ -102,7 +102,7 @@ export default function WorkTrips({ form }: { form: WorkTripForm }) {
                   ? `${when} · ${trip.destination?.address || "Адрес уточняется"}`
                   : "Ранее выбранная поездка",
                 hint: trip?.tickets.length
-                  ? `Также связана с заявками ${trip.tickets.map((ticket) => `№${ticket.num}`).join(", ")}`
+                  ? `Также связана с заявками ${trip.tickets.map((ticket) => `${ticket.num}`).join(", ")}`
                   : undefined,
               };
             })}

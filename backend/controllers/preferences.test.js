@@ -566,3 +566,38 @@ const WazzupSettings = require('../models/wazzupSettings');
 require('node:test').beforeEach((t) => {
   t.mock.method(WazzupSettings, 'findById', () => ({ select() { return this; }, lean: async () => null }));
 });
+
+test('messaging routing defaults off and its timeout defaults to thirty minutes', () => {
+  const preferences = new Preferences();
+  assert.equal(preferences.messaging.aiTicketRouting, false);
+  assert.equal(preferences.messaging.replyContextTimeoutMinutes, 30);
+});
+
+test('messaging partial settings preserve explicit switches and unrelated AI provider settings', async (t) => {
+  const saves = storedPreferences(t, { messaging: { aiTicketRouting: true, replyContextTimeoutMinutes: 30 }, ai: { isActive: false, provider: 'local', local: { baseUrl: 'http://model:11434', model: 'qwen' } } });
+  const result = await callUpdate({ messaging: { replyContextTimeoutMinutes: 45 } });
+  assert.equal(result.error, undefined);
+  assert.equal(saves.at(-1).messaging.aiTicketRouting, true);
+  assert.equal(saves.at(-1).messaging.replyContextTimeoutMinutes, 45);
+  assert.equal(saves.at(-1).ai.isActive, false);
+  assert.equal(saves.at(-1).ai.local.model, 'qwen');
+  await callUpdate({ messaging: { aiTicketRouting: false } });
+  assert.equal(saves.at(-1).messaging.aiTicketRouting, false);
+  assert.equal(saves.at(-1).messaging.replyContextTimeoutMinutes, 45);
+});
+
+test('invalid messaging settings cannot save or mutate unrelated preference fields', async (t) => {
+  const saves = storedPreferences(t, { timezone: 'Asia/Vladivostok' });
+  for (const messaging of [null, [], 'bad', { aiTicketRouting: 'true' }, { replyContextTimeoutMinutes: 0 }, { replyContextTimeoutMinutes: 241 }, { replyContextTimeoutMinutes: 5.5 }, { replyContextTimeoutMinutes: '30' }, { unknown: true }]) {
+    const result = await callUpdate({ messaging, timezone: 'UTC' });
+    assert.equal(result.error?.statusCode, 400, JSON.stringify(messaging));
+  }
+  assert.equal(saves.length, 0);
+});
+
+test('messaging settings require global settings management permission', async (t) => {
+  const saves = storedPreferences(t, {});
+  const result = await callHandler(update, { auth: { isEndUser: false, can: () => false }, body: { messaging: { aiTicketRouting: true } } });
+  assert.equal(result.error?.statusCode, 403);
+  assert.equal(saves.length, 0);
+});

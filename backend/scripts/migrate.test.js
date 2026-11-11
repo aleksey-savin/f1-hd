@@ -60,7 +60,7 @@ const migrationFixture = (t, users, applied) => {
 test("an already recorded taxi grant still receives the administrator repair exactly once", (t) => {
   const fixture = migrationFixture(t, 3, PREVIOUS_MIGRATIONS);
   const first = fixture.run("up");
-  assert.deepEqual(first.calls, [["scripts/grantTaxiPermissions.js", "--apply"], ["scripts/upgradeUserReviewRoles.js", "--apply"], ["scripts/backfillUserActivity.js", "--apply"], ["scripts/removeTaxiBooking.js", "--apply"], ["scripts/ensureProxmoxExposureIndexes.js", "--apply"], ["scripts/grantProxmoxPermissions.js", "--apply"], ["scripts/grantTicketMessaging.js", "--apply"]]);
+  assert.deepEqual(first.calls, [["scripts/grantTaxiPermissions.js", "--apply"], ["scripts/upgradeUserReviewRoles.js", "--apply"], ["scripts/backfillUserActivity.js", "--apply"], ["scripts/removeTaxiBooking.js", "--apply"], ["scripts/ensureProxmoxExposureIndexes.js", "--apply"], ["scripts/grantProxmoxPermissions.js", "--apply"], ["scripts/grantTicketMessaging.js", "--apply"], ["scripts/upgradeConversationAccess.js", "--apply"]]);
   assert.ok(first.applied.includes("2026-11-09-repairTaxiAdminPermissions"));
   const nextDeploy = fixture.run("up");
   assert.deepEqual(nextDeploy.calls, first.calls);
@@ -77,7 +77,7 @@ test('user review role upgrade and applicant cache repair are ledgered once', (t
  const applied=[...PREVIOUS_MIGRATIONS,'2026-11-09-repairTaxiAdminPermissions'];
  const fixture=migrationFixture(t,3,applied);
  const first=fixture.run('up');
- assert.deepEqual(first.calls,[['scripts/upgradeUserReviewRoles.js','--apply'],['scripts/backfillUserActivity.js','--apply'],['scripts/removeTaxiBooking.js','--apply'],['scripts/ensureProxmoxExposureIndexes.js','--apply'],['scripts/grantProxmoxPermissions.js','--apply'],['scripts/grantTicketMessaging.js','--apply']]);
+ assert.deepEqual(first.calls,[['scripts/upgradeUserReviewRoles.js','--apply'],['scripts/backfillUserActivity.js','--apply'],['scripts/removeTaxiBooking.js','--apply'],['scripts/ensureProxmoxExposureIndexes.js','--apply'],['scripts/grantProxmoxPermissions.js','--apply'],['scripts/grantTicketMessaging.js','--apply'],['scripts/upgradeConversationAccess.js','--apply']]);
  assert.deepEqual(fixture.run('up').calls,first.calls);
 });
 
@@ -85,7 +85,7 @@ test('an existing deployment applies taxi booking cleanup after all prior ledger
   const applied = [...PREVIOUS_MIGRATIONS, '2026-11-09-repairTaxiAdminPermissions', '2026-11-09-upgradeUserReviewRoles', '2026-11-09-backfillUserActivity'];
   const fixture = migrationFixture(t, 3, applied);
   const first = fixture.run('up');
-  assert.deepEqual(first.calls, [['scripts/removeTaxiBooking.js', '--apply'], ['scripts/ensureProxmoxExposureIndexes.js', '--apply'], ['scripts/grantProxmoxPermissions.js', '--apply'], ['scripts/grantTicketMessaging.js', '--apply']]);
+  assert.deepEqual(first.calls, [['scripts/removeTaxiBooking.js', '--apply'], ['scripts/ensureProxmoxExposureIndexes.js', '--apply'], ['scripts/grantProxmoxPermissions.js', '--apply'], ['scripts/grantTicketMessaging.js', '--apply'], ['scripts/upgradeConversationAccess.js', '--apply']]);
   assert.ok(first.applied.includes('2026-11-09-removeTaxiBooking'));
   assert.deepEqual(fixture.run('up').calls, first.calls);
 });
@@ -94,7 +94,7 @@ test('an up-to-date deployment grants Proxmox administrator permissions exactly 
   const applied = [...PREVIOUS_MIGRATIONS, '2026-11-09-repairTaxiAdminPermissions', '2026-11-09-upgradeUserReviewRoles', '2026-11-09-backfillUserActivity', '2026-11-09-removeTaxiBooking', '2026-11-10-proxmoxExposureIndexes'];
   const fixture = migrationFixture(t, 3, applied);
   const first = fixture.run('up');
-  assert.deepEqual(first.calls, [['scripts/grantProxmoxPermissions.js', '--apply'], ['scripts/grantTicketMessaging.js', '--apply']]);
+  assert.deepEqual(first.calls, [['scripts/grantProxmoxPermissions.js', '--apply'], ['scripts/grantTicketMessaging.js', '--apply'], ['scripts/upgradeConversationAccess.js', '--apply']]);
   assert.ok(first.applied.includes('2026-11-11-grantProxmoxPermissions'));
   assert.deepEqual(fixture.run('up').calls, first.calls);
 });
@@ -110,7 +110,7 @@ test('ticket messenger permission is granted exactly once on an otherwise curren
   const applied = [...PREVIOUS_MIGRATIONS, '2026-11-09-repairTaxiAdminPermissions', '2026-11-09-upgradeUserReviewRoles', '2026-11-09-backfillUserActivity', '2026-11-09-removeTaxiBooking', '2026-11-10-proxmoxExposureIndexes', '2026-11-11-grantProxmoxPermissions'];
   const fixture = migrationFixture(t, 3, applied);
   const first = fixture.run('up');
-  assert.deepEqual(first.calls, [['scripts/grantTicketMessaging.js', '--apply']]);
+  assert.deepEqual(first.calls, [['scripts/grantTicketMessaging.js', '--apply'], ['scripts/upgradeConversationAccess.js', '--apply']]);
   assert.ok(first.applied.includes('2026-11-11-grantTicketMessaging'));
   assert.deepEqual(fixture.run('up').calls, first.calls);
 });

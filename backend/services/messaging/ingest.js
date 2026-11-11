@@ -76,7 +76,7 @@ const insertMessage = async ({ channel, conversation, event, identity }) => {
   if (existing) return existing;
   const origin = msg.direction === "in" ? (msg.origin === "form" ? "form" : identity?.isStaff && event.chat.kind === "group" ? "staff" : "client") : "device";
   const replyTo = msg.replyToId
-    ? await Message.findOne({ channelId: channel._id, externalChatId: event.chat.id, externalId: msg.replyToId }).select("_id").lean()
+    ? await require("./incoming-context").findQuotedSource({ channelId: channel._id, externalChatId: event.chat.id, externalId: msg.replyToId })
     : null;
   try {
     const created = await Message.create({
@@ -139,12 +139,6 @@ const applyConversationEffects = async (conversation, message, identity) => {
   );
 };
 
-const ticketOfReply = async (replyToId) => {
-  const { Message, Ticket } = m();
-  const replied = await Message.findById(replyToId).select("ticketId").lean();
-  return replied?.ticketId ? Ticket.findById(replied.ticketId).select("_id num isClosed applicantId").lean() : null;
-};
-
 const applyAttach = async ({ channel, conversation, message, identity }) => {
   const { Conversation, Message, Ticket, Preferences } = m();
   const fresh = await Conversation.findById(conversation._id).lean();
@@ -153,8 +147,28 @@ const applyAttach = async ({ channel, conversation, message, identity }) => {
     binding.ticketId && !binding.endedAt
       ? await Ticket.findById(binding.ticketId).select("_id num isClosed applicantId").lean()
       : null;
-  const replyToTicket = fresh.kind === "group" && message.replyToId ? await ticketOfReply(message.replyToId) : null;
-  const verdict = rules.decideAttach({ conversation: fresh, message, boundTicket, replyToTicket });
+  const incomingContext = await require("./incoming-context").incomingRoutingContext({ conversation: fresh, message });
+  const replyToTicket = incomingContext.replyToMessage?.ticketId
+    ? await Ticket.findById(incomingContext.replyToMessage.ticketId).select("_id num isClosed applicantId deletedAt").lean() : null;
+  const linkedTickets = Array.isArray(fresh.ticketBindings) ? await require("./multi-ticket").linkedOpenTickets(fresh) : undefined;
+  if (linkedTickets) {
+    let endedAny = false;
+    for (const link of require("./multi-ticket").activeBindings(fresh)) {
+      if (linkedTickets.some((ticket) => String(ticket._id) === String(link.ticketId))) continue;
+      const removed = await Ticket.findById(link.ticketId).select("isClosed").lean();
+      await require("./bindings").endBindingsForTicket(link.ticketId, removed ? "closed" : "deleted");
+      endedAny = true;
+    }
+    if (endedAny) Object.assign(fresh, await Conversation.findById(fresh._id).lean());
+  }
+  let verdict = rules.decideAttach({ conversation: fresh, message, boundTicket, replyToTicket, linkedTickets, ...incomingContext });
+  if (!verdict.mode && !verdict.suggestTicketId && linkedTickets?.length > 1 && message.direction === "in" && message.origin === "client" && !message.imported) {
+    const recentMessages = await Message.find({ conversationId: fresh._id, ticketId: { $in: linkedTickets.map((ticket) => ticket._id) }, sentAt: { $lte: message.sentAt } })
+      .sort({ sentAt: -1 }).limit(8).lean();
+    const classified = await require("./ticketClassifier").classifyIncomingTicket({ conversation: fresh, message, linkedTickets, recentMessages });
+    const target = classified && linkedTickets.find((ticket) => String(ticket._id) === String(classified.ticketId));
+    if (target) verdict = { mode: "ai", ticketId: target._id, ticketNum: target.num };
+  }
 
   if (verdict.endBinding) {
     const ended = await Conversation.updateOne(
@@ -170,9 +184,21 @@ const applyAttach = async ({ channel, conversation, message, identity }) => {
     await Message.updateOne({ _id: message._id }, { $set: { suggestTicketId: verdict.suggestTicketId } });
   }
   if (!verdict.mode) return;
+  if (verdict.mode === "free") {
+    await require("./incoming-context").persistFreeMapping(message._id);
+    return;
+  }
+  // Classification can take several seconds: membership and ticket status must
+  // still be valid when its result reaches the persistence boundary.
+  const targetTicket = await Ticket.findById(verdict.ticketId).select("_id num applicantId isClosed deletedAt").lean();
+  if (!targetTicket || targetTicket.isClosed || targetTicket.deletedAt) return;
+  if (fresh.kind === "direct") {
+    const latest = await Conversation.findById(fresh._id).lean();
+    if (!latest || !require("./multi-ticket").activeBindings(latest).some((link) => String(link.ticketId) === String(verdict.ticketId))) return;
+  }
 
   const claimed = await Message.findOneAndUpdate(
-    { _id: message._id, ticketId: null },
+    { _id: message._id, ticketId: null, attachMode: null, mappingIntent: { $exists: false } },
     { $set: { ticketId: verdict.ticketId, ticketNum: verdict.ticketNum, attachMode: verdict.mode } },
     { returnDocument: "after" },
   ).lean();
@@ -181,9 +207,9 @@ const applyAttach = async ({ channel, conversation, message, identity }) => {
     target = await Message.findById(message._id).lean();
     // Заявлено за другую заявку конкурентно (например, ручной привязкой) —
     // зеркалить в verdict.ticketId уже нельзя, сообщение не про неё
-    if (String(target.ticketId) !== String(verdict.ticketId)) return;
+    if (!target || String(target.ticketId) !== String(verdict.ticketId) || target.attachMode === "free") return;
   }
-  const ticket = await Ticket.findById(verdict.ticketId).select("_id num applicantId").lean();
+  const ticket = targetTicket;
   const prefs = await Preferences.findOne({}).select("defaultApplicant").lean();
   await mirrorToTicket({
     message: target,

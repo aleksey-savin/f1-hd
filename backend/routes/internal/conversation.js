@@ -6,6 +6,7 @@ const fileUpload = require("@/middleware/fileUpload");
 const { messagingModuleIsActive } = require("@/middleware/modules");
 const {
   canReadConversations,
+  canStartConversations,
   canReplyConversations,
   canManageConversations,
   canManageSettings,
@@ -24,10 +25,18 @@ const router = express.Router();
 const read = [...canReadConversations, messagingModuleIsActive];
 const reply = [...canReplyConversations, messagingModuleIsActive];
 const manage = [...canManageConversations, messagingModuleIsActive];
-const start = [...read, ...canReplyConversations];
+const start = [...canStartConversations, messagingModuleIsActive];
 // Без messagingModuleIsActive: каналы подключают и проверяют ДО включения
 // модуля «Диалоги» для всех — иначе первый канал завести было бы нечем
 const settings = [...canManageSettings];
+
+const stickers = require("@/controllers/messagingSticker");
+const stickerUpload = require("multer")({ storage: require("multer").memoryStorage(), limits: { fileSize: 512 * 1024, files: 1 } });
+router.get("/conversation-stickers", ...read, stickers.list);
+router.get("/settings/conversation-stickers", ...settings, stickers.list);
+router.post("/conversation-stickers/import", ...settings, stickers.importSet);
+router.post("/conversation-stickers", ...settings, stickerUpload.single("sticker"), stickers.upload);
+router.delete("/conversation-stickers/:id", ...settings, stickers.remove);
 
 router.get("/conversations", ...read, conversation.list);
 // До «/conversations/:id»: иначе «counts» ушёл бы параметром и ответил 404
@@ -43,7 +52,8 @@ router.get("/conversations/:id/ticket-draft", ...read, conversation.ticketDraft)
 router.post("/conversations/:id/seen", ...read, conversation.seen);
 
 router.post("/conversations/:id/messages", ...reply, fileUpload.array("attachments"), conversation.send);
-router.post("/conversations/:id/handled", ...reply, conversation.handled);
+router.post("/conversations/:id/context", ...reply, conversation.context);
+router.post("/conversations/:id/handled", ...manage, conversation.handled);
 router.post("/messages/:id/retry", ...canRetryMessengerMessage, messagingModuleIsActive, conversation.retry);
 
 router.post("/conversations/:id/assign", ...manage, conversation.assign);
@@ -56,6 +66,8 @@ router.patch("/conversations/:id", ...manage, conversation.update);
 router.post("/identities/:id/link", ...manage, conversation.linkIdentity);
 router.post("/identities/:id/unlink", ...manage, conversation.unlinkIdentity);
 router.get("/identities/:id/candidates", ...manage, conversation.candidates);
+
+router.get("/tickets/:num/stickers", ...canReadTicketMessageRoutes, messagingModuleIsActive, ...requireTicketAccess(req => ({num:req.params.num})), stickers.list);
 
 router.get(
   "/tickets/:num/delivery-routes",

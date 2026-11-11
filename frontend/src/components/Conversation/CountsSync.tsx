@@ -1,3 +1,4 @@
+import { CONVERSATION_READ_ACCESS } from "@/util/conversation-access";
 import { useEffect } from "react";
 
 import useLiveTopic from "@/hooks/use-live-topic";
@@ -15,7 +16,7 @@ const CountsSync = () => {
   const moduleOn = useInitialPrefsStore(
     (state) => !!state.modules?.messaging?.isActive,
   );
-  const enabled = moduleOn && can({ conversation: ["read"] });
+  const enabled = moduleOn && can(CONVERSATION_READ_ACCESS);
   const refreshCounts = useConversationsStore((state) => state.refreshCounts);
 
   useEffect(() => {

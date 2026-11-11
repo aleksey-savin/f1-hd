@@ -112,7 +112,7 @@ export default function ScanProgress({ summary }: { summary: ReviewSummary }) {
                 state={fromState}
                 className="font-medium text-foreground no-underline hover:text-accent-text"
               >
-                №{view.active.ticket.num}
+                {view.active.ticket.num}
                 {view.active.ticket.title && ` · ${view.active.ticket.title}`}
               </Link>
               <p className="mt-1 text-xs text-muted-foreground">

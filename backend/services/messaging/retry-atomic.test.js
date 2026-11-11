@@ -22,7 +22,7 @@ stub("@/models/message", {
 stub("@/models/conversation", { findById: () => query({ _id: CHAT, channelId: CHANNEL }) });
 stub("@/models/channel", { exists: async () => true, findById: () => query({ _id: CHANNEL, type: "telegram", provider: "wazzup", isActive: true }) });
 stub("@/models/preferences", { findOne: () => query({ modules: { messaging: { isActive: true } } }) });
-stub("@/models/ticket", { Ticket: {} });
+stub("@/models/ticket", { Ticket: { findById: () => query({ _id: "ticket", isClosed: false }) } });
 stub("@/models/comment", { find: () => query([]) });
 stub("@/models/channelJob", {
   findById: id => query(jobs.get(String(id))), findOne: () => query([...jobs.values()].at(-1)),
@@ -98,4 +98,26 @@ test("ticket retry reuses final numbered payload once and preserves old accepted
   const retry = jobs.get(String(message.jobId));
   assert.equal(retry.payload.text, old.payload.text); assert.equal(retry.payload.text.split("58956").length, 2);
   assert.deepEqual(retry.result.externalIds, ["accepted-part"]);
+});
+
+test("sticker queue and crash recovery retain one attachment without signature or ticket number", async () => {
+ jobs.clear(); failCreate=true;
+ await assert.rejects(queueOutbound({channel:{_id:CHANNEL,type:'telegram',provider:'wazzup',settings:{signReplies:true}},text:'',attachments:[{name:'corporate.webp',originalName:'sticker.webp',mimetype:'image/webp',size:123}],author:{_id:'staff',firstName:'Alex'},prefs:{contacts:{title:'HD'}},recipient:{phone:'79145550142'},ticket:{_id:'ticket',num:58956},sticker:true}),/crash before/);
+ assert.equal(message.kind,'sticker');
+ await repairOutbound();await repairOutbound();
+ assert.equal(jobs.size,1);
+ const job=jobs.get(String(message.jobId));assert.equal(job.payload.text,'');
+ const parts=require('../wazzup/events').sendParts(job.payload,{providerTransport:'tgapi'});
+ assert.equal(parts.length,1);assert.equal(parts[0].attachment.name,'corporate.webp');
+});
+
+test('own initial-start retry can resume an attached partial send without readAll',async()=>{
+ message.clientRequestId='2dd2b92e-94f4-4d2c-9e1d-6711b1b61d55';
+ const limited={userId:'staff',can:r=>Boolean(r.conversation)&&r.conversation.every(v=>['read','reply','start'].includes(v))};
+ const start=require('./start'); const old=start.recipientOf;start.recipientOf=async()=>({phone:message.recipientPhone});
+ try {
+  assert.equal((await retryMessage({messageId:ID,auth:limited})).status,'queued');
+  assert.equal(attempts,1);
+  assert.equal(jobs.get(String(message.jobId)).result.nextPart,1);
+ } finally {start.recipientOf=old;}
 });

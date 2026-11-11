@@ -55,7 +55,7 @@ const SystemLine = ({
                 to={`/tickets/${part.ticket}`}
                 className="font-semibold text-accent-text no-underline hover:underline"
               >
-                №{part.ticket}
+                {part.ticket}
               </Link>
             ) : (
               <span key={index}>{part.text}</span>

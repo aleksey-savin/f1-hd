@@ -98,7 +98,7 @@ export default function UserReviewAnalysis() {
                             state={fromState}
                             className="text-foreground no-underline"
                           >
-                            №{ticket.num} · {ticket.title}
+                            {ticket.num} · {ticket.title}
                           </Link>
                         ) : (
                           "Заявка недоступна"

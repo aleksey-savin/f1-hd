@@ -6,11 +6,18 @@ const access = (actions, extra = {}) => ticketMessagingAccess({ moduleOn: true, 
 test('ticket-only messenger permission enables reply routes without opening inbox links', () => {
   assert.deepEqual(access(['ticket.sendMessage']), { routesEnabled: true, canReply: true, canOpenConversation: false });
 });
-test('inbox read and reply do not grant ticket sending; read still permits dialog context', () => {
-  assert.deepEqual(access(['conversation.read', 'conversation.reply']), { routesEnabled: true, canReply: false, canOpenConversation: true });
+test('inbox read and reply allow initiation from an eligible own ticket', () => {
+  assert.deepEqual(access(['conversation.read', 'conversation.reply']), { routesEnabled: true, canReply: true, canOpenConversation: true });
 });
 test('clients and disabled module cannot use staff messenger features', () => {
   const disabled = { routesEnabled: false, canReply: false, canOpenConversation: false };
   assert.deepEqual(access(['ticket.sendMessage', 'conversation.read'], { isEndUser: true }), disabled);
   assert.deepEqual(access(['ticket.sendMessage', 'conversation.read'], { moduleOn: false }), disabled);
+});
+test('all-conversation read independently enables inbox links', () => {
+  assert.deepEqual(access(['conversation.readAll']), { routesEnabled: true, canReply: false, canOpenConversation: true });
+});
+
+test('reply alone does not enable ticket initiation or inbox', () => {
+  assert.deepEqual(access(['conversation.reply']), { routesEnabled: false, canReply: false, canOpenConversation: false });
 });

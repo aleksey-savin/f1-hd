@@ -8,7 +8,7 @@
 const { commentContent } = require("./rules");
 const { commentChannel, mirrorAuthorName } = require("./present");
 
-const mirrorToTicket = async ({ message, ticket, conversation, identity, channel, prefs, skipApplicant = false }) => {
+const mirrorToTicketLocked = async ({ message, ticket, conversation, identity, channel, prefs, skipApplicant = false, assertLease = async () => {} }) => {
   const Comment = require("@/models/comment");
   const Message = require("@/models/message");
   const { Ticket } = require("@/models/ticket");
@@ -16,6 +16,7 @@ const mirrorToTicket = async ({ message, ticket, conversation, identity, channel
 
   const existing = await Comment.findOne({ "channel.messageId": message._id }).select("_id").lean();
   if (existing) {
+    await assertLease();
     await Ticket.updateOne({ _id: ticket._id }, { $addToSet: { comments: existing._id } });
     await Message.updateOne({ _id: message._id }, { $set: { commentId: existing._id } });
     return existing._id;
@@ -57,11 +58,12 @@ const mirrorToTicket = async ({ message, ticket, conversation, identity, channel
 
   let comment;
   try {
+    await assertLease();
     comment = await Comment.create({
       content: commentContent(message),
       ticketId: ticket._id,
       attachments,
-      notifications: { lastAction: "new comment", pending: true, skipApplicant },
+      notifications: { lastAction: "new comment", pending: true, skipApplicant, fromConversation: true },
       channel: commentChannel({
         network: conversation.network,
         conversationId: conversation._id,
@@ -75,12 +77,16 @@ const mirrorToTicket = async ({ message, ticket, conversation, identity, channel
       createdAt: message.sentAt,
     });
   } catch (error) {
-    if (error?.code !== 11000) throw error;
+    if (error?.code !== 11000) {
+      for (const attachment of attachments) await storage.deleteObject(attachment.name).catch(() => {});
+      throw error;
+    }
     // Тот же приём события пришёл дважды разом: комментарий уже создала другая
     // попытка — эта проигравшая, её копии вложений некому применить
     for (const attachment of attachments) {
       await storage.deleteObject(attachment.name).catch(() => {});
     }
+    await assertLease();
     const winner = await Comment.findOne({ "channel.messageId": message._id }).select("_id").lean();
     await Ticket.updateOne({ _id: ticket._id }, { $addToSet: { comments: winner._id } });
     await Message.updateOne({ _id: message._id }, { $set: { commentId: winner._id } });
@@ -90,6 +96,7 @@ const mirrorToTicket = async ({ message, ticket, conversation, identity, channel
   // Мигает только новейшее сообщение пачки: у более старых ещё не
   // уведомивших зеркал этого диалога/заявки/направления снимаем «pending» —
   // крон комментариев уведомит один раз, самым свежим текстом
+  await assertLease();
   await Comment.updateMany(
     {
       _id: { $ne: comment._id },
@@ -102,9 +109,15 @@ const mirrorToTicket = async ({ message, ticket, conversation, identity, channel
     { $set: { "notifications.pending": false } },
   );
 
+  await assertLease();
   await Ticket.updateOne({ _id: ticket._id }, { $addToSet: { comments: comment._id } });
   await Message.updateOne({ _id: message._id }, { $set: { commentId: comment._id } });
   return comment._id;
 };
 
-module.exports = { mirrorToTicket };
+const mirrorToTicket = async (args) => require("./message-lease").withMessageLease(args.message._id, async (message, lease) => {
+  // A manager may have moved or deliberately freed the message while ingest was waiting.
+  if (String(message.ticketId || "") !== String(args.ticket._id) || message.attachMode === "free") return null;
+  return mirrorToTicketLocked({ ...args, message, assertLease: lease.assertOwned });
+});
+module.exports = { mirrorToTicket, mirrorToTicketLocked };

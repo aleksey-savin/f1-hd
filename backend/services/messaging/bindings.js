@@ -1,7 +1,7 @@
 /**
  * Привязка личного чата к заявке: пока она жива, переписка идёт в заявку в обе
  * стороны. Закрытие заявки привязку заканчивает; возврат в работу возвращает
- * её там, где клиент уже написал после закрытия (вопрос «по заявке №X?»).
+ * её там, где клиент уже написал после закрытия (вопрос «по заявке X?»).
  */
 const { bus } = require("@/services/pulse");
 const { addSystemLine, userTalksHere } = require("./conversationStore");
@@ -25,7 +25,7 @@ const attachableSince = (conversationId, since, ticketId) =>
       // Сообщения attachMode:"origin" уже осознанно легли в описание заявки
       // (origin.js#applyOrigin) и своего комментария не имеют по замыслу, а не
       // по сбою — домирроивать их сюда не нужно (M3)
-      attachMode: { $ne: "origin" },
+      attachMode: { $nin: ["origin", "free"] },
       sentAt: { $gte: since },
     })
     .sort({ sentAt: 1, seq: 1 })
@@ -42,7 +42,7 @@ const attachMessages = async ({ conversation, messages, ticket, mode }) => {
   let count = 0;
   for (const message of messages) {
     let claimed = await Message.findOneAndUpdate(
-      { _id: message._id, ticketId: null },
+      { _id: message._id, ticketId: null, attachMode: { $nin: ["free", "origin"] }, mappingIntent: { $exists: false } },
       { $set: { ticketId: ticket._id, ticketNum: ticket.num, attachMode: mode } },
       { returnDocument: "after" },
     ).lean();
@@ -63,55 +63,86 @@ const attachMessages = async ({ conversation, messages, ticket, mode }) => {
 
 const bindConversation = async ({ conversation, ticket, by, attachPending = true, eventKind = "bound", onlyIfUnbound = false }) => {
   const Conversation = require("@/models/conversation");
-  const claimed = await Conversation.updateOne(
-    { _id: conversation._id, ...(onlyIfUnbound ? { $or: [{ "binding.ticketId": null }, { "binding.endedAt": { $ne: null } }] } : {}) },
-    {
-      $set: {
-        binding: {
-          ticketId: ticket._id,
-          ticketNum: ticket.num,
-          boundAt: new Date(),
-          boundBy: by?._id || null,
-          endedAt: null,
-          endReason: null,
-        },
-        decision: { ticketId: null, ticketNum: null, at: null },
+  const { bindingsOf, activeBindings } = require("./multi-ticket");
+  const now = new Date();
+  const binding = { ticketId: ticket._id, ticketNum: ticket.num, boundAt: now, boundBy: by?._id || null, endedAt: null, endReason: null };
+  let addedLink = true;
+  if (onlyIfUnbound) {
+    const claimed = await Conversation.updateOne(
+      { _id: conversation._id,
+        $or: [{ "binding.ticketId": null }, { "binding.endedAt": { $ne: null } }],
+        ticketBindings: { $not: { $elemMatch: { ticketId: { $ne: null }, endedAt: null } } },
       },
-    },
-  );
-  if (onlyIfUnbound && !claimed.matchedCount) return false;
-  await addSystemLine(conversation, { kind: eventKind, ticketNum: ticket.num, by });
+      { $set: { binding, ticketBindings: [binding], decision: { ticketId: null, ticketNum: null, at: null } } },
+    );
+    if (!claimed.matchedCount) return false;
+  } else {
+    // One-time lazy migration is guarded: two managers cannot erase each other's links.
+    await Conversation.updateOne({ _id: conversation._id, ticketBindings: { $exists: false } },
+      { $set: { ticketBindings: bindingsOf(conversation).map((item) => ({ ...item })) } });
+    const added = await Conversation.updateOne(
+      { _id: conversation._id, ticketBindings: { $not: { $elemMatch: { ticketId: ticket._id, endedAt: null } } } },
+      { $push: { ticketBindings: binding }, $set: { decision: { ticketId: null, ticketNum: null, at: null } } },
+    );
+    addedLink = Boolean(added.modifiedCount);
+    // Legacy readers retain one compatible pointer; canonical links remain independent.
+    await Conversation.updateOne({ _id: conversation._id, $or: [{ "binding.ticketId": null }, { "binding.endedAt": { $ne: null } }] },
+      { $set: { binding } });
+  }
+  if (addedLink) await addSystemLine(conversation, { kind: eventKind, ticketNum: ticket.num, by });
   // Неотвеченное клиента — тоже в заявку: ради него и привязывают
   if (attachPending && conversation.awaitingSince) {
+    const fresh = await Conversation.findById(conversation._id).lean();
+    const links = activeBindings(fresh);
+    if (links.length !== 1 || String(links[0].ticketId) !== String(ticket._id)) return true;
     const pending = await attachableSince(conversation._id, conversation.awaitingSince, ticket._id);
     await attachMessages({ conversation, messages: pending, ticket, mode: "bound" });
   }
   bus.bump({ topics: ["conversations"], ticketIds: [ticket._id] });
 };
 
-const unbindConversation = async ({ conversation, by }) => {
+const unbindConversation = async ({ conversation, by, ticketNum, auth }) => {
+  const { activeBindings, bindingsOf } = require("./multi-ticket");
+  const selected = activeBindings(conversation).filter((binding) => ticketNum === undefined || binding.ticketNum === Number(ticketNum));
+  if (!selected.length) return false;
+  if (auth) {
+    const tickets = await require("@/models/ticket").Ticket.find({ _id: { $in: selected.map((link) => link.ticketId) } }).lean();
+    if (tickets.some((ticket) => !require("@/services/ticketAccess").canAccessTicket(ticket, auth))) {
+      throw new (require("@/middleware/errorHandling").AppError)("Заявка не найдена", 404);
+    }
+  }
   const Conversation = require("@/models/conversation");
-  const updated = await Conversation.findOneAndUpdate(
-    { _id: conversation._id, "binding.ticketId": { $ne: null }, "binding.endedAt": null },
-    { $set: { "binding.endedAt": new Date(), "binding.endReason": "manual" } },
-  ).lean();
-  if (!updated) return false;
-  await addSystemLine(conversation, { kind: "unbound", ticketNum: updated.binding.ticketNum, by });
+  await Conversation.updateOne({ _id: conversation._id, ticketBindings: { $exists: false } },
+    { $set: { ticketBindings: bindingsOf(conversation) } });
+  for (const binding of selected) {
+    await Conversation.updateOne({ _id: conversation._id },
+      { $set: { "ticketBindings.$[link].endedAt": new Date(), "ticketBindings.$[link].endReason": "manual" } },
+      { arrayFilters: [{ "link.ticketId": binding.ticketId, "link.endedAt": null }] });
+    await Conversation.updateOne({ _id: conversation._id, "binding.ticketId": binding.ticketId, "binding.endedAt": null },
+      { $set: { "binding.endedAt": new Date(), "binding.endReason": "manual" } });
+    await addSystemLine(conversation, { kind: "unbound", ticketNum: binding.ticketNum, by });
+  }
   bus.bump({ topics: ["conversations"] });
   return true;
 };
 
 const endBindingsForTicket = async (ticketId, reason) => {
   const Conversation = require("@/models/conversation");
-  const bound = await Conversation.find({ "binding.ticketId": ticketId, "binding.endedAt": null }).lean();
+  const bound = await Conversation.find({ $or: [
+    { "binding.ticketId": ticketId, "binding.endedAt": null },
+    { ticketBindings: { $elemMatch: { ticketId, endedAt: null } } },
+  ] }).lean();
   for (const conversation of bound) {
-    const ended = await Conversation.updateOne(
-      { _id: conversation._id, "binding.endedAt": null },
-      { $set: { "binding.endedAt": new Date(), "binding.endReason": reason } },
-    );
-    if (ended.modifiedCount) {
-      await addSystemLine(conversation, { kind: "bindingEnded", ticketNum: conversation.binding.ticketNum });
-    }
+    const { bindingsOf } = require("./multi-ticket");
+    const binding = bindingsOf(conversation).find((item) => String(item.ticketId) === String(ticketId) && !item.endedAt);
+    if (!binding) continue;
+    await Conversation.updateOne({ _id: conversation._id, ticketBindings: { $exists: false } }, { $set: { ticketBindings: bindingsOf(conversation) } });
+    await Conversation.updateOne({ _id: conversation._id },
+      { $set: { "ticketBindings.$[link].endedAt": new Date(), "ticketBindings.$[link].endReason": reason } },
+      { arrayFilters: [{ "link.ticketId": ticketId, "link.endedAt": null }] });
+    await Conversation.updateOne({ _id: conversation._id, "binding.ticketId": ticketId, "binding.endedAt": null },
+      { $set: { "binding.endedAt": new Date(), "binding.endReason": reason } });
+    await addSystemLine(conversation, { kind: "bindingEnded", ticketNum: binding.ticketNum });
   }
   if (bound.length) bus.bump({ topics: ["conversations"] });
 };
@@ -119,31 +150,39 @@ const endBindingsForTicket = async (ticketId, reason) => {
 const restoreBindingsAfterReopen = async (ticketId) => {
   const Conversation = require("@/models/conversation");
   const { Ticket } = require("@/models/ticket");
+  const { bindingsOf, activeBindings } = require("./multi-ticket");
   const ticket = await Ticket.findById(ticketId).select("_id num applicantId isClosed").lean();
   if (!ticket || ticket.isClosed) return;
   const waiting = await Conversation.find({
-    "binding.ticketId": ticketId,
-    "binding.endReason": "closed",
     "decision.ticketId": ticketId,
+    $or: [
+      { "binding.ticketId": ticketId, "binding.endReason": "closed" },
+      { ticketBindings: { $elemMatch: { ticketId, endReason: "closed" } } },
+    ],
   }).lean();
   for (const conversation of waiting) {
-    const since = conversation.binding.endedAt;
-    // Условие повторяет то, по чему конверсация сюда попала: между чтением и
-    // записью её могли отвязать или восстановить конкурентно — тогда не трогаем
+    const binding = bindingsOf(conversation).find((link) => String(link.ticketId) === String(ticketId) && link.endReason === "closed");
+    if (!binding) continue;
+    const canonical = Array.isArray(conversation.ticketBindings);
     const restored = await Conversation.updateOne(
-      { _id: conversation._id, "binding.endReason": "closed", "decision.ticketId": ticketId },
-      {
-        $set: {
-          "binding.endedAt": null,
-          "binding.endReason": null,
-          decision: { ticketId: null, ticketNum: null, at: null },
-        },
-      },
+      { _id: conversation._id, "decision.ticketId": ticketId,
+        ...(canonical ? { ticketBindings: { $elemMatch: { ticketId, endReason: "closed" } } } : { "binding.endReason": "closed" }) },
+      { $set: {
+        ...(canonical ? { "ticketBindings.$[link].endedAt": null, "ticketBindings.$[link].endReason": null }
+          : { "binding.endedAt": null, "binding.endReason": null }),
+        decision: { ticketId: null, ticketNum: null, at: null },
+      } },
+      canonical ? { arrayFilters: [{ "link.ticketId": ticketId, "link.endReason": "closed" }] } : {},
     );
     if (restored.modifiedCount !== 1) continue;
+    if (canonical) await Conversation.updateOne({ _id: conversation._id, "binding.endedAt": { $ne: null } },
+      { $set: { binding: { ...binding, endedAt: null, endReason: null } } });
     await addSystemLine(conversation, { kind: "bindingRestored", ticketNum: ticket.num });
-    const after = await attachableSince(conversation._id, since, ticket._id);
-    await attachMessages({ conversation, messages: after, ticket, mode: "bound" });
+    // Reopening one of several links never sweeps all unresolved messages into it.
+    if (activeBindings(conversation).every((link) => String(link.ticketId) === String(ticketId))) {
+      const after = await attachableSince(conversation._id, binding.endedAt, ticket._id);
+      await attachMessages({ conversation, messages: after, ticket, mode: "bound" });
+    }
   }
   if (waiting.length) bus.bump({ topics: ["conversations"], ticketIds: [ticketId] });
 };

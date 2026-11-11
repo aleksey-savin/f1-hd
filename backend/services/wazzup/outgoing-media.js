@@ -7,7 +7,7 @@ const attachmentUrl = attachment => {
   const url = new URL(process.env.APP_PUBLIC_URL || process.env.ADDRESS);
   const filename = path.basename(attachment.originalName || attachment.name);
   url.pathname = `/uploads/direct/${encodeURIComponent(attachment.name)}/${encodeURIComponent(filename)}`;
-  url.search = ''; url.hash = '';
+  url.search = new URLSearchParams(require('../messaging/media-access').signMedia(attachment.name)).toString(); url.hash = '';
   return url.href;
 };
 

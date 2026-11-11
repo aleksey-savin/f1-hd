@@ -38,6 +38,7 @@ const Segmented = ({
   stacked = false,
   compact = false,
   fit = false,
+  iconOnly = false,
   disabled = false,
   className,
 }: {
@@ -57,6 +58,8 @@ const Segmented = ({
    * движения» равными третями ломались на две строки.
    */
   fit?: boolean;
+  /** Только значки; подпись остаётся доступным именем и подсказкой. */
+  iconOnly?: boolean;
   /** Гасит группу целиком — как disabled у поля в выключенной секции настроек. */
   disabled?: boolean;
   className?: string;
@@ -75,7 +78,8 @@ const Segmented = ({
           key={option.value}
           type="button"
           disabled={disabled || option.disabled}
-          title={option.title}
+          title={option.title ?? (iconOnly ? option.label : undefined)}
+          aria-label={iconOnly ? option.label : undefined}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={cn(
@@ -89,17 +93,19 @@ const Segmented = ({
             // с причиной, а событий он и так не получает — кнопка нативно
             // disabled. Гасим только подсветку под курсором.
             "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted-foreground",
-            stacked
-              ? "flex-col gap-1 px-1.5 py-2 text-center text-xs leading-tight"
-              : compact
-                ? "gap-1 px-2 py-2 text-xs"
-                : "gap-1.5 px-3 py-2 text-sm",
+            iconOnly
+              ? "size-8 flex-none p-0 pointer-coarse:size-11"
+              : stacked
+                ? "flex-col gap-1 px-1.5 py-2 text-center text-xs leading-tight"
+                : compact
+                  ? "gap-1 px-2 py-2 text-xs"
+                  : "gap-1.5 px-3 py-2 text-sm",
             value === option.value &&
               "bg-primary/15 text-accent-text hover:text-accent-text",
           )}
         >
           {option.icon}
-          {option.label}
+          {!iconOnly && option.label}
           {option.count != null && (
             <span
               className={cn(

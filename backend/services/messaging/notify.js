@@ -16,7 +16,7 @@ const USER_FIELDS = "_id firstName lastName notify isServiceAccount deletedAt ba
 const recipientsFor = async (conversation) => {
   const User = require("@/models/user");
   const { permissionFilter } = require("@/services/permissions");
-  const canRead = await permissionFilter("conversation.read");
+  const canRead = await permissionFilter("conversation.readAll");
 
   if (conversation.assigneeId) {
     const assignee = await User.find({ $and: [{ _id: conversation.assigneeId }, canRead] }).select(USER_FIELDS).lean();

@@ -18,7 +18,7 @@ const attachmentSchema = new Schema(
 
 /**
  * Сообщение диалога — входящее, исходящее или системная строка («Создана
- * заявка №…»). Повтор события от шлюза узнаётся уникальным индексом по
+ * заявка …»). Повтор события от шлюза узнаётся уникальным индексом по
  * внешнему id; шаги приёма, уже сделанные для сообщения, записаны в `effects`
  * — транзакций у нас нет (MongoDB standalone), и повтор доделывает только
  * недоделанное.
@@ -74,13 +74,16 @@ const messageSchema = new Schema(
     deletedAt: { type: Date, default: null },
     ticketId: { type: Schema.Types.ObjectId, ref: "Ticket", default: null },
     ticketNum: { type: Number, default: null },
+    previousTicketIds: [{ type: Schema.Types.ObjectId, ref: "Ticket" }],
     attachMode: {
       type: String,
-      enum: ["bound", "reply", "manual", "origin", "deliver", null],
+      enum: ["bound", "reply", "manual", "origin", "deliver", "free", "ai", null],
       default: null,
     },
     suggestTicketId: { type: Schema.Types.ObjectId, ref: "Ticket", default: null },
     commentId: { type: Schema.Types.ObjectId, ref: "Comment", default: null },
+    mappingLock: { token: String, until: Date },
+    mappingIntent: { type: Schema.Types.Mixed, default: undefined },
     imported: { type: Boolean, default: false },
     // Системная строка ленты: что произошло и кто это сделал (имя — копией)
     event: {
@@ -116,6 +119,8 @@ messageSchema.index({ conversationId: 1, sentAt: 1, seq: 1 });
 messageSchema.index({ conversationId: 1, updatedAt: 1 });
 messageSchema.index({ updatedAt: 1 }, { partialFilterExpression: { retryIntent: { $exists: true }, direction: "out", origin: "hd", status: "queued" }, name: "pending_retry_intent" });
 messageSchema.index({ ticketId: 1 });
+messageSchema.index({ "attachments.name": 1 });
+messageSchema.index({ updatedAt: 1 }, { partialFilterExpression: { mappingIntent: { $exists: true } }, name: "pending_message_mapping" });
 messageSchema.index({ jobId: 1 }, { sparse: true });
 messageSchema.index({ channelId: 1, externalId: 1 });
 // repairOutbound.orphans — те же равенства, что в его запросе (см.

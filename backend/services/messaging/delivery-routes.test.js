@@ -114,15 +114,16 @@ test("историческая заявка без исходных сообще
   assert.equal((await deliveryRoutes({ ...ticket, source: "Telegram" })).defaultRoute, "original");
 });
 
-test("недоступный исходный чат не выбирается и не заменяется другим получателем", async () => {
+test("известный личный чат со старой привязкой доступен второй заявке без ручной миграции", async () => {
   tickets = [{ ...ticket, source: "Telegram", originConversationId: "original" }];
   conversations[0].binding = { ticketId: "elsewhere", ticketNum: 42 };
   conversations.push({ ...conversations[0], _id: "another", binding: { ticketId: "ticket" } });
   tickets.push({ _id: "elsewhere", isClosed: false });
   const result = await deliveryRoutes(tickets[0]);
-  assert.equal(result.defaultRoute, "notify");
-  assert.equal(result.routes[0].available, false);
-  assert.match(result.routes[0].reason, /42/);
+  assert.equal(result.defaultRoute, "original");
+  assert.equal(result.routes[0].available, true);
+  assert.equal(result.routes[0].reason, null);
+  assert.equal(result.routes[0].boundHere, false);
 });
 
 test("чужие и скрытые чаты не становятся маршрутами заявки", async () => {

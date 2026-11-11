@@ -75,7 +75,7 @@ export default function ProposalDetail({
   const can = useCan();
   const { ticketNum } = useParams();
   const origin = useCrumbFrom(
-    ticketNum ? `Заявка №${ticketNum}` : "Проверка пользователей",
+    ticketNum ? `Заявка ${ticketNum}` : "Проверка пользователей",
   );
   const fromState = origin && {
     from: {
@@ -179,7 +179,7 @@ export default function ProposalDetail({
               state={fromState}
               className="text-sm text-accent-text"
             >
-              Заявка №{ticket.num}
+              Заявка {ticket.num}
             </Link>
           ))}
         </div>

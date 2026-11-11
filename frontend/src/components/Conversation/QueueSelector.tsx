@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useCan } from "@/store/authed-user";
 import Segmented from "@/components/app/Segmented";
 import { cn } from "@/lib/utils";
 import useConversationsStore from "@/store/conversations";
@@ -14,10 +16,15 @@ const QueueSelector = ({
   compact?: boolean;
   className?: string;
 }) => {
+  const readsAll = useCan()({ conversation: ["readAll"] });
   const queue = useConversationsStore((state) => state.queue);
   const hidden = useConversationsStore((state) => state.hidden);
   const counts = useConversationsStore((state) => state.counts);
   const setQueue = useConversationsStore((state) => state.setQueue);
+
+  useEffect(() => {
+    if (!readsAll && queue === "unbound") setQueue("all");
+  }, [readsAll, queue, setQueue]);
 
   return (
     <div
@@ -28,7 +35,9 @@ const QueueSelector = ({
     >
       <Segmented
         ariaLabel="Режим списка диалогов"
-        options={QUEUES.map((item) => ({
+        options={QUEUES.filter(
+          (item) => readsAll || item.value !== "unbound",
+        ).map((item) => ({
           value: item.value,
           label: item.label,
           count: counts?.[item.value as BaseQueue],

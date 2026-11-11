@@ -76,7 +76,7 @@ const NavigationBar = ({ embedded = false }) => {
         <Brand size="sm" />
         {/* Клиент видит уведомления; сотрудник — ещё и свой статус рядом. */}
         {isLoggedIn && (
-          <div className="ms-auto flex items-center gap-1.5">
+          <div className="ms-auto flex items-center gap-3">
             <Bell />
             <WorkStatusControl compact />
           </div>
@@ -111,7 +111,7 @@ const NavigationBar = ({ embedded = false }) => {
           {currentLabel}
         </span>
         {isLoggedIn && (
-          <div className="ms-auto flex flex-none items-center gap-2">
+          <div className="ms-auto flex flex-none items-center gap-4">
             <Bell />
             <WorkStatusControl />
           </div>

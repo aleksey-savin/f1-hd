@@ -42,6 +42,7 @@ const commentSchema = new Schema(
     // заявки, ушедший мессенджером. Только имена — ни телефона, ни ника: блок
     // видит и клиент в своей заявке.
     channel: {
+      isSticker: Boolean,
       network: { type: String, default: undefined },
       conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", default: undefined },
       messageId: { type: Schema.Types.ObjectId, ref: "Message", default: undefined },
@@ -69,6 +70,9 @@ const commentSchema = new Schema(
       // Ответ ушёл клиенту мессенджером (services/messaging): заявителю тот же
       // текст уведомлением не дублируем — ни письмом, ни ботом, ни в приложении
       skipApplicant: Boolean,
+      // Реплика из «Диалогов»: Telegram сообщает об ожидании ответа отдельно.
+      // Ответ из карточки заявки через мессенджер сохраняет обычную рассылку.
+      fromConversation: Boolean,
     },
     createdBy: {
       type: Schema.Types.ObjectId,
@@ -135,5 +139,7 @@ commentSchema.index(
   { createdAt: 1 },
   { partialFilterExpression: { "channel.status": "preparing" }, name: "channel_preparing_createdAt" },
 );
+
+commentSchema.index({ "attachments.name": 1 });
 
 module.exports = mongoose.model("Comment", commentSchema);

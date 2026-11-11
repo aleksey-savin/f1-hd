@@ -30,6 +30,13 @@ const ThreadHeader = ({
       {networkLabel(conversation.network)}
     </span>,
   ];
+  if (compact && card.contact?.company) {
+    parts.unshift(
+      <strong key="company" className="font-bold">
+        {card.contact.company}
+      </strong>,
+    );
+  }
   if (group) {
     parts.push(
       <span key="group">

@@ -281,7 +281,7 @@ const ViewTicket = () => {
   });
   const messaging = messagingAccess.routesEnabled
     ? {
-        canReply: messagingAccess.canReply,
+        canReply: messagingAccess.canReply && deliveryRoutes.data?.canSend === true,
         routes: deliveryRoutes.data,
         onRoutesChanged: deliveryRoutes.refresh,
       }

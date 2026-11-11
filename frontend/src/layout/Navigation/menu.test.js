@@ -41,7 +41,7 @@ test("management groups MikroTik and Proxmox instead of separate navbar entries"
   const menu = menuFor(true, true);
   assert.equal(
     menu.find((item) => item.key === "management")?.label,
-    "Управление",
+    "Инфраструктура",
   );
   assert.deepEqual(
     managementLinks(menu)?.map(({ label, to }) => [label, to]),
@@ -147,5 +147,146 @@ test("retired taxi booking permissions cannot expose the report", () => {
       links(menu).some((item) => item.key === "report-taxi"),
       false,
     );
+  }
+});
+
+test("dialogue menu accepts readAll without read and rejects action-only roles", () => {
+  for (const [actions, visible] of [
+    [["readAll"], true],
+    [["read"], true],
+    [["reply", "start", "manage"], false],
+  ]) {
+    const menu = buildMenu({
+      isEndUser: false,
+      can: makeCan({ conversation: actions }),
+      modules: { messaging: { isActive: true } },
+    });
+    assert.equal(
+      menu.some((item) => item.to === "/conversations"),
+      visible,
+    );
+  }
+});
+
+const allModules = Object.fromEntries(
+  [
+    "inventory",
+    "finances",
+    "timeTracking",
+    "messaging",
+    "knowledgeBase",
+    "mikrotik",
+    "proxmox",
+  ].map((name) => [name, { isActive: true }]),
+);
+const menuLinks = (menu) =>
+  menu.flatMap((item) =>
+    item.groups ? item.groups.flatMap((group) => group.items) : [item],
+  );
+
+test("template readers have exactly one link to each destination, with or without ticket execution", () => {
+  for (const perform of [false, true]) {
+    const menu = buildMenu({
+      isEndUser: false,
+      can: makeCan({
+        ticketTemplate: ["read"],
+        ticket: perform ? ["perform"] : [],
+      }),
+      modules: allModules,
+    });
+    const destinations = menuLinks(menu).map((item) => item.to);
+    assert.equal(
+      destinations.filter((to) => to === "/ticket-templates").length,
+      1,
+    );
+    assert.equal(new Set(destinations).size, destinations.length);
+  }
+});
+
+test("single accessible entries are direct links and reports keep their context", () => {
+  for (const [isEndUser, rights, to, label] of [
+    [false, { role: ["read"] }, "/roles", "Роли"],
+    [false, { report: ["own"] }, "/finances/my-report", "Мой отчёт"],
+    [
+      false,
+      { report: ["employees"] },
+      "/finances/employees",
+      "Отчёт по сотрудникам",
+    ],
+    [false, { supplier: ["read"] }, "/inventory/suppliers", "Поставщики"],
+    [
+      false,
+      { report: ["companies"] },
+      "/report/companies",
+      "Отчёт по компаниям",
+    ],
+    [
+      true,
+      { report: ["companies"] },
+      "/report/companies",
+      "Отчёт по компаниям",
+    ],
+    [false, { taxi: ["read"] }, "/report/taxi", "Отчёт по такси"],
+  ]) {
+    const menu = buildMenu({
+      isEndUser,
+      can: makeCan(rights),
+      modules: allModules,
+    });
+    assert.equal(menu.find((item) => item.to === to)?.label, label);
+    assert.equal(
+      menu.some((item) => item.groups),
+      false,
+    );
+  }
+});
+
+test("inventory groups device links without granting access to other catalogs", () => {
+  const menu = buildMenu({
+    isEndUser: false,
+    can: makeCan({ device: ["read"], role: ["read"] }),
+    modules: allModules,
+  });
+  const inventory = menu.find((item) => item.key === "inventory");
+  assert.ok(inventory);
+  assert.deepEqual(
+    menuLinks([inventory]).map((item) => item.to),
+    ["/inventory/client-devices", "/inventory/locations"],
+  );
+  assert.equal(menu.find((item) => item.to === "/roles")?.label, "Роли");
+});
+
+test("moving inventory catalogs preserves their module and individual permission gates", () => {
+  const cases = [
+    [
+      { device: ["read"] },
+      ["/inventory/client-devices", "/inventory/locations"],
+    ],
+    [
+      { inventoryCatalog: ["read"] },
+      [
+        "/inventory/device-types",
+        "/inventory/vendors",
+        "/inventory/device-attributes",
+        "/inventory/device-models",
+      ],
+    ],
+    [{ supplier: ["read"] }, ["/inventory/suppliers"]],
+    [{}, []],
+  ];
+  for (const [rights, expected] of cases) {
+    for (const isActive of [true, false]) {
+      const menu = buildMenu({
+        isEndUser: false,
+        can: makeCan(rights),
+        modules: { inventory: { isActive } },
+      });
+      assert.deepEqual(
+        menuLinks(menu)
+          .filter((item) => item.to.startsWith("/inventory/"))
+          .map((item) => item.to),
+        isActive ? expected : [],
+      );
+    }
   }
 });

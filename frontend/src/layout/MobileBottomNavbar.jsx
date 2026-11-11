@@ -1,3 +1,4 @@
+import { CONVERSATION_READ_ACCESS } from "@/util/conversation-access";
 import { useContext } from "react";
 import { NavLink, useLocation } from "react-router";
 import { motion, LayoutGroup, useReducedMotion } from "framer-motion";
@@ -31,7 +32,7 @@ const MobileBottomNavbar = () => {
   // только пока вкладка «Диалоги» и правда показана: без модуля или права
   // сотруднику нечем её заменить, и «База» остаётся на тач-баре
   const conversationsTab =
-    !isEndUser && modules?.messaging?.isActive && can({ conversation: ["read"] });
+    !isEndUser && modules?.messaging?.isActive && can(CONVERSATION_READ_ACCESS);
 
   // Набор вкладок фильтруется по правам (как в бургер-меню). Иконка «Главная»
   // ведёт на /dashboard (как в drawer), а индекс "/" — алиас через extraActive,
