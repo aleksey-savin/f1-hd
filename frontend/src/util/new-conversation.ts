@@ -62,6 +62,12 @@ export function startRoutes(routes: DeliveryRoute[]): DeliveryRoute[] {
   return [...byNetwork.values()];
 }
 
+/** A completely blocked recipient needs one visible explanation, even without a selection. */
+export function startRoutesBlockReason(routes: DeliveryRoute[]): string | null {
+  if (!routes.length || routes.some((route) => route.available)) return null;
+  return [...new Set(routes.map((route) => route.reason?.trim() || "Нет доступных мессенджеров. Выберите другого получателя или обратитесь к администратору."))].join(" ");
+}
+
 export function startAction(
   accepted: Pick<OutgoingStart, "messageId" | "status"> | null,
   route: DeliveryRoute | null,

@@ -40,6 +40,7 @@ import {
   readPendingStart,
   startAction,
   startRoutes,
+  startRoutesBlockReason,
   pendingAfterStartFailure,
   pendingAfterAbandon,
 } from "@/util/new-conversation";
@@ -100,6 +101,8 @@ const NewConversationForm = () => {
   const fileInput = useRef<HTMLInputElement>(null);
   const selectedRoute = routes.find((route) => route.id === routeId) ?? null;
   const rawRecipient = phoneRecipient(query);
+  const blockedReason = startRoutesBlockReason(routes);
+  const recipientBlocked = !loadingRoutes && !routeError && blockedReason !== null && !accepted && !recoveryRequired;
   const locked = sending || checking || recoveryRequired || accepted !== null;
 
   useEffect(() => {
@@ -326,7 +329,7 @@ const NewConversationForm = () => {
     }
     if (action === "blocked" || !recipient) {
       setValidation(
-        !recipient ? "Выберите получателя" : "Выберите доступный мессенджер",
+        !recipient ? "Выберите получателя" : blockedReason || "Выберите доступный мессенджер",
       );
       return;
     }
@@ -411,6 +414,7 @@ const NewConversationForm = () => {
       />
       <Field
         label="Получатель"
+        className="pt-3"
         htmlFor={recipient ? undefined : "new-conversation-recipient"}
         required
         aside={
@@ -470,7 +474,7 @@ const NewConversationForm = () => {
               />
             </div>
             <div
-              className="mt-1 overflow-hidden rounded-lg border border-border-soft"
+              className="mt-3 overflow-hidden rounded-lg border border-border-soft"
               aria-live="polite"
               aria-busy={searching}
             >
@@ -562,8 +566,11 @@ const NewConversationForm = () => {
             </>
           ) : routes.length ? (
             <>
+              {blockedReason && (
+                <AlertMessage variant="warning" message={blockedReason} />
+              )}
               <Segmented
-                disabled={locked}
+                disabled={locked || recipientBlocked}
                 ariaLabel="Мессенджер"
                 value={routeId}
                 onChange={setRouteId}
@@ -576,7 +583,7 @@ const NewConversationForm = () => {
                 }))}
               />
               {routes
-                .filter((route) => !route.available)
+                .filter((route) => !blockedReason && !route.available)
                 .map((route) => (
                   <p
                     key={route.id}
@@ -615,7 +622,7 @@ const NewConversationForm = () => {
               placeholder={
                 accepted ? "Сообщение принято сервером" : "Напишите сообщение"
               }
-              disabled={locked}
+              disabled={locked || recipientBlocked}
               className="resize-none"
               aria-invalid={!!validation && !text.trim() && !files.length}
             />
@@ -625,7 +632,7 @@ const NewConversationForm = () => {
               type="file"
               multiple
               className="hidden"
-              disabled={locked}
+              disabled={locked || recipientBlocked}
               onChange={(event) => {
                 setFiles((current) => [
                   ...current,
@@ -639,7 +646,7 @@ const NewConversationForm = () => {
                 type="button"
                 variant="outline"
                 size="xs"
-                disabled={locked}
+                disabled={locked || recipientBlocked}
                 onClick={() => fileInput.current?.click()}
               >
                 <RiAttachment2 />
@@ -656,7 +663,7 @@ const NewConversationForm = () => {
                     variant="ghost"
                     size="icon-xs"
                     aria-label={`Убрать ${file.name}`}
-                    disabled={locked}
+                    disabled={locked || recipientBlocked}
                     onClick={() =>
                       setFiles((current) =>
                         current.filter((_, position) => position !== index),
@@ -711,6 +718,7 @@ const NewConversationForm = () => {
           className="ml-auto"
           type="submit"
           disabled={
+            recipientBlocked ||
             sending ||
             checking ||
             retryUncertain ||

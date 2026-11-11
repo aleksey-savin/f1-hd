@@ -5,6 +5,7 @@ import {
   phoneRecipient,
   startAction,
   startRoutes,
+  startRoutesBlockReason,
   readPendingStart,
   pendingStartSnapshot,
   inboxOutletState,
@@ -185,4 +186,13 @@ test("восстановление принятого сообщения не х
     ),
     null,
   );
+});
+
+test("недоступный получатель получает явную причину даже без выбранного канала", () => {
+  const reason = 'Переписка недоступна по вашим правам. Напишите из карточки своей заявки.';
+  assert.equal(startRoutesBlockReason([{...phoneRoute, available:false, reason}]), reason);
+  assert.equal(startRoutesBlockReason([{...phoneRoute, available:false, reason}, {...phoneRoute, id:'wa', network:'whatsapp', available:false, reason}]), reason);
+  assert.equal(startRoutesBlockReason([{...phoneRoute, available:false, reason}, existing]), null);
+  assert.equal(startRoutesBlockReason([]), null);
+  assert.match(startRoutesBlockReason([{...phoneRoute, available:false, reason:null}]), /Нет доступных мессенджеров/);
 });

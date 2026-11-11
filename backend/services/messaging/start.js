@@ -4,7 +4,7 @@ const { isBanned } = require("@/services/authBan");
 const { isValidPhone, parsePhoneInput, toCanonicalPhone } = require("@/services/phone");
 const { personSearchClauses } = require("@/services/personSearch");
 const { canSeeConversation } = require("./visibility");
-const { canReadInbox, loadMessageScope } = require("./access");
+const { canReadInbox, readsAll, loadMessageScope } = require("./access");
 const { userName } = require("./present");
 const { firstContactReason } = require("./first-contact");
 const { attachmentsOf, queueOutbound } = require("./outbound");
@@ -71,6 +71,9 @@ const routesFor = async (recipient, auth) => {
     { counterpartIdentityId: { $in: identities.map(identity => identity._id) } }, ...(recipient.phone ? [{ deliveryPhone: recipient.phone }] : []),
   ] }).lean();
   const channels = await require("@/models/channel").find({ type: { $in: ["telegram", "whatsapp", "max"] } }).lean();
+  const accessReason = readsAll(auth)
+    ? 'Начать переписку с этим получателем нельзя. Обратитесь к сотруднику, который разбирает обращения.'
+    : 'Переписка с этим получателем недоступна по вашим правам. Чтобы связаться с клиентом по своей заявке, отправьте сообщение из карточки этой заявки.';
   const inaccessible = conversations.some(conversation => conversation.hidden || !canSeeConversation(conversation, auth));
   const routes = [];
   for (const channel of channels) {
@@ -79,11 +82,11 @@ const routesFor = async (recipient, auth) => {
       routes.push({ id: String(conversation._id), target: "conversation", channelId: String(channel._id), conversationId: String(conversation._id), network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: channel.isActive, reason: channel.isActive ? null : "Канал отключён" });
     }
     if (existing.length) {
-      if (!routes.some(route => route.channelId === String(channel._id))) routes.push({ id: `phone:${channel._id}`, target: "phone", channelId: String(channel._id), conversationId: null, network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: false, reason: "Начать диалог через это подключение нельзя" });
+      if (!routes.some(route => route.channelId === String(channel._id))) routes.push({ id: `phone:${channel._id}`, target: "phone", channelId: String(channel._id), conversationId: null, network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: false, reason: accessReason });
       continue;
     }
     if (!channel.isActive) continue;
-    const reason = inaccessible ? "Начать диалог через это подключение нельзя" : firstContactReason(channel, recipient.phone ? recipient : null)?.replace("У заявителя", "У получателя") || null;
+    const reason = inaccessible ? accessReason : firstContactReason(channel, recipient.phone ? recipient : null)?.replace("У заявителя", "У получателя") || null;
     routes.push({ id: `phone:${channel._id}`, target: "phone", channelId: String(channel._id), conversationId: null, network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: !reason, reason });
   }
   return { routes, channels };

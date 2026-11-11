@@ -142,3 +142,14 @@ test('own start receipt survives canonical attachment without granting chat hist
  delete message.clientRequestId;
  await assert.rejects(start.outgoingStatus({messageId:MESSAGE,auth:limited}),/не найден/);
 });
+
+test("restricted recipient refusal explains permission and own-ticket alternative without chat details", async () => {
+  const restricted = { userId: STAFF, can: request => Boolean(request.conversation) && !request.conversation.includes('readAll') };
+  conversations = [{ _id: CHAT, channelId: CHANNEL, kind: 'direct', deliveryPhone: users[0].phone }];
+  const result = await start.startRoutes({ phone: users[0].phone, auth: restricted });
+  assert.equal(result.routes[0].available, false);
+  assert.match(result.routes[0].reason, /правам/);
+  assert.match(result.routes[0].reason, /из карточки.*заявки/);
+  assert.equal(result.routes[0].conversationId, null);
+  assert.equal(result.routes[0].reason.includes(CHAT), false);
+});
