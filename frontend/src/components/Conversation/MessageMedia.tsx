@@ -8,6 +8,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import type { MessageAttachment } from "@/types/conversation";
+import { videoAttachmentMode } from "@/util/attachment-media";
 import {
   attachmentKindLabel,
   formatFileSize,
@@ -166,6 +167,41 @@ export const FileAttachment = ({
       <RiAttachment2 size={13} aria-hidden />
       <span className="truncate">{label}</span>
     </a>
+  );
+};
+
+/** Muted inline preview, with native pause/play and a persistent original-file link. */
+export const VideoAttachment = ({
+  attachment,
+  compact = false,
+}: {
+  attachment: MessageAttachment;
+  compact?: boolean;
+}) => {
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  const showVideo = videoAttachmentMode(attachment, failedSource) === "video";
+
+  return (
+    <div className={compact ? "max-w-50" : "max-w-55"}>
+      {showVideo && (
+        <video
+          src={uploadUrl(attachment.name)}
+          aria-label={attachment.originalName || "Видео"}
+          autoPlay
+          loop
+          muted
+          playsInline
+          controls
+          preload="metadata"
+          onError={() => setFailedSource(attachment.name)}
+          className={cn(
+            "block max-w-full rounded-[10px] bg-media-placeholder object-contain",
+            compact ? "h-28 w-50" : "h-31 w-55",
+          )}
+        />
+      )}
+      <FileAttachment attachment={attachment} kind="video" />
+    </div>
   );
 };
 

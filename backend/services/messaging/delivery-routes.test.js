@@ -171,3 +171,34 @@ test("исторические чаты одного номера и канал�
   assert.deepEqual(result.routes.map((route) => route.id), ["original", "another-chat"]);
   assert.equal(new Set(result.routes.map((route) => route.id)).size, result.routes.length);
 });
+
+test("доступный личный Telegram не дублируется недоступным первым сообщением через другое подключение", async () => {
+  users[0].phone = "79145550142";
+  channels.push(
+    { _id: "legacy-tg", type: "telegram", provider: "gateway", isActive: true },
+    { _id: "wa", type: "whatsapp", provider: "wazzup", providerTransport: "whatsapp", isActive: true },
+  );
+  const result = await deliveryRoutes(ticket);
+  assert.deepEqual(result.routes.map((route) => route.id), ["original", "phone:wa"]);
+});
+
+test("доступный первый контакт не дублируется недоступным подключением той же сети", async () => {
+  conversations = [];
+  users[0].phone = "79145550142";
+  channels = [
+    { _id: "legacy-tg", type: "telegram", provider: "gateway", isActive: true },
+    { _id: "tg", type: "telegram", provider: "wazzup", providerTransport: "tgapi", isActive: true },
+  ];
+  assert.deepEqual((await deliveryRoutes(ticket)).routes.map((route) => route.id), ["phone:tg"]);
+});
+
+test("группа не заменяет личную переписку: причина недоступности первого контакта сохраняется", async () => {
+  conversations[0].kind = "group";
+  users[0].phone = "79145550142";
+  const result = await deliveryRoutes(ticket);
+  assert.equal(result.routes.length, 2);
+  assert.equal(result.routes[0].available, true);
+  assert.equal(result.routes[1].target, "phone");
+  assert.equal(result.routes[1].available, false);
+  assert.match(result.routes[1].reason, /недоступно/);
+});

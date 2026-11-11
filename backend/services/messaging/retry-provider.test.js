@@ -16,11 +16,13 @@ test('manual Wazzup retry forgets old delivery ids so late old receipts cannot m
   t.mock.method(Message, 'findById', async () => message);
   t.mock.method(Conversation, 'findById', () => ({ lean: async () => ({ _id: message.conversationId, channelId: '64f600000000000000000004' }) }));
   t.mock.method(Channel, 'findById', () => ({ lean: async () => ({ _id: '64f600000000000000000004', type: 'max', isActive: true, provider: 'wazzup' }) }));
-  t.mock.method(ChannelJob, 'findById', () => ({ lean: async () => ({ payload: { chatId: 'peer', text: 'abc', attachments: [] } }) }));
-  t.mock.method(ChannelJob, 'create', async fields => ({ ...fields, _id: '64f600000000000000000005' }));
+  t.mock.method(ChannelJob, 'findById', id => ({ lean: async () => String(id) === '64f600000000000000000003' ? { payload: { chatId: 'peer', text: 'abc', attachments: [] } } : null }));
+  t.mock.method(ChannelJob, 'create', async fields => fields);
+  t.mock.method(Message, 'updateOne', async (filter, update) => { Object.assign(message, update.$set || {}); for (const key of Object.keys(update.$unset || {})) delete message[key]; return { modifiedCount: 1 }; });
+  t.mock.method(require('../../models/preferences'), 'findOne', () => ({ select() { return this; }, lean: async () => ({ modules: { messaging: { isActive: true } } }) }));
   const retried = await retryMessage({ messageId: message._id, auth: { isEndUser: false, can: () => true } });
   assert.equal(retried.status, 'queued');
-  assert.equal(retried.jobId, '64f600000000000000000005');
+  assert.notEqual(String(retried.jobId), '64f600000000000000000003');
   assert.equal(retried.externalId, undefined);
   assert.equal(retried.externalIds, undefined);
 });

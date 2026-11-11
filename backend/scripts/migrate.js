@@ -92,6 +92,7 @@ const MIGRATIONS = [
   // Каталог новых установок уже содержит Proxmox, существующим ролям нужна
   // отдельная раздача с восстановлением зеркала полного доступа.
   { id: "2026-11-11-grantProxmoxPermissions", script: "grantProxmoxPermissions.js", apply: true },
+  { id: "2026-11-11-grantTicketMessaging", script: "grantTicketMessaging.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,

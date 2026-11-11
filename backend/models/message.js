@@ -30,6 +30,10 @@ const messageSchema = new Schema(
     // Первый исходящий контакт: реальный chatId появится только в ответе API.
     recipientPhone: { type: String, default: undefined },
     recipientName: { type: String, default: undefined },
+    recipientUserId: { type: Schema.Types.ObjectId, ref: "User", default: undefined },
+    clientRequestId: { type: String, default: undefined },
+    // Exact reserved outbound job: durable until idempotent insertion completes.
+    retryIntent: { type: Schema.Types.Mixed, default: undefined },
     channelId: { type: Schema.Types.ObjectId, ref: "Channel", required: true },
     externalChatId: { type: String, required: true },
     externalId: { type: String, default: undefined },
@@ -107,8 +111,10 @@ messageSchema.index(
   { commentId: 1 },
   { unique: true, partialFilterExpression: { commentId: { $type: "objectId" } } },
 );
+messageSchema.index({ authorUserId: 1, clientRequestId: 1 }, { unique: true, partialFilterExpression: { clientRequestId: { $type: "string" } } });
 messageSchema.index({ conversationId: 1, sentAt: 1, seq: 1 });
 messageSchema.index({ conversationId: 1, updatedAt: 1 });
+messageSchema.index({ updatedAt: 1 }, { partialFilterExpression: { retryIntent: { $exists: true }, direction: "out", origin: "hd", status: "queued" }, name: "pending_retry_intent" });
 messageSchema.index({ ticketId: 1 });
 messageSchema.index({ jobId: 1 }, { sparse: true });
 messageSchema.index({ channelId: 1, externalId: 1 });

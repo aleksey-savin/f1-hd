@@ -7,7 +7,7 @@ import type { DeliveryRoutes } from "@/types/conversation";
  * Маршруты «Ответить через» заявки (`GET /api/tickets/:num/delivery-routes`).
  * Перечитываются вместе с карточкой (`revision` — курсор её загрузчика) и после
  * ответа через мессенджер (`refresh`): ответ привязывает личный чат. Без
- * модуля «Диалоги» или права их читать запроса нет вовсе.
+ * модуля «Диалоги» и права отправлять из заявки либо читать диалоги запроса нет.
  */
 export const useDeliveryRoutes = (
   ticketNum: number | string,

@@ -115,6 +115,9 @@ export interface IMessage {
   conversationId: Types.ObjectId | null;
   recipientPhone?: string;
   recipientName?: string;
+  recipientUserId?: Types.ObjectId | null;
+  clientRequestId?: string;
+  retryIntent?: Record<string, unknown>;
   channelId: Types.ObjectId;
   externalChatId: string;
   externalId?: string;

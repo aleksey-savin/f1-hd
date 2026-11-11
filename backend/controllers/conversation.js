@@ -377,6 +377,43 @@ exports.send = async (req, res, next) => {
   }
 };
 
+/** Новый диалог: адрес и права повторно проверяет общий сервис очереди. */
+exports.startRecipients = async (req, res, next) => {
+  try {
+    res.status(200).json(await require("@/services/messaging/start").startRecipients({ q: req.query.q, auth: req.auth }));
+  } catch (error) { next(wrap(error, "Не удалось найти получателей")); }
+};
+exports.startRoutes = async (req, res, next) => {
+  try {
+    res.status(200).json(await require("@/services/messaging/start").startRoutes({ userId: req.query.userId, phone: req.query.phone, auth: req.auth }));
+  } catch (error) { next(wrap(error, "Не удалось загрузить каналы отправки")); }
+};
+exports.start = async (req, res, next) => {
+  try {
+    const { userId, phone, routeId, text, clientRequestId } = req.body || {};
+    const result = await require("@/services/messaging/start").startConversation({ userId, phone, routeId, text, clientRequestId, files: req.files || [], auth: req.auth });
+    const { duplicate: _duplicate, cleanupKeys = [], ...receipt } = result;
+    for (const key of cleanupKeys) storage.deleteObject(key).catch(() => {});
+    res.status(202).json(receipt);
+  } catch (error) {
+    if (error instanceof AppError && error.statusCode < 500) {
+      const keys = await require("@/services/messaging/start").rejectedUploadKeys({ clientRequestId: req.body?.clientRequestId, files: req.files || [], auth: req.auth });
+      for (const key of keys) storage.deleteObject(key).catch(() => {});
+    }
+    next(wrap(error, "Не удалось поставить сообщение в очередь"));
+  }
+};
+exports.outgoingStatus = async (req, res, next) => {
+  try {
+    res.status(200).json(await require("@/services/messaging/start").outgoingStatus({ messageId: req.params.id, auth: req.auth }));
+  } catch (error) { next(wrap(error, "Не удалось проверить отправку")); }
+};
+exports.startRequestStatus = async (req, res, next) => {
+  try {
+    res.status(200).json(await require("@/services/messaging/start").startRequestStatus({ clientRequestId: req.params.requestId, auth: req.auth }));
+  } catch (error) { next(wrap(error, "Не удалось проверить отправку")); }
+};
+
 exports.handled = async (req, res, next) => {
   try {
     const conversation = await loadVisible(req);

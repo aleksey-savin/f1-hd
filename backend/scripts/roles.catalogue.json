@@ -66,6 +66,7 @@
         "ticket.delete",
         "ticket.createForOthers",
         "ticket.closeWithoutWork",
+        "ticket.sendMessage",
         "ticketCategory.read",
         "ticketCategory.manage",
         "ticketTemplate.read",
@@ -138,6 +139,7 @@
       "description": "Заявки, учёт времени, техника клиентов",
       "actions": [
         "ticket.perform",
+        "ticket.sendMessage",
         "ticket.join",
         "ticket.createForOthers",
         "work.read",
@@ -181,6 +183,7 @@
       "actions": [
         "ticket.readAll",
         "ticket.perform",
+        "ticket.sendMessage",
         "ticket.join",
         "ticket.createForOthers",
         "ticketTemplate.read",

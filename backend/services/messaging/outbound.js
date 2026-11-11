@@ -57,18 +57,38 @@ const sendPayload = (conversation, text, attachments, recipient) => ({
 });
 
 /** Сообщение, задание шлюзу, сводка диалога и снятие «ждёт ответа». */
-const queueOutbound = async ({ conversation, channel, text, attachments, author, ticket, comment, prefs, recipient }) => {
+const queueOutbound = async ({ conversation, channel, text, attachments, author, ticket, comment, prefs, recipient, clientRequestId }) => {
   const Message = require("@/models/message");
   const Conversation = require("@/models/conversation");
   const { bus } = require("@/services/pulse");
   const now = new Date();
   const kind = kindOf(text, attachments);
+  const messageId = new (require("mongoose").Types.ObjectId)();
+  const numbered = ticket ? [text, String(ticket.num)].filter(Boolean).join("\n\n") : text;
+  const signed = channel.settings?.signReplies
+    ? rules.signReply(numbered, { firstName: author.firstName, organization: prefs?.contacts?.title || "" })
+    : numbered;
+  const intent = {
+    _id: new (require("mongoose").Types.ObjectId)(),
+    channelId: channel._id,
+    network: channel.type,
+    provider: require("./transport").providerOf(channel),
+    type: "send",
+    conversationId: conversation?._id || null,
+    orderingKey: recipient || conversation?.deliveryPhone ? `phone:${channel._id}:${recipient?.phone || conversation.deliveryPhone}` : undefined,
+    messageId,
+    payload: sendPayload(conversation, signed, attachments, recipient),
+  };
   const message = await Message.create({
+    _id: messageId,
+    jobId: intent._id,
+    retryIntent: intent,
     conversationId: conversation?._id || null,
     channelId: channel._id,
     externalChatId: conversation?.externalChatId || `phone:${recipient.phone}`,
     seq: conversation ? await nextSeq(conversation._id) : 0,
-    ...(recipient ? { recipientPhone: recipient.phone, recipientName: recipient.name } : {}),
+    ...(recipient ? { recipientPhone: recipient.phone, recipientName: recipient.name, recipientUserId: recipient.userId || null } : {}),
+    ...(clientRequestId ? { clientRequestId } : {}),
     direction: "out",
     origin: "hd",
     kind,
@@ -84,20 +104,7 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
     commentId: comment?._id || null,
     effects: { conversation: true, attach: true, notify: true },
   });
-  const signed = channel.settings?.signReplies
-    ? rules.signReply(text, { firstName: author.firstName, organization: prefs?.contacts?.title || "" })
-    : text;
-  const job = await enqueueJob({
-    channelId: channel._id,
-    network: channel.type,
-    provider: require("./transport").providerOf(channel),
-    type: "send",
-    conversationId: conversation?._id || null,
-    orderingKey: recipient || conversation?.deliveryPhone ? `phone:${channel._id}:${recipient?.phone || conversation.deliveryPhone}` : undefined,
-    messageId: message._id,
-    payload: sendPayload(conversation, signed, attachments, recipient),
-  });
-  await Message.updateOne({ _id: message._id }, { $set: { jobId: job._id } });
+  await enqueueRetryIntent({ _id: message._id, jobId: intent._id, retryIntent: intent });
   if (conversation) await Conversation.updateOne(
     { _id: conversation._id, $or: [{ "lastMessage.at": null }, { "lastMessage.at": { $lte: now } }] },
     {
@@ -109,7 +116,7 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
   // Ответили — диалог больше не ждёт
   if (conversation) await Conversation.updateOne({ _id: conversation._id, awaitingSince: { $ne: null } }, { $set: { awaitingSince: null } });
   bus.bump({ topics: ["conversations"], ticketIds: ticket ? [ticket._id] : [] });
-  return { ...message.toObject(), jobId: job._id };
+  return { ...message.toObject(), jobId: intent._id };
 };
 
 const markQueued = (commentId, messageId) =>
@@ -181,7 +188,7 @@ const validateDeliverRoute = async ({ ticket, routeId, auth }) => {
   const { deliveryRoutes } = require("./origin");
   const prefs = await Preferences.findOne({}).select("modules.messaging").lean();
   if (!prefs?.modules?.messaging?.isActive) throw fail("Модуль «Диалоги» выключен", 409);
-  if (!auth.can({ conversation: ["reply"] })) throw fail("Недостаточно прав, чтобы отвечать через мессенджер", 403);
+  if (!auth.can({ ticket: ["sendMessage"] })) throw fail("Недостаточно прав, чтобы отвечать через мессенджер", 403);
   const { routes } = await deliveryRoutes(ticket);
   const route = routes.find((item) => item.id === String(routeId));
   if (!route) throw fail("Канал ответа не найден", 404);
@@ -234,28 +241,31 @@ const retryMessage = async ({ messageId, auth }) => {
   const { bus } = require("@/services/pulse");
   const { canSeeConversation } = require("./visibility");
   const { canAccessTicket } = require("@/services/ticketAccess");
-  if (!auth.can({ conversation: ["reply"] })) throw fail("Недостаточно прав, чтобы отвечать через мессенджер", 403);
   const message = await Message.findById(messageId);
   if (!message || message.direction !== "out" || message.origin !== "hd") throw fail("Сообщение не найдено", 404);
   const conversation = message.conversationId ? await Conversation.findById(message.conversationId).lean() : null;
   if (!conversation && !message.recipientPhone) throw fail("Сообщение не найдено", 404);
-  // Видимость диалога ИЛИ доступ к заявке, за которой оно числится (I1): своя
-  // заявка своего яруса даёт право повторить попавший в неё ответ, даже если
-  // общая видимость диалога (компания) отказала бы
-  let allowed = conversation ? canSeeConversation(conversation, auth) : false;
-  if (!allowed && message.ticketId) {
+  const prefs = await require("@/models/preferences").findOne({}).select("modules.messaging").lean();
+  if (!prefs?.modules?.messaging?.isActive) throw fail("Модуль «Диалоги» выключен", 409);
+  const inboxPermission = auth.can({ conversation: ["read", "reply"] });
+  let allowed = Boolean(inboxPermission && conversation && !conversation.hidden && canSeeConversation(conversation, auth));
+  if (!allowed && message.ticketId && auth.can({ ticket: ["sendMessage"] })) {
     const ticket = await Ticket.findById(message.ticketId).select("_id responsibles createdBy applicantId applicant company").lean();
     allowed = canAccessTicket(ticket, auth);
   }
+  if (!message.ticketId && !conversation && inboxPermission && String(message.authorUserId) === String(auth.userId)) {
+    const recipient = await require("./start").recipientOf(message.recipientUserId ? { userId: String(message.recipientUserId) } : { phone: message.recipientPhone }, auth);
+    allowed = recipient.phone === message.recipientPhone;
+  }
   if (!allowed) throw fail("Сообщение не найдено", 404);
+  if (message.status === "queued") return message.toObject();
   if (message.status !== "failed") throw fail("Повторять нечего: сообщение не в ошибке", 409);
   const channel = await channelFor(conversation || { channelId: message.channelId });
   const previous = message.jobId ? await ChannelJob.findById(message.jobId).lean() : null;
-  // Это явный ручной повтор: принятые части сохраняем, неизвестную часть
-  // оператор разрешает повторить после проверки переписки.
   const resume = message.recipientPhone && previous?.result?.chatId && !previous.result.sendComplete
     ? { ...previous.result, inFlightPart: null } : null;
-  const job = await enqueueJob({
+  const intent = {
+    _id: new (require("mongoose").Types.ObjectId)(),
     channelId: channel._id,
     network: channel.type,
     provider: require("./transport").providerOf(channel),
@@ -265,18 +275,18 @@ const retryMessage = async ({ messageId, auth }) => {
     messageId: message._id,
     payload: previous?.payload || sendPayload(conversation, message.text, message.attachments || [], { phone: message.recipientPhone }),
     ...(resume ? { result: resume } : {}),
+  };
+  // Reserve one immutable job id before dispatch. Its full payload and progress
+  // survive a crash on either side of enqueue; a competing retry cannot win twice.
+  const claim = await Message.updateOne({ _id: message._id, status: "failed", jobId: message.jobId || null }, {
+    $set: { status: "queued", error: "", jobId: intent._id, retryIntent: intent },
+    ...(channel.provider === "wazzup" && !resume ? { $unset: { externalId: 1, externalIds: 1 } } : {}),
   });
-  // Повтор — единственный путь назад из «failed»: статус ставим прямо
-  message.jobId = job._id;
-  message.status = "queued";
-  message.error = "";
-  if (channel.provider === 'wazzup' && !resume) {
-    // A retry is a new delivery attempt. Late receipts for the old attempt
-    // must never make this queued attempt appear read before it was sent.
-    message.externalId = undefined;
-    message.externalIds = undefined;
+  if (!claim.modifiedCount) {
+    const current = await Message.findById(message._id);
+    if (!current) throw fail("Сообщение не найдено", 404);
+    return current.toObject();
   }
-  await message.save();
   if (message.commentId) {
     // $set: undefined ничего не чистит (Mongoose его вырезает) — нужен $unset
     await Comment.updateOne(
@@ -284,8 +294,26 @@ const retryMessage = async ({ messageId, auth }) => {
       { $set: { "channel.status": "queued", "channel.statusAt": new Date() }, $unset: { "channel.error": 1 } },
     );
   }
+  await enqueueRetryIntent({ _id: message._id, jobId: intent._id, retryIntent: intent });
   bus.bump({ topics: ["conversations"], ticketIds: message.ticketId ? [message.ticketId] : [] });
-  return message.toObject();
+  return (await Message.findById(message._id)).toObject();
+};
+
+/** The reserved job id is also the insertion idempotency key during recovery. */
+const enqueueRetryIntent = async (message) => {
+  const Message = require("@/models/message");
+  const ChannelJob = require("@/models/channelJob");
+  const intent = message.retryIntent;
+  if (!intent) return;
+  const existing = await ChannelJob.findById(intent._id).lean();
+  if (!existing) {
+    try { await enqueueJob(intent); } catch (error) {
+      if (error.code !== 11000) throw error;
+      const winner = await ChannelJob.findById(intent._id).lean();
+      if (!winner || String(winner.messageId) !== String(message._id)) throw error;
+    }
+  }
+  await Message.updateOne({ _id: message._id, jobId: intent._id }, { $unset: { retryIntent: 1 } });
 };
 
 /** Крон: ответы, застрявшие между комментарием, сообщением и заданием. */
@@ -299,6 +327,9 @@ const repairOutbound = async () => {
   // нечего; без этого крон раз в минуту читал бы обе коллекции целиком впустую
   if (!(await Channel.exists({ isActive: true }))) return;
   const cutoff = new Date(Date.now() - 60 * 1000);
+
+  const retries = await Message.find({ direction: "out", origin: "hd", status: "queued", retryIntent: { $ne: null }, updatedAt: { $lte: cutoff } }).limit(50);
+  for (const message of retries) await enqueueRetryIntent(message);
 
   const orphans = await Message.find({ direction: "out", origin: "hd", status: "queued", jobId: null, createdAt: { $lte: cutoff } }).limit(50);
   for (const message of orphans) {
@@ -345,4 +376,4 @@ const repairOutbound = async () => {
   }
 };
 
-module.exports = { attachmentsOf, kindOf, sendFromInbox, validateDeliverRoute, deliverComment, retryMessage, repairOutbound };
+module.exports = { attachmentsOf, kindOf, queueOutbound, sendFromInbox, validateDeliverRoute, deliverComment, retryMessage, repairOutbound };

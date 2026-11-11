@@ -15,12 +15,14 @@ import Segmented from "@/components/app/Segmented";
 import {
   FileAttachment,
   PhotoAttachment,
+  VideoAttachment,
 } from "@/components/Conversation/MessageMedia";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { chronicleRows, commentMarker } from "@/util/chronicle-dialog";
+import { isVideoAttachment } from "@/util/attachment-media";
 import {
   NOTIFY_ROUTE,
   chronicleAuthorName,
@@ -78,10 +80,10 @@ const isImage = (attachment) =>
 const asMedia = (attachment) => ({
   name: attachment.name,
   originalName: attachment.originalName || attachment.name,
-  mimetype: attachment.mimetype || "",
+  mimetype: attachment.mimetype?.trim() || attachment.mimeType || "",
   size: 0,
   durationSec: null,
-  status: "ready",
+  status: attachment.status || "ready",
 });
 
 /**
@@ -163,8 +165,11 @@ const Bubble = ({ row, viewer, canRetry, onRetried, realSender }) => {
   const marker = commentMarker(comment, { viewer, side });
   const attachments = comment.attachments ?? [];
   const photos = attachments.filter(isImage);
-  const files = attachments.filter((attachment) => !isImage(attachment));
-  const media = photos.length > 0;
+  const videos = attachments.filter(isVideoAttachment);
+  const files = attachments.filter(
+    (attachment) => !isImage(attachment) && !isVideoAttachment(attachment),
+  );
+  const media = photos.length > 0 || videos.length > 0;
   const failed =
     !viewer.isClient &&
     comment.channel?.direction === "out" &&
@@ -205,6 +210,14 @@ const Bubble = ({ row, viewer, canRetry, onRetried, realSender }) => {
               <PhotoAttachment
                 attachment={asMedia(attachment)}
                 kind="photo"
+                compact={isMobile}
+              />
+            </div>
+          ))}
+          {videos.map((attachment) => (
+            <div key={attachment.name} className="mb-1 last:mb-0">
+              <VideoAttachment
+                attachment={asMedia(attachment)}
                 compact={isMobile}
               />
             </div>
@@ -364,7 +377,7 @@ const EventLine = ({ event, ticketNum }) => {
 };
 
 /**
- * `messaging` — «Диалоги» для сотрудника с правом читать их (модуль включён):
+ * `messaging` — отправка в мессенджер из доступной заявки (модуль включён):
  * `{ canReply, routes, onRoutesChanged }`. Без него (и у заявителя) выбора
  * «Ответить через» нет, а метки каналов у реплик остаются.
  */
@@ -651,6 +664,9 @@ const Chronicle = ({
               isMobile ? "px-3 pt-2 pb-3" : "px-4 py-3",
             )}
           >
+            {showRoutes && (
+              <ReplyRoute data={routes} value={route} onChange={pickRoute} />
+            )}
             <Textarea
               ref={textarea}
               rows={2}
@@ -668,9 +684,6 @@ const Chronicle = ({
               )}
             />
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {showRoutes && (
-                <ReplyRoute data={routes} value={route} onChange={pickRoute} />
-              )}
               <input
                 ref={fileInput}
                 id={fileInputId}

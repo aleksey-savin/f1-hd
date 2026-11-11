@@ -21,8 +21,8 @@ const firstContactReason = (channel, recipient) => {
   return null;
 };
 
-const findPhoneConversations = async (phone, channelId) => {
-  const identities = await require("@/models/channelIdentity").find({ phone }).select("_id").lean();
+const findPhoneConversations = async (phone, channelId, userId) => {
+  const identities = await require("@/models/channelIdentity").find(userId ? { $or: [{ phone }, { userId }] } : { phone }).select("_id").lean();
   return require("@/models/conversation").find({ kind: "direct", ...(channelId ? { channelId } : {}), $or: [
     { deliveryPhone: phone }, { counterpartIdentityId: { $in: identities.map((identity) => identity._id) } },
   ] }).lean();
@@ -35,13 +35,33 @@ const inspectPhoneJob = async (job, channel) => {
   const { Ticket } = require("@/models/ticket");
   const message = await Message.findById(job.messageId).lean();
   if (!message?.recipientPhone) return { reason: "Получатель первого сообщения не найден" };
-  const ticket = await Ticket.findById(message.ticketId).lean();
-  if (!ticket) return { reason: "Заявка удалена — сообщение не отправлено" };
-  const conversations = await findPhoneConversations(message.recipientPhone, channel._id);
-  for (const conversation of conversations) {
+  const ticket = message.ticketId ? await Ticket.findById(message.ticketId).lean() : null;
+  if (message.ticketId && !ticket) return { reason: "Заявка удалена — сообщение не отправлено" };
+  let auth = null;
+  if (!message.ticketId) {
+    const author = await require("@/models/user").findById(message.authorUserId);
+    const { buildAuthContext, isDeniedAccount } = require("@/services/authContext");
+    if (!author || isDeniedAccount(author)) return { reason: "Сотрудник отключён — сообщение не отправлено" };
+    auth = await buildAuthContext(author);
+    try {
+      const { requireStartAccess, recipientOf } = require("./start");
+      await requireStartAccess(auth);
+      const current = await recipientOf(message.recipientUserId ? { userId: String(message.recipientUserId) } : { phone: message.recipientPhone }, auth);
+      if (current && current.phone !== message.recipientPhone) return { reason: "Номер получателя изменился — сообщение не отправлено" };
+      const reason = firstContactReason(channel, { phone: message.recipientPhone });
+      if (reason) return { reason };
+    } catch (error) {
+      return { reason: error.statusCode && error.statusCode < 500 ? error.message : "Не удалось проверить права отправки" };
+    }
+  }
+  const allConversations = await findPhoneConversations(message.recipientPhone, auth ? null : channel._id, message.recipientUserId);
+  const conversations = allConversations.filter(conversation => String(conversation.channelId) === String(channel._id));
+  const inspectedConversations = auth ? allConversations : conversations;
+  for (const conversation of inspectedConversations) {
     if (conversation.hidden) return { reason: "Диалог скрыт — сообщение не отправлено" };
+    if (auth && !require("./visibility").canSeeConversation(conversation, auth)) return { reason: "Диалог недоступен — сообщение не отправлено" };
     const binding = conversation.binding || {};
-    if (binding.ticketId && !binding.endedAt && String(binding.ticketId) !== String(ticket._id)) {
+    if (ticket && binding.ticketId && !binding.endedAt && String(binding.ticketId) !== String(ticket?._id)) {
       const bound = await Ticket.findById(binding.ticketId).select("isClosed").lean();
       if (bound && !bound.isClosed) return { reason: `Диалог занят заявкой №${binding.ticketNum} — сообщение не отправлено` };
     }
@@ -73,7 +93,7 @@ const attachFirstContact = async (job, channel, result) => {
   const { nextSeq } = require("./conversationStore");
   const message = await Message.findById(job.messageId).lean();
   if (!message?.recipientPhone) return;
-  const ticket = await Ticket.findById(message.ticketId).lean();
+  const ticket = message.ticketId ? await Ticket.findById(message.ticketId).lean() : null;
   const identity = await require("./identity").resolveIdentity(channel.type, {
     id: `wazzup:${channel.providerChannelId}:${result.chatId}`, phone: message.recipientPhone,
   }, require("./identity").modelDeps());
@@ -84,7 +104,7 @@ const attachFirstContact = async (job, channel, result) => {
       conversationId: conversation._id, externalChatId: result.chatId, seq: await nextSeq(conversation._id),
     } });
   }
-  await Comment.updateOne({ _id: message.commentId }, { $set: { "channel.conversationId": conversation._id, "channel.messageId": message._id } });
+  if (message.commentId) await Comment.updateOne({ _id: message.commentId }, { $set: { "channel.conversationId": conversation._id, "channel.messageId": message._id } });
   const orderingKey = `phone:${channel._id}:${message.recipientPhone}`;
   await ChannelJob.updateMany({ $or: [{ _id: job._id }, { conversationId: conversation._id, state: "pending" }] },
     { $set: { orderingKey } });

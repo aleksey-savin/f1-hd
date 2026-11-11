@@ -10,6 +10,8 @@ const {
   canManageConversations,
   canManageSettings,
   requireTicketAccess,
+  canReadTicketMessageRoutes,
+  canRetryMessengerMessage,
 } = require("@/middleware/permissions");
 
 /**
@@ -22,6 +24,7 @@ const router = express.Router();
 const read = [...canReadConversations, messagingModuleIsActive];
 const reply = [...canReplyConversations, messagingModuleIsActive];
 const manage = [...canManageConversations, messagingModuleIsActive];
+const start = [...read, ...canReplyConversations];
 // Без messagingModuleIsActive: каналы подключают и проверяют ДО включения
 // модуля «Диалоги» для всех — иначе первый канал завести было бы нечем
 const settings = [...canManageSettings];
@@ -29,6 +32,11 @@ const settings = [...canManageSettings];
 router.get("/conversations", ...read, conversation.list);
 // До «/conversations/:id»: иначе «counts» ушёл бы параметром и ответил 404
 router.get("/conversations/counts", ...read, conversation.counts);
+router.get("/conversations/recipients", ...start, conversation.startRecipients);
+router.get("/conversations/start-routes", ...start, conversation.startRoutes);
+router.get("/conversations/outgoing/request/:requestId", ...start, conversation.startRequestStatus);
+router.get("/conversations/outgoing/:id", ...start, conversation.outgoingStatus);
+router.post("/conversations/start", ...start, fileUpload.array("attachments"), conversation.start);
 router.get("/conversations/:id", ...read, conversation.get);
 router.get("/conversations/:id/messages", ...read, conversation.messages);
 router.get("/conversations/:id/ticket-draft", ...read, conversation.ticketDraft);
@@ -36,7 +44,7 @@ router.post("/conversations/:id/seen", ...read, conversation.seen);
 
 router.post("/conversations/:id/messages", ...reply, fileUpload.array("attachments"), conversation.send);
 router.post("/conversations/:id/handled", ...reply, conversation.handled);
-router.post("/messages/:id/retry", ...reply, conversation.retry);
+router.post("/messages/:id/retry", ...canRetryMessengerMessage, messagingModuleIsActive, conversation.retry);
 
 router.post("/conversations/:id/assign", ...manage, conversation.assign);
 router.post("/conversations/:id/bind", ...manage, conversation.bind);
@@ -51,7 +59,8 @@ router.get("/identities/:id/candidates", ...manage, conversation.candidates);
 
 router.get(
   "/tickets/:num/delivery-routes",
-  ...read,
+  ...canReadTicketMessageRoutes,
+  messagingModuleIsActive,
   ...requireTicketAccess((req) => ({ num: req.params.num })),
   conversation.deliveryRoutes,
 );

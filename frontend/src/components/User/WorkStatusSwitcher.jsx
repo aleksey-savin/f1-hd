@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,8 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import { useCan } from "../../store/authed-user";
 import { selectableStatuses } from "../../util/work-statuses";
 
-// Секция «Мой статус» внутри меню пользователя (PopoverContent навбара —
-// НЕ radix-DropdownMenu: его typeahead/фокус-ловушка ломают инпут заметки).
+// Секция «Мой статус» внутри отдельного Popover в правой части навбара —
+// не radix-DropdownMenu: его typeahead/фокус-ловушка ломают инпут заметки.
 //
 // Чипы: сетка 2×2 и одна строка во всю ширину — туда идёт самая длинная
 // подпись («на удалёнке»), чтобы в узкой ячейке ничего не резалось; порядок
@@ -56,8 +56,18 @@ const WorkStatusSwitcher = () => {
   }, [workStatus?.note]);
 
   const busy = fetcher.state !== "idle";
+  const pendingStatus = useRef(null);
+
+  useEffect(() => {
+    if (!busy) pendingStatus.current = null;
+  }, [busy]);
 
   const submitStatus = (code, nextNote) => {
+    // Enter отключает поле на время запроса и может сразу вызвать blur.
+    // Оба события должны сохранить одну и ту же заметку только один раз.
+    const pending = pendingStatus.current;
+    if (pending?.code === code && pending.note === nextNote) return;
+    pendingStatus.current = { code, note: nextNote };
     fetcher.submit(
       { intent: "status-update", code, note: nextNote },
       { method: "post", action: "/my-account" },
@@ -81,27 +91,27 @@ const WorkStatusSwitcher = () => {
   const chip = (status, extra) => {
     const Icon = status.icon;
     return (
-    <button
-      key={status.code}
-      type="button"
-      disabled={busy}
-      aria-pressed={status.code === currentCode}
-      className={cn(
-        chipClass,
-        status.code === currentCode && chipActiveClass,
-        extra,
-      )}
-      onClick={() => pick(status.code)}
-    >
-      {Icon ? (
-        <Icon size={16} aria-hidden className="flex-none" />
-      ) : (
-        <span aria-hidden className="text-base leading-none">
-          {status.emoji}
-        </span>
-      )}
-      <span className="truncate">{status.label}</span>
-    </button>
+      <button
+        key={status.code}
+        type="button"
+        disabled={busy}
+        aria-pressed={status.code === currentCode}
+        className={cn(
+          chipClass,
+          status.code === currentCode && chipActiveClass,
+          extra,
+        )}
+        onClick={() => pick(status.code)}
+      >
+        {Icon ? (
+          <Icon size={16} aria-hidden className="flex-none" />
+        ) : (
+          <span aria-hidden className="text-base leading-none">
+            {status.emoji}
+          </span>
+        )}
+        <span className="truncate">{status.label}</span>
+      </button>
     );
   };
 

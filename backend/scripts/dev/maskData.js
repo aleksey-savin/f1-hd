@@ -559,11 +559,13 @@ const OWN_FIELDS = {
     },
   },
   messages: {
-    fields: ["conversationId", "externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName"],
-    masks: ["externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName"],
+    fields: ["conversationId", "externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName", "clientRequestId", "retryIntent"],
+    masks: ["externalChatId", "externalId", "externalIds", "replyToExternalId", "recipientPhone", "recipientName", "clientRequestId", "retryIntent"],
     apply(doc) {
       delete doc.recipientPhone;
       delete doc.recipientName;
+      delete doc.clientRequestId;
+      delete doc.retryIntent;
       if ("externalChatId" in doc) doc.externalChatId = `masked-${String(doc.conversationId ?? doc._id)}`;
       // Идентификатор сообщения в WhatsApp содержит номер собеседника
       if (filled(doc.externalId)) doc.externalId = `masked-${String(doc._id)}`;

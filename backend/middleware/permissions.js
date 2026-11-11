@@ -498,6 +498,14 @@ module.exports.canManageConversations = requirePermission(
   { conversation: ["manage"] },
   "Недостаточно прав, чтобы вести диалоги",
 );
+module.exports.canReadTicketMessageRoutes = requirePermission(
+  [{ ticket: ["sendMessage"] }, { conversation: ["read"] }],
+  "Недостаточно прав для выбора канала ответа",
+);
+module.exports.canRetryMessengerMessage = requirePermission(
+  [{ ticket: ["sendMessage"] }, { conversation: ["read", "reply"] }],
+  "Недостаточно прав для повторной отправки сообщения",
+);
 
 // Рубильники модулей переехали в ./modules — это настройка установки, а не
 // права. Реэкспорт оставлен, чтобы не править импорты в routes/index.js разом.

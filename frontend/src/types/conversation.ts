@@ -202,6 +202,40 @@ export type IdentityCandidate = {
   company: string;
 };
 
+/** Получатель первого сообщения: пользователь HD или введённый номер. */
+export type StartRecipient = {
+  userId: string | null;
+  name: string;
+  phone: string;
+};
+
+export type ConversationRecipient = {
+  id: string;
+  name: string;
+  company: string;
+  phone: string;
+  email?: string;
+};
+
+export type StartRoutes = {
+  recipient: StartRecipient;
+  routes: DeliveryRoute[];
+};
+
+export type OutgoingStart = {
+  messageId: string;
+  conversationId: string | null;
+  status: MessageStatus;
+  error?: string | null;
+};
+
+/** Только идентификатор принятого сообщения и получатель, без содержимого. */
+export type PendingStart = {
+  clientRequestId: string;
+  messageId?: string;
+  recipient: StartRecipient;
+};
+
 export type ChannelState =
   | "disconnected"
   | "connecting"

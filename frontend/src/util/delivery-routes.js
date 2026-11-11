@@ -51,6 +51,22 @@ export const routeTriggerLabel = (route) =>
   route ? routeTitle(route) : "Почта и бот";
 
 /**
+ * Постоянно видимые варианты ответа. ID сохраняется для каждого адресата:
+ * личный чат и группа одной сети не подменяют друг друга.
+ * @param {DeliveryRoutes} data
+ */
+export const replyRouteOptions = (data) => [
+  { value: NOTIFY_ROUTE, network: "mail", label: "Почта и бот", disabled: false, reason: "" },
+  ...data.routes.map((route) => ({
+    value: route.id,
+    network: route.network,
+    label: routeTitle(route),
+    disabled: !route.available,
+    reason: routeSubtitle(route),
+  })),
+];
+
+/**
  * Маршрут, выбранный при открытии: тот, что предложил сервер, если он ещё
  * доступен; иначе «как сейчас». Занятый маршрут выбранным не встаёт никогда.
  * @param {DeliveryRoutes | null | undefined} data

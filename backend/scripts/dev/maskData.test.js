@@ -27,9 +27,11 @@ const GONE = "64f1a2b3c4d5e6f7081fffff";
 test("first-contact recipient snapshots are removed from development copies", () => {
   const conversation = rewriteDocument("conversations", { _id: ID, deliveryPhone: "79145550142" }, {});
   assert.equal(conversation.$unset.deliveryPhone, "");
-  const message = rewriteDocument("messages", { _id: ID, recipientPhone: "79145550142", recipientName: "Настоящее имя", text: "Свободный текст" }, {});
+  const message = rewriteDocument("messages", { _id: ID, recipientPhone: "79145550142", recipientName: "Настоящее имя", clientRequestId: "request-uuid", retryIntent: { payload: { recipient: { phone: "79145550142" } } }, text: "Свободный текст" }, {});
   assert.equal(message.$unset.recipientPhone, "");
   assert.equal(message.$unset.recipientName, "");
+  assert.equal(message.$unset.clientRequestId, "");
+  assert.equal(message.$unset.retryIntent, "");
   assert.equal(message.$set?.text, undefined);
 });
 

@@ -1,8 +1,10 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState, type ChangeEvent } from "react";
-import { useMatch, useOutlet } from "react-router";
+import { Link, useMatch, useOutlet } from "react-router";
 import { isMobile } from "react-device-detect";
+import { RiAddLine } from "react-icons/ri";
 
+import FormOutlet from "@/components/app/FormOutlet";
 import PageHeader from "@/components/app/PageHeader";
 import SearchBar from "@/components/app/SearchBar";
 import ConversationList from "@/components/Conversation/ConversationList";
@@ -10,6 +12,9 @@ import ListFilter from "@/components/Conversation/ListFilter";
 import QueueSelector from "@/components/Conversation/QueueSelector";
 import useLiveTopic from "@/hooks/use-live-topic";
 import useConversationsStore from "@/store/conversations";
+import { Button } from "@/components/ui/button";
+import { useAuthedUser, useCan } from "@/store/authed-user";
+import { inboxOutletState } from "@/util/new-conversation";
 
 /**
  * «Диалоги» — рабочее место переписки с клиентами (канва A1/A2 — десктоп,
@@ -67,6 +72,20 @@ const Title = ({ phone = false }: { phone?: boolean }) => {
   );
 };
 
+const NewDialogueButton = ({ phone = false }: { phone?: boolean }) => {
+  const { isEndUser } = useAuthedUser();
+  const canReply = useCan()({ conversation: ["reply"] });
+  if (isEndUser || !canReply) return null;
+  return (
+    <Button asChild size={phone ? "icon" : "default"}>
+      <Link to="/conversations/new" aria-label="Новый диалог">
+        <RiAddLine />
+        {!phone && "Новый диалог"}
+      </Link>
+    </Button>
+  );
+};
+
 const DesktopInbox = ({
   outlet,
   selectedId,
@@ -94,6 +113,7 @@ const DesktopInbox = ({
             <ListFilter />
           </>
         }
+        action={<NewDialogueButton />}
       />
       <div className="mt-4 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
         <nav
@@ -123,6 +143,7 @@ const PhoneInbox = () => {
         <div className="flex items-center gap-2.5">
           <Title phone />
           <span className="flex-1" />
+          <NewDialogueButton phone />
           <ListFilter phone />
         </div>
         <SearchBar
@@ -141,8 +162,9 @@ const PhoneInbox = () => {
 
 const Inbox = () => {
   const outlet = useOutlet();
+  const newMatch = useMatch("/conversations/new");
   const match = useMatch("/conversations/:id/*");
-  const selectedId = match?.params.id ?? null;
+  const { selectedId, ownsSheet } = inboxOutletState(match?.params.id);
 
   useEffect(() => {
     void useConversationsStore.getState().load();
@@ -150,8 +172,8 @@ const Inbox = () => {
 
   // Заголовок вкладки ставит загрузчик диалога; вернулись к списку — свой
   useEffect(() => {
-    if (!selectedId) setDocTitle("Диалоги");
-  }, [selectedId]);
+    if (!selectedId) setDocTitle(newMatch ? "Новый диалог" : "Диалоги");
+  }, [selectedId, newMatch]);
 
   useLiveTopic(
     "conversations",
@@ -160,8 +182,26 @@ const Inbox = () => {
     { minIntervalMs: 5_000 },
   );
 
-  if (isMobile) return outlet ?? <PhoneInbox />;
-  return <DesktopInbox outlet={outlet} selectedId={selectedId} />;
+  if (isMobile)
+    return (
+      <>
+        {ownsSheet ? (
+          <>
+            <PhoneInbox />
+            <FormOutlet />
+          </>
+        ) : (
+          outlet
+        )}
+      </>
+    );
+  // Thread owns its nested sheets; only the new-dialogue sheet belongs to Inbox.
+  return (
+    <>
+      <DesktopInbox outlet={newMatch ? null : outlet} selectedId={selectedId} />
+      {ownsSheet ? <FormOutlet /> : null}
+    </>
+  );
 };
 
 export default Inbox;

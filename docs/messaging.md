@@ -356,6 +356,9 @@ into a neighboring router:
 
 - **read** = `conversation.read` + `Preferences.modules.messaging.isActive`.
 - **reply** = `conversation.reply` + module switch.
+- **start** = `conversation.read` + `conversation.reply` + module switch.
+- **ticket messaging** = `ticket.sendMessage` + module switch + access to the ticket;
+  this does not grant the inbox or conversation reads.
 - **manage** = `conversation.manage` + module switch.
 - **settings** = `settings.manage` **only** — channels can be connected and
   test-driven before the module is switched on for everyone.
@@ -364,13 +367,18 @@ into a neighboring router:
 |---|---|---|
 | `GET /conversations` | read | Paged list (`queue`: awaiting\|mine\|unbound\|all\|hidden; filters `network`, `company`, `q` — a substring of the title, last-message preview or author; a whole-number `q` also matches its digits across separators in titles and author names; per-queue counts) |
 | `GET /conversations/counts` | read | `{counts: {awaiting, mine, unbound, all}}` only — the navigation badge; declared before `/conversations/:id` |
+| `GET /conversations/recipients?q=` | start | Scoped HD recipient search by name, phone or email |
+| `GET /conversations/start-routes?userId=…` or `?phone=…` | start | Existing direct chats and first-contact options for one recipient |
+| `POST /conversations/start` | start | Multipart first message: `userId` or `phone`, `routeId`, UUID `clientRequestId`, `text`, `attachments`; returns an asynchronous receipt |
+| `GET /conversations/outgoing/:id` | start | Author-scoped first-send receipt and resolved conversation ID |
+| `GET /conversations/outgoing/request/:requestId` | start | Recover the same receipt after a lost HTTP response |
 | `GET /conversations/:id` | read | Full card: conversation, channel, counterpart, participants, linked HD contact, that contact's other channels, bound/open tickets (`ticket.boundAt` — when the binding started) |
 | `GET /conversations/:id/messages` | read | A page of messages (`before`+`beforeSeq` chronological, or `changedSince`(+`afterId`) for polling — see below) |
 | `GET /conversations/:id/ticket-draft` | read | Draft **HTML** description + guessed applicant/company/source from selected messages |
 | `POST /conversations/:id/seen` | read | Read watermark; enqueues `markRead` when applicable |
 | `POST /conversations/:id/messages` | reply | Send a reply (multipart `attachments`) |
 | `POST /conversations/:id/handled` | reply | Clear "awaiting" without a reply |
-| `POST /messages/:id/retry` | reply | Re-enqueue a `failed` outbound message |
+| `POST /messages/:id/retry` | start or ticket messaging | Retry a failed message through accessible conversation or ticket; service rechecks the matching permission and scope |
 | `POST /conversations/:id/assign` | manage | Set/clear the assignee |
 | `POST /conversations/:id/bind` | manage | Bind a **direct** chat to an open ticket |
 | `POST /conversations/:id/unbind` | manage | End a live binding |
@@ -381,7 +389,7 @@ into a neighboring router:
 | `POST /identities/:id/link` | manage | Link a counterpart to an HD user |
 | `POST /identities/:id/unlink` | manage | Remove that link |
 | `GET /identities/:id/candidates?q=` | manage | Users to link a counterpart to: a `q` that looks like a whole number is one phone term (`services/personSearch.js`); otherwise every word must match one of name/email/phone/position/company; returns `{items: [{id, name, position, company}]}` (≤8, clients first, banned and service accounts excluded) — names only, never the contacts it matched on |
-| `GET /tickets/:num/delivery-routes` | read + ticket access | Reply routes for a ticket ("reply via …") |
+| `GET /tickets/:num/delivery-routes` | read or ticket.sendMessage + module + ticket access | Reply routes for one accessible ticket |
 | `GET /preferences/wazzup` | settings | Public Wazzup metadata for a silent `channels` pulse refresh; preserves the UI draft |
 | `POST /preferences/wazzup/check` | settings | Discover Wazzup accounts with a draft API key; no save (§9) |
 | `GET /preferences` | settings | Includes public `wazzup` configuration (§9) |
@@ -416,14 +424,14 @@ Defense in depth is uneven by design, not accidental. `sendFromInbox`
 (`services/messaging/outbound.js`) re-checks `conversation.reply` and
 conversation visibility (`canSeeConversation`) **itself** — but not the module
 switch, since it's reachable only through this router, whose `reply` gate
-already applies it. `retryMessage` (same file) re-checks `conversation.reply`
-and allows **either** conversation visibility **or** ticket access
-(`canAccessTicket`, `services/ticketAccess.js`) when the message carries a
-`ticketId` — the ticket's own tier must be enough to retry a reply its own
-responsible sent, even where the conversation's general (company) visibility
-tier would say no. `validateDeliverRoute` (`services/messaging/outbound.js`)
+already applies it. `retryMessage` (same file) permits either inbox read/reply
+with conversation visibility or `ticket.sendMessage` with ticket access
+(`canAccessTicket`, `services/ticketAccess.js`). A pending inbox first message
+without a conversation remains author-scoped. The ticket's own tier is enough
+to retry a ticket reply even where inbox visibility would deny the conversation.
+`validateDeliverRoute` (`services/messaging/outbound.js`)
 and `prepareOrigin` (inherited by `ticketDraft`, `services/messaging/origin.js`)
-re-check **both** their own permission (`conversation.reply` for
+re-check **both** their own permission (`ticket.sendMessage` for
 `validateDeliverRoute`, `conversation.read` for `prepareOrigin`/`ticketDraft`)
 **and** the module switch themselves — because these two are also reachable
 from ticket-side code that never goes through this router at all (a ticket
@@ -455,8 +463,52 @@ comment, then a live binding. Ordinary tickets default to `notify` even after a
 messenger reply binds a chat. Both current `applicantId` and legacy
 `applicant._id` identify the applicant's available routes. The comment composer
 shows the selector after routes load, including when only `notify` exists.
+The comment composer uses the always-visible shared Segmented control above
+the text field. `notify` comes first; narrow columns use two columns, wide
+columns up to four. Each route retains its ID (a group and direct chat are
+distinct recipients); disabled-route reasons remain visible below the control.
 Labels contain only the network name; disabled routes retain their failure reason.
+Unavailable phone-initiation routes are omitted when the same network already
+has an available direct-conversation or phone route. A group route does not
+replace direct contact; unavailable existing conversations retain their reasons.
 Outgoing signatures use plain text `- First name, Organisation`.
+Provider text for a live ticket-bound inbox reply or a ticket comment also
+includes the ticket number on a separate digits-only line before the optional
+signature. This applies with signatures disabled and to attachment-only sends.
+Message.text and Comment.content stay original; the final provider payload is
+persisted in the durable job intent and reused unchanged during recovery/retry.
+
+**New dialogue from the inbox.** The route-owned `/conversations/new` form
+supports scoped HD user search and an arbitrary valid phone without creating a
+User or Ticket. The server resolves a selected user's current phone; the raw
+phone path accepts a validated canonical number. Existing visible direct chats
+open instead of creating duplicates. Only supported personal-account transports
+offer first contact; disabled options retain their reason. The selector prefers
+an existing available chat and shows one option per network.
+
+A new first message uses the same durable queue, attachment delivery and
+accepted-part checkpoints as ticket replies. `Message.clientRequestId` has a
+unique partial author/request index; a repeated request returns the same receipt.
+The sheet stores only account-scoped recovery identifiers and recipient metadata
+in sessionStorage, never message text or attachment bytes. After closing/reload
+or a lost HTTP response, it recovers the receipt before offering another send.
+The worker rechecks author permissions and recipient eligibility before HTTP.
+Canonical linking for an inbox first message never creates a ticket or binding.
+Initial dispatch and explicit retries persist `Message.retryIntent` with a
+reserved job ID and the exact signed payload before inserting the job. Retrying
+claims `failed → queued` atomically; concurrent callers reuse the winner. The
+repair worker inserts only the reserved ID, so crashes before/after insertion
+cannot create another send or discard accepted multipart progress. The intent
+and client request IDs are removed from development database copies.
+
+**Independent ticket permission.** `ticket.sendMessage` is a staff-only action
+in the «Заявки» group. It enables messenger delivery and retry in accessible
+tickets without `conversation.read` or `conversation.reply`. The inbox menu,
+page, API and deep links remain behind `conversation.read`; new inbox messages
+also require `conversation.reply`. The one-time
+`2026-11-11-grantTicketMessaging` migration preserves existing senders' capability
+and administrative roles without granting any inbox read permission. Fresh
+role templates include the corresponding action.
 
 **First outbound contact from an existing ticket.** Reply routes include active
 messenger accounts even when the applicant has never written to HD and has no

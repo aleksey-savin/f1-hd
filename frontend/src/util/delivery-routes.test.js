@@ -12,6 +12,7 @@ import {
   routeSubtitle,
   routeTitle,
   routeTriggerLabel,
+  replyRouteOptions,
 } from "./delivery-routes.js";
 
 const marina = {
@@ -64,6 +65,19 @@ test("кнопка выбора: только канал или «Почта и 
   assert.equal(routeTriggerLabel(marina, ""), "Telegram");
   assert.equal(routeTriggerLabel(null, ""), "Почта и бот");
   assert.equal(routeTriggerLabel({ ...marina, title: "" }, ""), "Telegram");
+});
+
+test("переключатель сохраняет адресата каждого маршрута и всегда предлагает почту и бот", () => {
+  const options = replyRouteOptions({ routes: [marina, group, busy], defaultRoute: 'c-marina' });
+  assert.deepEqual(options.map(option => option.value), ['notify', 'c-marina', 'c-group', 'c-wa']);
+  assert.deepEqual(options.map(option => option.label), ['Почта и бот', 'Telegram', 'Telegram', 'WhatsApp']);
+  assert.equal(options[0].disabled, false);
+  assert.equal(options[1].reason, '');
+  assert.equal(options[3].disabled, true);
+  assert.equal(options[3].reason, 'занят заявкой №56790');
+  const phone = { ...marina, id: 'phone:tg', target: 'phone', conversationId: null };
+  assert.equal(replyRouteOptions({ routes: [phone] })[1].value, 'phone:tg');
+  assert.deepEqual(replyRouteOptions({ routes: [] }).map(option => option.value), ['notify']);
 });
 
 test("initialRoute: занятый или пропавший маршрут не выбирается — «как сейчас»", () => {

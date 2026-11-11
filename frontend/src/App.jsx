@@ -77,6 +77,7 @@ import ConversationThreadPage, {
 import ConversationNewUserPage, {
   loader as conversationNewUserLoader,
 } from "./pages/Conversation/NewUser";
+import ConversationNewPage, { loader as conversationNewLoader } from "./pages/Conversation/New";
 
 // Companies
 import Companies, { loader as companiesLoader } from "./pages/Company/List.jsx";
@@ -649,6 +650,12 @@ function App() {
               element: <ConversationsInbox />,
               loader: conversationsLoader,
               children: [
+                {
+                  path: "new",
+                  handle: { can: { conversation: ["reply"] }, ...SHEET_MD },
+                  element: <ConversationNewPage />,
+                  loader: conversationNewLoader,
+                },
                 {
                   path: ":id",
                   handle: { phoneFullscreen: true },

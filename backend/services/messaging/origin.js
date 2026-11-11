@@ -297,7 +297,11 @@ const deliveryRoutes = async (ticket) => {
   }
   const available = routes.find((route) => route.conversationId === originalId && route.available);
   routes.push(...await phoneRoutes(ticket, conversations, recipient));
-  return { routes, defaultRoute: available?.id || "notify" };
+  // Пункт называется только по сети. Не показываем запрет первого контакта
+  // другого подключения рядом с уже доступной личной перепиской в этой сети.
+  const availableDirectNetworks = new Set(routes.filter((route) => route.available && route.kind === "direct").map((route) => route.network));
+  const replyRoutes = routes.filter((route) => route.target !== "phone" || route.available || !availableDirectNetworks.has(route.network));
+  return { routes: replyRoutes, defaultRoute: available?.id || "notify" };
 };
 
 module.exports = { parseIds, describeAsHtml, prepareOrigin, applyOrigin, ticketDraft, deliveryRoutes };

@@ -53,6 +53,7 @@ import {
 import Chronicle from "../../components/Ticket/Chronicle";
 import { useDeliveryRoutes } from "../../components/Ticket/use-delivery-routes";
 import { dialogRoute } from "@/util/delivery-routes";
+import { ticketMessagingAccess } from "@/util/ticket-messaging-access";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
 import CustomFieldsAnswers from "@/components/app/CustomFieldsAnswers";
 import { hasAnswer } from "@/components/app/custom-fields";
@@ -273,24 +274,19 @@ const ViewTicket = () => {
     navigate(location.pathname + location.search, { replace: true, state: null });
   }, [ticket.num]);
 
-  // «Диалоги»: маршруты «Ответить через» и строка «Диалог» в «Деталях» —
-  // сотруднику с правом видеть диалоги при включённом модуле
-  const messagingOn =
-    !isEndUser &&
-    !!modules.messaging?.isActive &&
-    !!can({ conversation: ["read"] });
+  const messagingAccess = ticketMessagingAccess({ moduleOn: modules.messaging?.isActive, isEndUser, can });
   const deliveryRoutes = useDeliveryRoutes(ticket.num, {
-    enabled: messagingOn,
+    enabled: messagingAccess.routesEnabled,
     revision: data.pulse,
   });
-  const messaging = messagingOn
+  const messaging = messagingAccess.routesEnabled
     ? {
-        canReply: !!can({ conversation: ["reply"] }),
+        canReply: messagingAccess.canReply,
         routes: deliveryRoutes.data,
         onRoutesChanged: deliveryRoutes.refresh,
       }
     : null;
-  const dialogChat = messagingOn
+  const dialogChat = messagingAccess.canOpenConversation
     ? dialogRoute(deliveryRoutes.data?.routes, ticket.comments)
     : null;
 

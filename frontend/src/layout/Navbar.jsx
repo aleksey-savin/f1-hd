@@ -8,14 +8,13 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import NavProgress from "@/components/app/NavProgress";
 import Bell from "@/components/Notifications/Bell";
 
-import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
+import WorkStatusControl from "@/components/User/WorkStatusControl";
 import { AuthedUserContext } from "../store/authed-user-context";
 import { useCan } from "../store/authed-user";
 import useInitialPrefs from "../store/prefs";
 import NavDrawer from "./NavDrawer";
 import { activeMenuKey, buildMenu } from "./Navigation/menu";
 import Brand from "./Navigation/Brand";
-import UserMenu from "./Navigation/UserMenu";
 
 const NavigationBar = ({ embedded = false }) => {
   const authedUser = useContext(AuthedUserContext);
@@ -27,16 +26,7 @@ const NavigationBar = ({ embedded = false }) => {
   const { open, openMobile, isMobile } = useSidebar();
   const sidebarOpen = isMobile ? openMobile : open;
 
-  const {
-    firstName,
-    lastName,
-    isEndUser,
-    profileImagePath,
-    workStatus,
-    hideWorkStatus,
-  } = authedUser;
-
-  const workStatusAvailable = !isEndUser && !hideWorkStatus;
+  const { isEndUser, hideWorkStatus } = authedUser;
 
   const menuItems = useMemo(
     () =>
@@ -84,30 +74,11 @@ const NavigationBar = ({ embedded = false }) => {
           </Button>
         )}
         <Brand size="sm" />
-        {/* Колокольчик — каждому, кто вошёл; у клиента аватара статуса в шапке
-            нет, и обёртка ms-auto нужна ему отдельно */}
+        {/* Клиент видит уведомления; сотрудник — ещё и свой статус рядом. */}
         {isLoggedIn && (
           <div className="ms-auto flex items-center gap-1.5">
             <Bell />
-            {workStatusAvailable && (
-              <UserMenu
-                trigger={
-                  <button
-                    type="button"
-                    aria-label="Мой статус и аккаунт"
-                    className="inline-grid cursor-pointer appearance-none place-items-center rounded-full border-0 bg-transparent p-0.5 outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
-                  >
-                    <WorkStatusAvatar
-                      size={32}
-                      firstName={firstName}
-                      lastName={lastName}
-                      profileImagePath={profileImagePath}
-                      workStatus={workStatus}
-                    />
-                  </button>
-                }
-              />
-            )}
+            <WorkStatusControl compact />
           </div>
         )}
         {isLoggedIn && (
@@ -140,8 +111,9 @@ const NavigationBar = ({ embedded = false }) => {
           {currentLabel}
         </span>
         {isLoggedIn && (
-          <div className="ms-auto flex flex-none items-center gap-1">
+          <div className="ms-auto flex flex-none items-center gap-2">
             <Bell />
+            <WorkStatusControl />
           </div>
         )}
       </div>

@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/popover";
 import ThemeSegment from "@/components/app/ThemeSegment";
 import WorkStatusAvatar from "@/components/User/WorkStatusAvatar";
-import WorkStatusSwitcher from "@/components/User/WorkStatusSwitcher";
 import { AuthedUserContext } from "@/store/authed-user-context";
 import { ThemeContext } from "@/store/theme-context";
 import { cn } from "@/lib/utils";
@@ -74,8 +73,7 @@ export function UserMenuTrigger({ className, ...props }) {
   );
 }
 
-// Popover сохраняет обычный ввод в поле заметки статуса. На десктопе это
-// единственное место для темы и действий аккаунта; на телефоне тема в drawer.
+// Тема и действия аккаунта. Смена статуса находится отдельно в шапке.
 export default function UserMenu({
   trigger,
   align = "end",
@@ -84,7 +82,6 @@ export default function UserMenu({
   onNavigate,
 }) {
   const [open, setOpen] = useState(false);
-  const { isEndUser, hideWorkStatus } = useContext(AuthedUserContext);
   const { theme, setTheme } = useContext(ThemeContext);
   const close = () => {
     setOpen(false);
@@ -102,12 +99,6 @@ export default function UserMenu({
         sideOffset={8}
         className="w-80 p-1.5"
       >
-        {!isEndUser && !hideWorkStatus && (
-          <>
-            <WorkStatusSwitcher />
-            <div className="mx-2 my-1.5 h-px bg-border-soft" />
-          </>
-        )}
         {showTheme && (
           <div className="px-2 pb-2">
             <ThemeSegment

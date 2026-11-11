@@ -7,28 +7,30 @@ const stub = (path, exports) => {
   Object.assign(entry, { filename: id, loaded: true, exports });
   require.cache[id] = entry;
 };
-const query = (value) => ({ select() { return this; }, lean: async () => value });
+const query = (value) => ({ then(resolve, reject) { return Promise.resolve(value).then(resolve, reject); }, select() { return this; }, lean: async () => value });
 const TICKET = "64f600000000000000000001", CHANNEL = "64f600000000000000000002", MESSAGE = "64f600000000000000000003", CONVERSATION = "64f600000000000000000004";
-let recipient, routeList, message, jobs, commentWrites, canonical, bindings, seq, failLink, known;
+let recipient, routeList, message, jobs, commentWrites, canonical, bindings, seq, failLink, known, networkAuth, createdComments;
 const ticket = { _id: TICKET, num: 42, applicantId: "client", isClosed: false };
 const channel = { _id: CHANNEL, type: "telegram", provider: "wazzup", providerTransport: "tgapi", providerChannelId: "remote", isActive: true, settings: { signReplies: true } };
-stub("@/models/ticket", { Ticket: { findById: () => query(ticket) } });
+stub("@/models/ticket", { Ticket: { findById: () => query(ticket), updateOne: async () => {} } });
 stub("@/models/user", { findById: () => query(recipient) });
 stub("@/models/preferences", { findOne: () => query({ modules: { messaging: { isActive: true } }, contacts: { title: "Техноцентр" } }) });
 stub("@/models/channel", { findById: () => query(channel) });
-stub("@/models/comment", { updateOne: async (filter, update) => commentWrites.push({ filter, update }) });
+stub("@/models/comment", { create: async data => { const comment = { ...data, _id: "comment" }; createdComments.push(comment); return comment; }, updateOne: async (filter, update) => commentWrites.push({ filter, update }) });
 stub("@/models/message", {
-  create: async (data) => { message = { ...data, _id: MESSAGE, save: async () => {}, toObject() { return this; } }; return message; },
+  create: async (data) => { message = { ...data, _id: data._id || MESSAGE, save: async () => {}, toObject() { return this; } }; return message; },
   findById: () => Object.assign(Promise.resolve(message), query(message)),
   updateOne: async (filter, update) => {
     if (filter.conversationId === null && message.conversationId !== null) return { modifiedCount: 0 };
+    if (filter.status && message.status !== filter.status) return { modifiedCount: 0 };
     Object.assign(message, update.$set);
+    for (const key of Object.keys(update.$unset || {})) delete message[key];
     return { modifiedCount: 1 };
   },
 });
 stub("@/models/channelJob", {
-  create: async (data) => { const job = { ...data, _id: `job-${jobs.length}` }; jobs.push(job); return job; },
-  findById: () => query(jobs.at(-1)),
+  create: async (data) => { const job = { ...data, _id: data._id || `job-${jobs.length}` }; jobs.push(job); return job; },
+  findById: id => query(jobs.find(job => String(job._id) === String(id))),
   updateOne: async () => { if (failLink) { failLink = false; throw new Error("temporary DB failure"); } return { matchedCount: 1 }; },
   updateMany: async () => {},
 });
@@ -39,6 +41,7 @@ stub("@/models/conversation", {
   updateOne: async () => {},
 });
 stub("@/models/channelIdentity", { find: () => query([]) });
+stub("@/services/ticketSeen", { markSeen: async () => {} });
 stub("@/services/pulse", { bus: { bump() {} } });
 stub("@/services/storage", { copyObject: async () => assert.fail("no attachments in this case") });
 stub("./origin", { deliveryRoutes: async () => ({ routes: routeList }) });
@@ -48,12 +51,13 @@ stub("./bindings", { bindConversation: async ({ conversation, ticket }) => { bin
 const { validateDeliverRoute, deliverComment, retryMessage } = require("./outbound");
 const { attachFirstContact, inspectPhoneJob } = require("./first-contact");
 const auth = { userId: "staff", isAdmin: true, can: () => true };
+stub("@/services/authContext", { buildAuthContext: async () => networkAuth, isDeniedAccount: user => Boolean(user.banned) });
 beforeEach(() => {
   recipient = { _id: "client", firstName: "Клиент", phone: "+7 (914) 555-01-42" };
   routeList = [{ id: `phone:${CHANNEL}`, target: "phone", channelId: CHANNEL, conversationId: null, available: true }];
   jobs = []; commentWrites = []; bindings = 0; seq = 0; failLink = false; message = null;
-  canonical = { _id: CONVERSATION, channelId: CHANNEL, network: "telegram", kind: "direct", binding: {} };
-  known = [];
+  canonical = { _id: CONVERSATION, channelId: CHANNEL, externalChatId: "remote-peer", network: "telegram", kind: "direct", binding: {} };
+  known = []; networkAuth = auth; createdComments = []; ticket.isClosed = false;
 });
 const send = async () => {
   const route = await validateDeliverRoute({ ticket, routeId: `phone:${CHANNEL}`, auth });
@@ -72,9 +76,10 @@ test("first contact queues a real ticket reply without an existing conversation,
   assert.equal(job.conversationId, null);
   assert.equal(job.orderingKey, `phone:${CHANNEL}:79145550142`);
   assert.deepEqual(job.payload.recipient, { phone: "79145550142" });
-  assert.equal(job.payload.text, "Здравствуйте!\n\n- Алексей, Техноцентр");
+  assert.equal(job.payload.text, "Здравствуйте!\n\n42\n\n- Алексей, Техноцентр");
+  assert.equal(message.text, "Здравствуйте!");
   assert.equal(job.payload.chatId, undefined);
-  assert.ok(commentWrites.some((entry) => entry.update.$set?.["channel.messageId"] === MESSAGE));
+  assert.ok(commentWrites.some((entry) => String(entry.update.$set?.["channel.messageId"]) === String(message._id)));
 });
 
 test("forged route, revoked reply permission, and missing server phone cannot enqueue", async () => {
@@ -171,4 +176,59 @@ test("real outbox worker rechecks first-contact binding before network and links
   assert.equal(acks[2].ok, true);
   assert.equal(message.conversationId, CONVERSATION);
   assert.equal(canonical.binding.ticketId, "other-ticket");
+});
+test("inbox-only first contact attaches a canonical chat without ticket or comment", async () => {
+  const job = await send(); message.ticketId = null; message.commentId = null; commentWrites = [];
+  await attachFirstContact(job, channel, { chatId: "real-peer" });
+  assert.equal(message.conversationId, CONVERSATION); assert.equal(bindings, 0); assert.equal(commentWrites.length, 0);
+});
+test("ticket messenger reply requires ticket.sendMessage independently from inbox reply", async () => {
+  const ticketOnly = { ...auth, can: request => Boolean(request.ticket?.includes("sendMessage")) };
+  await validateDeliverRoute({ ticket, routeId: `phone:${CHANNEL}`, auth: ticketOnly });
+  await assert.rejects(validateDeliverRoute({ ticket, routeId: `phone:${CHANNEL}`, auth: { ...auth, can: request => Boolean(request.conversation?.includes("reply")) } }), /прав/);
+});
+
+test("inbox worker rechecks current author permission, server phone and hidden chat before HTTP", async () => {
+  const job = await send(); message.ticketId = null; message.commentId = null; message.recipientUserId = "client";
+  assert.equal((await inspectPhoneJob(job, channel)).reason, undefined);
+  networkAuth = { ...auth, can: () => false };
+  assert.match((await inspectPhoneJob(job, channel)).reason, /прав/);
+  networkAuth = auth; recipient.phone = "79990000000";
+  assert.match((await inspectPhoneJob(job, channel)).reason, /Номер получателя изменился/);
+  recipient.phone = "79145550142"; known = [{ ...canonical, hidden: true }];
+  assert.match((await inspectPhoneJob(job, channel)).reason, /скрыт/);
+});
+test("retry allows inbox permission for bound messages and ticket permission for own ticket", async () => {
+  await send(); message.status = "failed"; message.conversationId = CONVERSATION;
+  const inboxOnly = { ...auth, can: request => Boolean(request.conversation) };
+  await retryMessage({ messageId: MESSAGE, auth: inboxOnly });
+  message.status = "failed";
+  const ticketOnly = { ...auth, can: request => Boolean(request.ticket?.includes("sendMessage")) };
+  await retryMessage({ messageId: MESSAGE, auth: ticketOnly });
+  message.status = "failed";
+  await assert.rejects(retryMessage({ messageId: MESSAGE, auth: { ...auth, can: () => false } }), /прав|не найден/);
+});
+test("durable inbox-only queue persists recipient and request without creating a comment or ticket binding", async () => {
+  const { queueOutbound } = require("./outbound");
+  const clientRequestId = "2dd2b92e-94f4-4d2c-9e1d-6711b1b61d55";
+  await queueOutbound({ channel, text: "Первое сообщение", attachments: [], author: { _id: "staff", firstName: "Алексей" }, recipient: { phone: "79145550142", name: "Клиент", userId: "client" }, clientRequestId });
+  assert.equal(message.clientRequestId, clientRequestId); assert.equal(message.recipientUserId, "client"); assert.equal(message.ticketId, null); assert.equal(message.commentId, null); assert.equal(message.conversationId, null);
+  assert.equal(jobs.length, 1); assert.equal((await inspectPhoneJob(jobs[0], channel)).reason, undefined);
+  await attachFirstContact(jobs[0], channel, { chatId: "real-peer" });
+  assert.equal(message.conversationId, CONVERSATION); assert.equal(bindings, 0); assert.equal(commentWrites.length, 0);
+});
+
+test("inbox reply decorates a live bound-ticket send while stored message and comment stay original", async () => {
+  const { sendFromInbox } = require("./outbound");
+  canonical.binding = { ticketId: TICKET };
+  await sendFromInbox({ conversationId: CONVERSATION, text: "Ответ клиенту", auth });
+  assert.equal(message.text, "Ответ клиенту"); assert.equal(createdComments[0].content, "Ответ клиенту");
+  assert.equal(jobs[0].payload.text, "Ответ клиенту\n\n42\n\n- Клиент, Техноцентр");
+  canonical.binding.endedAt = new Date();
+  await sendFromInbox({ conversationId: CONVERSATION, text: "Без заявки", auth });
+  assert.equal(message.ticketId, null); assert.equal(jobs[1].payload.text, "Без заявки\n\n- Клиент, Техноцентр");
+  canonical.binding.endedAt = null; ticket.isClosed = true;
+  await sendFromInbox({ conversationId: CONVERSATION, text: "Заявка закрыта", auth });
+  assert.equal(message.ticketId, null); assert.equal(jobs[2].payload.text, "Заявка закрыта\n\n- Клиент, Техноцентр");
+  assert.equal(createdComments.length, 1);
 });
