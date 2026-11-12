@@ -82,7 +82,7 @@ const attachmentOf = (raw) => {
   };
 };
 
-const messageOf = (raw) => {
+const messageOf = (raw, chatKind) => {
   need(raw && typeof raw === "object", "message обязателен");
   need(isId(String(raw.id ?? "")), "message.id обязателен");
   need(["in", "out"].includes(raw.direction), "message.direction: in | out");
@@ -97,7 +97,7 @@ const messageOf = (raw) => {
   let origin = raw.origin;
   if (raw.direction === "in") {
     need(origin === undefined || origin === "form", "у входящего origin задаёт сервер");
-    need(raw.sender, "у входящего нужен sender");
+    need(raw.sender || (chatKind === "group" && raw.sender === null), "у входящего нужен sender (null допустим только в группе)");
   } else {
     origin = origin ?? "device";
     need(["device", "hd"].includes(origin), "исходящее: origin device | hd");
@@ -136,8 +136,10 @@ const validateEvent = (raw) => {
     const base = { type: raw.type, channelId: raw.channelId, at: date(raw.at) || new Date() };
 
     switch (raw.type) {
-      case "message":
-        return { ok: true, event: { ...base, chat: chatOf(raw.chat), message: messageOf(raw.message) } };
+      case "message": {
+        const chat = chatOf(raw.chat);
+        return { ok: true, event: { ...base, chat, message: messageOf(raw.message, chat.kind) } };
+      }
       case "message.edited": {
         need(raw.message && isId(String(raw.message.id ?? "")), "message.id обязателен");
         need(typeof raw.message.text === "string" && raw.message.text.length <= MAX_TEXT, "message.text — строка");

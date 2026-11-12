@@ -22,12 +22,20 @@ test('outbound echoes correlate to existing HD jobs and edits cannot rewrite sig
   assert.equal(echo.message.jobId, own.jobId);
   assert.equal(normalizeMessage({ ...incoming, isEcho: true, isEdited: true }, channel, { own }), null);
 });
-test('deletions and group senders preserve messenger semantics', () => {
+test('deletions preserve messenger semantics', () => {
   assert.equal(normalizeMessage({ ...incoming, isDeleted: true }, channel).type, 'message.deleted');
-  const event = normalizeMessage({ ...incoming, chatType: 'telegroup', authorId: 'member', authorName: 'Игорь' }, channel);
-  assert.equal(event.chat.kind, 'group');
-  assert.equal(event.chat.peer, undefined);
-  assert.match(event.message.sender.id, /member/);
+});
+test('v3 group metadata and CRM author fields never identify an incoming participant', () => {
+  for (const [type, chatType] of [['telegram', 'telegroup'], ['whatsapp', 'whatsgroup'], ['max', 'maxgroup']]) {
+    const event = normalizeMessage({ ...incoming, chatType, contact: { name: 'Группа', phone: '79145550142', username: 'group' }, authorId: 'crm-user', authorName: 'Сотрудник' }, { ...channel, type });
+    assert.equal(event.chat.kind, 'group');
+    assert.equal(event.chat.title, 'Группа');
+    assert.equal(event.chat.peer, undefined);
+    assert.equal(event.message.sender, null);
+    const checked = require('../messaging/events').validateEvent(event);
+    assert.equal(checked.ok, true);
+    assert.equal(checked.event.message.sender, null);
+  }
 });
 test('event dedup key is insensitive to object key order but includes edits', () => {
   assert.equal(eventKey('messages', { a: 1, b: 2 }), eventKey('messages', { b: 2, a: 1 }));

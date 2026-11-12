@@ -141,6 +141,14 @@ independently of `message.sender` so the counterpart can still be identified
 on an outbound/device message (which has no `sender`) and so the corporate
 account itself is never mistaken for its own counterpart.
 
+For an inbound **group** message, an explicit `sender: null` means that the
+transport cannot identify the participant. An omitted sender or a malformed
+identity is still rejected; direct/form messages still require a sender.
+Such a group message is stored with `identityId: null`, `origin: "client"`
+and the label «Неизвестный участник», without creating an identity or adding a
+participant. It starts waiting but cannot clear waiting as a staff reply.
+Message IDs still deduplicate delivery independently of author identity.
+
 `origin` meaning: `"device"` = sent from the corporate phone/app directly (not
 through HD) — mirrored under `Channel.serviceUserId` (§4); `"hd"` + `jobId` =
 the gateway's echo of a message HD itself queued — it confirms delivery of an
@@ -892,6 +900,17 @@ own-message echoes that arrive before the send response wait for correlation
 Incoming messages, device echoes, edits, deletions and delivery statuses all
 pass through common ingest and ticket mirroring; no separate conversation
 store is created.
+
+**Group authors in User API v3.** `telegroup`, `whatsgroup` and `maxgroup`
+are accepted, but their incoming author is currently unknown (`sender: null`).
+Do not use `contact` chat metadata or CRM `authorId`/`authorName` to identify
+a group participant. In particular, no shared `chatId:unknown` identity is
+created or reused. The separate Partner API documents a participant `sender`,
+but that is a different protocol and authentication flow, not a v3 field to
+guess. Corporate-account echoes retain their normal outgoing behavior. On
+2026-11-12, the live inbox contained 67 events and no group events or group
+conversations, so there was no historical group data to repair or live group
+payload to establish a participant mapping from.
 
 **Provider-isolated outgoing delivery.** `ChannelJob.provider` follows the
 channel. `/api/gateway/*` cannot list or lease Wazzup channels/jobs, ingest

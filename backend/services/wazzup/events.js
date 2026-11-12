@@ -41,7 +41,11 @@ const normalizeMessage = (raw, channel, { own, attachments = [] } = {}) => {
   const base = { channelId: String(channel._id), at: raw.dateTime, chat };
   if (raw.isDeleted) return { ...base, type: 'message.deleted', messageIds: [raw.messageId] };
   if (raw.isEdited) return own?.origin === 'hd' ? null : { ...base, type: 'message.edited', message: { id: raw.messageId, text: typeof raw.text === 'string' ? raw.text : '', editedAt: new Date() } };
-  const sender = group ? { id: personId(channel, raw.authorId || contact.phone || contact.username || `${raw.chatId}:unknown`), name: publicName(raw.authorName || contact.name), phone: String(contact.phone || '') } : peer;
+  // User API v3 does not document a group participant identity: contact is
+  // chat metadata, authorId/authorName describe a CRM sender of an echo.
+  // Never turn the group or an invented ':unknown' key into a person. The
+  // partner API's separate sender contract needs its own verified adapter.
+  const sender = group ? null : peer;
   const kind = { image: 'photo', audio: 'audio', video: 'video', document: 'document', vcard: 'contact', geo: 'location' }[raw.type] || (raw.type === 'text' ? 'text' : 'other');
   return { ...base, type: 'message', message: {
     id: raw.messageId, direction: raw.isEcho ? 'out' : 'in', ...(raw.isEcho ? { origin: own?.jobId ? 'hd' : 'device', ...(own?.jobId ? { jobId: String(own.jobId) } : {}) } : { sender }),

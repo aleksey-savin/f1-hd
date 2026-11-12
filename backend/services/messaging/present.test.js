@@ -4,6 +4,15 @@ const assert = require("node:assert/strict");
 
 const { publicName, mirrorAuthorName, commentChannel, conversationRow, messageRow, candidateRow } = require("./present");
 
+test('an unidentified group author stays anonymous in the thread and ticket mirror', () => {
+  const message = { direction: 'in', origin: 'client', identityId: null, authorName: 'Неизвестный участник' };
+  const row = messageRow(message);
+  assert.equal(row.author.name, 'Неизвестный участник');
+  assert.equal(row.author.userId, null);
+  assert.equal(row.author.isStaff, false);
+  assert.equal(mirrorAuthorName({ message, identity: null, network: 'telegram' }), 'Неизвестный участник · Telegram');
+});
+
 test("the comment channel block carries names only", () => {
   const block = commentChannel(
     {

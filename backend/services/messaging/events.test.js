@@ -64,6 +64,20 @@ test("origin hd needs the job id; unknown origins are refused", () => {
   assert.equal(validateEvent(weird).ok, false);
 });
 
+test('only a group can explicitly report an unknown sender; malformed identities still fail', () => {
+  const event = message();
+  event.message.sender = null;
+  assert.equal(validateEvent(event).ok, false);
+  event.chat = { id: 'group', kind: 'group' };
+  const checked = validateEvent(event);
+  assert.equal(checked.ok, true);
+  assert.equal(checked.event.message.sender, null);
+  delete event.message.sender;
+  assert.equal(validateEvent(event).ok, false);
+  event.message.sender = {};
+  assert.equal(validateEvent(event).ok, false);
+});
+
 test("limits: text 20 000, 20 attachments, 100 deleted ids", () => {
   const long = message();
   long.message.text = "x".repeat(20_001);

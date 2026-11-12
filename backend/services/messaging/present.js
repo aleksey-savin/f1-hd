@@ -29,7 +29,7 @@ const mirrorAuthorName = ({ identity, message, channel, network }) => {
     return `${channel?.account?.displayName || channel?.name || "Корпоративный аккаунт"} · с телефона`;
   }
   if (identity?.userId) return "";
-  return `${publicName(identity)} · ${NETWORK_LABEL[network] || network}`;
+  return `${(!identity && message.authorName) || publicName(identity)} · ${NETWORK_LABEL[network] || network}`;
 };
 
 /** Блок `channel` комментария — поимённо, лишнее не проходит. */

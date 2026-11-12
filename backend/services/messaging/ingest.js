@@ -87,7 +87,7 @@ const insertMessage = async ({ channel, conversation, event, identity }) => {
       origin,
       kind: msg.kind,
       identityId: identity?._id || null,
-      authorName: origin === "device" ? deviceName(channel) : "",
+      authorName: origin === "device" ? deviceName(channel) : !identity && event.chat.kind === "group" ? "Неизвестный участник" : "",
       text: msg.text,
       attachments: msg.attachments,
       form: msg.form || undefined,
@@ -106,7 +106,7 @@ const insertMessage = async ({ channel, conversation, event, identity }) => {
 
 const applyConversationEffects = async (conversation, message, identity) => {
   const { Conversation, Channel } = m();
-  const authorName = message.direction === "in" ? await displayNameFor(identity) : message.authorName;
+  const authorName = message.direction === "in" ? await displayNameFor(identity) || message.authorName : message.authorName;
   await Conversation.updateOne(
     { _id: conversation._id, $or: [{ "lastMessage.at": null }, { "lastMessage.at": { $lte: message.sentAt } }] },
     {
