@@ -1,12 +1,8 @@
+import { companyCrumbs } from "@/util/crumb-trail";
+import { Link, useNavigate } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { Fragment, useEffect, useRef, useState } from "react";
-import {
-  Link,
-  useLoaderData,
-  useLocation,
-  useNavigate,
-  useRevalidator,
-} from "react-router";
+import { useLoaderData, useLocation, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 
 import {
@@ -198,6 +194,10 @@ const HeroFlag = ({ flag, text, target }) => {
  * проверки в форме: связать найденную по серийнику или создать из считанных
  * данных. `inventory === null` — модуль «Учёт техники» выключен, строки нет.
  */
+const recordCrumbTitle = (row) =>
+  [row.type !== row.displayName ? row.type : null, row.displayName]
+    .filter(Boolean).join(" ");
+
 const InventoryLine = ({ row, canManage, onChanged }) => {
   const showToast = useToastStore((state) => state.showToast);
   const linkInventory = useMikrotikDeviceFilterStore(
@@ -208,7 +208,7 @@ const InventoryLine = ({ row, canManage, onChanged }) => {
   );
   const [busy, setBusy] = useState(false);
   // Ссылка в чужой раздел несёт «откуда пришли» — крошка карточки вернёт сюда
-  const fromState = useCrumbFrom(row.displayName);
+  const fromState = useCrumbFrom(recordCrumbTitle(row));
 
   const inventory = row.inventory;
 
@@ -447,7 +447,10 @@ const MikrotikRecordPage = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Crumbs />
+      <Crumbs
+        title={recordCrumbTitle(row)}
+        chain={companyCrumbs([row.company], can({ company: ["read"] }))}
+      />
 
       {/* ── Hero ──
           Сетка: на десктопе плитка слева на две строки, справа действия, в

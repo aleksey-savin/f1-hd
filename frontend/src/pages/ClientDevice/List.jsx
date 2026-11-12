@@ -1,8 +1,9 @@
+import { useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useRef } from "react";
 
 import { RiBox3Line } from "react-icons/ri";
-import { redirect, useLocation, useSearchParams } from "react-router";
+import { redirect, useLocation } from "react-router";
 
 import ListWrapper from "@/components/app/ListWrapper";
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";

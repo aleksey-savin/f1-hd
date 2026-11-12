@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link, useActionData } from "react-router";
+import { useActionData } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
   RiAtLine,
@@ -152,7 +153,7 @@ const ViewCompany = ({
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Crumbs />
+      <Crumbs title={company.alias} />
 
       {/* HERO */}
       <div className="flex flex-wrap items-start gap-x-5 gap-y-4">

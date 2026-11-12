@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useLoaderData } from "react-router";
+import { useLoaderData } from "react-router";
 import { BrowserView } from "react-device-detect";
 
 import AnchorRail from "@/components/app/AnchorRail";
@@ -79,7 +80,7 @@ const HelpArticle = () => {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
-      <Crumbs
+      <Crumbs title={article.title}
         section="help"
         chain={[
           {

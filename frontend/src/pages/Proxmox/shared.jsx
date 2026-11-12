@@ -1,5 +1,6 @@
+import { useNavigate } from "@/components/app/navigation";
 import { cloneElement, isValidElement, useEffect, useId } from "react";
-import { useLocation, useNavigate, useRevalidator } from "react-router";
+import { useLocation, useRevalidator } from "react-router";
 import AppField from "@/components/app/Field";
 import Segmented from "@/components/app/Segmented";
 import { Input } from "@/components/ui/input";

@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { Link } from "@/components/app/navigation";
+
 import { RiGroupLine } from "react-icons/ri";
 
 import CountPill from "@/components/app/CountPill";

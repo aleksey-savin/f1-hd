@@ -1,11 +1,7 @@
+import { Link } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useContext, useEffect, useMemo, useState } from "react";
-import {
-  Link,
-  useActionData,
-  useLoaderData,
-  useLocation,
-} from "react-router";
+import { useActionData, useLoaderData, useLocation } from "react-router";
 
 import {
   RiAddFill,

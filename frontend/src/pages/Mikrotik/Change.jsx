@@ -206,7 +206,7 @@ const MikrotikChangePage = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Crumbs chain={chain} />
+      <Crumbs title={change.title} chain={chain} />
 
       {/* ── Hero: вид записи → тема → статус и что к нему прилагается ── */}
       <div className="flex items-start justify-between gap-3">

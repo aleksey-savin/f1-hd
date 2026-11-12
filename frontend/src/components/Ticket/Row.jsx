@@ -1,6 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { Fragment, useState } from "react";
 
-import { Link } from "react-router";
 import {
   RiDeleteBinLine,
   RiEdit2Line,

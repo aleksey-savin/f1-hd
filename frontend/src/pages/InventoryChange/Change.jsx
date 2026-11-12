@@ -1,6 +1,6 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState } from "react";
-import { useLoaderData, useLocation } from "react-router";
+import { useLoaderData } from "react-router";
 
 import { RiRobot2Line, RiTimeLine, RiUserLine } from "react-icons/ri";
 
@@ -45,7 +45,6 @@ import ChangeNote from "../../components/Mikrotik/ChangeNote";
 import ChangeTimeline from "../../components/Mikrotik/ChangeTimeline";
 
 const COMMENT_MAX = 300;
-const CRUMB_MAX = 30;
 
 const APPLY_BODY =
   "Операции идут по порядку. Если одна не пройдёт, HD остановится, а уже сделанное останется.";
@@ -53,19 +52,6 @@ const APPLY_BODY =
 const STUCK_TITLE = "Применение прервано — результат неизвестен";
 const STUCK_BODY =
   "HD не дождался конца применения. Отмечено то, что успело записаться; остальные операции могли пройти. Проверьте технику, прежде чем предлагать снова.";
-
-// Крошка — начало названия по границе слова: полное название стоит в h1 ниже
-const shortTitle = (title = "") => {
-  if (title.length <= CRUMB_MAX) return title;
-  const cut = title.slice(0, CRUMB_MAX + 1);
-  const space = cut.lastIndexOf(" ");
-  // Висящий предлог или союз («и», «в», «на») в конце крошки не оставляем
-  const head =
-    space > 0
-      ? cut.slice(0, space).replace(/\s+\S{1,2}$/, "")
-      : title.slice(0, CRUMB_MAX);
-  return `${head.replace(/[\s,.:;—–-]+$/, "")}…`;
-};
 
 // Сводка диалога «Применить?» внутри <p> описания: только строчные элементы
 const ApplyDescription = ({ items }) => (
@@ -98,7 +84,6 @@ const ApplyDescription = ({ items }) => (
  */
 const InventoryChangePage = () => {
   const change = useLoaderData();
-  const location = useLocation();
   const refresh = useRefreshRoute();
   const showToast = useToastStore((state) => state.showToast);
 
@@ -120,11 +105,6 @@ const InventoryChangePage = () => {
   const awaiting = change.status === "awaiting_requester";
   const tone = STATUS_TEXT_TONE[statusTone(change.status, change.stuck)];
   const partial = change.status === "partial" ? partialNote(operations) : null;
-
-  // Пришли со страницы-источника — первая крошка уже она, цепочка не нужна
-  const chain = location.state?.from
-    ? []
-    : [{ label: shortTitle(change.title) }];
 
   // Решение ушло от человека, пока диалог открыт (решено в Telegram, срок вышел).
   // Пока летит своё решение, живое обновление тоже снимет canDecide — это не «устарело»
@@ -173,7 +153,7 @@ const InventoryChangePage = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Crumbs section="client-devices" chain={chain} />
+      <Crumbs title={change.title} section="client-devices" />
 
       {/* ── Hero: вид записи → название → статус, объём, срок ── */}
       <div className="min-w-0">

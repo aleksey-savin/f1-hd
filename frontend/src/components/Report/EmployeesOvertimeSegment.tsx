@@ -1,5 +1,5 @@
+import { Link } from "@/components/app/navigation";
 import { type ReactNode } from "react";
-import { Link } from "react-router";
 
 import AlertMessage from "@/components/app/AlertMessage";
 import { Eyebrow } from "@/components/app/Panel";

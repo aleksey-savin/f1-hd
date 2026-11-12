@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect } from "react";
-import { Link, useLocation, redirect } from "react-router";
+import { useLocation, redirect } from "react-router";
 import { RiFolderLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";

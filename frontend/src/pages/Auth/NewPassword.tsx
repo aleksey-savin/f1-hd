@@ -1,11 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
-import {
-  Link,
-  redirect,
-  useActionData,
-  useLoaderData,
-  useNavigation,
-} from "react-router";
+import { redirect, useActionData, useLoaderData, useNavigation } from "react-router";
 import { RiLinkUnlinkM } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";

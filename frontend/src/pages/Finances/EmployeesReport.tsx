@@ -1,6 +1,7 @@
+import { useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, type ReactNode } from "react";
-import { useSearchParams } from "react-router";
+
 import { RiFilter3Line } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";

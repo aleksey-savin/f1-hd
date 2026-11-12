@@ -1,6 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
 
-import { Link } from "react-router";
 import { RiDeleteBinLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";

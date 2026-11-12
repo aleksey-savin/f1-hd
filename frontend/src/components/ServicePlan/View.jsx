@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+
 import {
   RiDeleteBinLine,
   RiEdit2Line,
@@ -133,7 +134,7 @@ const ViewServicePlan = ({ servicePlan }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Crumbs />
+      <Crumbs title={title} />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

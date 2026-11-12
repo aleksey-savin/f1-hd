@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+
 import {
   RiArrowDownSLine,
   RiArrowUpSLine,

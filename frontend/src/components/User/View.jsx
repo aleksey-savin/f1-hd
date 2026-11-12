@@ -1,5 +1,7 @@
+import { companyCrumbs } from "@/util/crumb-trail";
+import { Link } from "@/components/app/navigation";
 import { useContext, useEffect, useState } from "react";
-import { Link, useRevalidator } from "react-router";
+import { useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
   RiBuilding2Line,
@@ -311,7 +313,7 @@ const ViewUser = ({ user, tickets }) => {
   return (
     // max-w-5xl: рейл 192px + зазор 28px + колонка секций ≈ 804px
     <div className="mx-auto w-full max-w-5xl">
-      <Crumbs />
+      <Crumbs title={fullName} chain={companyCrumbs([company], can({company: ["read"]}))} />
 
       {/* HERO */}
       <div className="flex flex-wrap items-start gap-x-5 gap-y-4">

@@ -13,13 +13,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import ThemeSegment from "@/components/app/ThemeSegment";
 import { NavCount } from "@/components/Conversation/NavBadges";
 import { cn } from "@/lib/utils";
 
 import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
 import { AuthedUserContext } from "../store/authed-user-context";
-import { ThemeContext } from "../store/theme-context";
 import { activeMenuKey } from "./Navigation/menu";
 
 // Бургер-Sheet навигации мобильного shell. На десктопе, включая узкие окна,
@@ -47,7 +45,6 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
   } = useContext(AuthedUserContext);
   const { pathname } = useLocation();
   const activeKey = activeMenuKey(items, pathname);
-  const { theme, setTheme } = useContext(ThemeContext);
 
   const workStatusAvailable = !isEndUser && !hideWorkStatus;
   const roleLabel = isAdmin
@@ -59,8 +56,6 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
     `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.trim() || "?";
 
   const close = () => onOpenChange(false);
-
-  const changeTheme = (value) => setTheme(value);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -95,7 +90,7 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
 
         <nav
           aria-label="Основная навигация"
-          className="min-h-0 flex-1 overflow-y-auto p-2.5"
+          className="min-h-0 flex-1 overflow-y-auto p-2.5 scrollbar-none"
         >
           <div className="px-2 pt-1 pb-1.5 text-xs font-semibold tracking-wider text-faint uppercase">
             Навигация
@@ -188,12 +183,6 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
         </nav>
 
         <div className="border-t border-border-soft p-3 pb-4">
-          <ThemeSegment
-            theme={theme}
-            onChange={changeTheme}
-            showLabels={false}
-            className="mb-2 flex"
-          />
           <NavLink to="/my-account" onClick={close} className={itemClass}>
             <RiUserSettingsLine size={18} aria-hidden className={iconClass} />
             Мой аккаунт

@@ -1,10 +1,9 @@
+import { Link, useSearchParams } from "@/components/app/navigation";
 import { useCallback, useState } from "react";
 import {
-  Link,
   useLoaderData,
   useNavigation,
   useRevalidator,
-  useSearchParams,
   useActionData,
 } from "react-router";
 import {

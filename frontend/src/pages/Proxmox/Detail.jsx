@@ -1,3 +1,5 @@
+import { companyCrumbs } from "@/util/crumb-trail";
+import { Link } from "@/components/app/navigation";
 import CancelOperationDialog, {
   canCancelOperation,
 } from "./CancelOperationDialog";
@@ -8,7 +10,7 @@ import VmOperationDialog, {
   powerDisabledReason,
 } from "./VmOperationDialog";
 import { useEffect, useState } from "react";
-import { Link, useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   RiServerLine,
   RiComputerLine,
@@ -171,9 +173,15 @@ export default function ProxmoxDetail() {
     setActiveOperation(undefined);
     setOperationStatusError(null);
   }, [id]);
-  const title = titleOf(item, kind),
-    Icon = icons[kind] || RiServerLine,
-    from = useCrumbFrom(title);
+  const title = titleOf(item, kind);
+  const crumbType = kind === "guests"
+    ? (item.guestType === "lxc" ? "LXC" : "ВМ")
+    : { nodes: "Узел", storages: "Хранилище", connections: "Подключение" }[kind];
+  const crumbTitle = [crumbType !== title ? crumbType : null, title]
+    .filter(Boolean).join(" ");
+  const crumbCompany = kind === "companies" ? null : item.company;
+  const Icon = icons[kind] || RiServerLine;
+  const from = useCrumbFrom(crumbTitle);
   useRefresh(60000);
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
@@ -390,7 +398,10 @@ export default function ProxmoxDetail() {
   };
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Crumbs />
+      <Crumbs
+        title={crumbTitle}
+        chain={companyCrumbs([crumbCompany], can({ company: ["read"] }))}
+      />
       <header className="mb-5 flex flex-wrap items-start gap-3 sm:gap-4">
         <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-accent text-muted-foreground">
           <Icon size={26} />

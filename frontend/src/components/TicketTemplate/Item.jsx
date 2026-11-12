@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { Link } from "@/components/app/navigation";
+
 import { RiCalendarScheduleLine, RiTicketLine } from "react-icons/ri";
 
 import ListRow from "@/components/app/ListRow";

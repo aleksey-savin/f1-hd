@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { Link } from "@/components/app/navigation";
+
 import { RiComputerLine, RiMapPin2Line } from "react-icons/ri";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";

@@ -1,5 +1,6 @@
+import { useSearchParams } from "@/components/app/navigation";
 import { useEffect } from "react";
-import { useLoaderData, useSearchParams } from "react-router";
+import { useLoaderData } from "react-router";
 
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
 import ListWrapper from "@/components/app/ListWrapper";

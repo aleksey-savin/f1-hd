@@ -1,6 +1,7 @@
+import { useNavigate } from "react-router";
+import { useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router";
 
 import Segmented from "@/components/app/Segmented";
 
@@ -33,7 +34,7 @@ const Companies = () => {
       defaultView.level === "subdivision" && defaultView.subdivisionId
         ? `/report/companies/${defaultView.companyId}/subdivisions/${defaultView.subdivisionId}`
         : `/report/companies/${defaultView.companyId}`;
-    navigate(path, { replace: true });
+    navigate(path, { replace: true, state: null });
   }, [defaultView, view, navigate]);
 
   const switchView = (value: string) => {

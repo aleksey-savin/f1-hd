@@ -135,7 +135,7 @@ export default function AppSidebar() {
           <RiCloseLine size={18} aria-hidden />
         </Button>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="scrollbar-none">
         <SidebarGroup>
           <nav aria-label="Основная навигация">
             <SidebarMenu>
@@ -184,7 +184,6 @@ export default function AppSidebar() {
       <SidebarFooter className="shrink-0 border-t p-2">
         <UserMenu
           side="right"
-          showTheme
           onNavigate={close}
           trigger={<UserMenuTrigger />}
         />

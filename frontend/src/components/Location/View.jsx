@@ -1,5 +1,7 @@
+import { companyCrumbs } from "@/util/crumb-trail";
+import { Link } from "@/components/app/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useActionData } from "react-router";
+import { useActionData } from "react-router";
 
 import {
   RiAddFill,
@@ -241,13 +243,15 @@ const ViewLocation = ({
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      {/* Крошки: возврат туда, откуда пришли, затем цепочка предков —
-          здание › этаж; текущее расположение только в h1 */}
-      <Crumbs
-        chain={ancestors.map((ancestor) => ({
-          label: ancestor.name,
-          to: `/inventory/locations/${ancestor._id}`,
-        }))}
+      {/* Родители расположения для полного пути в верхнем баре. */}
+      <Crumbs title={location.name}
+        chain={[
+          ...companyCrumbs([company], can({ company: ["read"] })),
+          ...ancestors.map((ancestor) => ({
+            label: ancestor.name,
+            to: `/inventory/locations/${ancestor._id}`,
+          })),
+        ]}
       />
 
       {/* Hero */}

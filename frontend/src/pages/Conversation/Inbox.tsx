@@ -1,6 +1,7 @@
+import { Link } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState, type ChangeEvent } from "react";
-import { Link, useMatch, useOutlet } from "react-router";
+import { useMatch, useOutlet } from "react-router";
 import { isMobile } from "react-device-detect";
 import { RiAddLine } from "react-icons/ri";
 

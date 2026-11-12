@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+
 import {
   RiArrowUpCircleLine,
   RiCheckLine,

@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useContext, useEffect, useState } from "react";
-import { Link } from "react-router";
+
 import {
   RiAddLine,
   RiCalendarScheduleLine,
@@ -100,7 +101,7 @@ const ViewTicketTemplate = ({ template }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Crumbs />
+      <Crumbs title={title} />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

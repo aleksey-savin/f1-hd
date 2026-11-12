@@ -1,7 +1,8 @@
+import { Link } from "@/components/app/navigation";
 import { useContext, useState } from "react";
 
 import { RiArrowLeftSLine, RiCalendar2Line } from "react-icons/ri";
-import { Link, useMatch } from "react-router";
+import { useMatch } from "react-router";
 
 import {
   Tooltip,

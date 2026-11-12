@@ -1,6 +1,9 @@
+import { getNoteTypeMeta } from "@/util/knowledgeNoteTypes";
+import { companyCrumbs } from "@/util/crumb-trail";
+import { useNavigate } from "@/components/app/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useBlocker } from "react-router";
-import { isMobile, MobileView } from "react-device-detect";
+import { useBlocker } from "react-router";
+import { isMobile } from "react-device-detect";
 
 import { RiSaveLine } from "react-icons/ri";
 
@@ -455,11 +458,10 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
 
   return (
     <article className="min-w-0">
-      {/* Крошка нужна только там, где списка не видно: на десктопе он всегда
-          слева, в соседней панели */}
-      <MobileView>
-        <Crumbs />
-      </MobileView>
+      <Crumbs
+        title={isNew ? "Новая заметка" : `${getNoteTypeMeta(currentNote.type).label}: ${currentNote.title}`}
+        chain={isNew ? [] : companyCrumbs(currentNote.companies || [], can({company: ["read"]}))}
+      />
 
       <NoteHero
         note={currentNote}

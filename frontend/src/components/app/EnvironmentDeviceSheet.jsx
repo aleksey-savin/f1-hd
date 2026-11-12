@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { Link } from "@/components/app/navigation";
+
 import { RiExternalLinkLine, RiFocus3Line, RiStarFill } from "react-icons/ri";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";

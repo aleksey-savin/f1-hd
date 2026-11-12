@@ -1,3 +1,4 @@
+import { useNavigate } from "@/components/app/navigation";
 import {
   createContext,
   useCallback,
@@ -11,7 +12,6 @@ import {
 import {
   resolvePath,
   useMatches,
-  useNavigate,
   useOutlet,
   useResolvedPath,
   type NavigateOptions,

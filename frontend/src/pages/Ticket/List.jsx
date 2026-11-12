@@ -1,6 +1,7 @@
+import { Link } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useLocation } from "react-router";
+import { Navigate, useLocation } from "react-router";
 
 import { RiCheckboxMultipleLine } from "react-icons/ri";
 

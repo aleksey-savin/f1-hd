@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { useLocation } from "react-router";
 
 import {
   RiCpuLine,
@@ -91,13 +92,11 @@ const ViewDeviceBuild = ({ build = {}, deviceType = null, partLinks = {} }) => {
     },
   ];
 
-  // Крошки: «‹ Типы устройств › <тип> › Сборка». Пришли с карточки типа —
-  // она и есть первая крошка, второй раз тип не повторяем
+  // Предок — тип устройства. Если пришли с него, он уже есть в пути.
   const from = location.state?.from;
   const fromType = from?.to?.split("?")[0] === typePath;
   const chain = [
     ...(fromType || !deviceType ? [] : [{ label: typeName, to: typePath }]),
-    { label: "Сборка" },
   ];
 
   const bold = (n) => <b className="font-semibold text-foreground">{n}</b>;
@@ -105,7 +104,7 @@ const ViewDeviceBuild = ({ build = {}, deviceType = null, partLinks = {} }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Crumbs section="device-types" chain={chain} />
+      <Crumbs title={name} section="device-types" chain={chain} />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

@@ -1,6 +1,7 @@
+import { Link } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useMemo, useState } from "react";
-import { Link, useLoaderData } from "react-router";
+import { useLoaderData } from "react-router";
 import { BrowserView, MobileView, isMobile } from "react-device-detect";
 import {
   RiArrowLeftSLine,
@@ -184,21 +185,7 @@ const Networks = () => {
             }`
           : `${totals.devices} ${plural(totals.devices, "устройство", "устройства", "устройств")} · ${totals.addresses} ${plural(totals.addresses, "адрес", "адреса", "адресов")} · ${totals.networks} ${plural(totals.networks, "сеть", "сети", "сетей")}`
       }
-      breadcrumb={
-        openDevice ? (
-          <button
-            type="button"
-            onClick={() => setOpenDevice(null)}
-            className="inline-flex cursor-pointer appearance-none items-center gap-1 border-0 bg-transparent p-0 text-sm text-muted-foreground outline-none hover:text-foreground hover:underline focus-visible:ring-4 focus-visible:ring-ring/50"
-          >
-            <RiArrowLeftSLine size={15} aria-hidden />
-            Диапазоны сетей
-          </button>
-        ) : (
-          // Раздел у отчёта не по адресу, а по меню: сети — часть мониторинга
-          <Crumbs section="mikrotik" />
-        )
-      }
+      breadcrumb={<Crumbs section="mikrotik" />}
       // Поиск — в слоте шапки: она сама задаёт ему ширину и переносит
       // ступенями при сужении окна
       search={
@@ -207,7 +194,11 @@ const Networks = () => {
         )
       }
       toolbar={
-        openDevice ? null : (
+        openDevice ? (
+          <Button variant="ghost" onClick={() => setOpenDevice(null)}>
+            <RiArrowLeftSLine aria-hidden /> Диапазоны сетей
+          </Button>
+        ) : (
           <Button
             variant="ghost"
             className="text-muted-foreground"

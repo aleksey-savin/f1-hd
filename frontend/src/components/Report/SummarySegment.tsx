@@ -1,5 +1,6 @@
+import { useNavigate } from "@/components/app/navigation";
 import { useEffect, type ReactNode } from "react";
-import { useNavigate } from "react-router";
+
 import { RiFilter3Line } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";

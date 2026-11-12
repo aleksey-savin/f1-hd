@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect } from "react";
-import { Link, useFetcher } from "react-router";
+import { useFetcher } from "react-router";
 import { Eyebrow, Panel, Section } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/util/format-date";

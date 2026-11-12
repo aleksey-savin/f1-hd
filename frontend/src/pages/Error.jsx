@@ -1,5 +1,6 @@
+import { useNavigate } from "@/components/app/navigation";
 import { useEffect, useLayoutEffect } from "react";
-import { useNavigate, useRouteError } from "react-router";
+import { useRouteError } from "react-router";
 
 import useRouteErrorStore from "../store/route-error";
 import { clearSession } from "./Auth/session";

@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 
+import Crumbs from "./Crumbs";
 import PageHeader from "@/components/app/PageHeader";
 
 // Каркас страницы, у которой есть заголовок и строка инструментов, но нет
@@ -31,7 +32,7 @@ const PageShell = ({
   /** Главное действие страницы («Отсутствие» у календаря) — в правом верхнем
    *  углу на любой ширине, а не в хвосте тулбара. */
   action?: ReactNode;
-  /** Возврат к списку/сводной — крошками сверху, как на карточках сущностей. */
+  /** Дополнительные родители для общего бара: элемент Crumbs с section/chain. */
   breadcrumb?: ReactNode;
   /** Плитка-монограмма слева от заголовка (карточки компании и подразделения). */
   icon?: ReactNode;
@@ -50,7 +51,8 @@ const PageShell = ({
     className={wide ? "mx-auto w-full" : "mx-auto w-full max-w-7xl"}
     style={wide ? { maxWidth: "100rem" } : undefined}
   >
-    {breadcrumb && <div className="mb-3">{breadcrumb}</div>}
+    <Crumbs title={title} />
+    {breadcrumb}
     <PageHeader
       className="mb-4"
       title={

@@ -1,4 +1,5 @@
-import { useParams, useRouteLoaderData, useSearchParams } from "react-router";
+import { useSearchParams } from "@/components/app/navigation";
+import { useParams, useRouteLoaderData } from "react-router";
 
 import ServicePlanForm from "../../components/ServicePlan/Form";
 import { toDateInputValue } from "../../util/format-date";

@@ -1,12 +1,7 @@
+import { Link, useNavigate, useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
-import {
-  Link,
-  Outlet,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
 import { RiBookOpenLine, RiAddFill, RiShieldCheckLine } from "react-icons/ri";

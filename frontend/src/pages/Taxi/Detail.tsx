@@ -1,5 +1,9 @@
+import { companyCrumbs } from "@/util/crumb-trail";
+import { useCan } from "@/store/authed-user";
+import Crumbs from "@/components/app/Crumbs";
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link, useFetcher, useLoaderData, useParams } from "react-router";
+import { useFetcher, useLoaderData, useParams } from "react-router";
 import PageShell from "@/components/app/PageShell";
 import { Panel } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
@@ -23,6 +27,7 @@ const statusLabel: Record<string, string> = {
 };
 
 export default function TaxiTripDetail() {
+  const can = useCan();
   const initial = useLoaderData() as TaxiDetail;
   const { id } = useParams();
   const poll = useFetcher<TaxiDetail & { error?: string }>();
@@ -56,11 +61,9 @@ export default function TaxiTripDetail() {
     <PageShell
       title="Поездка на такси"
       subtitle={trip.personName || "Сотрудник не сопоставлен"}
-      breadcrumb={
-        <Link to="/report/taxi" className="text-sm text-accent-text">
-          ← Такси
-        </Link>
-      }
+      breadcrumb={<Crumbs section="taxi" chain={companyCrumbs([
+        {id: trip.companyId ?? undefined, name: trip.companyName},
+      ], can({company: ["read"]}))} />}
       action={
         <Button
           variant="outline"

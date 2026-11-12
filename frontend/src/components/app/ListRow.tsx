@@ -1,6 +1,6 @@
+import { Link, useNavigate } from "@/components/app/navigation";
 import { useState, type MouseEvent, type ReactNode } from "react";
 
-import { Link, useNavigate } from "react-router";
 import { RiDeleteBinLine, RiEdit2Line, RiMoreLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";

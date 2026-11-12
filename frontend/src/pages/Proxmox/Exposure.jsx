@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link, useFetcher } from "react-router";
+import { useFetcher } from "react-router";
 import { RiGlobalLine, RiArrowRightLine } from "react-icons/ri";
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Button } from "@/components/ui/button";

@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { Link } from "@/components/app/navigation";
+
 import { RiAddLine, RiAlertLine, RiInformationLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";

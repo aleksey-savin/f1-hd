@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link } from "@/components/app/navigation";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";

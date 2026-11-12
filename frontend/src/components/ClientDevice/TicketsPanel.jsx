@@ -1,5 +1,5 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
 
 import { DeviceStatusText } from "@/components/app/device-status";
 import Spinner from "@/components/app/Spinner";

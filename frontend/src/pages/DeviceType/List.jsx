@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect } from "react";
-import { Link, useLocation, redirect } from "react-router";
+import { useLocation, redirect } from "react-router";
 import { isMobile } from "react-device-detect";
 import { RiAddLine } from "react-icons/ri";
 

@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useActionData, useFetcher } from "react-router";
+import { useActionData, useFetcher } from "react-router";
 
 import {
   RiAddFill,
@@ -509,7 +510,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [], builds = [] }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Crumbs />
+      <Crumbs title={name} />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

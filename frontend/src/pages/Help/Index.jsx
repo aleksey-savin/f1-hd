@@ -1,10 +1,6 @@
+import { Link, useSearchParams } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import {
-  Link,
-  useLoaderData,
-  useLocation,
-  useSearchParams,
-} from "react-router";
+import { useLoaderData, useLocation } from "react-router";
 
 import SearchBar from "@/components/app/SearchBar";
 import Segmented from "@/components/app/Segmented";

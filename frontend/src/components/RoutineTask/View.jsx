@@ -1,5 +1,7 @@
+import { companyCrumbs } from "@/util/crumb-trail";
+import { Link } from "@/components/app/navigation";
 import { useContext, useEffect, useState } from "react";
-import { Link, useFetcher } from "react-router";
+import { useFetcher } from "react-router";
 import {
   RiAddLine,
   RiCalendarScheduleLine,
@@ -123,7 +125,7 @@ const ViewRoutineTask = ({ task }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Crumbs />
+      <Crumbs title={title} chain={companyCrumbs([company], can({company: ["read"]}))} />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

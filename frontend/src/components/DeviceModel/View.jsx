@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link, useActionData, useRevalidator } from "react-router";
+import { useActionData, useRevalidator } from "react-router";
 
 import {
   RiAddFill,
@@ -192,7 +193,10 @@ const ViewDeviceModel = ({
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Crumbs />
+      <Crumbs title={title} chain={typeName ? [{
+        label: typeName,
+        to: typeId && can({ inventoryCatalog: ["read"] }) ? `/inventory/device-types/${typeId}` : undefined,
+      }] : []} />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

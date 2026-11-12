@@ -1,4 +1,5 @@
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate } from "@/components/app/navigation";
+
 import { RiMoreLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";

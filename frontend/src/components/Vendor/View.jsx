@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useActionData } from "react-router";
+import { useActionData } from "react-router";
 import { isMobile } from "react-device-detect";
 
 import {
@@ -231,7 +232,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Crumbs />
+      <Crumbs title={name} />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

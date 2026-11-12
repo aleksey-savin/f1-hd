@@ -15,6 +15,7 @@
 
 | Правило | Чем проверяется |
 | --- | --- |
+| Номер заявки в подписи пишется без «№»: «Заявка 51713» | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
 | Неподтверждённые источником выводы ИИ отбрасываются отдельно, без ошибки анализа и ручного повтора; подтверждённые выводы сохраняются | `services/userReview/policy.test.js`, `services/userReview/detector.test.js`; прежние ошибки автоматически возвращаются в обработку — `services/userReview/store.test.js` |
 | Настройки модулей находятся только в глобальных настройках, без отдельных страниц и меню | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
 | Первое сообщение из существующей заявки доступно по номеру заявителя без предварительного чата или входящего сообщения; номер проверяется сервером, занятая привязка не перехватывается, принятые части не дублируются | `services/messaging/delivery-routes.test.js`, `services/messaging/first-contact-flow.test.js`, `services/messaging/bindings-first-contact.test.js`, `services/wazzup/sender.test.js` |

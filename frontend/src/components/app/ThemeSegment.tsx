@@ -4,8 +4,8 @@ import { RiComputerLine, RiMoonLine, RiSunLine } from "react-icons/ri";
 import { cn } from "@/lib/utils";
 
 // Сегмент темы на три состояния (light/dark/system) — общий для страницы
-// «Мой аккаунт» и футера мобильного бургер-меню. Смену темы выполняет
-// вызывающий (обычно setTheme из ThemeContext + reload до эндшпиля миграции).
+// «Мой аккаунт». Каталог опций также использует меню темы верхнего бара.
+// Смену темы выполняет вызывающий через ThemeContext без перезагрузки.
 // satisfies проверяет форму опций (value — реальная тема, Icon — иконка),
 // сохраняя литеральные value для потребителей.
 type ThemeValue = "light" | "dark" | "system";

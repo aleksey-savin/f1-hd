@@ -1,5 +1,6 @@
+import { useNavigate } from "@/components/app/navigation";
 import { Fragment, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router";
+
 import { RiArrowDownSLine, RiArrowRightSLine } from "react-icons/ri";
 
 import {

@@ -31,6 +31,12 @@ export default [
         "error",
         {
           selector:
+            "Literal[value=/[Зз]аявк[а-я]*[ \u00a0]*№/], JSXText[value=/[Зз]аявк[а-я]*[ \u00a0]*№/], TemplateElement[value.raw=/[Зз]аявк[а-я]*[ \u00a0]*№/]",
+          message:
+            "Номер заявки пишется без символа №: используйте «Заявка 51713» (docs/ux-ui-guide.md, «Словарь действий»).",
+        },
+        {
+          selector:
             "ObjectExpression:has(> Property[key.name='path'][value.value=/settings$/]) > Property[key.name='element']",
           message:
             "Настройки модулей размещаются только в /preferences#<раздел>. Для старого адреса оставьте redirect, а не отдельную страницу.",

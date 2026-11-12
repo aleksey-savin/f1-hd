@@ -11,10 +11,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import ThemeSegment from "@/components/app/ThemeSegment";
 import WorkStatusAvatar from "@/components/User/WorkStatusAvatar";
 import { AuthedUserContext } from "@/store/authed-user-context";
-import { ThemeContext } from "@/store/theme-context";
 import { cn } from "@/lib/utils";
 
 export function UserMenuTrigger({ className, ...props }) {
@@ -73,16 +71,14 @@ export function UserMenuTrigger({ className, ...props }) {
   );
 }
 
-// Тема и действия аккаунта. Смена статуса находится отдельно в шапке.
+// Действия аккаунта. Тема и статус находятся отдельно в верхней панели.
 export default function UserMenu({
   trigger,
   align = "end",
   side = "bottom",
-  showTheme = false,
   onNavigate,
 }) {
   const [open, setOpen] = useState(false);
-  const { theme, setTheme } = useContext(ThemeContext);
   const close = () => {
     setOpen(false);
     onNavigate?.();
@@ -97,18 +93,8 @@ export default function UserMenu({
         align={align}
         side={side}
         sideOffset={8}
-        className="w-80 p-1.5"
+        className="w-auto p-1.5"
       >
-        {showTheme && (
-          <div className="px-2 pb-2">
-            <ThemeSegment
-              theme={theme}
-              onChange={setTheme}
-              showLabels={false}
-              className="flex"
-            />
-          </div>
-        )}
         <NavLink to="/my-account" onClick={close} className={menuItemClass}>
           <RiUserSettingsLine
             size={16}

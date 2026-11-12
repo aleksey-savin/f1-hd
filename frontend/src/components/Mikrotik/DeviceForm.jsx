@@ -1,11 +1,7 @@
+import { Link, useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Link,
-  useParams,
-  useRevalidator,
-  useSearchParams,
-} from "react-router";
+import { useParams, useRevalidator } from "react-router";
 
 import {
   RiArchive2Line,

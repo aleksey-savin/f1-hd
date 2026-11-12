@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import type { MouseEventHandler, ReactNode } from "react";
-import { Link } from "react-router";
+
 
 import EntityLink from "@/components/app/EntityLink";
 import { useCan } from "@/store/authed-user";

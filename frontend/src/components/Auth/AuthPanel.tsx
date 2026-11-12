@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import type { ReactNode } from "react";
-import { Link } from "react-router";
+
 import { RiArrowRightSLine } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";

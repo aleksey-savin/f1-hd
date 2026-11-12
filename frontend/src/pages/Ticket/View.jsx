@@ -1,14 +1,9 @@
+import { Link, useNavigate } from "@/components/app/navigation";
 import TicketExpenses from "@/components/Taxi/TicketExpenses";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useContext, useEffect, useMemo, useState } from "react";
 
-import {
-  Link,
-  useFetcher,
-  useLoaderData,
-  useLocation,
-  useNavigate,
-} from "react-router";
+import { useFetcher, useLoaderData, useLocation } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
   RiArchiveLine,
@@ -271,7 +266,9 @@ const ViewTicket = () => {
     ) {
       setDialog(wanted);
     }
-    navigate(location.pathname + location.search, { replace: true, state: null });
+    navigate(location.pathname + location.search, {
+      replace: true, state: { ...location.state, openAction: undefined },
+    });
   }, [ticket.num]);
 
   const messagingAccess = ticketMessagingAccess({ moduleOn: modules.messaging?.isActive, isEndUser, can });
@@ -433,7 +430,7 @@ const ViewTicket = () => {
 
   return (
     <div className="mx-auto w-full max-w-8xl">
-      <Crumbs section={ticket.isArchived ? "archive" : "tickets"} />
+      <Crumbs title={String(ticket.num)} section={ticket.isArchived ? "archive" : "tickets"} />
 
       {/* HERO */}
       <div className="mb-6 flex flex-wrap items-start gap-x-5 gap-y-3">

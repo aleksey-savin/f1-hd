@@ -1,5 +1,6 @@
+import { useNavigate } from "@/components/app/navigation";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+
 import { RiArrowRightSLine } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";

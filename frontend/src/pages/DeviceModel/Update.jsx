@@ -1,8 +1,9 @@
+import { useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { api } from "@/lib/api";
 import { load, invalidate } from "@/store/form-data";
 import DeviceModelForm from "../../components/DeviceModel/Form";
-import { useSearchParams } from "react-router";
+
 
 const UpdateDeviceModelPage = () => {
   const [searchParams] = useSearchParams();

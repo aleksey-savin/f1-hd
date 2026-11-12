@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useCrumbFrom } from "@/components/app/Crumbs";
-import { Link } from "react-router";
+
 import { RiLinkUnlink, RiTimeLine, RiUserLine } from "react-icons/ri";
 
 import { deadlineText, ticketTone } from "@/components/Ticket/ticket-state";

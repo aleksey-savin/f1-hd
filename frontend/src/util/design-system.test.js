@@ -58,3 +58,30 @@ test("lint rejects the native taxi-report date fields and names the shared repla
     false,
   );
 });
+
+test("ticket labels omit the numero sign in strings, JSX and templates", async () => {
+  for (const code of [
+    'export const label = "Заявка ' + '№51713";',
+    "export const Label = () => <span>Заявка " + "№51713</span>;",
+    "export const label = (num) => `Заявка " + "№${num}`;",
+  ]) {
+    const [result] = await eslint.lintText(code, {
+      filePath: "src/pages/Ticket/Example.tsx",
+    });
+    assert.ok(
+      result.messages.some(
+        (message) =>
+          message.ruleId === "no-restricted-syntax" &&
+          /Номер заявки/.test(message.message),
+      ),
+    );
+  }
+  const [valid] = await eslint.lintText(
+    'export const label = "Заявка 51713"; export const inventory = "Инв. №";',
+    { filePath: "src/pages/Ticket/Example.tsx" },
+  );
+  assert.equal(
+    valid.messages.some((message) => message.ruleId === "no-restricted-syntax"),
+    false,
+  );
+});

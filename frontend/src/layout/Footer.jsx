@@ -8,6 +8,13 @@ import useInitialPrefs from "../store/prefs";
 import { useAuthedUser } from "@/store/authed-user";
 import { ThemeContext } from "../store/theme-context";
 
+// Один разделитель для контактов и служебной строки футера.
+const FooterSeparator = ({ className }) => (
+  <span aria-hidden className={cn("text-faint", className)}>
+    ·
+  </span>
+);
+
 // Футер оболочки: контакты компании и служебная строка. ОБЯЗАТЕЛЬНО relative:
 // слой обоев (fixed .app-wallpaper) рисуется поверх статического контента —
 // без позиционирования футер под ним исчезает.
@@ -26,9 +33,8 @@ const Footer = () => {
 
   if (!user?._id) return null;
 
-  // Телефон и почта — одной строкой, адрес — своей: факт не переносится
-  // посередине, и строка не начинается с точки-разделителя (так было на
-  // телефоне, когда все три факта шли одним переносимым рядом)
+  // На десктопе контакты и адрес делят строку. На телефоне адрес ниже;
+  // точка перед адресом скрыта вместе с десктопной раскладкой.
   const contactItems = [
     contacts?.tel &&
       (phoneHref(contacts.tel) ? (
@@ -58,35 +64,40 @@ const Footer = () => {
   return (
     <footer
       className={cn(
-        "relative mt-6 py-6 text-center text-sm text-muted-foreground",
+        "relative mt-6 py-6 text-center text-sm text-muted-foreground lg:py-4",
         sheet
           ? "mx-auto w-fit max-w-full rounded-2xl border border-border bg-card px-8"
           : "border-t border-border-soft",
       )}
     >
-      {contactItems.length > 0 && (
-        <div className="mb-1 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1">
-          {contactItems.map((item, index) => (
-            <span
-              key={index}
-              className="inline-flex items-center gap-2.5 whitespace-nowrap"
-            >
-              {index > 0 && (
-                <span aria-hidden className="text-faint">
-                  ·
+      {(contactItems.length > 0 || contacts?.address) && (
+        <div className="mb-2 flex flex-col items-center justify-center gap-x-2.5 gap-y-1 lg:flex-row">
+          {contactItems.length > 0 && (
+            <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-2.5 gap-y-1">
+              {contactItems.map((item, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center gap-2.5 whitespace-nowrap"
+                >
+                  {index > 0 && <FooterSeparator />}
+                  {item}
                 </span>
-              )}
-              {item}
-            </span>
-          ))}
+              ))}
+            </div>
+          )}
+          {contactItems.length > 0 && contacts?.address && (
+            <FooterSeparator className="hidden shrink-0 lg:inline" />
+          )}
+          {contacts?.address && (
+            <div className="min-w-0 text-pretty">{contacts.address}</div>
+          )}
         </div>
       )}
-      {contacts?.address && <div className="mb-2 text-pretty">{contacts.address}</div>}
       <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-faint">
         <span className="whitespace-nowrap">
           © {new Date().getFullYear()} {brand.productName}
         </span>
-        <span aria-hidden>·</span>
+        <FooterSeparator />
         <span className="whitespace-nowrap">
           {/* В подвале — только версия: VITE_VERSION имеет вид «версия+коммит»
               (в разработке — "dev"), коммит читателю не нужен */}
@@ -95,7 +106,7 @@ const Footer = () => {
         {/* Только когда читателю есть что открыть (prefs.hasHelp из /api/me) */}
         {hasHelp && (
           <>
-            <span aria-hidden>·</span>
+            <FooterSeparator />
             <Link
               to="/help"
               className="whitespace-nowrap text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"

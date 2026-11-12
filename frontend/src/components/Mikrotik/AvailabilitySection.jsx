@@ -1,5 +1,5 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
 
 import { cn } from "@/lib/utils";
 import { Panel, Eyebrow } from "@/components/app/Panel";

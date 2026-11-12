@@ -1,6 +1,8 @@
+import { companyCrumbs } from "@/util/crumb-trail";
+import { useNavigate } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
 
 import Crumbs, { type CrumbOrigin } from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
@@ -270,7 +272,10 @@ const ApprovalReport = () => {
             subdivisionId,
           }).then(() => undefined)
         }
-        breadcrumb={<Crumbs />}
+        breadcrumb={<Crumbs
+          title={`Отчёт за ${report.period}`}
+          chain={companyCrumbs([report.company], can({company: ["read"]}))}
+        />}
       />
 
       {stageActions.dialog}

@@ -1,5 +1,6 @@
+import { Link, useNavigate } from "@/components/app/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useFetcher, useNavigate } from "react-router";
+import { useFetcher } from "react-router";
 import {
   RiAddLine,
   RiContractLine,

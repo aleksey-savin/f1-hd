@@ -1,6 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { type ReactNode } from "react";
 
-import { Link } from "react-router";
 import { RiEdit2Line } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";

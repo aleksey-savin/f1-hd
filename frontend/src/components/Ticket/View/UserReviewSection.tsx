@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useCallback, useEffect } from "react";
-import { Link, useFetcher } from "react-router";
+import { useFetcher } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { useCan } from "@/store/authed-user";

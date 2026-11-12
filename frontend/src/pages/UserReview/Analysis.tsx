@@ -1,4 +1,6 @@
-import { Link, useLoaderData, useSearchParams } from "react-router";
+import Crumbs from "@/components/app/Crumbs";
+import { Link, useSearchParams } from "@/components/app/navigation";
+import { useLoaderData } from "react-router";
 import PageShell from "@/components/app/PageShell";
 import { Panel } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
@@ -40,14 +42,7 @@ export default function UserReviewAnalysis() {
   return (
     <PageShell
       title="Анализ заявок"
-      breadcrumb={
-        <Link
-          to="/users/review"
-          className="text-sm text-muted-foreground no-underline"
-        >
-          ‹ Проверка пользователей
-        </Link>
-      }
+      breadcrumb={<Crumbs section="user-review" />}
       subtitle="Ищем в истории обращений, чьи учётные записи стоит проверить"
     >
       <p className="mb-5 max-w-3xl text-sm leading-relaxed text-muted-foreground">

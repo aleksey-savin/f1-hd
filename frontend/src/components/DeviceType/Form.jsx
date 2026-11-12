@@ -1,4 +1,5 @@
-import { useLoaderData, useSearchParams } from "react-router";
+import { useSearchParams } from "@/components/app/navigation";
+import { useLoaderData } from "react-router";
 
 import FormWrapper from "@/components/app/FormWrapper";
 

@@ -1,5 +1,5 @@
+import { Link } from "@/components/app/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";

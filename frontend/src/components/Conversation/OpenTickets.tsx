@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useCrumbFrom } from "@/components/app/Crumbs";
-import { Link } from "react-router";
+
 import { RiLinkM } from "react-icons/ri";
 
 import { SubLabel } from "@/components/app/Panel";

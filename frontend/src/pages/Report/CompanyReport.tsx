@@ -1,6 +1,7 @@
+import { Link, useNavigate } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useParams } from "react-router";
 import { RiFilter3Line } from "react-icons/ri";
 
 import Crumbs from "@/components/app/Crumbs";

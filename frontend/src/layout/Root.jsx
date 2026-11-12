@@ -22,6 +22,7 @@ import {
   defaultAuthedUser,
 } from "../store/authed-user-context";
 
+import { CrumbProvider } from "@/components/app/crumb-context";
 import NavigationBar from "./Navbar";
 import AppSidebar from "./AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -225,6 +226,7 @@ const RootLayout = () => {
           defaultAuthedUser.permissionCatalogue,
       }}
     >
+      <CrumbProvider>
       <SidebarProvider
         defaultOpen={
           !document.cookie.split("; ").includes("sidebar_state=false")
@@ -460,6 +462,7 @@ const RootLayout = () => {
         </MobileView>
         <Toaster />
       </SidebarProvider>
+      </CrumbProvider>
     </AuthedUserContext.Provider>
   );
 };

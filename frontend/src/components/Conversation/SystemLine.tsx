@@ -1,3 +1,4 @@
+import { Link } from "@/components/app/navigation";
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import type { IconType } from "react-icons";
 import {
@@ -7,7 +8,7 @@ import {
   RiLinkUnlink,
   RiUserLine,
 } from "react-icons/ri";
-import { Link } from "react-router";
+
 
 import type { MessageRow } from "@/types/conversation";
 import { systemLineParts } from "@/util/conversation-format";

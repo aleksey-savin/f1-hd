@@ -1,6 +1,6 @@
+import { useNavigate } from "@/components/app/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { useNavigate } from "react-router";
 import { isMobile } from "react-device-detect";
 import {
   RiAddLine,

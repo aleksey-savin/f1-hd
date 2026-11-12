@@ -1,5 +1,7 @@
+import { companyCrumbs } from "@/util/crumb-trail";
+import { Link } from "@/components/app/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useRevalidator } from "react-router";
+import { useRevalidator } from "react-router";
 import UserLink from "@/components/app/UserLink";
 import { BrowserView } from "react-device-detect";
 import {
@@ -188,8 +190,10 @@ const ViewClientDevice = ({ device = {} }) => {
     type?.name ||
     "Устройство";
 
-  // Как устройство назовётся в крошке компании, расположения, человека
-  const fromState = useCrumbFrom(title);
+  // В пути тип помогает отличить устройство от компании, модели и человека.
+  const crumbTitle = [type?.name !== title ? type?.name : null, title]
+    .filter(Boolean).join(" ");
+  const fromState = useCrumbFrom(crumbTitle);
 
   const status = DEVICE_STATUS_META[device.status];
   const warranty = warrantyState(device.warrantyExpirationDate);
@@ -465,7 +469,7 @@ const ViewClientDevice = ({ device = {} }) => {
   return (
     <>
       <div className="mx-auto w-full max-w-5xl">
-        <Crumbs />
+        <Crumbs title={crumbTitle} chain={companyCrumbs([device.companyId], can({company: ["read"]}))} />
 
         {/* Hero (макет «Шапка карточки устройства»): имя, что это, статус и
             действия. Инвентарный номер — в «Идентификации», характеристики
@@ -1106,7 +1110,7 @@ const ViewClientDevice = ({ device = {} }) => {
             </Eyebrow>
             <Environment
               deviceId={device._id}
-              from={title}
+              from={crumbTitle}
               view={environmentView}
               targetLabel="это устройство"
             />

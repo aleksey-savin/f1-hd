@@ -1,5 +1,4 @@
 import { useContext, useMemo, useState } from "react";
-import { useLocation } from "react-router";
 
 import { RiMenuLine } from "react-icons/ri";
 
@@ -13,15 +12,15 @@ import { AuthedUserContext } from "../store/authed-user-context";
 import { useCan } from "../store/authed-user";
 import useInitialPrefs from "../store/prefs";
 import NavDrawer from "./NavDrawer";
-import { activeMenuKey, buildMenu } from "./Navigation/menu";
-import Brand from "./Navigation/Brand";
+import { buildMenu } from "./Navigation/menu";
+import ThemeMenu from "./Navigation/ThemeMenu";
+import HeaderCrumbs from "@/components/app/HeaderCrumbs";
 
 const NavigationBar = ({ embedded = false }) => {
   const authedUser = useContext(AuthedUserContext);
   const isLoggedIn = Boolean(authedUser?._id);
   const can = useCan();
-  const { modules, brand } = useInitialPrefs();
-  const { pathname } = useLocation();
+  const { modules } = useInitialPrefs();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { open, openMobile, isMobile } = useSidebar();
   const sidebarOpen = isMobile ? openMobile : open;
@@ -41,22 +40,6 @@ const NavigationBar = ({ embedded = false }) => {
     [isLoggedIn, isEndUser, can, modules, hideWorkStatus],
   );
 
-  const activeKey = activeMenuKey(menuItems, pathname);
-  const currentItem = menuItems.find(
-    (item) =>
-      item.key === activeKey ||
-      item.groups?.some((group) =>
-        group.items.some((child) => child.key === activeKey),
-      ),
-  );
-  const currentLabel =
-    currentItem?.label ??
-    (pathname.startsWith("/preferences")
-      ? "Настройки системы"
-      : pathname.startsWith("/my-account")
-        ? "Мой аккаунт"
-        : brand.productName);
-
   // --- Мобильный shell: статичный флекс-ребёнок, а не fixed (см. гайд) ---
   if (embedded) {
     return (
@@ -73,10 +56,11 @@ const NavigationBar = ({ embedded = false }) => {
             <RiMenuLine size={19} />
           </Button>
         )}
-        <Brand size="sm" />
+        <HeaderCrumbs />
         {/* Клиент видит уведомления; сотрудник — ещё и свой статус рядом. */}
         {isLoggedIn && (
-          <div className="ms-auto flex items-center gap-3">
+          <div className="ms-auto flex shrink-0 items-center gap-3">
+            <ThemeMenu />
             <Bell />
             <WorkStatusControl compact />
           </div>
@@ -107,11 +91,10 @@ const NavigationBar = ({ embedded = false }) => {
           />
         )}
         <span aria-hidden className="h-4 w-px flex-none bg-border" />
-        <span className="min-w-0 truncate text-sm font-medium text-foreground">
-          {currentLabel}
-        </span>
+        <HeaderCrumbs />
         {isLoggedIn && (
           <div className="ms-auto flex flex-none items-center gap-4">
+            <ThemeMenu />
             <Bell />
             <WorkStatusControl />
           </div>

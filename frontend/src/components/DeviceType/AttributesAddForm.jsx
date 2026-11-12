@@ -1,5 +1,6 @@
+import { useSearchParams } from "@/components/app/navigation";
 import { useMemo, useState } from "react";
-import { useLoaderData, useSearchParams } from "react-router";
+import { useLoaderData } from "react-router";
 
 import {
   RiAddLine,

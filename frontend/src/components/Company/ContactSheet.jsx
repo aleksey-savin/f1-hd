@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useState } from "react";
-import { Link } from "react-router";
+
 import {
   RiArrowRightLine,
   RiArrowRightSLine,

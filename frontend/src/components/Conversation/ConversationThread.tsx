@@ -1,6 +1,7 @@
-import Crumbs, { type CrumbOrigin } from "@/components/app/Crumbs";
+import { useNavigate } from "@/components/app/navigation";
+import Crumbs from "@/components/app/Crumbs";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLoaderData, useNavigate, useLocation } from "react-router";
+import { useLoaderData } from "react-router";
 import { isMobile } from "react-device-detect";
 import {
   RiAddLine,
@@ -69,8 +70,6 @@ const ConversationThread = () => {
   const { conversation, channel } = card;
   const conversationId = conversation.id;
   const navigate = useNavigate();
-  const location = useLocation();
-  const origin = (location.state as { from?: CrumbOrigin } | null)?.from;
   const revalidate = useDeferredRevalidate();
   const canReply = card.access?.reply === true;
   const canManage = card.access?.manage === true;
@@ -476,16 +475,9 @@ const ConversationThread = () => {
   return (
     <>
       <section aria-label="Переписка" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {!isMobile && origin && (
-          <div className="border-b border-border-soft px-4 py-2 [&>nav]:mb-0">
-            <Crumbs />
-          </div>
-        )}
+        <Crumbs title={conversation.title || "Диалог"} />
         {isMobile && (
           <div className="flex-none border-b border-border-soft bg-card">
-            <div className="px-3 pt-2.5 [&>nav]:mb-0">
-              <Crumbs />
-            </div>
             <ThreadHeader card={card} compact>
               <Button
                 variant="outline"

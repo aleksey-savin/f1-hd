@@ -1,5 +1,5 @@
+import { Link } from "@/components/app/navigation";
 import { useContext, useMemo, useState } from "react";
-import { Link } from "react-router";
 
 import FilterChip from "@/components/app/FilterChip";
 import { Eyebrow, Panel } from "@/components/app/Panel";

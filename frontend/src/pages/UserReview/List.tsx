@@ -1,8 +1,8 @@
+import Crumbs from "@/components/app/Crumbs";
+import { Link, useSearchParams } from "@/components/app/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  Link,
   useLoaderData,
-  useSearchParams,
   useLocation,
   useNavigationType,
   useNavigation,
@@ -130,14 +130,7 @@ export default function UserReviewList() {
   return (
     <PageShell
       title="Проверка пользователей"
-      breadcrumb={
-        <Link
-          to="/users"
-          className="text-sm text-muted-foreground no-underline"
-        >
-          ‹ Пользователи
-        </Link>
-      }
+      breadcrumb={<Crumbs section="users" />}
       subtitle="Предложения по заявкам, активности и сроку отключения"
       search={
         <SearchBar

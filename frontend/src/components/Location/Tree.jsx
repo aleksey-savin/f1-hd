@@ -1,5 +1,5 @@
+import { Link } from "@/components/app/navigation";
 import { useState, useMemo, useEffect } from "react";
-import { Link } from "react-router";
 
 import {
   RiAddFill,

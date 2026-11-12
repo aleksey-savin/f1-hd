@@ -1,3 +1,4 @@
+import { Link } from "@/components/app/navigation";
 import {
   useContext,
   useEffect,
@@ -9,7 +10,6 @@ import {
 
 import { cn } from "@/lib/utils";
 
-import { Link } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import {
   RiAddFill,

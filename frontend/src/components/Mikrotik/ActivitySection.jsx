@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link, useRevalidator } from "react-router";
+import { useRevalidator } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Panel, Eyebrow, Section, SectionEditLink } from "@/components/app/Panel";

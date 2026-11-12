@@ -1,11 +1,6 @@
+import { useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
-import {
-  Form,
-  redirect,
-  useActionData,
-  useNavigation,
-  useSearchParams,
-} from "react-router";
+import { Form, redirect, useActionData, useNavigation } from "react-router";
 
 import AlertMessage from "@/components/app/AlertMessage";
 import Field from "@/components/app/Field";

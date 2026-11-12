@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from "react";
 import { useActionData, useFetcher } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import Crumbs from "./Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
 import { FormActions } from "@/components/app/FormLayout";
 import { useFormSheet } from "@/components/app/FormOutlet";
@@ -92,6 +93,7 @@ const FormWrapper = ({
   // Без fade-обёртки: движение у формы одно — slide самой шторки
   return (
     <>
+      {typeof title === "string" && <Crumbs title={title} />}
       <fetcher.Form
         method="post"
         action={action || "."}

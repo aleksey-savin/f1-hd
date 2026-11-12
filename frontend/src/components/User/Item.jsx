@@ -1,5 +1,6 @@
+import { Link, useNavigate } from "@/components/app/navigation";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+
 import { isMobile } from "react-device-detect";
 import {
   RiPhoneLine,

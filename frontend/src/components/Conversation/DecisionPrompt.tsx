@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useCrumbFrom } from "@/components/app/Crumbs";
-import { Link } from "react-router";
+
 
 import HealthRow from "@/components/app/HealthRow";
 import { Button } from "@/components/ui/button";

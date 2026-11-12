@@ -1,6 +1,7 @@
+import { useNavigate, useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+
 import { RiAlertLine } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";

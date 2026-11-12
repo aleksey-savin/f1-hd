@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link } from "@/components/app/navigation";
 
 import { cn } from "@/lib/utils";
 import useNotificationsStore from "@/store/notifications";

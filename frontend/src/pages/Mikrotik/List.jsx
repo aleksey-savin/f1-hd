@@ -1,6 +1,8 @@
+import { useNavigate, useLocation } from "react-router";
+import { Link, useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+
 import { isMobile } from "react-device-detect";
 
 import {
@@ -79,6 +81,7 @@ const MikrotikDevices = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const filterStore = useMikrotikDeviceFilterStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -113,7 +116,7 @@ const MikrotikDevices = () => {
     const clientDeviceId = searchParams.get("clientDeviceId");
     if (!recordId && !clientDeviceId) return;
     if (recordId) {
-      navigate(`/devices/mikrotik/records/${recordId}`, { replace: true });
+      navigate(`/devices/mikrotik/records/${recordId}`, { replace: true, state: location.state });
       return;
     }
     if (!filterStore.originalList.length) return;
@@ -122,12 +125,12 @@ const MikrotikDevices = () => {
       (item) => String(item.clientDeviceId) === clientDeviceId,
     );
     if (row) {
-      navigate(`/devices/mikrotik/records/${row.recordId}`, { replace: true });
+      navigate(`/devices/mikrotik/records/${row.recordId}`, { replace: true, state: location.state });
       return;
     }
     const next = new URLSearchParams(searchParams);
     next.delete("clientDeviceId");
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: true, state: location.state });
   }, [searchParams, filterStore.originalList]);
 
   const companyOptions = useMemo(() => {

@@ -1,4 +1,5 @@
-import { Link, useFetcher } from "react-router";
+import { Link } from "@/components/app/navigation";
+import { useFetcher } from "react-router";
 import {
   RiArrowRightLine,
   RiCheckboxBlankCircleLine,

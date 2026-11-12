@@ -1,12 +1,7 @@
+import { useNavigate } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
-import {
-  useBlocker,
-  useFetcher,
-  useLoaderData,
-  useLocation,
-  useNavigate,
-} from "react-router";
+import { useBlocker, useFetcher, useLoaderData, useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
 import SettingsSection from "@/components/app/SettingsSection";

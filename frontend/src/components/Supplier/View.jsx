@@ -1,5 +1,6 @@
+import { Link } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link, useActionData } from "react-router";
+import { useActionData } from "react-router";
 import {
   RiArrowRightSLine,
   RiDeleteBinLine,
@@ -222,7 +223,7 @@ const ViewSupplier = ({ supplier = {} }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Crumbs />
+      <Crumbs title={supplier.name} />
 
       <div className="flex flex-wrap items-start gap-4">
         {/* Плитка hero — глиф раздела, не монограмма: та же плитка, что в

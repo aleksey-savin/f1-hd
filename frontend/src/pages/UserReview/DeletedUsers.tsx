@@ -1,5 +1,7 @@
+import Crumbs from "@/components/app/Crumbs";
+import { Link, useSearchParams } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { Link, useFetcher, useLoaderData, useSearchParams } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import { Button } from "@/components/ui/button";
 import PageShell from "@/components/app/PageShell";
 import { Panel } from "@/components/app/Panel";
@@ -27,14 +29,7 @@ export default function DeletedUsers() {
   return (
     <PageShell
       title="Удалённые пользователи"
-      breadcrumb={
-        <Link
-          className="text-sm text-muted-foreground no-underline"
-          to="/users"
-        >
-          ‹ Пользователи
-        </Link>
-      }
+      breadcrumb={<Crumbs section="users" />}
       subtitle="Заявки, работы и история сохраняют ссылки на эти записи"
     >
       <Panel>

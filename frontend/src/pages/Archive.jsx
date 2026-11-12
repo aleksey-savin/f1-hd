@@ -1,6 +1,6 @@
+import { useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
-import { useSearchParams } from "react-router";
 
 import Segmented from "@/components/app/Segmented";
 

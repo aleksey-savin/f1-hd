@@ -1,5 +1,6 @@
+import { useNavigate } from "@/components/app/navigation";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+
 import {
   RiAddLine,
   RiEyeOffLine,
