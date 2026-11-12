@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { Link } from "react-router";
-import { RiArrowRightSLine, RiMoreLine } from "react-icons/ri";
+import { Link, useLocation } from "react-router";
+import { RiArrowRightSLine, RiArrowLeftLine, RiMoreLine } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { crumbStateFor } from "@/util/crumb-trail";
+import { crumbStateFor, readCrumbState } from "@/util/crumb-trail";
 import { useCrumbContext } from "./crumb-context";
 
 export default function HeaderCrumbs() {
@@ -150,5 +150,35 @@ export default function HeaderCrumbs() {
         ))}
       </ol>
     </nav>
+  );
+}
+
+/** Return to the immediate source without turning it into an ancestor. */
+export function CrumbReturn() {
+  const context = useCrumbContext();
+  const location = useLocation();
+  const origin = context?.origin;
+  if (!origin) return null;
+  const label = `Вернуться: ${origin.label}`;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          asChild
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground"
+        >
+          <Link
+            to={origin.to}
+            aria-label={label}
+            state={{ crumbTrail: readCrumbState(location.state).crumbTrail }}
+          >
+            <RiArrowLeftLine aria-hidden />
+          </Link>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

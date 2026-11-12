@@ -14,7 +14,7 @@ import useInitialPrefs from "../store/prefs";
 import NavDrawer from "./NavDrawer";
 import { buildMenu } from "./Navigation/menu";
 import ThemeMenu from "./Navigation/ThemeMenu";
-import HeaderCrumbs from "@/components/app/HeaderCrumbs";
+import HeaderCrumbs, { CrumbReturn } from "@/components/app/HeaderCrumbs";
 
 const NavigationBar = ({ embedded = false }) => {
   const authedUser = useContext(AuthedUserContext);
@@ -56,6 +56,7 @@ const NavigationBar = ({ embedded = false }) => {
             <RiMenuLine size={19} />
           </Button>
         )}
+        <CrumbReturn />
         <HeaderCrumbs />
         {/* Клиент видит уведомления; сотрудник — ещё и свой статус рядом. */}
         {isLoggedIn && (
@@ -91,6 +92,7 @@ const NavigationBar = ({ embedded = false }) => {
           />
         )}
         <span aria-hidden className="h-4 w-px flex-none bg-border" />
+        <CrumbReturn />
         <HeaderCrumbs />
         {isLoggedIn && (
           <div className="ms-auto flex flex-none items-center gap-4">

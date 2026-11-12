@@ -469,7 +469,13 @@ const ViewClientDevice = ({ device = {} }) => {
   return (
     <>
       <div className="mx-auto w-full max-w-5xl">
-        <Crumbs title={crumbTitle} chain={companyCrumbs([device.companyId], can({company: ["read"]}))} />
+        <Crumbs title={crumbTitle} chain={[
+          ...companyCrumbs([device.companyId], can({company: ["read"]})),
+          ...(parent ? [{
+            label: [parent.deviceModelId?.name || parent.deviceTypeId?.name, parent.inventoryNumber].filter(Boolean).join(" ") || "Устройство",
+            to: `/inventory/client-devices/${parent._id}`,
+          }] : []),
+        ]} />
 
         {/* Hero (макет «Шапка карточки устройства»): имя, что это, статус и
             действия. Инвентарный номер — в «Идентификации», характеристики

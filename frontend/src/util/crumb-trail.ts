@@ -1,6 +1,10 @@
 export type CrumbLink = { label: string; to?: string };
 export type CrumbOrigin = { label: string; to: string };
-export type CrumbState = { crumbTrail?: CrumbLink[]; from?: CrumbOrigin };
+export type CrumbState = {
+  crumbTrail?: CrumbLink[];
+  from?: CrumbOrigin;
+  returnContext?: { to: string; from: CrumbOrigin };
+};
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -36,13 +40,25 @@ export function readCrumbState(value: unknown): CrumbState {
   }
   if (valid(value.from) && value.from.to)
     result.from = { label: value.from.label, to: value.from.to };
+  const context = value.returnContext;
+  if (
+    record(context) &&
+    isCrumbAddress(context.to) &&
+    valid(context.from) &&
+    context.from.to
+  ) {
+    result.returnContext = {
+      to: context.to,
+      from: { label: context.from.label, to: context.from.to },
+    };
+  }
   return result;
 }
 
 export const crumbPath = (to: string) =>
   to.split(/[?#]/, 1)[0].replace(/\/$/, "") || "/";
 
-/** A path, not a visit log: revisiting an ancestor removes its old descendants. */
+/** Only actual parents define breadcrumbs. History supplies saved ancestor filters. */
 export function buildCrumbTrail({
   current,
   section,
@@ -55,38 +71,68 @@ export function buildCrumbTrail({
   state?: unknown;
 }): CrumbLink[] {
   const origin = readCrumbState(state);
-  const base =
-    origin.crumbTrail ??
-    (origin.from ? [origin.from] : [...(section ? [section] : []), ...chain]);
-  const same = (left: CrumbLink, right: CrumbLink) =>
-    left.to && right.to
-      ? crumbPath(left.to) === crumbPath(right.to)
-      : !left.to && !right.to && left.label === right.label;
-  // Enrich an incoming branch with missing hierarchy (for example a location's
-  // company), without dropping the page the user came from. Insert before the
-  // next known ancestor, or before the current page when revisiting it.
-  chain.forEach((ancestor, index) => {
-    if (base.some((item) => same(item, ancestor))) return;
-    const next = chain
-      .slice(index + 1)
-      .find((item) => base.some((existing) => same(existing, item)));
-    const insertAt = base.findIndex((item) => same(item, next ?? current));
-    base.splice(insertAt < 0 ? base.length : insertAt, 0, ancestor);
-  });
+  const saved = origin.crumbTrail ?? (origin.from ? [origin.from] : []);
+  const declaredParents = [...(section ? [section] : []), ...chain];
+  const parents = declaredParents
+    .filter(
+      (item) =>
+        !item.to ||
+        crumbPath(item.to) !== crumbPath(current.to) ||
+        item.to.includes("#"),
+    )
+    .map((item) => {
+      if (!item.to || /[?#]/.test(item.to)) return item;
+      const previous =
+        saved.find((entry) => entry.to === item.to) ??
+        [...saved]
+          .reverse()
+          .find(
+            (entry) =>
+              entry.to &&
+              crumbPath(entry.to) === crumbPath(item.to!) &&
+              !declaredParents.some(
+                (parent) => parent !== item && parent.to === entry.to,
+              ),
+          );
+      return previous?.to ? { ...item, to: previous.to } : item;
+    });
   const items: CrumbLink[] = [];
-  for (const item of [...base, current]) {
-    const index = item.to
-      ? items.findIndex(
-          (previous) =>
-            previous.to && crumbPath(previous.to) === crumbPath(item.to!),
-        )
-      : -1;
-    if (index >= 0) items.splice(index);
+  for (const item of [...parents, current]) {
+    const duplicate = items.findIndex((previous) =>
+      item.to
+        ? previous.to === item.to
+        : !previous.to && previous.label === item.label,
+    );
+    if (duplicate >= 0) items.splice(duplicate);
     const ticketNumber =
       item.to && /^\/tickets\/(\d+)$/.exec(crumbPath(item.to))?.[1];
     items.push(ticketNumber ? { ...item, label: ticketNumber } : item);
   }
   return items;
+}
+
+/** The immediate source is a separate action; ancestors already have a link. */
+export function crumbReturnOrigin(
+  state: unknown,
+  current: string,
+  hierarchy: CrumbLink[],
+): CrumbOrigin | undefined {
+  const source = readCrumbState(state);
+  const origin =
+    source.returnContext &&
+    crumbPath(source.returnContext.to) === crumbPath(current)
+      ? source.returnContext.from
+      : source.from;
+  if (
+    !origin ||
+    crumbPath(origin.to) === crumbPath(current) ||
+    hierarchy.some(
+      (item) => item.to && crumbPath(item.to) === crumbPath(origin.to),
+    )
+  )
+    return undefined;
+  const ticketNumber = /^\/tickets\/(\d+)$/.exec(crumbPath(origin.to))?.[1];
+  return ticketNumber ? { ...origin, label: ticketNumber } : origin;
 }
 
 export function crumbStateFor(
@@ -149,4 +195,17 @@ export function companyCrumbs(
   });
   if (entries.length <= 1) return entries;
   return [{ label: entries.map((item) => item.label).join(", ") }];
+}
+
+/** Keep the source of a background page when a form temporarily becomes its child. */
+export function crumbSourceState(
+  items: CrumbLink[],
+  current: CrumbOrigin,
+  returnTo?: CrumbOrigin,
+): CrumbState & { from: CrumbOrigin } {
+  return {
+    crumbTrail: items.length ? [...items.slice(0, -1), current] : [current],
+    from: current,
+    ...(returnTo ? { returnContext: { to: current.to, from: returnTo } } : {}),
+  };
 }

@@ -1,6 +1,6 @@
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useState } from "react";
-import { useLoaderData, useLocation } from "react-router";
+import { useLoaderData } from "react-router";
 
 import {
   RiArchive2Line,
@@ -82,7 +82,6 @@ const DONE_TOAST = {
  */
 const MikrotikChangePage = () => {
   const change = useLoaderData();
-  const location = useLocation();
   const can = useCan();
   const refresh = useRefreshRoute();
   const showToast = useToastStore((state) => state.showToast);
@@ -110,9 +109,9 @@ const MikrotikChangePage = () => {
   const open = OPEN.includes(change.status);
   const tone = STATUS_TEXT_TONE[statusTone(change.status)];
 
-  // Пришли со страницы устройства — первая крошка уже она, цепочка не нужна
+  // Родитель изменения — устройство независимо от источника перехода.
   const chain =
-    device?.name && !location.state?.from
+    device?.name
       ? [{ label: device.name, to: canRead ? deviceTo : undefined }]
       : [];
 

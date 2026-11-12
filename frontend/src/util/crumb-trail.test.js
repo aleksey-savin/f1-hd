@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildCrumbTrail,
   companyCrumbs,
+  crumbReturnOrigin,
+  crumbSourceState,
   readCrumbState,
   crumbStateFor,
   currentCrumbAddress,
@@ -13,31 +15,34 @@ const list = { label: "Заявки", to: "/tickets?status=open" };
 const ticket = { label: "51713", to: "/tickets/51713" };
 const user = { label: "Иван Петров", to: "/users/123" };
 
-test("полный путь сохраняет список с фильтром при переходе между разделами", () => {
-  const trail = buildCrumbTrail({
-    current: ticket,
-    section: { ...list, to: "/tickets" },
-    state: { crumbTrail: [list] },
-  });
+test("смена карточки сохраняет только её настоящую иерархию", () => {
+  const section = { label: "Пользователи", to: "/users" };
+  const company = { label: "F1Lab", to: "/companies/new" };
   assert.deepEqual(
     buildCrumbTrail({
       current: user,
-      section: { label: "Пользователи", to: "/users" },
-      state: { crumbTrail: trail },
+      section,
+      chain: [company],
+      state: { crumbTrail: [list, ticket] },
     }),
-    [list, ticket, user],
+    [section, company, user],
   );
 });
-test("переход к предку обрезает ветку и сохраняет параметры его адреса", () => {
-  const state = crumbStateFor([list, ticket, user], 0);
-  assert.deepEqual(buildCrumbTrail({ current: list, section: list, state }), [
-    list,
-  ]);
+test("переход к списку сохраняет его фильтры без прежних карточек", () => {
+  assert.deepEqual(
+    buildCrumbTrail({
+      current: list,
+      section: list,
+      state: crumbStateFor([list, ticket, user], 0),
+    }),
+    [list],
+  );
 });
-test("повторное открытие сущности не создаёт цикл", () => {
+test("повторное открытие карточки не создаёт цикл", () => {
   assert.deepEqual(
     buildCrumbTrail({
       current: ticket,
+      section: list,
       state: { crumbTrail: [list, ticket, user] },
     }),
     [list, ticket],
@@ -63,14 +68,14 @@ test("текущий список не дублируется и недосту�
     [{ label: "Пользователи" }, user],
   );
 });
-test("старый state.from по-прежнему возвращает в исходную карточку", () => {
+test("старый state.from не попадает в иерархию карточки", () => {
   assert.deepEqual(
     buildCrumbTrail({
       current: user,
       section: { label: "Пользователи", to: "/users" },
       state: { from: ticket },
     }),
-    [ticket, user],
+    [{ label: "Пользователи", to: "/users" }, user],
   );
 });
 test("внешние адреса, плохие подписи и повреждённый state не принимаются", () => {
@@ -90,7 +95,10 @@ test("state пути сериализуется без потерь для reloa
   const state = JSON.parse(
     JSON.stringify(crumbStateFor([list, ticket, user], 1)),
   );
-  assert.deepEqual(buildCrumbTrail({ current: ticket, state }), [list, ticket]);
+  assert.deepEqual(buildCrumbTrail({ current: ticket, section: list, state }), [
+    list,
+    ticket,
+  ]);
 });
 
 test("переход из списка добавляет настоящих родителей выбранной сущности", () => {
@@ -154,7 +162,7 @@ test("заявка в пути подписана только номером, �
         crumbTrail: [list, { label: "Заявка 51713", to: "/tickets/51713" }],
       },
     }),
-    [list, { label: "51713", to: "/tickets/51713" }, user],
+    [user],
   );
   assert.deepEqual(
     buildCrumbTrail({
@@ -169,7 +177,7 @@ test("выбор предка сохраняет адрес его источн�
   assert.deepEqual(crumbStateFor([list, ticket, user], 1).from, list);
 });
 
-test("компания добавляется перед предками расположения и в уже сохранённый путь", () => {
+test("компания и предки расположения не зависят от старого пути", () => {
   const section = { label: "Расположения", to: "/inventory/locations" };
   const company = { label: "F1Lab", to: "/companies/1" };
   const office = { label: "Офис", to: "/inventory/locations/office" };
@@ -190,7 +198,7 @@ test("компания добавляется перед предками рас
       chain: [company, office],
       state: { crumbTrail: [list, ticket] },
     }),
-    [list, ticket, company, office, current],
+    [section, company, office, current],
   );
 });
 
@@ -214,4 +222,131 @@ test("несколько компаний заметки показаны общ
   );
   assert.deepEqual(companyCrumbs([], true), []);
   assert.deepEqual(companyCrumbs([{ _id: "c1" }], true), []);
+});
+
+test("переключение заметки строит только иерархию текущей заметки без старых компаний", () => {
+  const section = { label: "База знаний", to: "/knowledge-base" };
+  const oldCompany = { label: "21 век", to: "/companies/old" };
+  const oldNote = { label: "Информация: Интернет", to: "/knowledge-base/old" };
+  const company = { label: "Нотариус Трусова Е.А.", to: "/companies/new" };
+  const current = {
+    label: "Инструкции: Типовые задачи",
+    to: "/knowledge-base/new",
+  };
+  assert.deepEqual(
+    buildCrumbTrail({
+      current,
+      section,
+      chain: [company],
+      state: { crumbTrail: [section, oldCompany, oldNote], from: oldNote },
+    }),
+    [section, company, current],
+  );
+  assert.deepEqual(
+    buildCrumbTrail({
+      current,
+      section,
+      state: { from: oldNote },
+    }),
+    [section, current],
+  );
+});
+
+test("одноимённые страницы справки с разными якорями остаются настоящими этапами", () => {
+  const section = { label: "Справка", to: "/help" };
+  const group = { label: "Заявки", to: "/help#tickets" };
+  const current = {
+    label: "Создание заявки",
+    to: "/help/staff/tickets/create",
+  };
+  assert.deepEqual(
+    buildCrumbTrail({
+      current,
+      section,
+      chain: [group],
+      state: {
+        crumbTrail: [{ label: "Старая статья", to: "/help/staff/tickets/old" }],
+      },
+    }),
+    [section, group, current],
+  );
+});
+test("возврат к источнику отделён от иерархии и не создаёт петлю", () => {
+  const items = [{ label: "Пользователи", to: "/users" }, user];
+  assert.deepEqual(crumbReturnOrigin({ from: ticket }, user.to, items), ticket);
+  assert.equal(crumbReturnOrigin({ from: user }, user.to, items), undefined);
+  assert.equal(
+    crumbReturnOrigin({ from: items[0] }, user.to, items),
+    undefined,
+  );
+  assert.equal(
+    crumbReturnOrigin(
+      { from: { label: "плохой", to: "//external.test" } },
+      user.to,
+      items,
+    ),
+    undefined,
+  );
+});
+
+test("переход между статьями справки не подменяет корень якорем раздела", () => {
+  const section = { label: "Справка", to: "/help" };
+  const group = { label: "Заявки", to: "/help#tickets" };
+  const current = { label: "Новая статья", to: "/help/staff/tickets/new" };
+  assert.deepEqual(
+    buildCrumbTrail({
+      current,
+      section,
+      chain: [group],
+      state: {
+        crumbTrail: [
+          section,
+          group,
+          { label: "Старая статья", to: "/help/staff/tickets/old" },
+        ],
+      },
+    }),
+    [section, group, current],
+  );
+});
+
+test("источник фоновой карточки сохраняется при открытии формы и после сохранения", () => {
+  const hierarchy = [{ label: "Пользователи", to: "/users" }, user];
+  const state = crumbSourceState(hierarchy, user, ticket);
+  assert.deepEqual(state.from, user);
+  assert.deepEqual(
+    crumbReturnOrigin(JSON.parse(JSON.stringify(state)), user.to, hierarchy),
+    ticket,
+  );
+  const next = { label: "Другой пользователь", to: "/users/other" };
+  assert.deepEqual(crumbReturnOrigin(state, next.to, [next]), user);
+});
+test("повреждённый контекст возврата формы не принимается", () => {
+  assert.equal(
+    crumbReturnOrigin(
+      {
+        returnContext: {
+          to: user.to,
+          from: { label: "внешний", to: "//external.test" },
+        },
+      },
+      user.to,
+      [user],
+    ),
+    undefined,
+  );
+});
+test("переход из якоря оглавления сохраняет корень и раздел справки", () => {
+  const section = { label: "Справка", to: "/help" };
+  const group = { label: "Заявки", to: "/help#tickets" };
+  const current = { label: "Статья", to: "/help/staff/tickets/new" };
+  assert.deepEqual(
+    buildCrumbTrail({
+      current,
+      section,
+      chain: [group],
+      state: { crumbTrail: [{ label: "Справка", to: "/help#tickets" }] },
+    }),
+    [section, group, current],
+  );
 });

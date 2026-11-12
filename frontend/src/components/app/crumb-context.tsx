@@ -17,11 +17,13 @@ import {
 } from "@/util/sections";
 import {
   buildCrumbTrail,
+  crumbReturnOrigin,
   currentCrumbAddress,
   crumbPath,
-  crumbStateFor,
+  crumbSourceState,
   readCrumbState,
   type CrumbLink,
+  type CrumbOrigin,
 } from "@/util/crumb-trail";
 import { useAuthedUser, useCan } from "@/store/authed-user";
 
@@ -34,12 +36,13 @@ type Registration = PageCrumbs & { path: string };
 type CrumbContextValue = {
   items: CrumbLink[];
   owner: string;
+  origin?: CrumbOrigin;
   register: (id: string, value?: Registration) => void;
 };
 const CrumbContext = createContext<CrumbContextValue | null>(null);
 export const useCrumbContext = () => useContext(CrumbContext);
 
-/** Route-scoped metadata only. The path itself lives in the router's History state. */
+/** Route metadata defines the hierarchy; History state holds source and saved filters. */
 export function CrumbProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const matches = useMatches();
@@ -102,6 +105,8 @@ export function CrumbProvider({ children }: { children: ReactNode }) {
   if (incoming.crumbTrail)
     incoming.crumbTrail = incoming.crumbTrail.filter(permitted);
   if (incoming.from && !permitted(incoming.from)) delete incoming.from;
+  if (incoming.returnContext && !permitted(incoming.returnContext.from))
+    delete incoming.returnContext;
   const items = buildCrumbTrail({
     current: {
       label: title,
@@ -112,9 +117,19 @@ export function CrumbProvider({ children }: { children: ReactNode }) {
     state: incoming,
   });
   const encoded = JSON.stringify(items);
+  const encodedOrigin = JSON.stringify(
+    crumbReturnOrigin(incoming, owner, items),
+  );
   const value = useMemo(
-    () => ({ items: JSON.parse(encoded) as CrumbLink[], owner, register }),
-    [encoded, owner, register],
+    () => ({
+      items: JSON.parse(encoded) as CrumbLink[],
+      origin: encodedOrigin
+        ? (JSON.parse(encodedOrigin) as CrumbOrigin)
+        : undefined,
+      owner,
+      register,
+    }),
+    [encoded, encodedOrigin, owner, register],
   );
   return (
     <CrumbContext.Provider value={value}>{children}</CrumbContext.Provider>
@@ -144,9 +159,6 @@ export function useCrumbFrom(label?: string | null) {
       label: label || context?.items.at(-1)?.label || "Главная",
       to: context?.items.at(-1)?.to ?? `${own}${location.search}`,
     };
-    const trail = context?.items.length
-      ? [...context.items.slice(0, -1), current]
-      : [current];
-    return { ...crumbStateFor(trail), from: current };
+    return crumbSourceState(context?.items ?? [], current, context?.origin);
   }, [label, context, own, location.search]);
 }

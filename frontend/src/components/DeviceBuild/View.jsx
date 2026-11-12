@@ -92,12 +92,7 @@ const ViewDeviceBuild = ({ build = {}, deviceType = null, partLinks = {} }) => {
     },
   ];
 
-  // Предок — тип устройства. Если пришли с него, он уже есть в пути.
-  const from = location.state?.from;
-  const fromType = from?.to?.split("?")[0] === typePath;
-  const chain = [
-    ...(fromType || !deviceType ? [] : [{ label: typeName, to: typePath }]),
-  ];
+  const chain = deviceType ? [{ label: typeName, to: typePath }] : [];
 
   const bold = (n) => <b className="font-semibold text-foreground">{n}</b>;
   const sep = <span className="text-faint">·</span>;
