@@ -6,6 +6,30 @@
   display: none;
 }
 
+/* Widget spacing belongs to the layout; Eyebrow's standalone margin would
+   otherwise add another 24 px to every gap, including the first widget. */
+[data-dashboard-editing="false"]
+  .dashboard-region
+  > :not(.dashboard-compact-group)
+  > div:first-child,
+[data-dashboard-editing="false"]
+  .dashboard-compact-group
+  > section
+  > div:first-child {
+  margin-top: 0;
+}
+
+/* Share the heading and panel rows, including headings with actions or wraps.
+   Each pair grows with its content; stacked mobile widgets stay independent. */
+@media (min-width: 768px) {
+  [data-dashboard-editing="false"] .dashboard-compact-group > section {
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+  }
+}
+
 @media (min-width: 1280px) {
   [data-dashboard-editing="true"] .dashboard-columns,
   .dashboard-columns:has(> .dashboard-main > :not(:empty)):has(

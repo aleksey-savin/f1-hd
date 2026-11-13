@@ -14,6 +14,7 @@ import PageHeader from "@/components/app/PageHeader";
 // главная — предмет у него не отчётный, а страничный, поэтому переехал сюда.
 const PageShell = ({
   title,
+  breadcrumbTitle = title,
   subtitle,
   toolbar,
   search,
@@ -24,6 +25,8 @@ const PageShell = ({
   children,
 }: {
   title: string;
+  /** Название в навигации, если заголовок страницы содержит приветствие или пояснение. */
+  breadcrumbTitle?: string;
   /** Строка под заголовком: должность, ставка и т.п. */
   subtitle?: ReactNode;
   toolbar?: ReactNode;
@@ -51,7 +54,7 @@ const PageShell = ({
     className={wide ? "mx-auto w-full" : "mx-auto w-full max-w-7xl"}
     style={wide ? { maxWidth: "100rem" } : undefined}
   >
-    <Crumbs title={title} />
+    <Crumbs title={breadcrumbTitle} />
     {breadcrumb}
     <PageHeader
       className="mb-4"

@@ -63,7 +63,12 @@ export const replySelection = (card, now = new Date()) => {
  * @param {string} [kind]
  * @param {boolean} [showAll] Viewing history never changes the reply context.
  */
-export const filterContextMessages = (messages, selection, kind = "direct", showAll = false) =>
+export const filterContextMessages = (
+  messages,
+  selection,
+  kind = "direct",
+  showAll = false,
+) =>
   showAll || kind === "group" || selection.mode === "choose"
     ? messages
     : messages.filter(
@@ -104,6 +109,18 @@ export const replyTarget = (selection) =>
 export const reconcileReplySelection = (local, card, now = new Date()) => {
   const server = replySelection(card, now);
   if (!local || card.conversation?.kind === "group") return server;
+  // Browsing a read-only ticket is local: no reply context is written to the
+  // server. Refresh its details without restoring the previous reply target.
+  const reader = card.access?.reply === false;
+  if (local.mode === "ticket" && (reader || local.ticket?.canReply === false)) {
+    const ticket = conversationTickets(card).find(
+      (item) => item.id === local.ticket.id,
+    );
+    return ticket && (reader || ticket.canReply === false)
+      ? { ...local, ticket }
+      : server;
+  }
+  if (reader && local.mode === "free") return card.access.all ? local : server;
   if (local.updatedAt) {
     return server.updatedAt &&
       Date.parse(server.updatedAt) >= Date.parse(local.updatedAt)

@@ -13,30 +13,34 @@ import {
 export default function UserReviewAttention() {
   const summary = useReviewSummary();
   if (!summary?.pending) return null;
+  const openReview = (
+    <Button asChild variant="outline" size="xs">
+      <Link to="/users/review">
+        Открыть проверку
+        <RiArrowRightSLine />
+      </Link>
+    </Button>
+  );
   return (
-    <section>
-      <Eyebrow
-        count={summary.pending}
-        action={
-          <Button asChild variant="outline" size="xs">
-            <Link to="/users/review">
-              Открыть проверку
-              <RiArrowRightSLine />
-            </Link>
-          </Button>
-        }
-      >
-        Пользователи ждут проверки
+    <section className="@container">
+      <Eyebrow action={<span className="@max-md:hidden">{openReview}</span>}>
+        <span className="min-w-0">
+          Пользователи ждут проверки{" "}
+          <span className="font-semibold tracking-normal whitespace-nowrap tabular-nums">
+            · {summary.pending}
+          </span>
+        </span>
       </Eyebrow>
-      <Panel className="overflow-hidden p-0">
-        <div className="flex flex-wrap gap-2 border-b border-border-soft px-5 py-3">
+      <div className="mb-2.5 @md:hidden">{openReview}</div>
+      <Panel className="overflow-hidden p-0 md:p-0">
+        <div className="flex gap-2 overflow-x-auto border-b border-border-soft px-4 py-3 scrollbar-none md:flex-wrap md:px-5">
           {Object.entries(summary.byKind)
             .filter(([, count]) => count > 0)
             .map(([kind, count]) => (
               <Link
                 key={kind}
                 to={`/users/review?kind=${kind}`}
-                className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground no-underline hover:border-primary"
+                className="inline-flex flex-none items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs whitespace-nowrap text-muted-foreground no-underline hover:border-primary"
               >
                 {kindLabel[kind as keyof typeof kindLabel]}
                 <span className="font-semibold text-foreground">{count}</span>
@@ -47,7 +51,7 @@ export default function UserReviewAttention() {
           <Link
             key={proposal._id}
             to={`/users/review?selected=${proposal._id}`}
-            className="flex items-center gap-3 border-b border-border-soft px-5 py-3 text-foreground no-underline last:border-0 hover:bg-accent"
+            className="flex items-center gap-3 border-b border-border-soft px-4 py-3 text-foreground no-underline last:border-0 hover:bg-accent md:px-5"
           >
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">

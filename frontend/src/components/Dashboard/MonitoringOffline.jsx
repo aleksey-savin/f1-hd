@@ -162,7 +162,7 @@ const MonitoringOffline = () => {
                 <span
                   className={
                     "flex-none text-sm whitespace-nowrap tabular-nums " +
-                    (fresh ? "text-warning" : "text-destructive")
+                    (fresh ? "text-warning-text" : "text-destructive")
                   }
                 >
                   <span

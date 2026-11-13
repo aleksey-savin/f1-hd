@@ -355,7 +355,7 @@ export default function DashboardLayout({
       <div
         data-dashboard-zone={zone}
         className={cn(
-          "dashboard-region flex min-w-0 flex-col gap-5",
+          "dashboard-region flex min-w-0 flex-col gap-6",
           zone === "main"
             ? "dashboard-main"
             : zone === "aside"
@@ -368,7 +368,7 @@ export default function DashboardLayout({
           group.length > 1 ? (
             <div
               key={widgetGroupKey(group)}
-              className="grid min-w-0 grid-cols-1 gap-5 empty:hidden md:grid-cols-2 md:items-start [&>:nth-child(3)]:col-span-full [&>:only-child]:col-span-full"
+              className="dashboard-compact-group grid min-w-0 grid-cols-1 gap-x-5 gap-y-6 empty:hidden md:grid-cols-2 [&>:nth-child(3)]:col-span-full [&>:only-child]:col-span-full"
             >
               {group.map(renderWidget)}
             </div>
@@ -391,7 +391,7 @@ export default function DashboardLayout({
         {announcement}
       </div>
       {renderZone("top")}
-      <div className="dashboard-columns mt-6 grid grid-cols-1 items-start gap-5">
+      <div className="dashboard-columns mt-6 grid grid-cols-1 items-start gap-x-5 gap-y-6">
         {renderZone("main")}
         {renderZone("aside")}
       </div>

@@ -355,7 +355,9 @@ const PersonalBody = ({
             }
             amount={
               payroll.overtimePay == null ? (
-                <span className="font-normal text-warning">нет ставки</span>
+                <span className="font-normal text-warning-text">
+                  нет ставки
+                </span>
               ) : (
                 <Money
                   value={payroll.overtimePay}
@@ -450,7 +452,7 @@ const EmployeeLine = ({
         </span>
         {canSeeMoney &&
           (row.payroll.missingRate && overtime > 0 ? (
-            <span className="text-xs text-warning">нет ставки</span>
+            <span className="text-xs text-warning-text">нет ставки</span>
           ) : pay ? (
             <span className="relative z-10 flex text-xs">
               <Money
@@ -535,7 +537,7 @@ const TeamBody = ({
               label="К доплате по команде"
               formula={
                 missingRate > 0 ? (
-                  <span className="text-warning">
+                  <span className="text-warning-text">
                     у {missingRate} нет ставки
                   </span>
                 ) : (
@@ -758,10 +760,10 @@ const MyReport = () => {
   );
 
   return (
-    <section>
+    <section className="@container">
       <Eyebrow
         action={
-          <span className="flex items-center gap-2 max-md:hidden">
+          <span className="flex items-center gap-2 @max-md:hidden">
             {controls(false)}
           </span>
         }
@@ -772,10 +774,9 @@ const MyReport = () => {
             ? "Сотрудники"
             : "Мой отчёт"}
       </Eyebrow>
-      {/* Телефон: сегмент и месяц — двумя строками во всю ширину. В один ряд
-          они не обязаны помещаться: при крупном шрифте такой ряд раздвигал
-          колонку главной за экран (макет «Главная на телефоне — аккуратно») */}
-      <div className="mb-2.5 flex flex-col gap-2 md:hidden">
+      {/* Узкий виджет: сегмент и месяц — двумя строками независимо от окна.
+          Это относится и к правой колонке на десктопе. */}
+      <div className="mb-2.5 flex flex-col gap-2 @md:hidden">
         {controls(true)}
       </div>
 

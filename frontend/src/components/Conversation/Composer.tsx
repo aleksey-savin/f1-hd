@@ -6,7 +6,12 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { RiAttachment2, RiCheckDoubleLine, RiCloseLine, RiSendPlane2Line } from "react-icons/ri";
+import {
+  RiAttachment2,
+  RiCheckDoubleLine,
+  RiCloseLine,
+  RiSendPlane2Line,
+} from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,8 +35,6 @@ const Composer = ({
   awaiting,
   phone = false,
   sendBlocked = false,
-  contextTitle,
-  onChooseContext,
   replyTo,
   onCancelReply,
   onSend,
@@ -43,8 +46,6 @@ const Composer = ({
   awaiting: boolean;
   phone?: boolean;
   sendBlocked?: boolean;
-  contextTitle?: string;
-  onChooseContext?: () => void;
   replyTo?: { authorName: string; text: string } | null;
   onCancelReply?: () => void;
   onSend: (draft: {
@@ -206,21 +207,6 @@ const Composer = ({
         onDrop={dropFiles}
         className="flex-none border-t border-border-soft bg-card px-3 pt-2 pb-3"
       >
-        {contextTitle && onChooseContext && (
-          <div className="mb-2 flex items-center gap-2 text-sm">
-            <span className="min-w-0 flex-1 truncate font-semibold">
-              {contextTitle}
-            </span>
-            <Button
-              type="button"
-              variant="link"
-              size="xs"
-              onClick={onChooseContext}
-            >
-              Изменить
-            </Button>
-          </div>
-        )}
         {preview}
         {quote}
         <div className="flex items-end gap-2">

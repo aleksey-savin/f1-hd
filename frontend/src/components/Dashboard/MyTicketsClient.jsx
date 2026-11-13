@@ -13,6 +13,7 @@ import { formatShortDate } from "../../util/format-date";
 import { toIsoDay } from "../../util/period";
 import { createdText } from "../Ticket/ticket-state";
 import TicketRow from "./TicketRow";
+import TicketListRow from "../Ticket/Row";
 import { useCan } from "@/store/authed-user";
 
 /**
@@ -234,10 +235,22 @@ const MyTicketsClient = () => {
         {/* Без подвала последняя строка упирается в скруглённый угол панели —
             подсветка строки не должна из него выпирать */}
         <div className="-mx-4 -my-4 overflow-hidden rounded-[inherit] md:-mx-5 md:-my-5">
-          {current.rows.map((ticket) => {
-            const props = current.row(ticket);
-            return <TicketRow key={ticket._id} {...props} />;
-          })}
+          <div className="md:hidden">
+            {current.rows.map((ticket) => (
+              <TicketListRow
+                key={ticket._id}
+                ticket={current.row(ticket).ticket}
+                canEdit={false}
+                canDelete={false}
+              />
+            ))}
+          </div>
+          <div className="max-md:hidden">
+            {current.rows.map((ticket) => {
+              const props = current.row(ticket);
+              return <TicketRow key={ticket._id} {...props} />;
+            })}
+          </div>
 
           {/* Подвал считает показанное: «6 из 9» — обещание, и оно не должно
               расходиться с числом строк. Закрытые уходят в архив с уже

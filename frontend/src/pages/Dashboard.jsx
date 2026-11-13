@@ -134,6 +134,7 @@ const DashboardPage = () => {
   return (
     <TooltipProvider delayDuration={200}>
       <PageShell
+        breadcrumbTitle="Главная"
         title={
           isEndUser ? "Чем помочь?" : `Здравствуйте, ${firstName || ""}`.trim()
         }

@@ -290,7 +290,7 @@ const TicketRow = ({
         <span className="mt-2 flex items-center gap-1.5 text-xs leading-5 text-faint tabular-nums md:hidden">
           {/* Точка внутри строчного span, а не первым флекс-ребёнком: у флекса
               базовая линия взялась бы от пустой точки (см. TicketStateText) */}
-          <span className="font-medium">
+          <span className="font-medium whitespace-nowrap">
             {unseen && (
               <span
                 aria-hidden
@@ -347,7 +347,12 @@ const TicketRow = ({
           легаси-меню «Действия». Гнездо с воздухом от края и приглушённым, а не
           блёклым глифом: в узком гнезде «⋯» не замечали. В режиме выбора
           гаснет — строка там переключает выбор, а не открывает меню */}
-      <span className="flex w-14 flex-none justify-center pe-3 md:pe-4">
+      <span
+        className={cn(
+          "flex w-14 flex-none justify-center pe-3 md:pe-4",
+          !hasMenu && "max-md:hidden",
+        )}
+      >
         {hasMenu && (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>

@@ -15,17 +15,110 @@ const camera = { id: "camera", num: 58970, title: "Камера у въезда"
 const now = new Date("2026-11-11T04:00:00Z");
 const card = { tickets: [remote, camera], ticket: remote };
 
+test("a read-only ticket stays selected locally while card refreshes, without becoming a reply target after access changes", () => {
+  const archived = {
+    id: "archived",
+    num: 58812,
+    title: "Общая папка",
+    canReply: false,
+  };
+  const local = { mode: "ticket", ticket: archived, expiresAt: null };
+  const current = {
+    ...card,
+    tickets: [remote, { ...archived, title: "Доступ к общей папке" }],
+    replyContext: {
+      ticketId: remote.id,
+      withoutTicket: false,
+      required: false,
+      expiresAt: null,
+    },
+  };
+  assert.equal(
+    reconcileReplySelection(local, current, now).ticket.id,
+    archived.id,
+  );
+  assert.equal(
+    reconcileReplySelection(local, current, now).ticket.title,
+    "Доступ к общей папке",
+  );
+  assert.equal(
+    reconcileReplySelection(local, { ...current, tickets: [remote] }, now)
+      .ticket.id,
+    remote.id,
+  );
+  const writable = {
+    ...current,
+    tickets: [remote, { ...archived, canReply: true }],
+  };
+  assert.equal(
+    reconcileReplySelection(local, writable, now).ticket.id,
+    remote.id,
+  );
+});
+
+test("a reader's local view refreshes from available tickets and cannot retain removed tickets or a revoked free scope", () => {
+  const viewed = { ...camera, canReply: true };
+  const local = { mode: "ticket", ticket: viewed, expiresAt: null };
+  const current = {
+    ...card,
+    access: { reply: false, all: true },
+    tickets: [remote, { ...viewed, title: "Новая камера" }],
+    replyContext: {
+      ticketId: remote.id,
+      withoutTicket: false,
+      required: false,
+      expiresAt: null,
+    },
+  };
+  assert.equal(
+    reconcileReplySelection(local, current, now).ticket.title,
+    "Новая камера",
+  );
+  assert.equal(
+    reconcileReplySelection(local, { ...current, tickets: [remote] }, now)
+      .ticket.id,
+    remote.id,
+  );
+  const free = { mode: "free", ticket: null, expiresAt: null };
+  assert.equal(reconcileReplySelection(free, current, now).mode, "free");
+  assert.equal(
+    reconcileReplySelection(
+      free,
+      { ...current, access: { reply: false, all: false } },
+      now,
+    ).ticket.id,
+    remote.id,
+  );
+  assert.equal(
+    reconcileReplySelection(
+      local,
+      { ...current, access: { reply: true, all: true } },
+      now,
+    ).ticket.id,
+    remote.id,
+  );
+});
+
 test("full history includes closed and unlinked tickets without changing the reply target", () => {
   const messages = [
     { id: "closed", ticket: { id: "closed", num: 10 } },
     { id: "unlinked", ticket: remote },
     { id: "free", ticket: null },
   ];
-  const selection = replySelection({ conversation: { kind: "direct" }, tickets: [] });
-  assert.deepEqual(filterContextMessages(messages, selection, "direct", true), messages);
+  const selection = replySelection({
+    conversation: { kind: "direct" },
+    tickets: [],
+  });
+  assert.deepEqual(
+    filterContextMessages(messages, selection, "direct", true),
+    messages,
+  );
   assert.deepEqual(replyTarget(selection), { withoutTicket: true });
   const activeSelection = { mode: "ticket", ticket: camera };
-  assert.deepEqual(filterContextMessages(messages, activeSelection, "direct", true), messages);
+  assert.deepEqual(
+    filterContextMessages(messages, activeSelection, "direct", true),
+    messages,
+  );
   assert.deepEqual(replyTarget(activeSelection), { ticketNum: 58970 });
 });
 

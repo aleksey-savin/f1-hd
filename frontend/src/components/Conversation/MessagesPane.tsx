@@ -5,10 +5,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { RiArrowDownLine, RiHistoryLine } from "react-icons/ri";
+import { RiArrowDownLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
-import Segmented from "@/components/app/Segmented";
 import { Checkbox } from "@/components/ui/checkbox";
 import useMinuteTick from "@/hooks/use-minute-tick";
 import { cn } from "@/lib/utils";
@@ -45,8 +44,6 @@ const MessagesPane = ({
   firstUnreadId,
   selectedMessageIds,
   onSelectMessage,
-  showAll = false,
-  onShowAllChange,
 }: {
   conversationId: string;
   messages: MessageRow[];
@@ -66,8 +63,6 @@ const MessagesPane = ({
   firstUnreadId?: string;
   selectedMessageIds?: string[];
   onSelectMessage?: (id: string, selected: boolean) => void;
-  showAll?: boolean;
-  onShowAllChange?: (value: boolean) => void;
 }) => {
   const now = useMinuteTick();
   const rows = useMemo(
@@ -122,20 +117,6 @@ const MessagesPane = ({
 
   return (
     <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
-      {onShowAllChange && (
-        <div className="flex-none border-b border-border-soft bg-card px-3 py-2">
-          <Segmented
-            ariaLabel="Просмотр переписки"
-            value={showAll ? "all" : "context"}
-            onChange={(value) => onShowAllChange(value === "all")}
-            options={[
-              { value: "context", label: "Текущая тема" },
-              { value: "all", label: "Вся история", icon: <RiHistoryLine aria-hidden /> },
-            ]}
-            className="w-full [&_button]:min-h-11"
-          />
-        </div>
-      )}
       <div
         ref={scroller}
         onScroll={onScroll}
@@ -215,7 +196,11 @@ const MessagesPane = ({
                       group={kind === "group"}
                       compact={compact}
                       timeZone={timeZone}
-                      canRetry={typeof canRetry === "function" ? canRetry(row.message) : canRetry}
+                      canRetry={
+                        typeof canRetry === "function"
+                          ? canRetry(row.message)
+                          : canRetry
+                      }
                       onRetry={onRetry}
                       actions={renderActions?.(row.message)}
                     />

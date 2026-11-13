@@ -57,7 +57,7 @@ const pastDayLabel = (work: PlannedWork) =>
 const Status = ({ item, now }: { item: TodayItem; now: Date }) => {
   const { work, phase } = item;
   if (phase === "unconfirmed")
-    return <span className="text-warning">не подтверждена</span>;
+    return <span className="text-warning-text">не подтверждена</span>;
   if (phase === "now")
     return (
       <span className="font-semibold text-accent-text">
@@ -133,7 +133,7 @@ const PlanCard = ({
       )}
     >
       {item.pastDay && (
-        <div className="mb-1 text-xs font-semibold text-warning tabular-nums">
+        <div className="mb-1 text-xs font-semibold text-warning-text tabular-nums">
           {pastDayLabel(work)}
         </div>
       )}
@@ -222,7 +222,7 @@ const PlanRow = ({
       </span>
       <span className="min-w-0 flex-1 text-sm">
         {item.pastDay && (
-          <span className="block text-xs font-semibold text-warning tabular-nums">
+          <span className="block text-xs font-semibold text-warning-text tabular-nums">
             {pastDayLabel(work)}
           </span>
         )}

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { RiAddLine, RiCheckLine } from "react-icons/ri";
+import { RiAddLine } from "react-icons/ri";
 
 import { SubLabel } from "@/components/app/Panel";
 import { monogramFor } from "@/components/app/monogram";
@@ -15,7 +15,6 @@ import { conversationTickets } from "@/util/conversation-context";
 import ContactBlock from "./ContactBlock";
 import ContactChannelRow from "./ContactChannelRow";
 import OpenTickets from "./OpenTickets";
-import { FreeDiscussionChoice } from "./ReplyContextPicker";
 import TicketBlock from "./TicketBlock";
 import WhoIsThis from "./WhoIsThis";
 
@@ -58,7 +57,7 @@ const Participants = ({ card }: { card: ConversationCard }) => (
   </>
 );
 
-/** Same context and choices in the desktop pane and the mobile context sheet. */
+/** Contact and selected ticket details; context choices live above the thread. */
 const ContextPane = ({
   card,
   canManage,
@@ -67,13 +66,9 @@ const ContextPane = ({
   timeZone,
   handlers,
   selection,
-  onSelectContext,
   onCreateTicket,
-  onChooseContext,
   actions,
   decision,
-  contextBusy = false,
-  contextPaused = false,
 }: {
   card: ConversationCard;
   canManage: boolean;
@@ -82,13 +77,9 @@ const ContextPane = ({
   timeZone: string;
   handlers: ContextHandlers;
   selection: ConversationReplySelection;
-  onSelectContext: (ticketNum: number | null) => void;
   onCreateTicket: () => void;
-  onChooseContext: () => void;
   actions?: ReactNode;
   decision?: ReactNode;
-  contextBusy?: boolean;
-  contextPaused?: boolean;
 }) => {
   const { conversation } = card;
   const linked = conversationTickets(card);
@@ -132,69 +123,39 @@ const ContextPane = ({
       ) : (
         <>
           {decision && <div className="mb-4">{decision}</div>}
-          {card.access?.all && card.access?.reply && <FreeDiscussionChoice
-            selected={selection.mode === "free"}
-            disabled={contextBusy}
-            onSelect={() => onSelectContext(null)}
-          />}
+          {selection.mode === "ticket" && selection.ticket && (
+            <TicketBlock
+              showOtherDialogs
+              card={card}
+              ticket={selection.ticket}
+              canManage={canManage}
+              now={now}
+              timeZone={timeZone}
+              onUnbind={() => handlers.onUnbind(selection.ticket?.num)}
+            />
+          )}
+          {selection.mode === "free" && (
+            <p className="my-0 text-sm text-muted-foreground">
+              Обсуждение новой темы без привязки к заявке.
+            </p>
+          )}
           {canManage && (
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="mt-2 w-full"
+              className="mt-4"
               onClick={onCreateTicket}
             >
               <RiAddLine />
               Создать заявку
             </Button>
           )}
-          {card.access?.reply && selection.mode === "choose" && (
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold text-warning-text">
-              <span>
-                {contextPaused
-                  ? "Переписка была приостановлена"
-                  : "Выберите тему для ответа"}
-              </span>
-              <Button
-                type="button"
-                variant="link"
-                size="xs"
-                onClick={onChooseContext}
-              >
-                Выбрать
-              </Button>
-            </div>
-          )}
-          <div className="mt-4 flex flex-col gap-3" aria-busy={contextBusy}>
-            {linked.map((ticket) => (
-              <TicketBlock
-                showOtherDialogs
-                key={ticket.id}
-                card={card}
-                ticket={ticket}
-                canManage={canManage}
-                now={now}
-                timeZone={timeZone}
-                onUnbind={() => handlers.onUnbind(ticket.num)}
-                selected={selection.ticket?.id === ticket.id}
-                onSelect={() => {
-                  if (!contextBusy) onSelectContext(ticket.num);
-                }}
-              />
-            ))}
-          </div>
           <OpenTickets
             card={otherTickets}
             canBind={canManage && conversation.kind === "direct"}
             onBind={handlers.onBind}
           />
-          {!linked.length && selection.mode === "free" && (
-            <span className="sr-only">
-              <RiCheckLine />
-              Диалог без заявки
-            </span>
-          )}
         </>
       )}
     </>

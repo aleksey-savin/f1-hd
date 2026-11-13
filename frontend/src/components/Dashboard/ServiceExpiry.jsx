@@ -90,7 +90,7 @@ const ServiceExpiry = ({ showCompany = false }) => {
                 <span
                   className={
                     "flex-none text-sm tabular-nums " +
-                    (overdue ? "text-destructive" : "text-warning")
+                    (overdue ? "text-destructive" : "text-warning-text")
                   }
                 >
                   {expiryText(service.expiresAt)}

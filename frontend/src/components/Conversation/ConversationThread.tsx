@@ -3,11 +3,7 @@ import Crumbs from "@/components/app/Crumbs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
 import { isMobile } from "react-device-detect";
-import {
-  RiAddLine,
-  RiCloseLine,
-  RiMoreLine,
-} from "react-icons/ri";
+import { RiAddLine, RiCloseLine } from "react-icons/ri";
 
 import FormOutlet from "@/components/app/FormOutlet";
 import HealthRow from "@/components/app/HealthRow";
@@ -49,6 +45,7 @@ import MessagesPane from "./MessagesPane";
 import ReplyContextPicker from "./ReplyContextPicker";
 import ThreadHeader from "./ThreadHeader";
 import ThreadMenu from "./ThreadMenu";
+import ThreadToolbar from "./ThreadToolbar";
 import { useThread } from "./use-thread";
 import {
   answerNoTicket,
@@ -62,7 +59,7 @@ import {
 } from "./conversation-actions";
 
 export type ThreadData = { card: ConversationCard; page: MessagesPage };
-type Picker = { kind: "context" } | { kind: "messages"; ids: string[] };
+type Picker = { ids: string[] };
 
 /** A selected ticket is a staff reply context and filter, never a global chat owner. */
 const ConversationThread = () => {
@@ -76,6 +73,7 @@ const ConversationThread = () => {
   const now = useMinuteTick();
   const timeZone = displayTimeZone();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [showAllMessages, setShowAllMessages] = useState(false);
   const [picker, setPicker] = useState<Picker | null>(null);
   const [localSelection, setLocalSelection] =
@@ -91,17 +89,11 @@ const ConversationThread = () => {
   const baseSelection =
     pendingContext.current && localSelection
       ? localSelection
-      : canReply
-        ? reconcileReplySelection(
-            localSelection,
-            card,
-            new Date(Math.max(now.getTime(), contextClock)),
-          )
-        : (localSelection ??
-          replySelection(
-            card,
-            new Date(Math.max(now.getTime(), contextClock)),
-          ));
+      : reconcileReplySelection(
+          localSelection,
+          card,
+          new Date(Math.max(now.getTime(), contextClock)),
+        );
   const selection: ConversationReplySelection =
     baseSelection.expiresAt &&
     Date.parse(baseSelection.expiresAt) <= Math.max(now.getTime(), contextClock)
@@ -111,7 +103,7 @@ const ConversationThread = () => {
   const canSend = conversationReplyAllowed(card, selection);
 
   useEffect(() => {
-    if (!canReply || pendingContext.current) return;
+    if (pendingContext.current) return;
     setLocalSelection((current) => {
       if (!current) return current;
       const next = reconcileReplySelection(current, card);
@@ -163,11 +155,14 @@ const ConversationThread = () => {
     void useConversationsStore.getState().silentRefresh();
   };
   const selectContext = async (ticketNum: number | null) => {
-    if (pendingContext.current || (ticketNum === null && !card.access?.all)) return;
+    if (pendingContext.current || (ticketNum === null && !card.access?.all))
+      return;
     const ticket =
       ticketNum === null ? null : linked.find((item) => item.num === ticketNum);
     if (ticketNum !== null && !ticket) return;
     const previous = selection;
+    const previousShowAll = showAllMessages;
+    setShowAllMessages(false);
     setLocalSelection({
       mode: ticket ? "ticket" : "free",
       ticket: ticket ?? null,
@@ -175,7 +170,6 @@ const ConversationThread = () => {
     });
     setSheetOpen(false);
     if (!canReply || (ticket && !ticket.canReply)) {
-      setPicker(null);
       return;
     }
     pendingContext.current = true;
@@ -186,10 +180,10 @@ const ConversationThread = () => {
         `/api/conversations/${conversationId}`,
       );
       setLocalSelection(replySelection(fresh));
-      setPicker(null);
       refresh();
     } catch (error) {
       setLocalSelection(previous);
+      setShowAllMessages(previousShowAll);
       useToastStore
         .getState()
         .showToast(
@@ -233,7 +227,7 @@ const ConversationThread = () => {
           ),
       );
   const chooseForMessages = async (ticketNum: number | null) => {
-    if (picker?.kind !== "messages" || mappingBusy) return;
+    if (!picker || mappingBusy) return;
     setMappingBusy(true);
     try {
       if (await assignMessages(conversationId, picker.ids, ticketNum)) {
@@ -247,7 +241,7 @@ const ConversationThread = () => {
     }
   };
   const openMessagePicker = (ids: string[]) => {
-    setPicker({ kind: "messages", ids });
+    setPicker({ ids });
     setSheetOpen(false);
   };
   const messageActions = (message: MessageRow) => {
@@ -319,7 +313,9 @@ const ConversationThread = () => {
     selection.expiresAt &&
       Date.parse(selection.expiresAt) <= Math.max(now.getTime(), contextClock),
   );
-  const composer = !canReply || (selection.mode === "ticket" && !canSend) ? (
+  const composerAvailable =
+    canReply && conversation.network !== "site" && channel?.isActive !== false;
+  const composer = !canReply ? (
     <HealthRow state="info" title="У вас доступ только к чтению" />
   ) : conversation.network === "site" ? (
     <HealthRow
@@ -339,18 +335,6 @@ const ConversationThread = () => {
       awaiting={canManage && Boolean(conversation.awaitingSince)}
       phone={isMobile}
       sendBlocked={!canSend || contextBusy}
-      contextTitle={
-        conversation.kind === "direct" &&
-        (linked.length > 1 || selection.mode !== "ticket")
-          ? selection.ticket?.title ||
-            (selection.mode === "free"
-              ? "Без заявки"
-              : contextPaused
-                ? "Переписка была приостановлена"
-                : "Выберите тему для ответа")
-          : undefined
-      }
-      onChooseContext={() => setPicker({ kind: "context" })}
       replyTo={
         replyTo
           ? {
@@ -396,8 +380,6 @@ const ConversationThread = () => {
     <MessagesPane
       conversationId={conversationId}
       viewKey={`${conversationId}:${showAllMessages ? "all" : `${selection.mode}:${selection.ticket?.id || ""}`}`}
-      showAll={showAllMessages}
-      onShowAllChange={conversation.kind === "direct" ? setShowAllMessages : undefined}
       messages={filterContextMessages(
         thread.messages,
         selection,
@@ -429,9 +411,14 @@ const ConversationThread = () => {
               ),
           )
       }
-      canRetry={(message) => conversationReplyAllowed(card, message.ticket
-        ? { mode: "ticket", ticket: message.ticket }
-        : { mode: "free" })}
+      canRetry={(message) =>
+        conversationReplyAllowed(
+          card,
+          message.ticket
+            ? { mode: "ticket", ticket: message.ticket }
+            : { mode: "free" },
+        )
+      }
       onRetry={retry}
       renderActions={messageActions}
       firstUnreadId={firstUnread.current}
@@ -457,11 +444,7 @@ const ConversationThread = () => {
       timeZone={timeZone}
       handlers={handlers}
       selection={selection}
-      onSelectContext={(num) => void selectContext(num)}
       onCreateTicket={() => createTicket()}
-      onChooseContext={() => setPicker({ kind: "context" })}
-      contextBusy={contextBusy}
-      contextPaused={contextPaused}
       decision={decision}
       actions={
         <ThreadMenu card={card} canManage={canManage} onChanged={refresh} />
@@ -469,28 +452,36 @@ const ConversationThread = () => {
     />
   );
   const selectedMessage =
-    picker?.kind === "messages" && picker.ids.length === 1
+    picker?.ids.length === 1
       ? thread.messages.find((message) => message.id === picker.ids[0])
       : null;
   return (
     <>
-      <section aria-label="Переписка" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <section
+        aria-label="Переписка"
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      >
         <Crumbs title={conversation.title || "Диалог"} />
         {isMobile && (
           <div className="flex-none border-b border-border-soft bg-card">
-            <ThreadHeader card={card} compact>
-              <Button
-                variant="outline"
-                size="icon-xs"
-                aria-label="Контакт и действия"
-                title="Контакт и действия"
-                onClick={() => setSheetOpen(true)}
-              >
-                <RiMoreLine />
-              </Button>
-            </ThreadHeader>
+            <ThreadHeader card={card} compact />
           </div>
         )}
+        <ThreadToolbar
+          card={card}
+          selection={selection}
+          showAll={showAllMessages}
+          onShowAllChange={setShowAllMessages}
+          onSelectContext={(num) => void selectContext(num)}
+          busy={contextBusy || mappingBusy}
+          contextPaused={contextPaused}
+          panelOpen={isMobile ? sheetOpen : panelOpen}
+          phone={isMobile}
+          onTogglePanel={() => {
+            if (isMobile) setSheetOpen((open) => !open);
+            else setPanelOpen((open) => !open);
+          }}
+        />
         {messagesPane}
         {conversation.kind === "group" && checkedIds.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 border-t border-border-soft px-3 py-2 text-xs">
@@ -528,9 +519,12 @@ const ConversationThread = () => {
             </Button>
           </div>
         )}
+        {composerAvailable && selection.mode === "ticket" && !canSend && (
+          <HealthRow state="info" title="У вас доступ только к чтению" />
+        )}
         {composer}
       </section>
-      {!isMobile && (
+      {!isMobile && panelOpen && (
         <aside
           aria-label="Контакт и заявки"
           className="w-88 flex-none overflow-y-auto border-l border-border-soft px-4 py-4"
@@ -551,23 +545,13 @@ const ConversationThread = () => {
         onOpenChange={(open) => {
           if (!open) setPicker(null);
         }}
-        onChoose={(num) =>
-          void (picker?.kind === "messages"
-            ? chooseForMessages(num)
-            : selectContext(num))
-        }
+        onChoose={(num) => void chooseForMessages(num)}
         selectedId={
           selectedMessage?.ticket?.id ||
-          (selectedMessage?.attachMode === "free"
-            ? "free"
-            : picker?.kind === "messages"
-              ? null
-              : selection.mode === "free"
-                ? "free"
-                : (selection.ticket?.id ?? null))
+          (selectedMessage?.attachMode === "free" ? "free" : null)
         }
         messageText={selectedMessage?.text}
-        assigning={picker?.kind === "messages"}
+        assigning
         busy={mappingBusy || contextBusy}
       />
       <ConfirmDialog

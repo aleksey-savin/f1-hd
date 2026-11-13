@@ -81,10 +81,16 @@ const ActionDialog = ({
   const [deadline, setDeadline] = useState("");
   const [helpers, setHelpers] = useState([]);
   const closingField = useRef(null);
+  const formSession = useRef(null);
 
   const open = Boolean(action);
 
   useEffect(() => {
+    // Ревалидация (в том числе после проверки такси) обновляет объект заявки,
+    // но не должна стирать уже набранный результат или выбранные поля.
+    const session = open ? `${ticket._id}:${action}` : null;
+    if (formSession.current === session) return;
+    formSession.current = session;
     if (!open) return;
     setTakeOver(false);
     setText("");
