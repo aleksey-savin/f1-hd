@@ -342,3 +342,52 @@ test('first-contact reply preserves other pending tickets and own free start nev
  await attachFirstContact(job,channel,{chatId:'remote-peer'});
  assert.equal(conversationWrites.some(write=>write.change.$set?.awaitingSince===null),false);
 });
+test('personal free sends keep their owner and never clear waiting for a different discussion',async(t)=>{
+ const {queueOutbound,clearWaitingForReply}=require('./outbound');
+ canonical.awaitingSince=new Date(Date.now()-10000);foreignWaiting=true;
+ const filters=[];
+ t.mock.method(require('@/models/message'),'exists',async filter=>{filters.push(filter);return {_id:'foreign'};});
+ await queueOutbound({conversation:canonical,channel,text:'Новый вопрос',attachments:[],author:{_id:'staff'},prefs:{},withoutTicket:true});
+ assert.equal(message.attachMode,'free');assert.equal(message.discussionUserId,'staff');assert.equal(message.ticketId,null);
+ assert.equal(conversationWrites.some(write=>write.change.$set?.awaitingSince===null),false);
+ assert.ok(filters.some(filter=>filter.$or?.some(clause=>clause.discussionUserId?.$ne==='staff')));
+ await clearWaitingForReply({conversation:canonical,discussionUserId:'staff',sentAt:new Date()});
+});
+test('a new owned first contact can reuse a recipient chat created while queued without inheriting its context',async(t)=>{
+ const job=await send();message.ticketId=null;message.commentId=null;
+ message.attachMode='free';message.discussionUserId='staff';message.clientRequestId='2dd2b92e-94f4-4d2c-9e1d-6711b1b61d55';
+ networkAuth={userId:'staff',can:r=>Boolean(r.conversation)&&r.conversation.every(v=>['read','reply','start'].includes(v))};
+ t.mock.method(require('./access'),'loadMessageScope',async()=>({all:false,ticketIds:[],conversationIds:[]}));
+ t.mock.method(require('./start'),'recipientOf',async()=>({phone:message.recipientPhone}));
+ known=[canonical];
+ assert.equal((await inspectPhoneJob(job,channel)).reason,undefined);
+ known=[{...canonical,hidden:true}];assert.match((await inspectPhoneJob(job,channel)).reason,/скрыт/);
+});
+test('existing-chat start is reauthorized by the worker before a real provider send',async(t)=>{
+ const {queueOutbound}=require('./outbound');
+ const send=async()=>{
+  message=null;jobs=[];
+  return queueOutbound({conversation:canonical,channel,text:'Новый вопрос',attachments:[],author:{_id:'staff'},prefs:{},recipient:{phone:'79145550142',userId:'client'},clientRequestId:'2dd2b92e-94f4-4d2c-9e1d-6711b1b61d55',withoutTicket:true,discussionUserId:'staff'});
+ };
+ const acks=[],sends=[];
+ t.mock.method(require('@/models/wazzupSettings'),'updateOne',async()=>{});
+ t.mock.method(require('./jobs'),'leaseJobs',async()=>({leaseId:'lease',jobs:[jobs[0]]}));
+ t.mock.method(require('./jobs'),'ackJobs',async(_lease,items)=>acks.push(...items));
+ t.mock.method(require('../wazzup/provider'),'sendMessage',async(_key,body)=>{sends.push(body);return {messageId:'accepted',chatId:canonical.externalChatId};});
+ t.mock.method(require('../crypto/secretBox'),'decryptSecret',()=> 'test-key');
+ delete require.cache[require.resolve('../wazzup/worker')];
+ const {sendOutbox}=require('../wazzup/worker');
+ t.mock.method(require('@/models/message'),'findById',()=>query(message));
+ t.mock.method(require('./start'),'recipientOf',async()=>({phone:recipient.phone}));
+ const settings={isActive:true,apiKey:'encrypted',channelIds:['remote']};
+ await send();networkAuth={...auth,can:()=>false};await sendOutbox(settings);
+ assert.equal(sends.length,0);assert.match(acks.at(-1).error,/прав/);
+ await send();networkAuth=auth;canonical.hidden=true;await sendOutbox(settings);
+ assert.equal(sends.length,0);assert.match(acks.at(-1).error,/скрыт/);delete canonical.hidden;
+ await send();recipient.banned=true;await sendOutbox(settings);
+ assert.equal(sends.length,0);assert.match(acks.at(-1).error,/отключён/);delete recipient.banned;
+ await send();recipient.phone='79990000000';await sendOutbox(settings);
+ assert.equal(sends.length,0);assert.match(acks.at(-1).error,/Номер получателя изменился/);
+ await send();recipient.phone='79145550142';await sendOutbox(settings);
+ assert.equal(sends.length,1);assert.equal(sends[0].chatId,canonical.externalChatId);assert.equal(sends[0].phone,undefined);
+});

@@ -14,3 +14,8 @@ test('sending follows server capabilities and current ticket permission', () => 
   assert.equal(conversationReplyAllowed({ access: { reply: true, all: true } }, { mode: 'free' }), true);
   assert.equal(conversationReplyAllowed({}, { mode: 'free' }), false);
 });
+test('server may allow personal free replies independently of global history access', () => {
+  const card={access:{reply:true,all:false,freeReply:true}};
+  assert.equal(conversationReplyAllowed(card,{mode:'free'}),true);
+  assert.equal(conversationReplyAllowed({...card,access:{...card.access,reply:false}},{mode:'free'}),false);
+});

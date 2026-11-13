@@ -32,3 +32,19 @@ test('knowing a Wazzup job id and lease does not authorize gateway acknowledgeme
   t.mock.method(ChannelJob, 'findOne', async filter => { assert.equal(sift(filter)(job), false); return null; });
   assert.deepEqual(await ackJobs('lease', [{ id, ok: true }]), { applied: 0, ignored: 1 });
 });
+test('direct gateway rechecks queued existing-chat starts before exposing a send job', async t => {
+  const queue = require('../services/messaging/jobs');
+  const starts = require('../services/messaging/start');
+  const jobs=[{_id:id,type:'send',channelId:id,payload:{startRequest:true,chatId:'peer',text:'private'}},{_id:'other',type:'testProxy',channelId:id,payload:{}}];
+  const acks=[];
+  t.mock.method(queue,'leaseJobs',async()=>({leaseId:'lease',jobs}));
+  t.mock.method(queue,'ackJobs',async(lease,items)=>{assert.equal(lease,'lease');acks.push(...items);});
+  const inspect=t.mock.method(starts,'inspectStartJob',async()=>({reason:'Недостаточно прав для отправки'}));
+  delete require.cache[require.resolve('./gateway')];
+  const fresh = require('./gateway');
+  const blocked = await invoke(fresh.jobs);
+  assert.deepEqual(blocked.jobs.map(job=>job.id),['other']);
+  assert.equal(acks[0].retryable,false);assert.equal(acks[0].ok,false);assert.equal(acks[0].id,id);
+  inspect.mock.mockImplementation(async()=>({conversation:{_id:'chat'}}));
+  assert.equal((await invoke(fresh.jobs)).jobs.length,2);
+});

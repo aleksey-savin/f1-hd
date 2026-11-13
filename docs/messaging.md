@@ -434,7 +434,11 @@ into a neighboring router:
   be used as a send context.
 - **start** = inbox read + `conversation.reply` + `conversation.start`, plus
   module switch. This permission initiates without a ticket; it does not grant
-  reading unrelated/free history. Specialists initiate from their own ticket.
+  reading unrelated/free history. An existing non-hidden direct chat can carry
+  a new personal free exchange: its messages have `discussionUserId`, and only
+  that owner and global readers can read them. Restricted recipient routes do
+  not expose an inaccessible chat ID, bindings, previews or history. Specialists
+  without `start` initiate from their own ticket.
 - **ticket messaging** = `ticket.sendMessage` OR inbox read + `conversation.reply`,
   plus module switch and ticket access. The ticket must be open and the sender
   currently responsible, unless they have `conversation.readAll`. Standalone
@@ -489,7 +493,17 @@ into a neighboring router:
 
 **Message access boundary.** List summaries, timestamps, unread counts, search,
 message pages, quoted previews and ticket contexts use the same message scope.
-The card returns `access.{all,reply,manage,start}` and each ticket `canReply`.
+The card returns `access.{all,reply,freeReply,manage,start}` and each ticket `canReply`.
+`freeReply` permits sending a personal free exchange in a direct chat with
+`start`, independently of `all`. The common message filter includes only
+accessible ticket messages and explicit free messages owned by the viewer;
+the same scope applies to media, quotes, search, summaries and unread counts.
+Remapping a personal message to an inaccessible ticket revokes that access.
+Incoming client replies inherit ownership only from an accepted free quote or
+the most recent actual free exchange within the configured reply-context
+window. Other ticket exchanges, device messages, unknown/expired context and
+unsent or failed messages do not confer ownership. Unclassified replies remain
+for global triage. Ownership does not transfer existing history or ticket links.
 Historical unbound tickets stay readable but are not reply contexts. Remapping
 retains `previousTicketIds`; incremental pages return only `removedIds` for
 messages that left the viewer's scope, without their new text or metadata.

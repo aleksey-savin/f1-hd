@@ -50,12 +50,13 @@ const sendPayload = (conversation, text, attachments, recipient) => ({
 
 // A ticket reply handles only that ticket's pending client messages. Unresolved
 // or other-ticket messages keep the shared waiting period for triage.
-const clearWaitingForReply = async ({ conversation, ticket, sentAt }) => {
+const clearWaitingForReply = async ({ conversation, ticket, discussionUserId, sentAt }) => {
   if (!conversation?.awaitingSince) return;
-  if (ticket && await require("@/models/message").exists({
+  if ((ticket || discussionUserId) && await require("@/models/message").exists({
     conversationId: conversation._id, direction: "in", origin: "client",
     imported: { $ne: true }, deletedAt: null,
-    sentAt: { $gte: conversation.awaitingSince }, ticketId: { $ne: ticket._id },
+    sentAt: { $gte: conversation.awaitingSince },
+    ...(ticket ? { ticketId: { $ne: ticket._id } } : { $or: [{ ticketId: { $ne: null } }, { attachMode: { $ne: 'free' } }, { discussionUserId: { $ne: discussionUserId } }] }),
   })) return;
   await require("@/models/conversation").updateOne({
     _id: conversation._id, awaitingSince: conversation.awaitingSince,
@@ -64,7 +65,7 @@ const clearWaitingForReply = async ({ conversation, ticket, sentAt }) => {
 };
 
 /** Сообщение, задание шлюзу, сводка диалога и снятие «ждёт ответа». */
-const queueOutbound = async ({ conversation, channel, text, attachments, author, ticket, comment, prefs, recipient, clientRequestId, withoutTicket = false, replyToId, replyToExternalId, sticker = false }) => {
+const queueOutbound = async ({ conversation, channel, text, attachments, author, ticket, comment, prefs, recipient, clientRequestId, withoutTicket = false, discussionUserId, replyToId, replyToExternalId, sticker = false }) => {
   const Message = require("@/models/message");
   const Conversation = require("@/models/conversation");
   const { bus } = require("@/services/pulse");
@@ -82,9 +83,9 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
     provider: require("./transport").providerOf(channel),
     type: "send",
     conversationId: conversation?._id || null,
-    orderingKey: recipient || conversation?.deliveryPhone ? `phone:${channel._id}:${recipient?.phone || conversation.deliveryPhone}` : undefined,
+    orderingKey: recipient?.phone || conversation?.deliveryPhone ? `phone:${channel._id}:${recipient?.phone || conversation.deliveryPhone}` : undefined,
     messageId,
-    payload: { ...sendPayload(conversation, signed, attachments, recipient), ...(replyToExternalId ? { replyToExternalId } : {}) },
+    payload: { ...sendPayload(conversation, signed, attachments, recipient), ...(clientRequestId && conversation ? { startRequest: true } : {}), ...(replyToExternalId ? { replyToExternalId } : {}) },
   };
   const message = await Message.create({
     _id: messageId,
@@ -108,6 +109,7 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
     ticketId: ticket?._id || null,
     ticketNum: ticket?.num ?? null,
     attachMode: ticket ? "deliver" : withoutTicket ? "free" : null,
+    discussionUserId: !ticket && withoutTicket ? discussionUserId || author._id : null,
     replyToId: replyToId || null,
     replyToExternalId: replyToExternalId || null,
     commentId: comment?._id || null,
@@ -123,7 +125,7 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
     },
   );
   // Ответили — диалог больше не ждёт
-  if (conversation) await clearWaitingForReply({ conversation, ticket, sentAt: now });
+  if (conversation) await clearWaitingForReply({ conversation, ticket, discussionUserId: message.discussionUserId, sentAt: now });
   bus.bump({ topics: ["conversations"], ticketIds: ticket ? [ticket._id] : [] });
   return { ...message.toObject(), jobId: intent._id };
 };
@@ -252,7 +254,7 @@ const retryMessage = async ({ messageId, auth }) => {
   if (!conversation && !message.recipientPhone) throw fail("Сообщение не найдено", 404);
   const prefs = await require("@/models/preferences").findOne({}).select("modules.messaging").lean();
   if (!prefs?.modules?.messaging?.isActive) throw fail("Модуль «Диалоги» выключен", 409);
-  const { canReadInbox, readsAll, canReplyToTicket } = require("./access");
+  const { canReadInbox, readsAll, canReplyToTicket, canReadOwnDiscussion, canStartDiscussion } = require("./access");
   const inboxPermission = canReadInbox(auth) && auth.can({ conversation: ["reply"] });
   let allowed = false;
   if (message.ticketId) {
@@ -262,7 +264,7 @@ const retryMessage = async ({ messageId, auth }) => {
     const recipient = await require("./start").recipientOf(message.recipientUserId ? { userId: String(message.recipientUserId) } : { phone: message.recipientPhone }, auth);
     allowed = recipient.phone === message.recipientPhone;
   } else if (conversation) {
-    allowed = Boolean(inboxPermission && readsAll(auth) && !conversation.hidden);
+    allowed = Boolean(inboxPermission && !conversation.hidden && (readsAll(auth) || (canStartDiscussion(auth) && canReadOwnDiscussion(message, auth))));
   }
   if (!allowed) throw fail("Сообщение не найдено", 404);
   if (message.status === "queued") return message.toObject();
@@ -280,7 +282,7 @@ const retryMessage = async ({ messageId, auth }) => {
     conversationId: conversation?._id || null,
     orderingKey: previous?.orderingKey,
     messageId: message._id,
-    payload: previous?.payload || { ...sendPayload(conversation, message.text, message.attachments || [], { phone: message.recipientPhone }), ...(message.replyToExternalId ? { replyToExternalId: message.replyToExternalId } : {}) },
+    payload: previous?.payload || { ...sendPayload(conversation, message.text, message.attachments || [], { phone: message.recipientPhone }), ...(message.clientRequestId && !message.ticketId && conversation ? { startRequest: true } : {}), ...(message.replyToExternalId ? { replyToExternalId: message.replyToExternalId } : {}) },
     ...(resume ? { result: resume } : {}),
   };
   // Reserve one immutable job id before dispatch. Its full payload and progress

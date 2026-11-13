@@ -32,3 +32,10 @@ test('same-chat quote cannot reveal a foreign ticket or free message',async()=>{
  source.ticketId='own';
  assert.equal((await validateReplyReference({conversation,channel,replyToId:messageId,auth})).replyToExternalId,'provider');
 });
+test('only the owner may quote a free discussion and remapping removes that permission',async()=>{
+ const auth={userId:'staff',can:r=>r.conversation.every(v=>v==='read'),messagingScope:{ticketIds:[]}};
+ source={_id:messageId,conversationId:'chat',externalId:'provider',direction:'in',ticketId:null,attachMode:'free',discussionUserId:'staff'};
+ assert.equal((await validateReplyReference({conversation,channel,replyToId:messageId,auth})).replyToExternalId,'provider');
+ source.discussionUserId='other';await assert.rejects(validateReplyReference({conversation,channel,replyToId:messageId,auth}),/не найдено/);
+ source.discussionUserId='staff';source.ticketId='foreign';await assert.rejects(validateReplyReference({conversation,channel,replyToId:messageId,auth}),/не найдено/);
+});

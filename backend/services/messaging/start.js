@@ -74,7 +74,7 @@ const routesFor = async (recipient, auth) => {
   const accessReason = readsAll(auth)
     ? 'Начать переписку с этим получателем нельзя. Обратитесь к сотруднику, который разбирает обращения.'
     : 'Переписка с этим получателем недоступна по вашим правам. Чтобы связаться с клиентом по своей заявке, отправьте сообщение из карточки этой заявки.';
-  const inaccessible = conversations.some(conversation => conversation.hidden || !canSeeConversation(conversation, auth));
+  const hidden = conversations.some(conversation => conversation.hidden);
   const routes = [];
   for (const channel of channels) {
     const existing = conversations.filter(conversation => String(conversation.channelId) === String(channel._id));
@@ -82,23 +82,48 @@ const routesFor = async (recipient, auth) => {
       routes.push({ id: String(conversation._id), target: "conversation", channelId: String(channel._id), conversationId: String(conversation._id), network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: channel.isActive, reason: channel.isActive ? null : "Канал отключён" });
     }
     if (existing.length) {
-      if (!routes.some(route => route.channelId === String(channel._id))) routes.push({ id: `phone:${channel._id}`, target: "phone", channelId: String(channel._id), conversationId: null, network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: false, reason: accessReason });
+      if (!routes.some(route => route.channelId === String(channel._id))) {
+        const reason = existing.some(conversation => conversation.hidden) ? accessReason : !channel.isActive ? "Канал отключён" : null;
+        routes.push({ id: `phone:${channel._id}`, target: "phone", channelId: String(channel._id), conversationId: null, network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: !reason, reason });
+      }
       continue;
     }
     if (!channel.isActive) continue;
-    const reason = inaccessible ? accessReason : firstContactReason(channel, recipient.phone ? recipient : null)?.replace("У заявителя", "У получателя") || null;
+    const reason = hidden ? accessReason : firstContactReason(channel, recipient.phone ? recipient : null)?.replace("У заявителя", "У получателя") || null;
     routes.push({ id: `phone:${channel._id}`, target: "phone", channelId: String(channel._id), conversationId: null, network: channel.type, kind: "direct", title: channel.name || "", boundHere: false, available: !reason, reason });
   }
-  return { routes, channels };
+  return { routes, channels, conversations };
 };
 const startRoutes = async ({ userId, phone, auth }) => {
   await requireStartAccess(auth);
   const recipient = await recipientOf(recipientInput({ userId, phone }), auth);
   return { recipient, routes: (await routesFor(recipient, auth)).routes };
 };
+// Existing-chat starts still need the same last-moment authorization as phone starts.
+// This never returns or grants chat history and never changes its ticket bindings.
+const inspectStartJob = async (job) => {
+  const message = await require('@/models/message').findById(job.messageId).lean();
+  if (!message || !message.conversationId || String(message.conversationId) !== String(job.conversationId)) return { reason: 'Получатель сообщения не найден' };
+  const author = await require('@/models/user').findById(message.authorUserId);
+  const { buildAuthContext, isDeniedAccount } = require('@/services/authContext');
+  if (!author || isDeniedAccount(author)) return { reason: 'Сотрудник отключён — сообщение не отправлено' };
+  const auth = await buildAuthContext(author);
+  try {
+    await requireStartAccess(auth);
+    if (!isOwnStartRequest(message, auth) || !require('./access').canReadOwnDiscussion(message, auth)) return { reason: 'Недостаточно прав для отправки' };
+    const recipient = await recipientOf(message.recipientUserId ? { userId: String(message.recipientUserId) } : { phone: message.recipientPhone }, auth);
+    if (recipient.phone !== message.recipientPhone) return { reason: 'Номер получателя изменился — сообщение не отправлено' };
+    const conversation = await require('@/models/conversation').findById(message.conversationId).lean();
+    if (!conversation || conversation.hidden) return { reason: 'Диалог скрыт или удалён — сообщение не отправлено' };
+    if (String(conversation.channelId) !== String(job.channelId) || conversation.externalChatId !== job.payload.chatId) return { reason: 'Получатель сообщения изменился — сообщение не отправлено' };
+    return { conversation };
+  } catch (error) {
+    return { reason: error.statusCode && error.statusCode < 500 ? error.message : 'Не удалось проверить права отправки' };
+  }
+};
 const receipt = message => ({ messageId: String(message._id), conversationId: message.conversationId ? String(message.conversationId) : null, status: message.status, ...(message.error ? { error: message.error } : {}) });
 // This proves ownership of one durable start request, never chat-history access.
-const isOwnStartRequest = (message, auth) => Boolean(message && !message.ticketId && message.recipientPhone && message.clientRequestId && message.direction === "out" && message.origin === "hd" && String(message.authorUserId) === String(auth.userId));
+const isOwnStartRequest = (message, auth) => Boolean(message && !message.ticketId && (message.recipientPhone || message.discussionUserId) && message.clientRequestId && message.direction === "out" && message.origin === "hd" && String(message.authorUserId) === String(auth.userId));
 const visibleOutgoing = async (message, auth) => {
   if (!message || message.direction !== "out" || message.origin !== "hd" || String(message.authorUserId) !== String(auth.userId)) throw fail("Сообщение не найдено", 404);
   if (message.conversationId) {
@@ -150,7 +175,7 @@ const startConversation = async ({ userId, phone, routeId, text, files = [], cli
   if (body.length > 20_000) throw fail("Сообщение длиннее 20 000 знаков");
   if (attachments.length > 20) throw fail("Не больше 20 вложений");
   const recipient = await recipientOf(input, auth);
-  const { routes, channels } = await routesFor(recipient, auth);
+  const { routes, channels, conversations } = await routesFor(recipient, auth);
   const route = typeof routeId === "string" && routes.find(item => item.id === routeId);
   if (!route) throw fail("Канал ответа не найден", 404);
   if (!route.available) throw fail(route.reason, 409);
@@ -158,7 +183,8 @@ const startConversation = async ({ userId, phone, routeId, text, files = [], cli
   const author = await require("@/models/user").findById(auth.userId).select("_id firstName lastName").lean();
   if (!author) throw fail("Сотрудник не найден", 403);
   try {
-    const message = await queueOutbound({ channel: channels.find(item => String(item._id) === route.channelId), text: body, attachments, author, prefs, recipient, clientRequestId: requestId });
+    const conversation = conversations.find(item => String(item.channelId) === route.channelId && !item.hidden);
+    const message = await queueOutbound({ conversation, channel: channels.find(item => String(item._id) === route.channelId), text: body, attachments, author, prefs, recipient, clientRequestId: requestId, withoutTicket: true, discussionUserId: auth.userId });
     return receipt(message);
   } catch (error) {
     if (error.code !== 11000) throw error;
@@ -167,4 +193,4 @@ const startConversation = async ({ userId, phone, routeId, text, files = [], cli
     return duplicateReceipt(await visibleOutgoing(winner, auth), files);
   }
 };
-module.exports = { isOwnStartRequest, recipientInput, requestIdInput, requireStartAccess, recipientOf, startRecipients, startRoutes, startConversation, outgoingStatus, startRequestStatus, rejectedUploadKeys };
+module.exports = { isOwnStartRequest, recipientInput, requestIdInput, requireStartAccess, recipientOf, startRecipients, startRoutes, startConversation, outgoingStatus, startRequestStatus, rejectedUploadKeys, inspectStartJob };

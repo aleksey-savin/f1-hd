@@ -9,7 +9,7 @@ stub('@/models/ticket',{Ticket:{find:()=>query(tickets)}});
 stub('@/models/conversationRead',{findOne:({userId})=>query(saved[userId] ? {replyContext:saved[userId]} : null),updateOne:async({userId},update)=>{saved[userId]=update.$set.replyContext;}});
 stub('@/models/conversation',{findById:()=>query(conversation)});
 stub('@/models/preferences',{findOne:()=>query({messaging:{replyContextTimeoutMinutes:30}})});
-stub('./access',{canReplyToTicket:(t,a)=>a.allowed.includes(t._id),readsAll:a=>a.full !== false});
+stub('./access',{canReplyToTicket:(t,a)=>a.allowed.includes(t._id),readsAll:a=>a.full !== false,canReplyWithoutTicket:(c,a)=>a.full !== false || (c.kind==='direct' && a.start === true)});
 const {loadReplyContext,chooseReplyContext,resolveReplyTicket}=require('./reply-context');
 const conversation={_id:'chat',kind:'direct',ticketBindings:[{ticketId:'a'},{ticketId:'b'}]};
 const auth={userId:'staff',allowed:['a','b']};
@@ -47,4 +47,11 @@ test('restricted sender cannot select or reuse a free context',async()=>{
  saved.staff={withoutTicket:true,expiresAt:new Date(Date.now()+60000)};
  await assert.rejects(resolveReplyTicket({conversation,auth:limited}),/прав/);
  await assert.rejects(resolveReplyTicket({conversation:{...conversation,kind:'group'},auth:limited}),/прав/);
+});
+test('a restricted starter can select a personal free context without taking any ticket context',async()=>{
+ const starter={...auth,full:false,start:true,allowed:[]};
+ assert.equal((await chooseReplyContext({conversation,auth:starter,ticketNum:null})).withoutTicket,true);
+ assert.equal(await resolveReplyTicket({conversation,auth:starter,withoutTicket:true}),null);
+ await assert.rejects(resolveReplyTicket({conversation,auth:starter,ticketNum:1}),/недоступна/);
+ await assert.rejects(resolveReplyTicket({conversation:{...conversation,kind:'group'},auth:starter,withoutTicket:true}),/прав/);
 });

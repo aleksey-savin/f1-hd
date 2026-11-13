@@ -136,7 +136,7 @@ const ThreadToolbar = ({
                   </DropdownMenuItem>
                 );
               })}
-              {card.access.all && (
+              {(card.access.freeReply ?? card.access.all) && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -154,7 +154,7 @@ const ThreadToolbar = ({
                   </DropdownMenuItem>
                 </>
               )}
-              {!tickets.length && !card.access.all && (
+              {!tickets.length && !(card.access.freeReply ?? card.access.all) && (
                 <p className="m-0 px-2 py-2 text-sm text-muted-foreground">
                   Нет доступных заявок
                 </p>

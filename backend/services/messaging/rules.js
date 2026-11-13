@@ -61,16 +61,16 @@ const decideAttach = ({ conversation, message, boundTicket = null, replyToTicket
   const fromClient = message.direction === "in" && message.origin === "client";
 
   if (conversation.kind === "direct") {
-    const free = { mode: "free", ticketId: null, ticketNum: null };
+    const free = source => ({ mode: "free", ticketId: null, ticketNum: null, ...(source.discussionUserId ? { discussionUserId: source.discussionUserId } : {}) });
     const actualExchange = (exchange) => exchange && !exchange.imported && !exchange.deletedAt &&
       (exchange.direction === "in" || (exchange.direction === "out" && ["sent", "delivered", "read"].includes(exchange.status)));
     const quoteAccepted = actualExchange(replyToMessage) ||
       (replyToMessage?.direction === "out" && (replyToMessage.externalId || replyToMessage.externalIds?.length));
     const quotedFree = replyToMessage?.attachMode === "free" && !replyToMessage.ticketId &&
       !replyToMessage.imported && !replyToMessage.deletedAt && quoteAccepted;
-    if (quotedFree) return free;
+    if (fromClient && quotedFree) return free(replyToMessage);
     const age = recentExchange ? time(message.sentAt) - time(recentExchange.sentAt) : Infinity;
-    if (fromClient && !replyToTicket && actualExchange(recentExchange) && recentExchange?.attachMode === "free" && !recentExchange.ticketId && age >= 0 && age <= freeWindowMs) return free;
+    if (fromClient && !message.replyToId && !message.replyToExternalId && !replyToTicket && actualExchange(recentExchange) && recentExchange?.attachMode === "free" && !recentExchange.ticketId && age >= 0 && age <= freeWindowMs) return free(recentExchange);
     if (replyToTicket?.isClosed || replyToTicket?.deletedAt) return { ...NONE, suggestTicketId: replyToTicket._id };
     if (linkedTickets) {
       const open = linkedTickets.filter((ticket) => !ticket.isClosed && !ticket.deletedAt);

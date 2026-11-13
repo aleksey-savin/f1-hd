@@ -112,7 +112,7 @@ const ReplyContextPicker = ({
           {messageText}
         </p>
       )}
-      {card.access?.all && <FreeDiscussionChoice
+      {(assigning ? card.access?.all : card.access?.freeReply ?? card.access?.all) && <FreeDiscussionChoice
         selected={selectedId === "free"}
         disabled={busy}
         onSelect={() => onChoose(null)}

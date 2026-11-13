@@ -19,7 +19,7 @@ const chooseReplyContext = async ({ conversation, auth, ticketNum }) => {
     if (!require("./access").readsAll(auth)) throw fail("Недостаточно прав для ответа без заявки", 403);
     return freeGroupContext();
   }
-  if (ticketNum === null && !require("./access").readsAll(auth)) throw fail("Недостаточно прав для ответа без заявки", 403);
+  if (ticketNum === null && !require("./access").canReplyWithoutTicket(conversation, auth)) throw fail("Недостаточно прав для ответа без заявки", 403);
   if (ticketNum !== null && (!Number.isInteger(Number(ticketNum)) || Number(ticketNum) <= 0)) throw fail('Укажите номер заявки', 400);
   const tickets = await accessibleTickets(conversation, auth);
   const ticket = ticketNum === null ? null : tickets.find((item) => item.num === Number(ticketNum));
@@ -40,7 +40,7 @@ const resolveReplyTicket = async ({ conversation, auth, ticketNum, withoutTicket
     : await loadReplyContext({ conversation, auth });
   if (context.required) throw fail('Выберите заявку или «Без заявки» перед ответом');
   if (!context.ticketId) {
-    if (!require("./access").readsAll(auth)) throw fail("Недостаточно прав для ответа без заявки", 403);
+    if (!require("./access").canReplyWithoutTicket(conversation, auth)) throw fail("Недостаточно прав для ответа без заявки", 403);
     if (!explicit && context.withoutTicket) await chooseReplyContext({ conversation, auth, ticketNum: null });
     return null;
   }

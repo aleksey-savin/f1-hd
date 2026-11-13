@@ -5,7 +5,7 @@ const { CONTEXT_MS } = require('./multi-ticket');
 const incomingRoutingContext = async ({ conversation, message }) => {
   const Message = require('@/models/message');
   const replyToMessage = message.replyToId ? await Message.findOne({ _id: message.replyToId, conversationId: conversation._id })
-    .select('_id ticketId attachMode direction status imported deletedAt externalId externalIds').lean() : null;
+    .select('_id ticketId attachMode discussionUserId direction status imported deletedAt externalId externalIds').lean() : null;
   if (conversation.kind !== 'direct' || message.imported || message.direction !== 'in' || message.origin !== 'client') {
     return { replyToMessage, recentExchange: null, freeWindowMs: CONTEXT_MS };
   }
@@ -15,19 +15,21 @@ const incomingRoutingContext = async ({ conversation, message }) => {
     conversationId: conversation._id,
     _id: { $ne: message._id }, imported: { $ne: true }, deletedAt: null,
     $and: [
-      { $or: [{ ticketId: { $ne: null } }, { attachMode: 'free' }] },
+      // An accepted device/legacy send ends the previous private topic even
+      // when it has no mapping; unresolved inbound arrivals are not evidence.
+      { $or: [{ ticketId: { $ne: null } }, { attachMode: 'free' }, { direction: 'out' }] },
       { $or: [{ direction: 'in' }, { direction: 'out', status: { $in: ['sent', 'delivered', 'read'] } }] },
       { $or: [{ sentAt: { $lt: message.sentAt } }, { sentAt: message.sentAt, seq: { $lt: message.seq } }] },
     ],
     sentAt: { $gte: new Date(new Date(message.sentAt).getTime() - freeWindowMs) },
-  }).sort({ sentAt: -1, seq: -1 }).select('_id ticketId attachMode sentAt direction status').lean();
+  }).sort({ sentAt: -1, seq: -1 }).select('_id ticketId attachMode discussionUserId sentAt direction status').lean();
   return { replyToMessage, recentExchange, freeWindowMs };
 };
 const findQuotedSource = ({ channelId, externalChatId, externalId }) => require("@/models/message").findOne({
   channelId, externalChatId, $or: [{ externalId }, { externalIds: externalId }],
 }).select("_id").lean();
-const persistFreeMapping = (messageId) => require('@/models/message').updateOne(
+const persistFreeMapping = (messageId, discussionUserId) => require('@/models/message').updateOne(
   { _id: messageId, ticketId: null, attachMode: null, mappingIntent: { $exists: false } },
-  { $set: { ticketId: null, ticketNum: null, attachMode: 'free', suggestTicketId: null } },
+  { $set: { ticketId: null, ticketNum: null, attachMode: 'free', suggestTicketId: null, discussionUserId: discussionUserId || null } },
 );
 module.exports = { incomingRoutingContext, persistFreeMapping, findQuotedSource };

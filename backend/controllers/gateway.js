@@ -126,10 +126,21 @@ exports.jobs = async (req, res, next) => {
       await waitForJob(networks, waitMs);
       batch = await leaseJobs({ networks });
     }
+    const jobs = [];
+    for (const job of batch.jobs) {
+      if (job.type === 'send' && job.payload?.startRequest) {
+        const inspected = await require('@/services/messaging/start').inspectStartJob(job);
+        if (inspected.reason) {
+          await ackJobs(batch.leaseId, [{ id: String(job._id), ok: false, retryable: false, error: inspected.reason }]);
+          continue;
+        }
+      }
+      jobs.push(job);
+    }
     res.status(200).json({
       leaseId: batch.leaseId,
       leaseExpiresAt: batch.leaseUntil,
-      jobs: batch.jobs.map((job) => ({
+      jobs: jobs.map((job) => ({
         id: String(job._id),
         type: job.type,
         channelId: String(job.channelId),

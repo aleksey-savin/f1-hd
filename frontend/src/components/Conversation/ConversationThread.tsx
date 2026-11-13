@@ -155,7 +155,7 @@ const ConversationThread = () => {
     void useConversationsStore.getState().silentRefresh();
   };
   const selectContext = async (ticketNum: number | null) => {
-    if (pendingContext.current || (ticketNum === null && !card.access?.all))
+    if (pendingContext.current || (ticketNum === null && !(card.access?.freeReply ?? card.access?.all)))
       return;
     const ticket =
       ticketNum === null ? null : linked.find((item) => item.num === ticketNum);

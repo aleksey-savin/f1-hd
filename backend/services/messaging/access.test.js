@@ -37,3 +37,16 @@ test('message scope excludes unrelated and unassigned messages even in an access
   assert.equal(matches({ticketId:null}), false);
   assert.deepEqual(messageFilter(auth('conversation.readAll')), {});
 });
+
+test('only the owner can read a free discussion; ownership never reveals a ticket or unclassified history', () => {
+  const viewer = {...auth('conversation.read'), messagingScope:{ticketIds:[OTHER]}};
+  const matches = sift(JSON.parse(JSON.stringify(messageFilter(viewer))));
+  assert.equal(matches({ticketId:null,attachMode:'free',discussionUserId:ME}), true);
+  for (const message of [
+    {ticketId:null,attachMode:'free',discussionUserId:OTHER},
+    {ticketId:null,attachMode:null,discussionUserId:ME},
+    {ticketId:ME,attachMode:'manual',discussionUserId:ME},
+    {ticketId:null,attachMode:'free',authorUserId:ME},
+  ]) assert.equal(matches(message), false);
+  assert.equal(sift(JSON.parse(JSON.stringify(messageFilter(auth()))))({ticketId:null,attachMode:'free',discussionUserId:ME}), false);
+});

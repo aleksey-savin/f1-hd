@@ -55,7 +55,7 @@ const sendOutbox = async settings => {
       if (!settings?.isActive || !channel?.isActive || !settings.channelIds.includes(channel.providerChannelId) || preferences?.modules?.messaging?.isActive !== true) throw new provider.ProviderError('Подключение Wazzup или модуль «Диалоги» выключен');
       if (job.type !== 'send') throw new provider.ProviderError('Эта операция не поддерживается подключением Wazzup');
       let dispatchJob = job;
-      const totalParts = job.payload.recipient ? require('./events').sendParts(job.payload, channel).length : 0;
+      const totalParts = job.payload.recipient || job.payload.startRequest ? require('./events').sendParts(job.payload, channel).length : 0;
       const acceptedAll = totalParts > 0 && job.result?.chatId && job.result?.inFlightPart == null
         && job.result?.nextPart >= totalParts && job.result?.externalIds?.length >= totalParts;
       // Если HTTP уже завершён, разрешаем починить ссылки даже у занятого
@@ -64,6 +64,10 @@ const sendOutbox = async settings => {
         const inspected = await require('../messaging/first-contact').inspectPhoneJob(job, channel);
         if (inspected.reason) throw new provider.ProviderError(inspected.reason);
         if (inspected.conversation) dispatchJob = { ...job, payload: { ...job.payload, chatId: inspected.conversation.externalChatId } };
+      }
+      if (job.payload.startRequest && !acceptedAll) {
+        const inspected = await require('../messaging/start').inspectStartJob(job);
+        if (inspected.reason) throw new provider.ProviderError(inspected.reason);
       }
       const apiKey = decryptSecret(settings.apiKey);
       let recipientLinked = false;

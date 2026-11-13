@@ -74,6 +74,8 @@ const messageSchema = new Schema(
     deletedAt: { type: Date, default: null },
     ticketId: { type: Schema.Types.ObjectId, ref: "Ticket", default: null },
     ticketNum: { type: Number, default: null },
+    // Owner of an explicit free exchange; never grants access while mapped to a ticket.
+    discussionUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     previousTicketIds: [{ type: Schema.Types.ObjectId, ref: "Ticket" }],
     attachMode: {
       type: String,
@@ -119,6 +121,7 @@ messageSchema.index({ conversationId: 1, sentAt: 1, seq: 1 });
 messageSchema.index({ conversationId: 1, updatedAt: 1 });
 messageSchema.index({ updatedAt: 1 }, { partialFilterExpression: { retryIntent: { $exists: true }, direction: "out", origin: "hd", status: "queued" }, name: "pending_retry_intent" });
 messageSchema.index({ ticketId: 1 });
+messageSchema.index({ discussionUserId: 1, ticketId: 1, attachMode: 1, conversationId: 1 });
 messageSchema.index({ "attachments.name": 1 });
 messageSchema.index({ updatedAt: 1 }, { partialFilterExpression: { mappingIntent: { $exists: true } }, name: "pending_message_mapping" });
 messageSchema.index({ jobId: 1 }, { sparse: true });

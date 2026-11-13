@@ -13,7 +13,7 @@ stub("@/models/user", { findById: (id) => query(users.find(u => u._id === id)), 
 stub("@/models/conversation", { find: (filter) => query(conversations.filter(sift(filter))), findById: (id) => query(conversations.find(c => c._id === id)) });
 stub("@/models/channelIdentity", { find: (filter) => query(identities.filter(sift(filter))) });
 stub("@/models/channel", { find: (filter) => query(channels.filter(sift(filter))) });
-stub("@/models/message", { findById: () => query(message), findOne: () => query(null) });
+stub("@/models/message", { findById: () => query(message), findOne: () => query(null), distinct: async () => [] });
 stub("@/models/preferences", { findOne: () => query({ modules: { messaging: { isActive: active } } }) });
 stub("./outbound", { attachmentsOf: files => files, queueOutbound: async data => { queued.push(data); return { _id: MESSAGE, conversationId: null, status: "queued" }; } });
 const start = require("./start");
@@ -42,11 +42,16 @@ test("existing linked chat replaces phone route; forged POST cannot create dupli
   assert.equal(routes.length, 1); assert.equal(routes[0].target, "conversation"); assert.equal(routes[0].conversationId, CHAT);
   await assert.rejects(start.startConversation({ userId: USER, routeId: `phone:${CHANNEL}`, text: "Hi", auth }), /не найден|существующий/i); assert.equal(queued.length, 0);
 });
-test("hidden and out-of-scope chats cannot be bypassed by phone initiation", async () => {
+test("hidden chats stay protected; restricted staff can start their own exchange in an existing chat", async () => {
   conversations = [{ _id: CHAT, channelId: CHANNEL, kind: "direct", deliveryPhone: users[0].phone, hidden: true }];
   let result = await start.startRoutes({ phone: users[0].phone, auth }); assert.equal(result.routes[0].available, false); assert.equal(result.routes[0].conversationId, null);
   const restricted = { userId: STAFF, can: request => Boolean(request.conversation) && !request.conversation.includes("readAll"), legacy: {} };
-  users[0].company = null; conversations[0] = { ...conversations[0], hidden: false, companyId: "outside" }; result = await start.startRoutes({ phone: users[0].phone, auth: restricted }); assert.equal(result.routes[0].available, false); assert.equal(result.routes[0].conversationId, null);
+  users[0].company = null; conversations[0] = { ...conversations[0], hidden: false, companyId: "outside" }; result = await start.startRoutes({ phone: users[0].phone, auth: restricted }); assert.equal(result.routes[0].available, true); assert.equal(result.routes[0].conversationId, null);
+  await start.startConversation({ phone: users[0].phone, routeId: result.routes[0].id, text: 'Новый вопрос', auth: restricted });
+  assert.equal(queued[0].conversation._id, CHAT);
+  assert.equal(queued[0].withoutTicket, true);
+  assert.equal(queued[0].discussionUserId, STAFF);
+  assert.equal(queued[0].ticket, undefined);
 });
 test("permissions, module and recipient eligibility are checked before writes", async () => {
   const args = { userId: USER, routeId: `phone:${CHANNEL}`, text: "Hi", auth };
@@ -143,13 +148,12 @@ test('own start receipt survives canonical attachment without granting chat hist
  await assert.rejects(start.outgoingStatus({messageId:MESSAGE,auth:limited}),/не найден/);
 });
 
-test("restricted recipient refusal explains permission and own-ticket alternative without chat details", async () => {
+test("restricted start route discloses no existing chat context", async () => {
   const restricted = { userId: STAFF, can: request => Boolean(request.conversation) && !request.conversation.includes('readAll') };
   conversations = [{ _id: CHAT, channelId: CHANNEL, kind: 'direct', deliveryPhone: users[0].phone }];
   const result = await start.startRoutes({ phone: users[0].phone, auth: restricted });
-  assert.equal(result.routes[0].available, false);
-  assert.match(result.routes[0].reason, /правам/);
-  assert.match(result.routes[0].reason, /из карточки.*заявки/);
+  assert.equal(result.routes[0].available, true);
+  assert.equal(result.routes[0].reason, null);
   assert.equal(result.routes[0].conversationId, null);
-  assert.equal(result.routes[0].reason.includes(CHAT), false);
+  assert.equal(JSON.stringify(result.routes).includes(CHAT), false);
 });

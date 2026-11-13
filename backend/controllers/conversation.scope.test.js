@@ -38,3 +38,24 @@ test('incremental updates remove remapped messages without revealing their new c
   assert.deepEqual(body.removedIds,[id(14)]);
   assert.equal(JSON.stringify(body).includes('secret'),false);
 });
+test('personal free history, paging and changes never reveal another discussion or ticket',async()=>{
+ const at='2026-11-12T00:00:00.000Z';
+ const mine={_id:id(15),conversationId:chat,ticketId:null,attachMode:'free',discussionUserId:userId,text:'personal',sentAt:at,updatedAt:at,seq:6,replyToId:id(16)};
+ const other={...mine,_id:id(16),discussionUserId:foreign,text:'other private',seq:7};
+ const moved={...mine,_id:id(17),ticketId:foreign,attachMode:'manual',text:'new ticket secret',seq:8};
+ rows.push(mine,other,moved);
+ try {
+  const rights=['conversation.read','conversation.reply','conversation.start'];
+  const first=await get(rights);
+  assert.equal(first.items.find(row=>row.text==='personal').replyTo,null);
+  const before=await get(rights,{before:at,beforeSeq:7});
+  assert.ok(before.items.some(row=>row.text==='personal'));
+  assert.equal(JSON.stringify(before).includes('secret'),false);
+  assert.equal(JSON.stringify(before).includes('other private'),false);
+  const changes=await get(rights,{changedSince:'2026-11-11T00:00:00.000Z'});
+  assert.ok(changes.items.some(row=>row.text==='personal'));
+  assert.ok(changes.removedIds.includes(id(17)));
+  assert.equal(JSON.stringify(changes).includes('secret'),false);
+  assert.equal(JSON.stringify(changes).includes('other private'),false);
+ } finally {rows.splice(-3);}
+});

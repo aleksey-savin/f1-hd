@@ -69,7 +69,8 @@ const inspectPhoneJob = async (job, channel) => {
       && String(conversation.channelId) === String(channel._id)
       && job.result?.chatId === conversation.externalChatId
       && (job.result?.nextPart > 0 || job.result?.externalIds?.length > 0);
-    if (!ticket && !continuesOwnStart && !require("./visibility").canSeeConversation(conversation, auth)) return { reason: "Диалог недоступен — сообщение не отправлено" };
+    const ownDiscussion = !ticket && require("./access").canReadOwnDiscussion(message, auth) && require("./start").isOwnStartRequest(message, auth);
+    if (!ticket && !ownDiscussion && !continuesOwnStart && !require("./visibility").canSeeConversation(conversation, auth)) return { reason: "Диалог недоступен — сообщение не отправлено" };
     const bindings = require("./multi-ticket").activeBindings(conversation);
     for (const binding of bindings) if (ticket && binding.ticketId && !binding.endedAt && String(binding.ticketId) !== String(ticket?._id)) {
       const bound = await Ticket.findById(binding.ticketId).select("isClosed").lean();

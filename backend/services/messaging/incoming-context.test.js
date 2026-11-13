@@ -23,6 +23,33 @@ beforeEach(()=>{rows=[{...free}];current={_id:'incoming',ticketId:null,attachMod
 test('a sent free exchange keeps subsequent unquoted messages free despite a sole linked ticket',async()=>{
  assert.equal((await decide()).mode,'free');
 });
+test('only an actual free exchange passes its owner to the client reply',async()=>{
+ rows=[{...free,discussionUserId:'alice'}];
+ assert.equal((await decide()).discussionUserId,'alice');
+ const context=await incomingRoutingContext({conversation,message});
+ await persistFreeMapping(current._id,(await decide()).discussionUserId);
+ assert.equal(current.discussionUserId,'alice');
+ rows.push({...free,_id:'bob',discussionUserId:'bob',sentAt:at(7),seq:2});
+ assert.equal((await decide()).discussionUserId,'bob');
+ assert.equal((await decide({...message,replyToId:'free'})).discussionUserId,'alice');
+ assert.equal(decideAttach({conversation,message,linkedTickets:[ticket],...context,replyToMessage:{ticketId:'A'},replyToTicket:ticket}).discussionUserId,undefined);
+ rows=[{...free,discussionUserId:'alice',status:'queued'}];
+ assert.equal((await decide()).discussionUserId,undefined);
+});
+test('unknown or delayed provider quotes never inherit the recent discussion owner',async()=>{
+ rows=[{...free,discussionUserId:'alice'}];
+ const reply={...message,replyToId:null,replyToExternalId:'foreign-not-imported'};
+ assert.equal((await decide(reply)).discussionUserId,undefined);
+ rows.push({...free,_id:'foreign-not-imported',discussionUserId:'bob',sentAt:at(0)});
+ assert.equal((await decide({...reply,replyToId:'foreign-not-imported'})).discussionUserId,'bob');
+});
+test('a later real device send ends the previous private topic without exposing its reply to that owner',async()=>{
+ rows=[{...free,discussionUserId:'alice'},{...free,_id:'device',origin:'device',ticketId:null,attachMode:null,sentAt:at(7),seq:2}];
+ const context=await incomingRoutingContext({conversation,message});
+ assert.equal(context.recentExchange._id,'device');
+ assert.equal((await decide()).discussionUserId,undefined);
+ rows[1].status='queued';assert.equal((await decide()).discussionUserId,'alice');
+});
 test('an explicit free quote outranks singleton routing; a ticket quote outranks a recent free exchange',async()=>{
  const quoted={...message,replyToId:'free'};
  assert.equal((await decide(quoted)).mode,'free');

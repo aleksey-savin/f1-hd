@@ -24,29 +24,30 @@ const noticeId = (conversation, stage, chatId) => createHash("sha256")
 
 const createWaitingNotifier = ({ Conversation, Message, Ticket, User, Preferences, Notification, authFor, fallbackRecipients, baseUrl }) => {
   const usersFor = (ids) => User.find({ _id: { $in: [...new Set(ids.map(idOf))] } });
-  const linkFor = async (user, conversation, tickets) => {
+  const linkFor = async (user, conversation, tickets, discussionIds) => {
     if (!user || user.isEndUser !== false || isDeniedAccount(user)) return null;
     const auth = await authFor(user);
     const fullConversation = readsAll(auth);
     const inbox = canReadInbox(auth);
+    const ownDiscussion = inbox && discussionIds.some(id => idOf(id) === idOf(user));
     const accessibleTickets = tickets.filter(item => inbox ? canReadTicketMessages(item, auth) : ticketInScope(item, auth));
-    if (fullConversation || (inbox && accessibleTickets.length)) {
-      return { user, tickets: accessibleTickets, fullConversation, link: `/conversations/${conversation._id}` };
+    if (fullConversation || ownDiscussion || (inbox && accessibleTickets.length)) {
+      return { user, tickets: accessibleTickets, fullConversation, ownDiscussion, link: `/conversations/${conversation._id}` };
     }
     return accessibleTickets.length ? { user, tickets: accessibleTickets, fullConversation: false, link: null } : null;
   };
-  const choose = async (users, conversation, tickets) => {
+  const choose = async (users, conversation, tickets, discussionIds = []) => {
     const chosen = [];
     for (const user of users) {
       // An assignee without a usable Telegram destination must not prevent
       // subscribed ticket responsibles from receiving the personal reminder.
       if (!user.telegramBot?.isActive || !user.telegramBot.chatId || !user.notify?.byTelegram?.ticketNewComment) continue;
-      const recipient = await linkFor(user, conversation, tickets);
+      const recipient = await linkFor(user, conversation, tickets, discussionIds);
       if (recipient) chosen.push(recipient);
     }
     return chosen;
   };
-  const personalRecipients = async (conversation, tickets) => {
+  const globalPersonalRecipients = async (conversation, tickets) => {
     if (conversation.assigneeId) {
       const assigned = await choose(await usersFor([conversation.assigneeId]), conversation, tickets);
       if (assigned.length) return assigned;
@@ -58,6 +59,11 @@ const createWaitingNotifier = ({ Conversation, Message, Ticket, User, Preference
     }
     const fallback = await fallbackRecipients({ ...conversation, assigneeId: null });
     return choose(await usersFor(fallback.map(idOf)), conversation, tickets);
+  };
+  const personalRecipients = async (conversation, tickets, discussionIds) => {
+    const recipients = await globalPersonalRecipients(conversation, tickets);
+    const owners = discussionIds.length ? await choose(await usersFor(discussionIds), conversation, tickets, discussionIds) : [];
+    return [...new Map([...recipients, ...owners].map(recipient => [idOf(recipient.user), recipient])).values()];
   };
   const enqueue = async (conversation, message, stage, destination) => {
     const { to, link, ticket } = destination;
@@ -99,13 +105,17 @@ const createWaitingNotifier = ({ Conversation, Message, Ticket, User, Preference
           ticket, link: ticket ? `/tickets/${ticket.num}` : `/conversations/${conversation._id}`,
         });
       } else if (prefs.notify.personal?.ticketNewComment) {
-        for (const recipient of await personalRecipients(conversation, tickets)) {
+        const discussionIds = await Message.distinct('discussionUserId', { ...filter, ticketId: null, attachMode: 'free', discussionUserId: { $ne: null } });
+        for (const recipient of await personalRecipients(conversation, tickets, discussionIds)) {
           const { user } = recipient;
           // A conversation can contain several tickets. Ticket-only access
           // permits a preview from those tickets, never the latest foreign
           // message or the conversation-wide last sender's name.
           const visibleMessage = recipient.fullConversation ? message : await Message.findOne({
-            ...filter, ticketId: { $in: recipient.tickets.map((ticket) => ticket._id) },
+            ...filter, $or: [
+              { ticketId: { $in: recipient.tickets.map((ticket) => ticket._id) } },
+              ...(recipient.ownDiscussion ? [{ ticketId: null, attachMode: 'free', discussionUserId: user._id }] : []),
+            ],
           }).sort({ sentAt: -1, seq: -1 }).lean();
           if (!visibleMessage) continue;
           const ticket = recipient.tickets.find((item) => idOf(item) === idOf(visibleMessage.ticketId));

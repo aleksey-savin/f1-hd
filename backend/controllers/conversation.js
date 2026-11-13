@@ -30,7 +30,7 @@ const { conversationSearchPipeline } = require("@/services/messaging/search");
 
 /** «Диалоги» для сотрудников. Маршруты — routes/internal/conversation.js. */
 
-const { readsAll, canReadInbox, canReadTicketMessages, canReplyToTicket, messageFilter, scopeAuth, scopedConversationStages } = require('@/services/messaging/access');
+const { readsAll, canReadInbox, canReadTicketMessages, canReplyToTicket, canReplyWithoutTicket, canReadMessage, messageFilter, ticketMessageFilter, scopeAuth, scopedConversationStages } = require('@/services/messaging/access');
 const prepareScope = async req => { req.auth = await scopeAuth(req.auth); };
 const scopedRow = (conversation, ctx, auth) => {
   const row = conversationRow(conversation, ctx);
@@ -249,7 +249,7 @@ exports.get = async (req, res, next) => {
       : [];
     res.status(200).json({
       conversation: scopedRow(presented, ctx, req.auth),
-      access: { all: readsAll(req.auth), reply: req.auth.can({conversation:['reply']}) && (readsAll(req.auth) || linkedTickets.some(replyAllowed)), manage: readsAll(req.auth) && req.auth.can({conversation:['manage']}), start: canReadInbox(req.auth) && req.auth.can({conversation:['reply','start']}) },
+      access: { all: readsAll(req.auth), reply: req.auth.can({conversation:['reply']}) && (canReplyWithoutTicket(conversation, req.auth) || linkedTickets.some(replyAllowed)), freeReply: req.auth.can({conversation:['reply']}) && canReplyWithoutTicket(conversation, req.auth), manage: readsAll(req.auth) && req.auth.can({conversation:['manage']}), start: canReadInbox(req.auth) && req.auth.can({conversation:['reply','start']}) },
       channel: channel ? { id: String(channel._id), type: channel.type, name: channel.name, state: channel.state, isActive: channel.isActive, provider: channel.provider || "gateway" } : null,
       counterpart: counterpart ? person(counterpart) : null,
       participants: conversation.kind === "group" ? identities.map(person) : [],
@@ -312,7 +312,7 @@ exports.messages = async (req, res, next) => {
       // одинаковый updatedAt у нескольких строк не потерять и не повторить.
       const scope = messageFilter(req.auth);
       const filter = {
-        ...(!readsAll(req.auth) ? { $and: [{ $or: [scope, { previousTicketIds: scope.ticketId }] }] } : {}),
+        ...(!readsAll(req.auth) ? { $and: [{ $or: [scope, { previousTicketIds: ticketMessageFilter(req.auth).ticketId }, { discussionUserId: oid(req.auth.userId) }] }] } : {}),
         conversationId: conversation._id,
         ...(afterIdRaw
           ? { $or: [{ updatedAt: { $gt: since } }, { updatedAt: since, _id: { $gt: oid(afterIdRaw) } }] }
@@ -326,7 +326,7 @@ exports.messages = async (req, res, next) => {
       // Порядок — по изменению (updatedAt, _id), не по seq: правку и смену
       // статуса сортируем по времени правки. Ленту клиент показывает по seq.
       const rows = await Message.find(filter).sort({ updatedAt: 1, _id: 1 }).limit(limit).lean();
-      const visible = readsAll(req.auth) ? rows : rows.filter(message => req.auth.messagingScope.ticketIds.some(id => String(id) === String(message.ticketId)));
+      const visible = rows.filter(message => canReadMessage(message, req.auth));
       const removedIds = rows.filter(message => !visible.includes(message)).map(message => String(message._id));
       const refs = await messageRefs(visible, req.auth);
       const items = visible.map((m) => messageRow(m, refs));
@@ -342,7 +342,7 @@ exports.messages = async (req, res, next) => {
       const before = new Date(req.query.before);
       const seq = Number(req.query.beforeSeq);
       if (Number.isNaN(before.getTime()) || !Number.isFinite(seq)) return next(new AppError("before и beforeSeq обязательны вместе", 400));
-      filter.$or = [{ sentAt: { $lt: before } }, { sentAt: before, seq: { $lt: seq } }];
+      filter.$and = [{ $or: [{ sentAt: { $lt: before } }, { sentAt: before, seq: { $lt: seq } }] }];
     }
     // Метка ДО запроса, не после: сообщение, записанное между чтением базы и
     // моментом ответа, не должно пропасть из следующего опроса по changedSince —

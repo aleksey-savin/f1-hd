@@ -153,7 +153,7 @@ export type ConversationReplySelection = {
 
 /** Карточка диалога — `GET /api/conversations/:id`. */
 export type ConversationCard = {
-  access: { all: boolean; reply: boolean; manage: boolean; start: boolean };
+  access: { all: boolean; reply: boolean; freeReply?: boolean; manage: boolean; start: boolean };
   conversation: ConversationRow;
   channel: {
     id: string;

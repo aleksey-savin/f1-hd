@@ -13,7 +13,7 @@ const USER_FIELDS = "_id firstName lastName notify isServiceAccount deletedAt ba
  * доступа никому не нужен. Группа без подходящего человека не тупик — идём
  * дальше по цепочке (M6).
  */
-const recipientsFor = async (conversation) => {
+const globalRecipientsFor = async (conversation) => {
   const User = require("@/models/user");
   const { permissionFilter } = require("@/services/permissions");
   const canRead = await permissionFilter("conversation.readAll");
@@ -36,10 +36,21 @@ const recipientsFor = async (conversation) => {
   return User.find({ $and: [canManage, canRead] }).select(USER_FIELDS).lean();
 };
 
+const recipientsFor = async (conversation, message) => {
+  const recipients = await globalRecipientsFor(conversation);
+  if (!message?.discussionUserId || message.ticketId || message.attachMode !== 'free') return recipients;
+  const { permissionFilter } = require('@/services/permissions');
+  const owner = await require('@/models/user').find({ $and: [
+    { _id: message.discussionUserId },
+    { $or: [await permissionFilter('conversation.read'), await permissionFilter('conversation.readAll')] },
+  ] }).select(USER_FIELDS).lean();
+  return [...new Map([...recipients, ...owner].map(user => [String(user._id), user])).values()];
+};
+
 const notifyWaiting = async ({ conversation, message, title }) => {
   const { pushInApp } = require("@/services/inAppNotifications");
   return pushInApp({
-    recipients: await recipientsFor(conversation),
+    recipients: await recipientsFor(conversation, message),
     category: "conversationMessage",
     kind: "conversationWaiting",
     title,

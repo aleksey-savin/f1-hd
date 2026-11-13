@@ -185,7 +185,7 @@ const applyAttach = async ({ channel, conversation, message, identity }) => {
   }
   if (!verdict.mode) return;
   if (verdict.mode === "free") {
-    await require("./incoming-context").persistFreeMapping(message._id);
+    await require("./incoming-context").persistFreeMapping(message._id, verdict.discussionUserId);
     return;
   }
   // Classification can take several seconds: membership and ticket status must
@@ -231,7 +231,7 @@ const applyNotify = async ({ conversation, message, identity }) => {
   const fresh = await Conversation.findById(conversation._id).lean();
   const startedWait =
     fresh.awaitingSince && new Date(fresh.awaitingSince).getTime() === new Date(message.sentAt).getTime();
-  const current = await Message.findById(message._id).select("ticketId").lean();
+  const current = await Message.findById(message._id).select("ticketId attachMode discussionUserId").lean();
   if (!startedWait || current?.ticketId || fresh.hidden) return;
   // Один звонок колокольчика на ожидание: несколько сообщений одного момента
   // (фотоальбом) и повтор доставки/гонка колокольчик не дублируют
@@ -245,7 +245,7 @@ const applyNotify = async ({ conversation, message, identity }) => {
     fresh.kind === "group"
       ? `Новое сообщение в группе «${fresh.title || rules.NETWORK_LABEL[fresh.network]}»`
       : `Новое сообщение${name ? ` от ${name}` : ""}`;
-  await notifyWaiting({ conversation: fresh, message, title });
+  await notifyWaiting({ conversation: fresh, message: { ...message, ...current }, title });
 };
 
 /** Эхо нашей отправки (шлюз пометил его jobId): дополняем своё сообщение. */

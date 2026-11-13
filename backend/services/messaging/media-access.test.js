@@ -37,6 +37,13 @@ test('only direct provider route accepts signed download; ordinary upload route 
   assert.equal((await run({ query, direct: true })).passed, true);
   assert.equal((await run({ query })).status, 404);
 });
+test('free discussion media belongs only to its owner and stops being readable after ticket remapping', async () => {
+  const message = {ticketId:null,attachMode:'free',discussionUserId:'viewer'};
+  assert.equal((await run({viewer:auth(['conversation.read']),messages:[message]})).passed,true);
+  assert.equal((await run({viewer:auth(['conversation.read'],{userId:'other'}),messages:[message]})).status,404);
+  assert.equal((await run({viewer:auth([]),messages:[message]})).status,404);
+  assert.equal((await run({viewer:auth(['conversation.read']),messages:[{...message,ticketId:'foreign',attachMode:'manual'}],ticket:{responsibles:[]}})).status,404);
+});
 
 test('source message mapping takes precedence over stale comments; orphan mirrors stay private', async () => {
   const { findMediaMessages } = require('./media-access');

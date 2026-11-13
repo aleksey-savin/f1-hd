@@ -1,6 +1,6 @@
 const { phoneSearchDigits } = require("../phone");
 const { ticketListFilter } = require("../ticketScope");
-const { readsAll, messageFilter, scopedConversationStages } = require("./access");
+const { readsAll, messageFilter, ticketMessageFilter, scopedConversationStages } = require("./access");
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const searchTerms = (query) => {
@@ -43,7 +43,7 @@ const networkNames = {
 const conversationSearchPipeline = ({ filter, query, auth, limit }) => {
   const terms = searchTerms(query);
   const ticketStages = [
-    { $match: { $and: [readsAll(auth) ? ticketListFilter(auth) : { _id: messageFilter(auth).ticketId }, { deletedAt: null }] } },
+    { $match: { $and: [readsAll(auth) ? ticketListFilter(auth) : { _id: ticketMessageFilter(auth).ticketId }, { deletedAt: null }] } },
     {
       $project: {
         _id: 0,
@@ -205,10 +205,9 @@ const conversationSearchPipeline = ({ filter, query, auth, limit }) => {
         pipeline: [
           {
             $match: {
-              ...messageFilter(auth),
               deletedAt: null,
               direction: { $in: ["in", "out"] },
-              $or: fieldMatches(
+              $and: [messageFilter(auth), { $or: fieldMatches(
                 [
                   "text",
                   "authorName",
@@ -216,7 +215,7 @@ const conversationSearchPipeline = ({ filter, query, auth, limit }) => {
                   "form.fields.value",
                 ],
                 regexes,
-              ),
+              ) }],
             },
           },
           { $limit: 1 },

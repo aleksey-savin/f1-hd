@@ -73,6 +73,17 @@ const fixture = () => {
   return { notifier, conversation, messages, tickets, users, prefs, notices, failCheckpoint: () => { failCheckpoint = true; } };
 };
 
+test('a personal discussion owner receives only their own waiting message, even with another assignee and ticket', async () => {
+ const f=fixture();
+ f.users.push(person(9,{ownOnly:true}));
+ f.messages.push({...f.messages[0],_id:id(10),ticketId:null,attachMode:'free',discussionUserId:id(9),sentAt:at(1),text:'Мой ответ'});
+ f.messages.push({...f.messages[0],_id:id(11),ticketId:null,attachMode:'free',discussionUserId:id(12),sentAt:at(2),text:'Чужой ответ'});
+ await f.notifier.run(at(120));
+ const own=[...f.notices.values()].find(n=>n.to.chatId==='tg-9');
+ assert.ok(own);assert.match(own.text,/Мой ответ/);assert.doesNotMatch(own.text,/Чужой ответ|Принтер/);
+ assert.match(own.replyMarkup.inline_keyboard[0][0].url,/\/conversations\//);
+});
+
 test("first unanswered message gives one personal alert at two minutes, independent of later messages and reads", async () => {
   const f = fixture();
   await f.notifier.run(at(119)); assert.equal(f.notices.size, 0);

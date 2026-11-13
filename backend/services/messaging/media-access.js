@@ -1,6 +1,6 @@
 const { createHmac, timingSafeEqual } = require('node:crypto');
 const path = require('node:path');
-const { readsAll, canReadInbox, canReadTicketMessages } = require('./access');
+const { readsAll, canReadInbox, canReadTicketMessages, canReadOwnDiscussion } = require('./access');
 const TTL = 60 * 60 * 1000;
 const signature = (name, expires, secret) => createHmac('sha256', secret)
   .update(`hd:messaging-media:v1\n${name}\n${expires}`).digest('hex');
@@ -18,7 +18,7 @@ const validMediaSignature = (name, query, { secret = process.env.BETTER_AUTH_SEC
 };
 
 const findMediaMessages = async (name, { Message = require('../../models/message'), Comment = require('../../models/comment') } = {}) => {
-  const messages = await Message.find({ 'attachments.name': name }).select('ticketId').lean();
+  const messages = await Message.find({ 'attachments.name': name }).select('ticketId attachMode discussionUserId').lean();
   // The source message wins over stale mirrors after a remap. Old mirrored
   // attachments remain protected even if their source message no longer exists.
   if (messages.length) return messages;
@@ -49,6 +49,7 @@ const createMediaAccess = ({
     const auth = req.auth;
     if (!auth?.userId) return res.sendStatus(404);
     if (readsAll(auth)) return next();
+    if (messages.some(message => canReadOwnDiscussion(message, auth))) return next();
     for (const id of new Set(messages.map(message => message.ticketId).filter(Boolean).map(String))) {
       const ticket = await findTicket(id);
       if (ticket && !ticket.deletedAt && (canReadTicketMessages(ticket, auth)

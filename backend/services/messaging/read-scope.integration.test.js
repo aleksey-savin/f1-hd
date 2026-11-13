@@ -114,3 +114,36 @@ test('readAll without any ticket permission reads and searches every conversatio
   assert.equal((await call('messages', full())).items.length, 3);
   assert.equal((await call('list', full(), { q: 'FREE_SECRET' })).items[0].id, String(ids.mixed));
 });
+
+test('a personal discussion opens only its owner scope across real list, card, search, pagination and changes', { skip: !enabled }, async () => {
+  const personalId = new ObjectId(), otherId = new ObjectId(), movedId = new ObjectId();
+  const discussion = { conversationId: ids.foreignChat, ticketId: null, attachMode: 'free', discussionUserId: ids.me,
+    direction: 'in', origin: 'client', text: 'PERSONAL_VISIBLE', sentAt: new Date('2026-11-12T05:00:00Z'), updatedAt: new Date('2026-11-12T05:00:00Z'), seq: 4 };
+  await db.collection('messages').insertMany([
+    {...discussion, _id: personalId, replyToId: otherId},
+    {...discussion, _id: otherId, discussionUserId: ids.other, text: 'OTHER_DISCUSSION_SECRET', seq: 5},
+    {...discussion, _id: movedId, ticketId: ids.foreign, attachMode: 'manual', text: 'MOVED_DISCUSSION_SECRET', seq: 6},
+  ]);
+  try {
+    const starter = () => auth('conversation.read', 'conversation.reply', 'conversation.start');
+    const scoped = await access.scopeAuth(starter());
+    assert.ok(scoped.messagingScope.conversationIds.some(id => String(id) === String(ids.foreignChat)));
+    const list = await call('list', starter());
+    const row = list.items.find(item => item.id === String(ids.foreignChat));
+    assert.equal(row.lastMessage.preview, 'PERSONAL_VISIBLE'); assert.equal(row.unread, 1);
+    assert.deepEqual(row.tickets, []); assert.equal(row.ticket, null); assert.equal(row.decision, null);
+    for (const term of ['PRIVATE_CHAT', 'OTHER_DISCUSSION_SECRET', 'MOVED_DISCUSSION_SECRET']) assert.equal((await call('list', starter(), {q:term})).items.length, 0);
+    assert.equal((await call('list', starter(), {q:'PERSONAL_VISIBLE'})).items[0].id, String(ids.foreignChat));
+    const card = await call('get', starter(), {}, ids.foreignChat);
+    assert.equal(card.access.all, false); assert.equal(card.access.freeReply, true); assert.equal(card.access.reply, true);
+    assert.deepEqual(card.tickets, []); assert.deepEqual(card.openTickets, []); assert.deepEqual(card.otherChannels, []);
+    for (const query of [{}, {before:'2026-11-12T05:00:00Z',beforeSeq:'5'}, {changedSince:'2026-11-12T00:00:00Z'}]) {
+      const page = await call('messages', starter(), query, ids.foreignChat);
+      assert.deepEqual(page.items.map(item=>item.text), ['PERSONAL_VISIBLE']); assert.equal(page.items[0].replyTo, null);
+      assert.doesNotMatch(JSON.stringify(page), /SECRET|PRIVATE_CHAT/);
+      if (query.changedSince) assert.deepEqual(page.removedIds, [String(movedId)]);
+    }
+    await db.collection('messages').updateOne({_id:personalId},{$set:{ticketId:ids.foreign,attachMode:'manual'}});
+    await assert.rejects(call('messages', starter(), {}, ids.foreignChat), error=>error.statusCode===404);
+  } finally { await db.collection('messages').deleteMany({_id:{$in:[personalId,otherId,movedId]}}); }
+});
