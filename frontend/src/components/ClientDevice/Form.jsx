@@ -129,8 +129,12 @@ const optionsOf = (items, label = (item) => item.name) =>
 const ClientDeviceForm = ({ title }) => {
   // Справочники приезжают лоадером из кэша (store/form-data), поэтому форма
   // открывается готовой: собственного ожидания у неё нет.
-  const { device: data, formData, presetCompanyId, presetModelId } =
-    useLoaderData();
+  const {
+    device: data,
+    formData,
+    presetCompanyId,
+    presetModelId,
+  } = useLoaderData();
   const isEdit = Boolean(data?._id);
   // С карточки модели: модель (а с ней тип и производитель) уже выбрана, и
   // после создания возвращаемся на карточку — следующее устройство той же
@@ -661,8 +665,7 @@ const ClientDeviceForm = ({ title }) => {
           .map((entry) => String(entry.attributeId)),
       );
       const missing = paramsShown.filter(
-        (link) =>
-          link.required && !filled.has(String(refId(link.attributeId))),
+        (link) => link.required && !filled.has(String(refId(link.attributeId))),
       );
       if (missing.length) {
         errors.attributes = Object.fromEntries(
@@ -685,6 +688,9 @@ const ClientDeviceForm = ({ title }) => {
     }
     if (key === "placement") {
       if (!form.companyId) errors.companyId = "Выберите компанию";
+      if (!form.locationId && (!isEdit || refId(data?.locationId))) {
+        errors.locationId = "Выберите расположение";
+      }
       if (form.status === "deployed" && !form.userId && !isEdit) {
         errors.userId = "Статус «В эксплуатации» требует сотрудника";
       }

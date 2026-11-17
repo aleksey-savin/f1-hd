@@ -161,6 +161,7 @@ const controller = require("./clientDevice");
 const PC = "eeeeeeeeeeeeeeeeeeeeee01";
 const OTHER_TYPE = "eeeeeeeeeeeeeeeeeeeeee02";
 const COMPANY = "ffffffffffffffffffffff01";
+const LOCATION = "ffffffffffffffffffffff02";
 const BUILD = "abababababababababababab";
 
 // Цепочка запроса Mongoose: populate/select/sort → lean или await
@@ -214,6 +215,7 @@ const models = [
 ];
 
 const stubCatalog = (t, { saveFailsAt = 0 } = {}) => {
+  t.mock.method(require("@/models/inventory/location"), "findById", async () => ({ _id: LOCATION, company: COMPANY }));
   t.mock.method(DeviceType, "findById", (id) =>
     chain(String(id) === PC ? pcType : { _id: id, inventoryPrefix: "CMP" }),
   );
@@ -260,6 +262,7 @@ const stubCatalog = (t, { saveFailsAt = 0 } = {}) => {
 };
 
 const pcBody = (extra) => ({
+  locationId: LOCATION,
   companyId: COMPANY,
   deviceTypeId: PC,
   status: "deployed",
@@ -368,7 +371,7 @@ test("add: своя сборка типа без комплектующих — 
 test("add: деталь без модели (с родителем) у типа без сборки — как раньше", async (t) => {
   const { saved } = stubCatalog(t);
   t.mock.method(ClientDevice, "findById", () =>
-    chain({ _id: "6a28ed8f6d333b3a785274ff", companyId: COMPANY }),
+    chain({ _id: "6a28ed8f6d333b3a785274ff", companyId: COMPANY, locationId: LOCATION }),
   );
   const { res, error } = await call(controller.add, {
     body: {
@@ -683,4 +686,29 @@ test("update: параметр, которого форма не знала, о�
     saved[1].attributes.map((v) => [String(v.attributeId), v.value]),
     [[MAC_ATTR, "AA:BB:CC:DD:EE:FF"]],
   );
+});
+
+test("update: расположение нельзя очистить, старые пустые записи можно править", async (t) => {
+  const { saved } = stubCatalog(t);
+  const pc = existingPc(); pc.locationId = LOCATION;
+  t.mock.method(ClientDevice, "findById", () => chain(pc));
+  const denied = await call(controller.update, { params: { id: String(pc._id) }, body: pcBody({ locationId: "" }) });
+  assert.equal(denied.error?.statusCode, 400); assert.match(denied.error.message, /расположение/); assert.equal(saved.length, 0);
+  pc.locationId = undefined;
+  const allowed = await call(controller.update, { params: { id: String(pc._id) }, body: { companyId: COMPANY, deviceTypeId: PC, serialNumber: "legacy" } });
+  assert.ifError(allowed.error); assert.equal(saved.length, 1);
+});
+
+test("update: изменение расположения ПК перемещает все детали", async (t) => {
+  const { saved } = stubCatalog(t);
+  const pc = existingPc(); pc.locationId = LOCATION;
+  const target = "ffffffffffffffffffffff03";
+  const part = new ClientDevice({ companyId: COMPANY, parentDeviceId: pc._id, locationId: LOCATION });
+  t.mock.method(ClientDevice, "findById", () => chain(pc));
+  t.mock.method(ClientDevice, "find", () => chain([part]));
+  const result = await call(controller.update, { params: { id: String(pc._id) }, body: pcBody({ locationId: target }) });
+  assert.ifError(result.error);
+  assert.equal(saved.length, 2); assert.equal(String(part.locationId), target);
+  assert.equal(String(part.$where.parentDeviceId), String(pc._id));
+  assert.equal(String(part.$where.locationId), LOCATION);
 });

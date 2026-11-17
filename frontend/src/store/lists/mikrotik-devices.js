@@ -358,10 +358,11 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
     });
   },
   // Создать карточку инвентаря из данных записи и связать.
-  createInventoryCard: async (recordId) => {
+  createInventoryCard: async (recordId, locationId) => {
     return fetch(`${API}/records/${recordId}/create-inventory`, {
       method: "POST",
       headers: authHeaders(),
+      body: JSON.stringify({ locationId }),
     });
   },
   connectRecord: async (recordId) => {

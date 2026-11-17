@@ -42,6 +42,8 @@ const {
   findTakenIdentity,
   getEffectiveTypeId,
   planDeviceParts,
+  locationError,
+  planMoveDevice,
   validateAssembly,
 } = require("../../services/inventory/deviceOps");
 const { filterAttachable } = require("../../services/inventory/attachRules");
@@ -1056,6 +1058,31 @@ exports.update = async (req, res, next) => {
       if (linked) return next(new AppError('Сначала отвяжите ресурс Proxmox от карточки инвентаря',409));
     }
 
+    if (!deviceVisibleTo(deviceViewer(req.auth), device)) {
+      return next(new AppError("Устройство недоступно", 404));
+    }
+    // Отсутствующее поле сохраняет прежнее значение; явная очистка запрещена.
+    if (!("locationId" in req.body)) payload.locationId = device.locationId;
+    if (device.locationId && !payload.locationId) {
+      return next(new AppError("Выберите расположение", 400));
+    }
+    const locationChanged = String(payload.locationId || "") !== String(device.locationId || "");
+    if (device.parentDeviceId && locationChanged) {
+      return next(new AppError("Комплектующее перемещается только вместе со сборкой", 409));
+    }
+    if (payload.locationId) {
+      const wrongLocation = await locationError(payload.locationId, payload.companyId || device.companyId);
+      if (wrongLocation) return next(new AppError(wrongLocation.message, wrongLocation.status));
+    }
+    let locationPlan = null;
+    if (locationChanged) {
+      locationPlan = await planMoveDevice(device._id, payload.locationId, { actorId: req.userId, targetCompanyId: payload.companyId || device.companyId });
+      if (!locationPlan.ok) return next(new AppError(locationPlan.message, locationPlan.status));
+      if (locationPlan.writes.some((part) => !deviceVisibleTo(deviceViewer(req.auth), part))) {
+        return next(new AppError("В сборке есть недоступные комплектующие", 403));
+      }
+    }
+
     const takenInventory = await findTakenIdentity({
       inventoryNumber:
         payload.inventoryNumber !== device.inventoryNumber
@@ -1139,6 +1166,7 @@ exports.update = async (req, res, next) => {
       payload.parentDeviceId = device.parentDeviceId;
     }
 
+    if (locationPlan) device.$where = locationPlan.device.$where;
     Object.assign(device, payload, { updatedBy: req.userId });
 
     // Атрибуты устройства — по связкам эффективного типа ПОСЛЕ правки: присланное
@@ -1160,6 +1188,10 @@ exports.update = async (req, res, next) => {
       }
     }
     await device.save();
+    if (locationPlan) {
+      for (const part of locationPlan.affected) await part.save();
+    }
+
 
     res.status(200).json({
       message: "Устройство успешно изменено.",
@@ -1344,4 +1376,17 @@ exports.delete = async (req, res, next) => {
       ),
     );
   }
+};
+
+exports.previewMove = async (req, res, next) => {
+  try {
+    res.json(await require("../../services/inventory/bulkMove").previewMove(req.body.ids, deviceViewer(req.auth)));
+  } catch (error) { next(error); }
+};
+exports.moveMany = async (req, res, next) => {
+  try {
+    res.json(await require("../../services/inventory/bulkMove").moveDevices(req.body.ids, req.body.locationId, {
+      viewer: deviceViewer(req.auth), actorId: req.userId,
+    }));
+  } catch (error) { next(error); }
 };

@@ -1516,6 +1516,11 @@ exports.createInventoryCard = async (req, res, next) => {
       return next(new AppError("Модуль «Учёт техники» отключён", 409));
     }
 
+    const locationId = req.body?.locationId;
+    if (!locationId) return next(new AppError("Выберите расположение", 400));
+    const wrongLocation = await require("../../services/inventory/deviceOps").locationError(locationId, record.companyId);
+    if (wrongLocation) return next(new AppError(wrongLocation.message, wrongLocation.status));
+
     const serial = String(record.serialNumber || "").trim();
     if (serial) {
       const exists = await ClientDevice.findOne({ serialNumber: serial })
@@ -1559,6 +1564,7 @@ exports.createInventoryCard = async (req, res, next) => {
       ...(model ? { deviceModelId: model._id } : {}),
       ...(configurationId ? { configurationId } : {}),
       companyId: record.companyId || undefined,
+      locationId,
       ...(values.hostname ? { hostname: values.hostname } : {}),
       ...(serial ? { serialNumber: serial } : {}),
       status: "deployed",

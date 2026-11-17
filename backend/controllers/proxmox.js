@@ -126,23 +126,27 @@ exports.archive = async (req, res) => {
 };
 exports.company = async (req, res) => {
   const ids = req.body.ids || [req.params.id];
-  if (!Array.isArray(ids) || !ids.length || ids.length > 100)
-    fail("Выберите до 100 ресурсов");
+  if (!Array.isArray(ids) || !ids.length || ids.length > 10000)
+    fail("Выберите до 10000 ресурсов");
   ids.forEach(read.validId);
   const companyId = req.body.companyId
     ? await core.activeCompany(read.validId(req.body.companyId))
     : null;
   const kind = req.params.kind === "nodes" ? "node" : "guest";
   if (kind === "node" && !companyId) fail("Узел должен иметь владельца");
-  const resources = await Resource.find({ _id: { $in: ids }, kind });
+  const resources = await Resource.find({ _id: { $in: ids }, kind, archived: false });
   if (resources.length !== ids.length) fail("Ресурс не найден", 404);
   for (const r of resources)
     if (r.clientDeviceId && String(r.companyId) !== String(companyId))
       fail("Сначала отвяжите карточку инвентаря", 409);
+  const completedIds = [];
+  try {
   for (const r of resources) {
     const old = String(r.companyId || "");
+    r.$where = { companyId: r.companyId ?? null, clientDeviceId: r.clientDeviceId ?? null, archived: false };
     r.companyId = companyId;
     await r.save();
+    completedIds.push(String(r._id));
     await core.event(
       r,
       "companyChanged",
@@ -150,7 +154,12 @@ exports.company = async (req, res) => {
       actor(req),
     );
   }
-  res.json({ items: resources.map(read.view) });
+  } catch {
+    return res.json({ error: true, completedIds,
+      message: `Компания сохранена для ${completedIds.length} из ${resources.length} ресурсов. Сбой записи или журнала; обновите список перед повтором.`,
+    });
+  }
+  res.json({ items: resources.map(read.view), completedIds });
 };
 exports.guestMonitoring = async (req, res) => {
   const r = await getResource(req.params.id);

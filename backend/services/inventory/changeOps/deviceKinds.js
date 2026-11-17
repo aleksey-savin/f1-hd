@@ -335,7 +335,7 @@ module.exports = (deps) => {
       refKinds: [],
       fields: [
         entity("device", "device", { required: true }),
-        entity("location", "location", { required: true, nullable: true }),
+        entity("location", "location", { required: true }),
         ...CASCADE_FIELDS,
       ],
       cascade: true,
@@ -345,9 +345,7 @@ module.exports = (deps) => {
         apply: (args, ctx) => ops.moveDevice(args.device, args.location ?? null, cascadeOptions(args, ctx)),
       },
       text: (t) =>
-        (t.view.location
-          ? `Перенести ${t.show("device")} в ${t.show("location")}`
-          : `Снять помещение у ${t.show("device")}`) + cascadeText(t),
+        `Перенести ${t.show("device")} в ${t.show("location")}` + cascadeText(t),
     },
     deps,
   );

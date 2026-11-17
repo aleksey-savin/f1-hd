@@ -19,6 +19,9 @@ router.get("/client-devices/:id", isAuth, deviceController.getOne);
 // Заявки, ссылающиеся на устройство (секция «Заявки» карточки).
 router.get("/client-devices/:id/tickets", isAuth, deviceController.getTickets);
 
+router.post("/client-devices/move-preview", isAuth, canManageDevices, deviceController.previewMove);
+router.post("/client-devices/move", isAuth, canManageDevices, deviceController.moveMany);
+
 router.post(
   "/client-devices/add",
   isAuth,

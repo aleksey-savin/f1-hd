@@ -2,7 +2,6 @@ import { create } from "zustand";
 
 import { api } from "@/lib/api";
 
-
 // Список «Устройства» — реестр активов на серверной выборке: поиск, фасеты,
 // сортировка, постраничность и счётчики стадий считает бэкенд (клиентский поиск
 // несовместим с пагинацией, а парк растёт вместе с числом клиентов). Стор
@@ -40,7 +39,7 @@ let searchDebounce;
 // Гонка листания: поздний ответ прошлого запроса не должен перетирать свежий.
 let requestSeq = 0;
 
-const buildParams = (state) => {
+export const buildParams = (state) => {
   const params = new URLSearchParams();
   Object.entries(state.facets).forEach(([key, value]) => {
     if (Array.isArray(value)) {

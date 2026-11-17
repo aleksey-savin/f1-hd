@@ -30,6 +30,9 @@ const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
 
 const { createInventoryCard } = require("./mikrotik");
 
+const LOCATION = "eeeeeeeeeeeeeeeeeeeeeee2";
+test.beforeEach((t) => { t.mock.method(require("@/models/inventory/location"), "findById", async () => ({_id: LOCATION, isPublic: true})); });
+
 const REC = "eeeeeeeeeeeeeeeeeeeeeee1";
 const M1 = "bbbbbbbbbbbbbbbbbbbbbbb1";
 const C1 = "cccccccccccccccccccccc01";
@@ -69,7 +72,7 @@ test("карточка из записи Mikrotik: модель с единст�
 
   const res = { status: () => res, json: () => res };
   let failed;
-  await createInventoryCard({ params: { recordId: REC }, userId: undefined }, res, (e) => {
+  await createInventoryCard({ params: { recordId: REC }, body: { locationId: LOCATION }, userId: undefined }, res, (e) => {
     failed = e;
   });
 
@@ -117,7 +120,7 @@ test("карточка из записи Mikrotik: ОС и IP — в атриб�
 
   const res = { status: () => res, json: () => res };
   let failed;
-  await createInventoryCard({ params: { recordId: REC }, userId: undefined }, res, (e) => {
+  await createInventoryCard({ params: { recordId: REC }, body: { locationId: LOCATION }, userId: undefined }, res, (e) => {
     failed = e;
   });
 
@@ -134,4 +137,13 @@ test("карточка из записи Mikrotik: ОС и IP — в атриб�
     [[ROUTER, IP]],
   );
   assert.equal(saved.get("ipAddress"), undefined);
+});
+
+test("карточка из Mikrotik: без расположения запись не создаётся", async (t) => {
+  t.mock.method(Mikrotik, "findById", async () => new Mikrotik({ _id: REC }));
+  t.mock.method(Preferences, "findOne", () => chain(null));
+  t.mock.method(ClientDevice.prototype, "save", async () => assert.fail("must not save"));
+  let failure;
+  await createInventoryCard({params:{recordId:REC},body:{}}, {}, (error) => { failure=error; });
+  assert.equal(failure.statusCode,400); assert.match(failure.message,/расположение/);
 });

@@ -1,3 +1,4 @@
+import CreateInventoryButton from "@/components/Mikrotik/CreateInventoryButton";
 import { companyCrumbs } from "@/util/crumb-trail";
 import { Link, useNavigate } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
@@ -196,15 +197,13 @@ const HeroFlag = ({ flag, text, target }) => {
  */
 const recordCrumbTitle = (row) =>
   [row.type !== row.displayName ? row.type : null, row.displayName]
-    .filter(Boolean).join(" ");
+    .filter(Boolean)
+    .join(" ");
 
 const InventoryLine = ({ row, canManage, onChanged }) => {
   const showToast = useToastStore((state) => state.showToast);
   const linkInventory = useMikrotikDeviceFilterStore(
     (state) => state.linkInventory,
-  );
-  const createInventoryCard = useMikrotikDeviceFilterStore(
-    (state) => state.createInventoryCard,
   );
   const [busy, setBusy] = useState(false);
   // Ссылка в чужой раздел несёт «откуда пришли» — крошка карточки вернёт сюда
@@ -307,20 +306,12 @@ const InventoryLine = ({ row, canManage, onChanged }) => {
           <span aria-hidden className="text-faint">
             ·
           </span>
-          <button
-            type="button"
+          <CreateInventoryButton
+            recordId={row.recordId}
+            companyId={row.company?._id || row.company?.id}
             disabled={busy}
-            className={actionClass}
-            onClick={() =>
-              run(
-                () => createInventoryCard(row.recordId),
-                "Карточка создана и связана",
-                "Не удалось создать карточку",
-              )
-            }
-          >
-            {busy ? "Создаём…" : "Создать карточку"}
-          </button>
+            onCreated={onChanged}
+          />
         </>
       )}
     </span>

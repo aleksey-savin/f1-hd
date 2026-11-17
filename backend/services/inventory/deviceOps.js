@@ -244,17 +244,28 @@ const validateNewDevice = async (payload) => {
   // Компонент наследует компанию/расположение/пользователя от родителя.
   if (payload.parentDeviceId) {
     const parent = await ClientDevice.findById(payload.parentDeviceId);
-    if (!parent) {
+    if (!parent || parent.deletedAt) {
       return { error: new AppError("Invalid parent device ID", 400) };
     }
+    if (payload.locationId && String(payload.locationId) !== String(parent.locationId || "")) {
+      return { error: new AppError("Деталь получает расположение сборки", 400) };
+    }
     payload.companyId = payload.companyId || parent.companyId;
-    payload.locationId = payload.locationId || parent.locationId;
+    payload.locationId = parent.locationId;
     payload.userId = payload.userId || parent.userId;
   }
 
   const company = await Company.findById(payload.companyId);
   if (!company) {
     return { error: new AppError("Invalid company ID", 400) };
+  }
+
+  if (!payload.locationId) {
+    return { error: new AppError("Выберите расположение", 400) };
+  }
+  const invalidLocation = await locationError(payload.locationId, payload.companyId);
+  if (invalidLocation) {
+    return { error: new AppError(invalidLocation.message, invalidLocation.status) };
   }
 
   // Hostname опционален и уникален в пределах компании — проверяем дубль,
@@ -905,6 +916,10 @@ const planAttachComponent = async (hostId, rawComponentId, { actorId } = {}) => 
   });
   if (taken) return fail(taken.status, taken.message);
 
+  if (!host.locationId) return fail(400, "Сначала укажите расположение сборки");
+  const wrongLocation = await locationError(host.locationId, host.companyId);
+  if (wrongLocation) return wrongLocation;
+
   // Следует за хостом.
   component.parentDeviceId = host._id;
   component.companyId = host.companyId;
@@ -943,13 +958,14 @@ const planDetachComponent = async (hostId, componentId, { actorId } = {}) => {
   };
 };
 
-// Перенос в помещение (null — снять помещение). Правило агента: помещение
+// Перенос всей сборки в обязательное расположение. Расположение
 // существует и либо той же компании, что устройство, либо общее (isPublic).
 const planMoveDevice = async (
   deviceId,
   rawLocationId,
   {
     actorId,
+    targetCompanyId,
     withComponents = true,
     exceptComponentIds = [],
     componentIds,
@@ -960,20 +976,41 @@ const planMoveDevice = async (
     return fail(404, `Device with id ${deviceId} not found`);
   }
 
-  const locationId = clean(rawLocationId || undefined);
-  if (locationId) {
-    const wrong = await locationError(locationId, device.companyId);
-    if (wrong) return wrong;
+  if (device.parentDeviceId) {
+    return fail(409, "Комплектующее перемещается только вместе со сборкой");
   }
-
+  if (!rawLocationId) return fail(400, "Выберите расположение");
+  if (!withComponents || exceptComponentIds.length) {
+    return fail(400, "Комплектующие должны перемещаться вместе со сборкой");
+  }
+  const locationId = rawLocationId;
+  const wrong = await locationError(locationId, targetCompanyId || device.companyId);
+  if (wrong) return wrong;
+  const cascade = await liveComponents(device, [], componentIds);
+  if (cascade.error) return cascade.error;
+  const all = componentIds ? await liveComponents(device) : cascade;
+  if (all.error) return all.error;
+  const selectedParts = new Set(cascade.components.map((part) => String(part._id)));
+  if (all.components.length !== selectedParts.size || all.components.some((part) => !selectedParts.has(String(part._id)))) {
+    return fail(409, "Состав сборки изменился — выберите устройство заново");
+  }
+  const { components } = cascade;
+  for (const part of components) {
+    const wrongPart = await locationError(locationId, part.companyId);
+    if (wrongPart) return wrongPart;
+  }
+  // save использует эти условия вместе с _id: смена компании, хозяина или
+  // расположения после проверки не должна перетираться устаревшим планом.
+  for (const record of [device, ...components]) {
+    record.$where = {
+      companyId: record.companyId ?? null,
+      parentDeviceId: record.parentDeviceId ?? null,
+      locationId: record.locationId ?? null,
+      deletedAt: null,
+    };
+  }
   device.locationId = locationId;
   device.updatedBy = actorId;
-
-  const cascade = withComponents
-    ? await liveComponents(device, exceptComponentIds, componentIds)
-    : { components: [] };
-  if (cascade.error) return cascade.error;
-  const { components } = cascade;
   for (const part of components) {
     part.locationId = locationId;
     part.updatedBy = actorId;
@@ -1203,6 +1240,8 @@ const patch = operation(
 
 module.exports = {
   checkNewDevice,
+  planMoveDevice,
+  locationError,
   createDevice,
   checkAgentDevice,
   createAgentDevice,

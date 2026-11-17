@@ -39,6 +39,7 @@ const CatalogField = ({
   searchPlaceholder,
   emptyText,
   disabled,
+  clearable = true,
 }) => (
   <Field label={label} htmlFor={id} required={required} hint={error || hint}>
     <div className="flex gap-2">
@@ -50,7 +51,7 @@ const CatalogField = ({
         placeholder={placeholder}
         searchPlaceholder={searchPlaceholder}
         emptyText={emptyText}
-        clearable
+        clearable={clearable}
         disabled={disabled}
         className={error ? "border-destructive" : undefined}
       />
@@ -382,6 +383,9 @@ export const PlacementFields = ({
 
     <CatalogField
       id="device-location"
+      required
+      clearable={false}
+      error={errors.locationId}
       label="Расположение"
       hint="Расположения выбранной компании; ниже — общедоступные других компаний и рабочие места."
       value={values.locationId}

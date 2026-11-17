@@ -116,6 +116,7 @@ test.beforeEach(() => {
     saved.push(this);
     return this;
   };
+  Location.findById = async (id) => ({ _id: id, company: COMPANY });
   Company.findById = async (id) => (String(id) === COMPANY ? { _id: id } : null);
   User.findById = async () => ({ _id: USER, company: { _id: OTHER_COMPANY } });
   DeviceType.findById = (id) => {
@@ -341,31 +342,43 @@ test("moveDevice: в общее помещение другой компании
   assert.deepEqual(res.affected.map(String), [C1, C2, C3]);
 });
 
-test("moveDevice: каскад двигает живые детали, кроме исключённой и удалённой", async () => {
-  const { parts } = setupAssembly();
-  Location.findById = async () => ({ _id: LOC2, company: COMPANY });
-  const res = await moveDevice(HOST, LOC2, {
-    actorId: USER,
-    exceptComponentIds: [C2],
-  });
-  assert.equal(res.ok, true);
-  assert.deepEqual(res.affected.map(String), [C1, C3]);
-  assert.deepEqual(savedIds().sort(), [HOST, C1, C3].sort());
-  assert.equal(String(parts[0].locationId), LOC2);
-  assert.equal(String(parts[1].locationId), LOCATION);
-  assert.equal(String(parts[0].updatedBy), USER);
+test("moveDevice: исключать детали из переноса запрещено", async () => {
+  setupAssembly();
+  const res = await moveDevice(HOST, LOC2, { actorId: USER, exceptComponentIds: [C2] });
+  assert.equal(res.ok, false);
+  assert.equal(saved.length, 0);
 });
 
-test("moveDevice: withComponents false и снятие помещения (null)", async () => {
+test("moveDevice: снятие расположения запрещено", async () => {
   setupAssembly();
-  const res = await moveDevice(HOST, null, {
-    actorId: USER,
-    withComponents: false,
-  });
-  assert.equal(res.ok, true);
-  assert.equal(res.device.locationId, undefined);
-  assert.deepEqual(res.affected, []);
-  assert.deepEqual(savedIds(), [HOST]);
+  const res = await moveDevice(HOST, null, { actorId: USER });
+  assert.equal(res.ok, false);
+  assert.match(res.message, /расположение/i);
+  assert.equal(saved.length, 0);
+});
+
+test("moveDevice: нельзя исключить детали сборки из переноса", async () => {
+  setupAssembly();
+  Location.findById = async () => ({ _id: LOC2, company: COMPANY });
+  const res = await moveDevice(HOST, LOC2, { actorId: USER, withComponents: false });
+  assert.equal(res.ok, false);
+  assert.equal(saved.length, 0);
+});
+
+test("moveDevice: привязанную деталь нельзя переместить отдельно", async () => {
+  const { parts } = setupAssembly();
+  ClientDevice.findById = async () => parts[0];
+  const res = await moveDevice(C1, LOC2, { actorId: USER });
+  assert.equal(res.ok, false);
+  assert.equal(res.status, 409);
+  assert.match(res.message, /сборк/);
+  assert.equal(saved.length, 0);
+});
+
+test("createDevice: новое устройство требует расположение", async () => {
+  const res = await checkNewDevice({ companyId: COMPANY, deviceTypeId: TYPE });
+  assert.equal(res.ok, false);
+  assert.match(res.message, /расположение/i);
 });
 
 test("checkMoveDevice: те же отказы и результат, но без записей", async () => {
@@ -629,16 +642,16 @@ test("check-близнецы каскада отдают снимок { _id, upd
   assert.deepEqual(real.affected.map(String), [C1, C2, C3]);
 });
 
-test("componentIds: каскад ровно по списку; открепившаяся деталь: 409 с названием", async () => {
+test("componentIds: частичный перенос запрещён; открепившаяся деталь: 409 с названием", async () => {
   const { parts } = setupAssembly();
   Location.findById = async () => ({ _id: LOC2, company: COMPANY });
   const res = await moveDevice(HOST, LOC2, {
     actorId: USER,
     componentIds: [C3],
   });
-  assert.equal(res.ok, true);
-  assert.deepEqual(res.affected.map(String), [C3]);
-  assert.equal(String(parts[2].locationId), LOC2);
+  assert.equal(res.ok, false);
+  assert.equal(res.status, 409);
+  assert.equal(saved.length, 0);
   assert.equal(String(parts[0].locationId), LOCATION);
 
   saved.length = 0;
@@ -759,10 +772,8 @@ test("агент: деталь берёт у хоста компанию, пом
   const host = doc({ _id: HOST, status: "inRepair", userId: USER, locationId: LOC2 });
   ClientDevice.findById = async (id) => (String(id) === HOST ? host : null);
   User.findById = async () => ({ _id: USER, company: { _id: COMPANY } });
-  // помещение детали не проверяется отдельно: оно хостовое
-  Location.findById = async () => {
-    throw new Error("помещение детали не проверяется");
-  };
+  // Унаследованное расположение тоже должно существовать.
+  Location.findById = async () => ({ _id: LOC2, company: COMPANY });
   stubTypes();
   const part = (extra = {}) => ({ parentDeviceId: HOST, deviceTypeId: COMPONENT_TYPE, ...extra });
 
@@ -911,4 +922,26 @@ test("createAgentDevice: ОС и IP агента — в атрибуты нов�
     [TYPE, OS],
     [TYPE, IP],
   ]);
+});
+
+test("attachComponent: старый хост без расположения не очищает расположение детали", async () => {
+  const host = doc({ _id: HOST, locationId: undefined });
+  const part = doc({ _id: C1 });
+  ClientDevice.findById = async (id) => String(id) === HOST ? host : part;
+  ClientDevice.exists = async () => null;
+  DeviceType.findById = (id) => {
+    const type = { _id: id, isComponent: true, attachableToTypeIds: [] };
+    return Object.assign(Promise.resolve(type), { select: async () => type });
+  };
+  const res = await attachComponent(HOST, C1, { actorId: USER });
+  assert.equal(res.ok, false);
+  assert.match(res.message, /расположение/);
+  assert.equal(String(part.locationId), LOCATION);
+  assert.equal(saved.length, 0);
+});
+
+test("moveDevice: снимок с повтором детали не может исключить остальные детали", async () => {
+  setupAssembly();
+  const result = await moveDevice(HOST, LOC2, { componentIds: [C1, C1, C1] });
+  assert.equal(result.ok, false); assert.equal(saved.length, 0);
 });

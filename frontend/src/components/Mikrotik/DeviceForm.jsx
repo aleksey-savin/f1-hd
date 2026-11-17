@@ -1,3 +1,4 @@
+import CreateInventoryButton from "./CreateInventoryButton";
 import { Link, useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
@@ -67,9 +68,6 @@ const DeviceForm = () => {
   );
   const linkInventory = useMikrotikDeviceFilterStore(
     (state) => state.linkInventory,
-  );
-  const createInventoryCard = useMikrotikDeviceFilterStore(
-    (state) => state.createInventoryCard,
   );
 
   const isEdit = Boolean(recordId);
@@ -359,23 +357,6 @@ const DeviceForm = () => {
     }
   };
 
-  const handleCreateCard = async () => {
-    if (!result?.record?._id) return;
-    setLinkBusy(true);
-    setLinkError(null);
-    try {
-      const response = await createInventoryCard(result.record._id);
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setLinkError(data.message || "Не удалось создать карточку");
-        return;
-      }
-      setLinkState("created");
-    } finally {
-      setLinkBusy(false);
-    }
-  };
-
   // ── Шаг после проверки ──
   if (step === "done" && result) {
     const record = result.record || {};
@@ -489,14 +470,12 @@ const DeviceForm = () => {
                     </Button>
                   ) : (
                     inventory.canCreateCard && (
-                      <Button
-                        size="sm"
-                        variant="outline"
+                      <CreateInventoryButton
+                        recordId={record._id}
+                        companyId={form.companyId}
                         disabled={linkBusy}
-                        onClick={handleCreateCard}
-                      >
-                        {linkBusy ? "Создаём…" : "Создать карточку"}
-                      </Button>
+                        onCreated={() => setLinkState("created")}
+                      />
                     )
                   )}
                   <Button
@@ -832,11 +811,7 @@ const DeviceForm = () => {
         <div className="min-w-0 flex-1 text-xs text-faint max-md:basis-full">
           Перед сохранением проверим подключение к устройству.
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => close("..")}
-        >
+        <Button type="button" variant="ghost" onClick={() => close("..")}>
           Отмена
         </Button>
         <Button

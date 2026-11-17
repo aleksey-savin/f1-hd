@@ -2,9 +2,16 @@ import { useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useRef } from "react";
 
-import { RiBox3Line } from "react-icons/ri";
+import { RiBox3Line, RiCheckboxMultipleLine } from "react-icons/ri";
 import { redirect, useLocation } from "react-router";
 
+import usePagedListSelection from "@/hooks/use-paged-list-selection";
+import SelectionBar from "@/components/app/SelectionBar";
+import SelectableRow from "@/components/app/SelectableRow";
+import { Button } from "@/components/ui/button";
+import BulkMove from "@/components/ClientDevice/BulkMove";
+import { api } from "@/lib/api";
+import { buildParams } from "@/store/lists/client-devices";
 import ListWrapper from "@/components/app/ListWrapper";
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
 import Pager from "@/components/app/Pager";
@@ -44,6 +51,27 @@ const ClientDevices = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const can = useCan();
   const store = useClientDeviceFilterStore();
+
+  const canManage = Boolean(can({ device: ["manage"] }));
+  const selection = usePagedListSelection({
+    items: store.items,
+    total: store.total,
+    enabled: canManage,
+    queryKey: JSON.stringify([store.facets, store.searchTerm, store.sortBy]),
+    fetchPage: async (page, signal) => {
+      const params = buildParams(store);
+      params.set("page", String(page));
+      params.set("limit", "100");
+      const result = await api(`/api/inventory/client-devices?${params}`, {
+        signal,
+      });
+      return { items: result.devices, total: result.total };
+    },
+  });
+  const exitSelection = () => {
+    selection.exit();
+    store.fetch();
+  };
 
   // Снятие ?company= меняет адрес и без него бы перезапросило список — этот
   // переход пропускаем (данные уже едут с префильтром).
@@ -169,8 +197,38 @@ const ClientDevices = () => {
         filter={<ClientDeviceFilter />}
         filterActive={activeFilters.length > 0}
         activeFilters={activeFilters}
+        selection={
+          selection.isActive && (
+            <SelectionBar
+              count={selection.count}
+              total={store.total}
+              allSelected={selection.allSelected}
+              someSelected={selection.someSelected}
+              onSelectAll={selection.selectAll}
+              onToggleAll={
+                selection.allSelected
+                  ? selection.clearSelection
+                  : selection.selectAll
+              }
+              onExit={exitSelection}
+            />
+          )
+        }
         toolbar={
           <>
+            {canManage && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Выбрать"
+                aria-label="Выбрать"
+                onClick={() =>
+                  selection.isActive ? exitSelection() : selection.enter()
+                }
+              >
+                <RiCheckboxMultipleLine />
+              </Button>
+            )}
             {/* Набор строк реестра: детали сборок по умолчанию не в списке.
                 Сегмент, а не пункт шторки: это первое, что спрашивают у
                 реестра, и ответ должен быть виден без открытия фильтра. */}
@@ -240,10 +298,19 @@ const ClientDevices = () => {
       >
         <div className="appear-children">
           {store.items.map((device) => (
-            <DeviceRow key={device._id} device={device} />
+            <SelectableRow
+              key={device._id}
+              id={device._id}
+              label={device.name}
+              enabled={canManage}
+              selection={selection}
+            >
+              <DeviceRow device={device} />
+            </SelectableRow>
           ))}
         </div>
       </ListWrapper>
+      {canManage && <BulkMove selection={selection} onComplete={store.fetch} />}
     </>
   );
 };

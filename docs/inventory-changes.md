@@ -196,7 +196,7 @@ tool (not `propose`) calls `notifier.proposed`.
 | `createDevice` | body of `POST /client-devices/add` (model + configuration or type, company, location, user, status, serial, inventory number, purchase and warranty fields, `buildId`/`parts[]` for a self-built PC, `parentDeviceId`) | company or parent device, and model or type, are required; see «Agent path» below |
 | `updateDevice` | `device` + whitelist | `serialNumber inventoryNumber hostname ipAddress operatingSystem purchasedAt price supplierId purchaseDocument warrantyExpirationDate deploymentDate nextMaintenanceDate comment configurationId`; the form's field rules apply to the fields sent |
 | `assignDevice` | `device`, `user` (null clears), cascade fields | a user means `deployed`; clearing turns `deployed` into `readyForDeployment` (the `assignUser` side effects) |
-| `moveDevice` | `device`, `location` (null clears), cascade fields | the location exists and belongs to the device's company or is `isPublic` |
+| `moveDevice` | `device`, required `location`, full assembly | the location exists and belongs to every affected device's company or is `isPublic`; clearing and excluding components are forbidden |
 | `setDeviceStatus` | `device`, `status`, cascade fields | anything but `deployed` clears the user |
 | `attachComponent` | `host`, `component` | `attachRules.js` (shared with the form) |
 | `detachComponent` | `host`, `component` | |

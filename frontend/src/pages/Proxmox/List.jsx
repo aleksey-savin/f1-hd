@@ -1,6 +1,11 @@
 import { Link, useSearchParams } from "@/components/app/navigation";
-import { useEffect, useState } from "react";
-import { useFetcher, useLoaderData, useNavigation } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useFetcher,
+  useLoaderData,
+  useNavigation,
+  useRevalidator,
+} from "react-router";
 import {
   RiBuildingLine,
   RiComputerLine,
@@ -36,7 +41,14 @@ import { securitySummary, cveAlertCount } from "./guest-security-presentation";
 import { ExposureLabel } from "./Exposure";
 import { exposureFilterOptions } from "./exposure-presentation";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import usePagedListSelection from "@/hooks/use-paged-list-selection";
+import SelectableRow from "@/components/app/SelectableRow";
+import ReasonButton from "@/components/app/ReasonButton";
+import { api } from "@/lib/api";
+import {
+  companySelectionReason,
+  companyDestinationReason,
+} from "@/util/resource-bulk-eligibility";
 import { useCan } from "@/store/authed-user";
 import { ROOT } from "./data";
 import {
@@ -94,7 +106,7 @@ const config = {
     hint: "Здесь доступна сводка ресурсов виртуальных машин каждой компании.",
   },
 };
-function Row({ item, kind, selecting, selected, onToggle, extraActions }) {
+function Row({ item, kind, selection, selectable, extraActions }) {
   const cfg = config[kind],
     Icon = cfg.icon,
     resources = item.resources || {};
@@ -148,92 +160,90 @@ function Row({ item, kind, selecting, selected, onToggle, extraActions }) {
     meta = "Виртуальные машины и выделенные мощности";
 
   return (
-    <div
-      className={`proxmox-exposure-row ${item.exposure?.hasPublic ? "has-public" : item.exposure?.unknownCount ? "has-unknown" : item.exposure?.hasRestricted ? "has-restricted" : ""}`}
+    <SelectableRow
+      selection={selection}
+      id={idOf(item)}
+      label={title}
+      enabled={selectable}
     >
-      <ListRow
-        // updatedAt advances on every monitoring poll, not just user edits.
-        // Only creation is meaningful for the shared row's highlight here.
-        item={{ _id: idOf(item), createdAt: item.createdAt }}
-        title={
-          <Link
-            to={`${ROOT}/${kind}/${idOf(item)}`}
-            onClick={(event) => event.stopPropagation()}
-            className="text-foreground hover:text-foreground"
-          >
-            {title}
-          </Link>
-        }
-        detailTo={`${ROOT}/${kind}/${idOf(item)}`}
-        glyph={<Icon size={22} />}
-        meta={
-          <>
-            <span className="block truncate">
-              {meta}
-              {first != null && <> · {first}</>}
-            </span>
-            {kind === "guests" && <ExposureLabel summary={item.exposure} />}
-            {kind === "guests" && item.visibleOperation && (
-              <OperationStatus
-                compact
-                operation={item.visibleOperation}
-                journalHref={`${ROOT}/guests/${idOf(item)}#operations`}
-              />
-            )}
-            {kind === "guests" && item.guestSecurity && (
-              <span
-                className={`mt-1 block whitespace-normal text-xs ${cveAlertCount(item.guestSecurity) > 0 && ["completed", "partial"].includes(item.guestSecurity.status) ? "text-destructive" : "text-muted-foreground"}`}
-              >
-                CVE: {securitySummary(item.guestSecurity)}
+      <div
+        className={`proxmox-exposure-row ${item.exposure?.hasPublic ? "has-public" : item.exposure?.unknownCount ? "has-unknown" : item.exposure?.hasRestricted ? "has-restricted" : ""}`}
+      >
+        <ListRow
+          // updatedAt advances on every monitoring poll, not just user edits.
+          // Only creation is meaningful for the shared row's highlight here.
+          item={{ _id: idOf(item), createdAt: item.createdAt }}
+          title={
+            <Link
+              to={`${ROOT}/${kind}/${idOf(item)}`}
+              onClick={(event) => event.stopPropagation()}
+              className="text-foreground hover:text-foreground"
+            >
+              {title}
+            </Link>
+          }
+          detailTo={`${ROOT}/${kind}/${idOf(item)}`}
+          glyph={<Icon size={22} />}
+          meta={
+            <>
+              <span className="block truncate">
+                {meta}
+                {first != null && <> · {first}</>}
               </span>
-            )}
-            {kind === "guests" && (
-              <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
-                {item.guestOs?.name || "ОС не определена"} · Агент:{" "}
-                {guestAgentLabel(item)}
-              </span>
-            )}
-            {kind === "nodes" && (
-              <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
-                <NodeSecuritySummary report={item.nodeSecurity} />
-              </span>
-            )}
-            {kind !== "companies" && (
-              <span className="proxmox-row-mobile mt-0.5 block md:hidden">
-                <Status item={item} kind={kind} />
-              </span>
-            )}
-          </>
-        }
-        column={
-          ["nodes", "guests"].includes(kind) ? (
-            <FleetColumns item={item} kind={kind} />
-          ) : (
-            kind !== "companies" && (
-              <>
-                <span className="hidden min-w-0 flex-1 text-sm text-muted-foreground lg:block">
-                  {second}
+              {kind === "guests" && <ExposureLabel summary={item.exposure} />}
+              {kind === "guests" && item.visibleOperation && (
+                <OperationStatus
+                  compact
+                  operation={item.visibleOperation}
+                  journalHref={`${ROOT}/guests/${idOf(item)}#operations`}
+                />
+              )}
+              {kind === "guests" && item.guestSecurity && (
+                <span
+                  className={`mt-1 block whitespace-normal text-xs ${cveAlertCount(item.guestSecurity) > 0 && ["completed", "partial"].includes(item.guestSecurity.status) ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  CVE: {securitySummary(item.guestSecurity)}
                 </span>
-                <span className="hidden w-36 shrink-0 text-sm md:block">
+              )}
+              {kind === "guests" && (
+                <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
+                  {item.guestOs?.name || "ОС не определена"} · Агент:{" "}
+                  {guestAgentLabel(item)}
+                </span>
+              )}
+              {kind === "nodes" && (
+                <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
+                  <NodeSecuritySummary report={item.nodeSecurity} />
+                </span>
+              )}
+              {kind !== "companies" && (
+                <span className="proxmox-row-mobile mt-0.5 block md:hidden">
                   <Status item={item} kind={kind} />
                 </span>
-              </>
+              )}
+            </>
+          }
+          column={
+            ["nodes", "guests"].includes(kind) ? (
+              <FleetColumns item={item} kind={kind} />
+            ) : (
+              kind !== "companies" && (
+                <>
+                  <span className="hidden min-w-0 flex-1 text-sm text-muted-foreground lg:block">
+                    {second}
+                  </span>
+                  <span className="hidden w-36 shrink-0 text-sm md:block">
+                    <Status item={item} kind={kind} />
+                  </span>
+                </>
+              )
             )
-          )
-        }
-        extraActions={extraActions}
-        showExtraActions={Boolean(extraActions)}
-        trailing={
-          selecting && (
-            <Checkbox
-              aria-label={`Выбрать ${title}`}
-              checked={selected}
-              onCheckedChange={onToggle}
-            />
-          )
-        }
-      />
-    </div>
+          }
+          extraActions={extraActions}
+          showExtraActions={Boolean(extraActions)}
+        />
+      </div>
+    </SelectableRow>
   );
 }
 
@@ -278,9 +288,7 @@ export default function ProxmoxList() {
       submitted: false,
     });
   };
-  const [selected, setSelected] = useState([]),
-    [selecting, setSelecting] = useState(false),
-    [assign, setAssign] = useState(false),
+  const [assign, setAssign] = useState(false),
     [companyId, setCompany] = useState("");
   const {
     kind,
@@ -291,46 +299,93 @@ export default function ProxmoxList() {
     options = {},
     facets = {},
   } = data;
-  const items = loadedItems.map((item) => {
-    if (kind !== "guests") return item;
-    const receipt = receipts[idOf(item)];
-    const server = item.latestOperation || item.currentOperation;
-    const visibleOperation = !receipt
-      ? server
-      : !server
-        ? receipt
-        : idOf(server) === idOf(receipt)
-          ? !receipt.active &&
-            server.active &&
-            ["cancelled", "succeeded", "failed", "reviewed"].includes(
-              receipt.state,
-            )
+  const items = useMemo(
+    () =>
+      loadedItems.map((item) => {
+        if (kind !== "guests") return item;
+        const receipt = receipts[idOf(item)];
+        const server = item.latestOperation || item.currentOperation;
+        const visibleOperation = !receipt
+          ? server
+          : !server
             ? receipt
-            : server
-          : Date.parse(server.createdAt) >= Date.parse(receipt.createdAt)
-            ? server
-            : receipt;
-    const shownOperation =
-      receipt?.cancelRequested &&
-      idOf(receipt) === idOf(visibleOperation) &&
-      visibleOperation?.active &&
-      !visibleOperation.cancelRequested
-        ? {
-            ...visibleOperation,
-            cancelRequested: true,
-            cancelRequestedAt: receipt.cancelRequestedAt,
-          }
-        : visibleOperation;
-    return {
-      ...item,
-      visibleOperation: shownOperation,
-      currentOperation: shownOperation?.active
-        ? shownOperation
-        : idOf(item.currentOperation) === idOf(visibleOperation)
-          ? null
-          : item.currentOperation,
-    };
+            : idOf(server) === idOf(receipt)
+              ? !receipt.active &&
+                server.active &&
+                ["cancelled", "succeeded", "failed", "reviewed"].includes(
+                  receipt.state,
+                )
+                ? receipt
+                : server
+              : Date.parse(server.createdAt) >= Date.parse(receipt.createdAt)
+                ? server
+                : receipt;
+        const shownOperation =
+          receipt?.cancelRequested &&
+          idOf(receipt) === idOf(visibleOperation) &&
+          visibleOperation?.active &&
+          !visibleOperation.cancelRequested
+            ? {
+                ...visibleOperation,
+                cancelRequested: true,
+                cancelRequestedAt: receipt.cancelRequestedAt,
+              }
+            : visibleOperation;
+        return {
+          ...item,
+          visibleOperation: shownOperation,
+          currentOperation: shownOperation?.active
+            ? shownOperation
+            : idOf(item.currentOperation) === idOf(visibleOperation)
+              ? null
+              : item.currentOperation,
+        };
+      }),
+    [loadedItems, kind, receipts],
+  );
+  const selectionQuery = new URLSearchParams(query);
+  selectionQuery.delete("page");
+  selectionQuery.delete("more");
+  const canSelect = kind === "guests" && can({ proxmox: ["manage"] });
+  const orderedItems = useMemo(
+    () =>
+      kind === "guests"
+        ? fleetStates.flatMap((state) =>
+            items.filter((item) => fleetState(item) === state.value),
+          )
+        : items,
+    [kind, items],
+  );
+  const selection = usePagedListSelection({
+    items: orderedItems,
+    total,
+    enabled: canSelect,
+    queryKey: `${kind}:${selectionQuery}`,
+    fetchPage: async (page, signal) => {
+      const params = new URLSearchParams(selectionQuery);
+      if (params.get("sort")?.startsWith("-")) {
+        params.set("sort", params.get("sort").slice(1));
+        params.set("order", "desc");
+      } else if (params.has("sort")) params.set("order", "asc");
+      params.set("page", String(page));
+      params.set("pageSize", "100");
+      return api(`/api/proxmox/${kind}?${params}`, { signal });
+    },
   });
+  const selected = selection.selectedIds;
+  const selecting = selection.isActive;
+  const revalidator = useRevalidator();
+  const wasSelecting = useRef(false);
+  useEffect(() => {
+    if (wasSelecting.current && !selecting) revalidator.revalidate();
+    wasSelecting.current = selecting;
+  }, [selecting, revalidator]);
+  const selectionReason = selection.loading
+    ? "Загружаем выбранные ВМ"
+    : companySelectionReason(selection.selectedItems);
+  const destinationReason =
+    selectionReason ||
+    companyDestinationReason(selection.selectedItems, companyId);
   const cfg = config[kind];
   const operationRunning = items.some(
     (item) =>
@@ -346,14 +401,11 @@ export default function ProxmoxList() {
         : 60000,
   );
   useEffect(() => {
-    setSelected([]);
-    setSelecting(false);
-  }, [kind, query.toString()]);
+    if (!selecting) setAssign(false);
+  }, [selecting]);
   useEffect(() => {
     if (fetcher.state === "idle" && shouldClearBulkSelection(fetcher.data)) {
       setAssign(false);
-      setSelected([]);
-      setSelecting(false);
     }
   }, [fetcher.state, fetcher.data]);
   const update = (key, value) =>
@@ -596,12 +648,15 @@ export default function ProxmoxList() {
               can({ proxmox: ["manage"] }) &&
               items.length > 0 && (
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelecting((v) => !v)}
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Выбрать"
+                  aria-label="Выбрать"
+                  onClick={() =>
+                    selecting ? selection.exit() : selection.enter()
+                  }
                 >
                   <RiCheckboxMultipleLine />
-                  {selecting ? "Отменить выбор" : "Выбрать"}
                 </Button>
               )}
           </>
@@ -612,19 +667,16 @@ export default function ProxmoxList() {
           selecting && (
             <SelectionBar
               count={selected.length}
-              total={items.length}
-              allSelected={selected.length === items.length}
-              someSelected={selected.length > 0}
-              onToggleAll={() =>
-                setSelected(
-                  selected.length === items.length ? [] : items.map(idOf),
-                )
+              total={total}
+              allSelected={selection.allSelected}
+              someSelected={selection.someSelected}
+              onToggleAll={
+                selection.allSelected
+                  ? selection.clearSelection
+                  : selection.selectAll
               }
-              onSelectAll={() => setSelected(items.map(idOf))}
-              onExit={() => {
-                setSelecting(false);
-                setSelected([]);
-              }}
+              onSelectAll={selection.selectAll}
+              onExit={selection.exit}
             />
           )
         }
@@ -821,15 +873,8 @@ export default function ProxmoxList() {
                           </>
                         ) : null
                       }
-                      selecting={selecting}
-                      selected={selected.includes(idOf(item))}
-                      onToggle={(value) =>
-                        setSelected((s) =>
-                          value
-                            ? [...s, idOf(item)]
-                            : s.filter((id) => id !== idOf(item)),
-                        )
-                      }
+                      selection={selection}
+                      selectable={canSelect}
                     />
                   ))}
                 </div>
@@ -931,18 +976,26 @@ export default function ProxmoxList() {
           <Feedback data={operationFetcher.data} />
         </CancelOperationDialog>
       )}
+      {selection.error && (
+        <p role="alert" className="text-sm text-destructive">
+          {selection.error}
+        </p>
+      )}
       <BulkActionBar
+        show={canSelect && selecting}
+        isLoading={fetcher.state !== "idle"}
         count={selected.length}
         actions={[
-          { key: "company", icon: RiBuildingLine, label: "Назначить компанию" },
+          {
+            key: "company",
+            icon: RiBuildingLine,
+            label: "Назначить компанию",
+            reason: selectionReason,
+          },
         ]}
         onPick={() => {
           setCompany("");
           setAssign(true);
-        }}
-        onClear={() => {
-          setSelected([]);
-          setSelecting(false);
         }}
       />
       <FormSheet
@@ -969,11 +1022,17 @@ export default function ProxmoxList() {
           />
         </Field>
         <Feedback data={fetcher.data} />
+        {destinationReason && (
+          <p role="status" className="mt-3 text-sm text-muted-foreground">
+            {destinationReason}
+          </p>
+        )}
         <FormActions className="justify-end">
           <Button variant="ghost" onClick={() => setAssign(false)}>
             Отмена
           </Button>
-          <Button
+          <ReasonButton
+            reason={destinationReason}
             disabled={fetcher.state !== "idle"}
             onClick={() =>
               fetcher.submit(
@@ -987,7 +1046,7 @@ export default function ProxmoxList() {
             }
           >
             Сохранить
-          </Button>
+          </ReasonButton>
         </FormActions>
       </FormSheet>
     </>

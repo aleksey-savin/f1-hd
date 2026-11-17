@@ -859,3 +859,18 @@ For future cleanup — these are landmines, not behaviours to rely on:
 - Environment / Tech widget: `frontend/src/components/app/{Environment,EnvironmentDeviceTile,EnvironmentDeviceSheet,TechSection}.jsx`,
   `frontend/src/hooks/useSemanticZoom.js`
 - Related: `docs/mikrotik-management.md`, `docs/ux-ui-guide.md`
+
+## Bulk location changes
+
+The main Devices list uses the shared ticket selection controls. Select all covers
+the entire filtered result across server pages. `POST /client-devices/move-preview`
+accepts `{ids}` and returns a blocking reason or destinations valid for every
+selected device and its components. `POST /client-devices/move` accepts
+`{ids, locationId}`, rechecks access and eligibility, and moves whole assemblies.
+Both routes require `device.manage`. Attached components cannot move separately.
+Technical failures report completed assemblies and the number of saved records.
+
+New devices require a location, including creation from MikroTik and MCP changes.
+An existing location cannot be cleared; older records without one remain editable
+for unrelated fields. Moves preserve company, assignee, and status. Single-device
+location edits also move components. Mixed companies can share a public location.

@@ -22,7 +22,12 @@ const MOVE_TOLERANCE_PX = 10;
 // заявку поверх только что включённого режима.
 const CLICK_SUPPRESS_MS = 500;
 
-const useListSelection = ({ items = [], enabled = true }) => {
+const useListSelection = ({
+  items = [],
+  rangeItems,
+  enabled = true,
+  onExit,
+}) => {
   const [isActive, setIsActive] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -32,6 +37,10 @@ const useListSelection = ({ items = [], enabled = true }) => {
   const suppressClickRef = useRef(false);
 
   const ids = useMemo(() => items.map((item) => String(item._id)), [items]);
+  const rangeIds = useMemo(
+    () => (rangeItems || items).map((item) => String(item._id ?? item.id)),
+    [rangeItems, items],
+  );
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const cancelPress = useCallback(() => {
@@ -43,10 +52,11 @@ const useListSelection = ({ items = [], enabled = true }) => {
   useEffect(() => cancelPress, [cancelPress]);
 
   const exit = useCallback(() => {
+    onExit?.();
     setIsActive(false);
     setSelectedIds([]);
     anchorRef.current = null;
-  }, []);
+  }, [onExit]);
 
   const enter = useCallback(
     (id) => {
@@ -69,10 +79,13 @@ const useListSelection = ({ items = [], enabled = true }) => {
       // Shift+клик добавляет весь отрезок от предыдущей тронутой строки: на
       // «закрыть двадцать заявок» это единственное, что реально экономит время.
       if (range && anchorRef.current) {
-        const from = ids.indexOf(anchorRef.current);
-        const to = ids.indexOf(key);
+        const from = rangeIds.indexOf(anchorRef.current);
+        const to = rangeIds.indexOf(key);
         if (from !== -1 && to !== -1) {
-          const slice = ids.slice(Math.min(from, to), Math.max(from, to) + 1);
+          const slice = rangeIds.slice(
+            Math.min(from, to),
+            Math.max(from, to) + 1,
+          );
           setSelectedIds((prev) => [
             ...prev,
             ...slice.filter((item) => !prev.includes(item)),
@@ -89,7 +102,7 @@ const useListSelection = ({ items = [], enabled = true }) => {
           : [...prev, key],
       );
     },
-    [enabled, ids],
+    [enabled, rangeIds],
   );
 
   const selectAll = useCallback(() => {
@@ -191,6 +204,10 @@ const useListSelection = ({ items = [], enabled = true }) => {
     exit,
     toggle,
     selectAll,
+    selectIds: (values) => {
+      setIsActive(true);
+      setSelectedIds(values.map(String));
+    },
     clearSelection,
     pressProps,
     consumeSuppressedClick,

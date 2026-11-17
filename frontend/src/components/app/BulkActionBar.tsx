@@ -97,7 +97,7 @@ const BulkActionBar = ({
               ? { duration: 0 }
               : { type: "spring", stiffness: 420, damping: 34 }
           }
-          className="fixed inset-x-0 bottom-4 flex justify-center px-4"
+          className="pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-4"
           // Легаси-шкала z (tw-сетка заканчивается на 50): выше radix-оверлеев
           // приложения, как и прежняя панель заявок
           style={{ zIndex: 1100 }}
@@ -106,7 +106,7 @@ const BulkActionBar = ({
             <div
               role="toolbar"
               aria-label={ariaLabel}
-              className="flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-lg"
+              className="pointer-events-auto flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-lg"
             >
               <span className="inline-flex items-center gap-2 pe-1 text-sm font-semibold whitespace-nowrap">
                 {status}
