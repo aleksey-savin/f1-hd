@@ -34,7 +34,6 @@ import { agentLabels } from "./guest-agent-presentation";
 import {
   fleetStates,
   fleetState,
-  nodeNeedsAttention,
   shouldClearBulkSelection,
 } from "./fleet-presentation";
 import { securitySummary, cveAlertCount } from "./guest-security-presentation";
@@ -166,83 +165,80 @@ function Row({ item, kind, selection, selectable, extraActions }) {
       label={title}
       enabled={selectable}
     >
-      <div
-        className={`proxmox-exposure-row ${item.exposure?.hasPublic ? "has-public" : item.exposure?.unknownCount ? "has-unknown" : item.exposure?.hasRestricted ? "has-restricted" : ""}`}
-      >
-        <ListRow
-          // updatedAt advances on every monitoring poll, not just user edits.
-          // Only creation is meaningful for the shared row's highlight here.
-          item={{ _id: idOf(item), createdAt: item.createdAt }}
-          title={
-            <Link
-              to={`${ROOT}/${kind}/${idOf(item)}`}
-              onClick={(event) => event.stopPropagation()}
-              className="text-foreground hover:text-foreground"
-            >
-              {title}
-            </Link>
-          }
-          detailTo={`${ROOT}/${kind}/${idOf(item)}`}
-          glyph={<Icon size={22} />}
-          meta={
-            <>
-              <span className="block truncate">
-                {meta}
-                {first != null && <> · {first}</>}
+      <ListRow
+        selectionManaged={selectable}
+        // updatedAt advances on every monitoring poll, not just user edits.
+        // Only creation is meaningful for the shared row's highlight here.
+        item={{ _id: idOf(item), createdAt: item.createdAt }}
+        title={
+          <Link
+            to={`${ROOT}/${kind}/${idOf(item)}`}
+            onClick={(event) => event.stopPropagation()}
+            className="text-foreground hover:text-foreground"
+          >
+            {title}
+          </Link>
+        }
+        detailTo={`${ROOT}/${kind}/${idOf(item)}`}
+        glyph={<Icon size={22} />}
+        meta={
+          <>
+            <span className="block truncate">
+              {meta}
+              {first != null && <> · {first}</>}
+            </span>
+            {kind === "guests" && <ExposureLabel summary={item.exposure} />}
+            {kind === "guests" && item.visibleOperation && (
+              <OperationStatus
+                compact
+                operation={item.visibleOperation}
+                journalHref={`${ROOT}/guests/${idOf(item)}#operations`}
+              />
+            )}
+            {kind === "guests" && item.guestSecurity && (
+              <span
+                className={`mt-1 block whitespace-normal text-xs ${cveAlertCount(item.guestSecurity) > 0 && ["completed", "partial"].includes(item.guestSecurity.status) ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                CVE: {securitySummary(item.guestSecurity)}
               </span>
-              {kind === "guests" && <ExposureLabel summary={item.exposure} />}
-              {kind === "guests" && item.visibleOperation && (
-                <OperationStatus
-                  compact
-                  operation={item.visibleOperation}
-                  journalHref={`${ROOT}/guests/${idOf(item)}#operations`}
-                />
-              )}
-              {kind === "guests" && item.guestSecurity && (
-                <span
-                  className={`mt-1 block whitespace-normal text-xs ${cveAlertCount(item.guestSecurity) > 0 && ["completed", "partial"].includes(item.guestSecurity.status) ? "text-destructive" : "text-muted-foreground"}`}
-                >
-                  CVE: {securitySummary(item.guestSecurity)}
+            )}
+            {kind === "guests" && (
+              <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
+                {item.guestOs?.name || "ОС не определена"} · Агент:{" "}
+                {guestAgentLabel(item)}
+              </span>
+            )}
+            {kind === "nodes" && (
+              <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
+                <NodeSecuritySummary report={item.nodeSecurity} />
+              </span>
+            )}
+            {kind !== "companies" && (
+              <span className="proxmox-row-mobile mt-0.5 block md:hidden">
+                <Status item={item} kind={kind} />
+              </span>
+            )}
+          </>
+        }
+        column={
+          ["nodes", "guests"].includes(kind) ? (
+            <FleetColumns item={item} kind={kind} />
+          ) : (
+            kind !== "companies" && (
+              <>
+                <span className="hidden min-w-0 flex-1 text-sm text-muted-foreground lg:block">
+                  {second}
                 </span>
-              )}
-              {kind === "guests" && (
-                <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
-                  {item.guestOs?.name || "ОС не определена"} · Агент:{" "}
-                  {guestAgentLabel(item)}
-                </span>
-              )}
-              {kind === "nodes" && (
-                <span className="proxmox-row-mobile mt-1 block whitespace-normal text-xs md:hidden">
-                  <NodeSecuritySummary report={item.nodeSecurity} />
-                </span>
-              )}
-              {kind !== "companies" && (
-                <span className="proxmox-row-mobile mt-0.5 block md:hidden">
+                <span className="hidden w-36 shrink-0 text-sm md:block">
                   <Status item={item} kind={kind} />
                 </span>
-              )}
-            </>
-          }
-          column={
-            ["nodes", "guests"].includes(kind) ? (
-              <FleetColumns item={item} kind={kind} />
-            ) : (
-              kind !== "companies" && (
-                <>
-                  <span className="hidden min-w-0 flex-1 text-sm text-muted-foreground lg:block">
-                    {second}
-                  </span>
-                  <span className="hidden w-36 shrink-0 text-sm md:block">
-                    <Status item={item} kind={kind} />
-                  </span>
-                </>
-              )
+              </>
             )
-          }
-          extraActions={extraActions}
-          showExtraActions={Boolean(extraActions)}
-        />
-      </div>
+          )
+        }
+        extraActions={extraActions}
+        showExtraActions={Boolean(extraActions)}
+      />
     </SelectableRow>
   );
 }
@@ -494,21 +490,6 @@ export default function ProxmoxList() {
   return (
     <>
       <Feedback data={!assign ? fetcher.data : null} />
-      {kind === "guests" &&
-        (data.nodeWarnings || [])
-          .filter((node) => nodeNeedsAttention(node.nodeSecurity))
-          .map((node) => (
-            <Link
-              key={idOf(node)}
-              to={`${ROOT}/nodes/${idOf(node)}`}
-              className="mb-3 block rounded-xl border border-border bg-card px-4 py-3 text-sm"
-            >
-              <span className="font-medium">{node.name}</span>
-              <span className="mt-1 block">
-                <NodeSecuritySummary report={node.nodeSecurity} />
-              </span>
-            </Link>
-          ))}
       <ListWrapper
         title={() => "Мониторинг Proxmox"}
         count={total}

@@ -350,7 +350,6 @@ exports.update = async (req, res, next) => {
     // Старое значение читаем до перезаписи preferences.knowledgeBase.
     let secretsJustEnabled = false;
     let serviceJustEnabled = false;
-    let proxmoxLinksChanged = false;
 
     /**
      * Требование второго фактора к администраторам.
@@ -588,7 +587,6 @@ exports.update = async (req, res, next) => {
       }
       for (const [key, value] of Object.entries(validated.changes))
         preferences.set(`proxmox.${key}`, value);
-      proxmoxLinksChanged = Object.hasOwn(validated.changes, 'networkLinks');
     }
 
     // Табло статусов: из веба приходит только isActive; служебные поля
@@ -636,10 +634,7 @@ exports.update = async (req, res, next) => {
 
     if (wazzupDraft) await wazzupConfiguration.saveConfiguration(wazzupDraft);
     await preferences.save();
-    if (proxmoxLinksChanged) {
-      await require('../services/proxmox/exposure/store').invalidateResources({}, 'networkLinksChanged');
-      await require('../services/proxmox/core').event({ connectionId: null }, 'networkLinksChanged', 'Сохранены связи сетей Proxmox с MikroTik', req.auth.userId);
-    }
+
     if (taxiDraft) await taxiConfiguration.saveConfiguration(taxiDraft);
 
     // Только что включённые фичи сканируем сразу. Ошибка скана не должна

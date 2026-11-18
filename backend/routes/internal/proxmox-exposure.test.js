@@ -43,7 +43,14 @@ test("detail denies end users before storage and reads no private report without
     },
     { json: (value) => (dto = value) },
   );
-  assert.ok(dto.summary);
+  assert.equal(dto.summary, null);
   assert.equal(dto.publications, undefined);
   assert.equal(dto.sources, undefined);
+});
+test('node read, save and catalog endpoints reject end users and each missing permission before storage',async(t)=>{
+ t.mock.method(Resource,'findOne',()=>assert.fail('denied request must not read node'));
+ for(const handler of [controller.nodeLinks,controller.saveNodeLinks,controller.nodeOptions]) {
+  for(const auth of [{isEndUser:true,can:()=>true},...['read','manage','mikrotik'].map(denied=>({can:rights=>denied==='mikrotik'?!rights.mikrotik:!rights.proxmox?.includes(denied)}))])
+   await assert.rejects(handler({params:{id:'64aa00000000000000000001'},query:{},body:{},auth},{json:()=>assert.fail()}),e=>e.status===403||e.statusCode===403);
+ }
 });

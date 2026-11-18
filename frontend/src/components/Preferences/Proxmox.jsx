@@ -5,8 +5,6 @@ import Combobox from "@/components/app/Combobox";
 import SettingRow from "@/components/app/SettingRow";
 import Segmented from "@/components/app/Segmented";
 import SectionForm from "./SectionForm";
-import ProxmoxNetworks from "./ProxmoxNetworks";
-import { useCan } from "@/store/authed-user";
 const defaults = {
   cpuThreshold: 90,
   memoryThreshold: 90,
@@ -38,7 +36,6 @@ const thresholds = [
   ],
 ];
 export default function PrefsProxmox({ prefs }) {
-  const can = useCan();
   const [values, setValues] = useState(() => ({
     ...defaults,
     ...prefs.proxmox,
@@ -82,9 +79,10 @@ export default function PrefsProxmox({ prefs }) {
               ? "Выберите активную категорию заявки"
               : null
           : null;
+  const { networkLinks: _networkLinks, ...policyValues } = values;
   const payload = () => ({
     proxmox: {
-      ...values,
+      ...policyValues,
       ...Object.fromEntries(
         thresholds.map(([key]) => [
           key,
@@ -125,13 +123,6 @@ export default function PrefsProxmox({ prefs }) {
               onCheckedChange={(value) => set("exposureTicketsEnabled", value)}
             />
           </SettingRow>
-          <ProxmoxNetworks
-            value={values.networkLinks || []}
-            onChange={(value) => set("networkLinks", value)}
-            canEdit={
-              can({ proxmox: ["manage"] }) && can({ mikrotik: ["read"] })
-            }
-          />
         </>
       )}
       {thresholds.map(([key, label, hint], index) => (

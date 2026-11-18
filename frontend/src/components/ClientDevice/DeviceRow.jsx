@@ -80,7 +80,7 @@ const InventoryNumber = ({ number, className }) =>
  * гнездо остаётся (одна кнопка), а «⋯» там не нужен — правка и удаление живут
  * на карточке, куда ведёт тап по строке.
  */
-const DeviceRow = ({ device }) => {
+const DeviceRow = ({ device, selectionManaged = false }) => {
   const navigate = useNavigate();
   const { _id: userId } = useAuthedUser();
   const can = useCan();
@@ -150,8 +150,8 @@ const DeviceRow = ({ device }) => {
         "group relative flex cursor-pointer items-center gap-4 px-5 py-3 transition-colors",
         // Разделитель — от правого края плитки (20 + 48 + 16), как у любой
         // строки с плиткой
-        "before:absolute before:top-0 before:right-5 before:left-21 before:h-px before:bg-border-soft first:before:hidden",
-        "hover:bg-accent/60",
+        !selectionManaged &&
+          "before:absolute before:top-0 before:right-5 before:left-21 before:h-px before:bg-border-soft first:before:hidden hover:bg-accent/60",
         justCreated && "row-appear",
         justUpdated && "row-flash",
       )}

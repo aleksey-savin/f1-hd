@@ -305,7 +305,7 @@ const ClientDevices = () => {
               enabled={canManage}
               selection={selection}
             >
-              <DeviceRow device={device} />
+              <DeviceRow device={device} selectionManaged={canManage} />
             </SelectableRow>
           ))}
         </div>

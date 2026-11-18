@@ -2,20 +2,22 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const sift = require("sift").default;
 const { applyExposureFilter } = require("./query");
+const { nodeLinksVersion } = require("./scope");
+const nodeVersion = nodeLinksVersion([{connectionId:"c",nodeName:"pve"}], {connectionId:"c",nodeName:"pve"});
 const prefs = {
   modules: { proxmox: { isActive: true }, mikrotik: { isActive: true } },
-  proxmox: { networkLinksVersion: "v" },
+  proxmox: { networkLinksVersion: nodeVersion, networkLinks:[{connectionId:"c",nodeName:"pve"}] },
 };
 test("publication filters use source TTL at query time and preserve prior search clauses", () => {
   const now = new Date(1000),
     filter = { $or: [{ name: "g" }] };
   applyExposureFilter(filter, "published", { prefs, now });
   const resource = {
-    name: "g",
+    name: "g", connectionId:"c",nodeName:"pve",
     template: false,
     monitoringEnabled: true,
     exposure: {
-      networkLinksVersion: "v",
+      networkLinksVersion: nodeVersion,
       coverage: [
         { hasPublic: true, lastAttemptOk: true, freshUntil: new Date(2000) },
       ],
@@ -31,8 +33,8 @@ test("publication filters use source TTL at query time and preserve prior search
 test('attention filter follows the current severity without waiting for a NAT poll', () => {
   const { publicSummary } = require('./view');
   const now = new Date(1000);
-  const resource = { kind: 'guest', exposureGeneration: 1, exposure: {
-    generation: 1, networkLinksVersion: 'v', securityCheckedAt: now,
+  const resource = { kind: 'guest', connectionId:'c',nodeName:'pve', exposureGeneration: 1, exposure: {
+    generation: 1, networkLinksVersion: nodeVersion, securityCheckedAt: now,
     cveSeverityCounts: { high: 2, critical: 0, unknown: 8 }, confirmedCveCount: 10,
     coverage: [{ state: 'public', hasPublic: true, publishedCount: 1, lastAttemptOk: true, freshUntil: new Date(2000) }],
   } };
@@ -45,4 +47,22 @@ test('attention filter follows the current severity without waiting for a NAT po
     assert.equal(summary.confirmedCveCount, count);
     assert.equal(summary.needsAttention, expected);
   }
+});
+
+test('attention excludes unconfigured nodes and unattempted checks',()=>{
+ const filter={}; applyExposureFilter(filter,'attention',{prefs,now:new Date(1000)});
+ assert.equal(sift(filter)({connectionId:'c',nodeName:'pve'}),false);
+ assert.equal(sift(filter)({connectionId:'c',nodeName:'other',exposure:{networkLinksVersion:nodeVersion,coverage:[{state:'unmatched',unknownCount:1}]}}),false);
+ assert.equal(sift(filter)({connectionId:'c',nodeName:'pve',exposure:{networkLinksVersion:nodeVersion,coverage:[{state:'unmatched',unknownCount:1}]}}),true);
+});
+test('attention excludes old node configuration but ignores edits to unrelated nodes', () => {
+  const item = { connectionId: 'c', nodeName: 'pve', exposure: { networkLinksVersion: nodeVersion, coverage: [{ state: 'unknown', unknownCount: 1 }] } };
+  const changed = { ...prefs, proxmox: { networkLinks: [...prefs.proxmox.networkLinks, { connectionId: 'c', nodeName: 'other', vlan: 20 }] } };
+  const filter = {};
+  applyExposureFilter(filter, 'attention', { prefs: changed });
+  assert.equal(sift(filter)(item), true);
+  changed.proxmox.networkLinks.push({ connectionId: 'c', nodeName: 'pve', vlan: 20 });
+  const updated = {};
+  applyExposureFilter(updated, 'attention', { prefs: changed });
+  assert.equal(sift(updated)(item), false);
 });

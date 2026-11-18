@@ -10,6 +10,7 @@ const { buildGuestIndex, matchGuestNetworks } = require("./match");
 const { evaluateTargets } = require("./evaluate");
 const { invalidateResources, publishReport } = require("./store");
 const { linksVersion } = require("./network-links");
+const { nodeLinksVersion, belongsToNode } = require("./scope");
 const errorText = (error) => require("../policy").publicError(error);
 const networkWriteFilter = (guest) => ({
   _id: guest._id,
@@ -232,9 +233,10 @@ const tick = async (deps = {}) => {
   const index = buildGuestIndex(guests, activeLinks, snapshots, new Date());
   for (const guest of guests) {
     if (Date.now() >= deadline) break;
+    const nodeVersion = nodeLinksVersion(prefs.proxmox.networkLinks, guest);
     if (
       guest.exposure?.generation === (guest.exposureGeneration || 0) &&
-      guest.exposure?.networkLinksVersion === version
+      guest.exposure?.networkLinksVersion === nodeVersion
     ) {
       await require("./tickets").syncExposureIssue(guest._id);
       continue;
@@ -249,12 +251,17 @@ const tick = async (deps = {}) => {
       },
       now,
     );
+    if (matched.configured === false) {
+      await Resource.updateOne({ _id: guest._id, exposureGeneration: guest.exposureGeneration ?? null }, { $unset: { exposure: '' } });
+      continue;
+    }
     const report = evaluateTargets(
       { guestTargets: matched, routerSnapshots: snapshots },
       now,
     );
     const inputs = {
-      networkLinksVersion: version,
+      networkLinksVersion: nodeVersion,
+      activeLinkIds: activeLinks.filter(link => belongsToNode(link, guest)).map(link => String(link._id)),
       guestIdentity:
         guest.guestIdentity || guest.guestNetwork?.identity || null,
       guestNetworkVersion: guest.guestNetwork?.version || null,

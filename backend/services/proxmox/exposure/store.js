@@ -41,17 +41,20 @@ const publishReport = async (resourceId, generation, inputVersions, report) => {
     if (
       inputVersions.guestIdentity &&
       old?.inputVersions?.guestIdentity === inputVersions.guestIdentity &&
+      old.inputVersions.networkLinksVersion === inputVersions.networkLinksVersion &&
       old.report?.publications?.length
     ) {
+      const activeLinks = new Set(inputVersions.activeLinkIds || []);
+      const stillLinked = row => activeLinks.has(String(row.linkId));
       report = {
         ...report,
-        publications: old.report.publications.map((row) => ({
+        publications: old.report.publications.filter(stillLinked).map((row) => ({
           ...row,
           stale: true,
         })),
         sources: [
           ...(report.sources || []),
-          ...(old.report.sources || []).map((row) => ({
+          ...(old.report.sources || []).filter(stillLinked).map((row) => ({
             ...row,
             lastAttemptOk: false,
           })),

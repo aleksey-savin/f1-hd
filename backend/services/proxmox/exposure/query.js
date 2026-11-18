@@ -1,5 +1,5 @@
 const { enabled, TIMING } = require("./contract");
-const { linksVersion } = require("./network-links");
+const { nodeScope, nodeLinksVersion } = require("./scope");
 const { fail } = require("../policy");
 const { minSeverity } = require('../cve-policy');
 const applyExposureFilter = (
@@ -12,16 +12,22 @@ const applyExposureFilter = (
     fail("Неизвестный фильтр доступа из интернета");
   const add = (condition) => (filter.$and ||= []).push(condition);
   add({ template: { $ne: true } });
-  const version =
-    prefs.proxmox?.networkLinksVersion ||
-    linksVersion(prefs.proxmox?.networkLinks || []);
+  // A report only describes the current configuration of its own node.
+  const links = prefs.proxmox?.networkLinks || [];
+  const scopes = [...new Map(links.map(link => {
+    const scope = nodeScope(link);
+    return [JSON.stringify(scope), {
+      ...scope, 'exposure.networkLinksVersion': nodeLinksVersion(links, scope),
+    }];
+  })).values()];
+  add(scopes.length ? { $or: scopes } : { _id: { $in: [] } });
+  add({ 'exposure.coverage.0': { $exists: true } });
   const fresh = { lastAttemptOk: { $ne: false }, freshUntil: { $gt: now } };
   const positive = {
     ...fresh,
     $or: [{ hasPublic: true }, { hasRestricted: true }],
   };
   const valid = {
-    "exposure.networkLinksVersion": version,
     "exposure.invalidated": { $ne: true },
     monitoringEnabled: { $ne: false },
   };
@@ -60,8 +66,6 @@ const applyExposureFilter = (
   };
   add({
     $or: [
-      { exposure: null },
-      { "exposure.networkLinksVersion": { $ne: version } },
       { "exposure.invalidated": true },
       { monitoringEnabled: false },
       ...(disabledConnectionIds.length

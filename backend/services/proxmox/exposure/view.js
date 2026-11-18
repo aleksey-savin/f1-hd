@@ -1,6 +1,6 @@
 const { enabled } = require("./contract");
 const { summaryOf } = require("./evaluate");
-const { linksVersion } = require("./network-links");
+const { belongsToNode, nodeLinksVersion } = require("./scope");
 const publicSummary = (resource, prefs, now = new Date()) => {
   if (
     !enabled(prefs) ||
@@ -9,9 +9,10 @@ const publicSummary = (resource, prefs, now = new Date()) => {
   )
     return null;
   const stored = resource.exposure;
-  const expected =
-    prefs.proxmox?.networkLinksVersion ||
-    linksVersion(prefs.proxmox?.networkLinks || []);
+  if (!(prefs.proxmox?.networkLinks || []).some(link => belongsToNode(link, resource)) || !stored?.coverage?.length)
+    return null;
+  const expected = nodeLinksVersion(prefs.proxmox?.networkLinks || [], resource);
+  if (stored.networkLinksVersion !== expected) return null;
   const valid =
     stored &&
     !stored.invalidated &&
@@ -22,14 +23,7 @@ const publicSummary = (resource, prefs, now = new Date()) => {
     resource.connectionId?.monitoringEnabled !== false;
   const coverage = stored?.coverage?.map((row) =>
     valid ? row : { ...row, lastAttemptOk: false },
-  ) || [
-    {
-      state: "unmatched",
-      unknownCount: 1,
-      lastAttemptOk: false,
-      reasonCodes: ["networkUnmatched"],
-    },
-  ];
+  );
   const scan = stored?.securityCheckedAt
     ? {
         checkedAt: stored.securityCheckedAt,
@@ -63,8 +57,7 @@ const publicDetail = (resource, record, access, prefs, now = new Date()) => {
     record?.generation ===
       (resource.exposureGeneration ?? record?.generation) &&
     resource.exposure?.networkLinksVersion ===
-      (prefs.proxmox?.networkLinksVersion ||
-        linksVersion(prefs.proxmox?.networkLinks || []));
+      nodeLinksVersion(prefs.proxmox?.networkLinks || [], resource);
   dto.publications = (report?.publications || []).map((row) => ({
     verdict: row.verdict,
     protocol: row.protocol,

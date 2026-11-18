@@ -48,8 +48,7 @@ const validateNetworkLinks = async (input, current = [], context = {}) => {
   if (input === undefined || JSON.stringify(input) === JSON.stringify(old))
     return old;
   if (
-    !context.can?.({ settings: ["manage"] }) ||
-    !context.can({ proxmox: ["manage"] }) ||
+    !context.can?.({ proxmox: ["manage"] }) ||
     !context.can({ mikrotik: ["read"] })
   )
     fail("Недостаточно прав для изменения сетевых связей", 403);
@@ -143,10 +142,30 @@ const validateNetworkLinks = async (input, current = [], context = {}) => {
   }
   return result;
 };
+// The editor needs an interface catalogue, not a full firewall/routing scan.
+const collectRouterCatalogue = async (record, deps = {}) => {
+  const collect = async read => {
+    const interfaces = await read(['/interface/print'], { timeoutMs: 5000 });
+    const interfaceLists = await read(['/interface/list/print'], { timeoutMs: 5000 });
+    const { LIMITS } = require('./contract');
+    if (![interfaces, interfaceLists].every(rows => Array.isArray(rows) && rows.length <= LIMITS.ROWS && rows.every(row => typeof row?.name === 'string')))
+      fail('Не удалось прочитать интерфейсы MikroTik', 502);
+    return { interfaces, interfaceLists };
+  };
+  if (deps.read) return collect(deps.read);
+  return require('../../mikrotik/liveLimiter').liveLimiter.run(record, async () => {
+    const { pollParams, resolveJumpContext } = require('../../mikrotik/monitorState');
+    const jump = await resolveJumpContext(record);
+    const { LIMITS } = require('./contract');
+    return require('../../mikrotik/connector').withApiSession(
+      { ...pollParams(record), jump: jump?.params }, collect,
+      { deadlineMs: 15000, readLimits: { maxBytes: LIMITS.BYTES, maxRows: LIMITS.ROWS } },
+    );
+  });
+};
 const getNetworkOptions = async (input, access = {}) => {
   if (
-    !access.can?.({ settings: ["manage"] }) ||
-    !access.can({ proxmox: ["manage"] }) ||
+    !access.can?.({ proxmox: ["manage"] }) ||
     !access.can({ mikrotik: ["read"] })
   )
     fail("Недостаточно прав", 403);
@@ -222,11 +241,7 @@ const getNetworkOptions = async (input, access = {}) => {
       .lean();
     if (!snapshot?.data || Date.now() - new Date(snapshot.checkedAt) > 300000) {
       const record = await Router.findById(input.routerId).lean();
-      const raw = await cachedCatalogue(`router:${input.routerId}`, () =>
-        require("../../mikrotik/exposure-snapshot").collectRouterSnapshot(
-          record,
-        ),
-      );
+      const raw = await cachedCatalogue(`router:${input.routerId}`, () => collectRouterCatalogue(record));
       snapshot = { data: raw };
     }
     result.interfaces = (snapshot.data.interfaces || []).map((row) => ({
@@ -240,12 +255,10 @@ const getNetworkOptions = async (input, access = {}) => {
   }
   return result;
 };
-const publicSettings = (settings, can) => {
+const publicSettings = (settings) => {
   const result = plain(settings || {});
-  if (!can?.({ mikrotik: ["read"] }) || !can?.({ proxmox: ["manage"] })) {
-    delete result.networkLinks;
-    delete result.networkLinksVersion;
-  }
+  delete result.networkLinks;
+  delete result.networkLinksVersion;
   return result;
 };
 module.exports = {
@@ -254,4 +267,5 @@ module.exports = {
   cidrRange,
   getNetworkOptions,
   publicSettings,
+  collectRouterCatalogue,
 };

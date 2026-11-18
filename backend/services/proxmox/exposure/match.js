@@ -106,22 +106,21 @@ const matchGuestNetworks = (
         ? "Не удалось связать ВМ с сетью"
         : "Нет свежих адресов гостя",
   });
+  const scoped = links.filter(
+    (row) => String(row.connectionId) === String(guest.connectionId?._id || guest.connectionId) && row.nodeName === guest.nodeName,
+  );
+  const applicableLinks = nic => scoped.filter(link => inScope(guest, nic, link) &&
+    (!(nic.addresses || []).length || nic.addresses.some(ip => inSubnet(ip.address, link))));
+  const interfaces = (network?.interfaces || []).filter(nic => applicableLinks(nic).length);
+  if (!scoped.length || (!network?.checkedAt && !network?.lastAttemptAt) ||
+      ((network?.interfaces || []).length > 0 && !interfaces.length))
+    return { targets, unresolved, configured: false };
   if (freshness({ ...network, versionMatches: true }, now) !== "fresh")
     return { targets, unresolved: [failure("guestNetworkStale")] };
   const foreign = (key) =>
     [...(guestIndex.get(key) || [])].some((id) => id !== String(guest._id));
-  const scoped = links.filter(
-    (row) =>
-      String(row.connectionId) ===
-        String(guest.connectionId?._id || guest.connectionId) &&
-      row.nodeName === guest.nodeName,
-  );
-  for (const nic of network.interfaces || []) {
-    const applicable = scoped.filter((link) => inScope(guest, nic, link));
-    if (!applicable.length) {
-      unresolved.push(failure("networkUnmatched"));
-      continue;
-    }
+  for (const nic of interfaces) {
+    const applicable = applicableLinks(nic);
     for (const link of applicable) {
       const ips = candidateAddresses(nic, link, routerSnapshots, now);
       for (const ip of ips) {
@@ -152,7 +151,7 @@ const matchGuestNetworks = (
   }
   if (!targets.length && !unresolved.length)
     unresolved.push(failure("networkUnmatched"));
-  if (network.addressesComplete === false && targets.length)
+  if (network.addressesComplete === false && targets.length && interfaces.some(nic => !nic.completeAddresses))
     unresolved.push({
       code: "addressCoverage",
       summary: "Не все адреса гостя удалось проверить",

@@ -22,3 +22,8 @@ test("network catalog endpoint independently denies missing integration rights",
     (e) => e.statusCode === 403 || e.status === 403,
   );
 });
+test('global preferences cannot change node network links', async()=>{
+ await assert.rejects(validateSettings({networkLinks:[]},{networkLinks:[{cidr:'10.0.0.0/24'}]},{can:()=>true}),/страниц/);
+ const result=await validateSettings({cpuThreshold:80,networkLinks:[]},{networkLinks:[]},{can:()=>true});
+ assert.deepEqual(result.changes,{cpuThreshold:80});
+});

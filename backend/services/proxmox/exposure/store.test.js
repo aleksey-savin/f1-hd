@@ -46,10 +46,10 @@ test("lost address evidence retains historical publications only for the same gu
       return this;
     },
     lean: async () => ({
-      inputVersions: { guestIdentity: "same" },
+      inputVersions: { networkLinksVersion:"original", guestIdentity: "same", activeLinkIds: ["kept"] },
       report: {
-        publications: [{ ruleId: "old", checkedAt: new Date(0) }],
-        sources: [],
+        publications: [{ ruleId: "old", linkId: "kept", checkedAt: new Date(0) }, { ruleId: "removed", linkId: "removed" }],
+        sources: [{ linkId: "kept" }, { linkId: "removed" }],
       },
     }),
   }));
@@ -62,7 +62,7 @@ test("lost address evidence retains historical publications only for the same gu
   await publishReport(
     "g",
     1,
-    { guestIdentity: "same" },
+    { networkLinksVersion:"original", guestIdentity: "same", activeLinkIds: ["kept"] },
     {
       coverage: [{ state: "unknown", unknownCount: 1 }],
       publications: [],
@@ -70,6 +70,8 @@ test("lost address evidence retains historical publications only for the same gu
     },
   );
   assert.equal(stored.publications[0].stale, true);
+  assert.deepEqual(stored.publications.map(row => row.ruleId), ["old"]);
+  assert.deepEqual(stored.sources.map(row => row.linkId), ["kept"]);
   await publishReport(
     "g",
     1,
@@ -81,4 +83,10 @@ test("lost address evidence retains historical publications only for the same gu
     },
   );
   assert.equal(stored.publications.length, 0);
+  await publishReport('g', 1, {
+    guestIdentity:'same', activeLinkIds:['kept'], networkLinksVersion:'edited-same-link-id',
+  }, { coverage:[{state:'unknown',unknownCount:1}], publications:[], sources:[] });
+  assert.deepEqual(stored.publications, [], 'edited mappings must not inherit paths from their former configuration');
+  assert.deepEqual(stored.sources, []);
+
 });

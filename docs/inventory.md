@@ -740,16 +740,27 @@ documented in each component's own header.
   Older Windows reports acquire missing ratings at their next CVE check.
 - **Proxmox external publications** — when both Proxmox and MikroTik modules
   are enabled, guest rows and cards show direct IPv4 TCP/UDP publications from
-  explicitly linked networks. Configure connection/node/bridge/VLAN/subnet and
-  router/LAN/WAN in `/preferences#proxmox`; matching a bare IP or the connection's
-  transit router never establishes ownership. Runtime guest interfaces, or
+  explicitly linked networks. On a node, use «Связать с сетевым устройством» in
+  its action menu (`/devices/proxmox/nodes/:id/network-links`). The shared form
+  suggests MikroTik devices by exact IPv4 subnet matches and shows every discovered
+  bridge/VLAN/subnet. Unique correspondences are preselected; multiple candidate
+  interfaces or the same router LAN matching several segments require explicit
+  choice. One node can link multiple devices. Saved mappings remain removable when
+  discovery or a device is unavailable. The API requires `proxmox.read`,
+  `proxmox.manage`, and `mikrotik.read`, not `settings.manage`; node scope comes
+  from the resource, and concurrent saves use a revision guard. General monitoring
+  and ticket policies remain in `/preferences#proxmox`. Matching a bare IP or the
+  connection's transit router never establishes ownership. Runtime guest interfaces, or
   scoped active DHCP/ARP evidence, establish the destination. Rules are read
   every 5 minutes; after 15 minutes their previous result is historical.
   NAT, raw, routes and forward rules are evaluated in order for new connections;
   unsupported conditions stay unknown and proven port/source fragments remain
   separate. This is configuration evidence, not an external connectivity scan.
   Reverse proxies, multi-router NAT, public addressing without NAT and IPv6 are
-  outside this check. The guest list's `exposure` filter is server-side before
+  outside this check. Unconfigured networks and checks not yet attempted produce
+  no exposure label, warning, detail section, or attention-filter hit. Unlinked
+  interfaces do not create warnings alongside a configured interface.
+  The guest list's `exposure` filter is server-side before
   pagination. `GET /api/proxmox/guests/:id/exposure` returns a compact summary;
   IPs, rule identifiers and router links additionally require `mikrotik.read`.
   Closed network/worker fields never appear in the general resource DTO.

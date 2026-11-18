@@ -10,6 +10,10 @@
 системы» (`/preferences#<раздел>`). На страницах отчётов, списков и карточек нельзя
 добавлять собственное меню «Настройки» или отдельную страницу конфигурации модуля.
 Старые адреса настроек могут только перенаправлять в глобальный раздел.
+Исключение по указанию пользователя от 18.11.2026: связи узла Proxmox с сетевыми
+устройствами редактируются через пункт «Связать с сетевым устройством» в меню
+узла и общую нижнюю шторку. Общие политики мониторинга остаются в системных
+настройках; редактор связей туда не возвращать.
 
 ## Проверяемые правила интерфейса и доступа
 
@@ -18,11 +22,12 @@
 | Breadcrumbs содержат только иерархию текущей страницы; источник перехода доступен отдельной кнопкой и не накапливается в пути | `src/util/crumb-trail.test.js`: `buildCrumbTrail`, `crumbReturnOrigin` |
 | Номер заявки в подписи пишется без «№»: «Заявка 51713» | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
 | Неподтверждённые источником выводы ИИ отбрасываются отдельно, без ошибки анализа и ручного повтора; подтверждённые выводы сохраняются | `services/userReview/policy.test.js`, `services/userReview/detector.test.js`; прежние ошибки автоматически возвращаются в обработку — `services/userReview/store.test.js` |
-| Настройки модулей находятся только в глобальных настройках, без отдельных страниц и меню | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
+| Настройки модулей находятся в глобальных настройках; связи конкретного узла Proxmox с сетевыми устройствами — в меню узла | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
 | Первое сообщение из существующей заявки доступно по номеру заявителя без предварительного чата или входящего сообщения; номер проверяется сервером, занятая привязка не перехватывается, принятые части не дублируются | `services/messaging/delivery-routes.test.js`, `services/messaging/first-contact-flow.test.js`, `services/messaging/bindings-first-contact.test.js`, `services/wazzup/sender.test.js` |
 | Отправка из доступной заявки разрешается отдельным `ticket.sendMessage` без доступа к странице и API «Диалогов»; новое право переносится прежним отправителям без расширения чтения | `routes/internal/conversation-access.test.js`, `scripts/grantTicketMessaging.test.js`, `src/util/ticket-messaging-access.test.js` |
 | Новый диалог поддерживает пользователя HD и произвольный номер; повтор HTTP-запроса и конкурентный retry не дублируют сообщение, восстановление сохраняет подпись, вложения и принятые части | `services/messaging/start.test.js`, `services/messaging/retry-atomic.test.js`, `src/util/new-conversation.test.js` |
 | Право начинать диалоги позволяет своё обсуждение в существующем личном чате; чужая история, контекст заявок, цитаты, файлы, поиск и сводки недоступны; ответы наследуют доступ только по подтверждённому контексту | `services/messaging/start.test.js`, `services/messaging/access.test.js`, `services/messaging/incoming-context.test.js`, `services/messaging/read-scope.integration.test.js`, `controllers/conversation.scope.test.js`, `services/messaging/media-access.test.js` |
+| Связи сетей Proxmox сохраняются только в скоупе узла без права системных настроек; конкурирующее сохранение не затирает связи, не настроенные сети не создают предупреждений | `services/proxmox/exposure/node-network-links.test.js`, `services/proxmox/exposure/view.test.js`, `services/proxmox/exposure/match.test.js`, `services/proxmox/exposure/query.test.js` |
 | Даты и периоды вводятся общими `DateField` / `DateRangeField` / `DateTimeField`, без нативного календаря | `frontend/eslint.config.mjs`: `no-restricted-syntax`; `src/util/design-system.test.js` |
 | Меню и маршрут отчёта такси используют одно требование доступа; API проверяет его независимо | `TAXI_REPORT_ACCESS`, тест меню, `controllers/taxi.test.js` |
 | Новые права такси доступны административным ролям при обновлении; пропущенная старая раздача исправляется новой миграцией | `grantTaxiPermissions.test.js`, `migrate.test.js`, `ci/tests/deploy_migrations.sh` |

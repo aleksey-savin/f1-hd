@@ -15,10 +15,11 @@ export default function SelectableRow({
   return (
     <div
       className={cn(
-        "longpress-target group/selection relative",
+        "longpress-target group/selection relative transition-colors",
+        "before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden",
         revealed && "max-md:pl-8",
         "md:pl-7",
-        selected && "bg-primary/10",
+        selected ? "bg-primary/10" : "hover:bg-accent/60",
       )}
       {...selection.pressProps(id)}
       onKeyDownCapture={(event) => {
@@ -59,7 +60,7 @@ export default function SelectableRow({
           selection.toggle(id, { range: event.shiftKey });
         }}
         className={cn(
-          "absolute left-3 top-1/2 z-10 -translate-y-1/2 transition-opacity",
+          "absolute left-5 top-1/2 z-10 -translate-y-1/2 transition-opacity",
           revealed
             ? "opacity-100"
             : "opacity-0 group-hover/selection:opacity-85 group-hover/selection:delay-200 focus-visible:opacity-100 pointer-coarse:pointer-events-none",

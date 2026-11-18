@@ -46,6 +46,8 @@ type ListRowProps = {
   title: ReactNode;
   meta?: ReactNode;
   dimmed?: boolean;
+  /** Selection wrapper owns the full-width background and divider. */
+  selectionManaged?: boolean;
   openUpdateOnClick?: boolean;
   /** Переход на страницу сущности по клику (напр. услуга открывается во
    *  View, а не в шторке правки). Доступно всем, кто видит список. */
@@ -73,6 +75,7 @@ const ListRow = ({
   title,
   meta,
   dimmed = false,
+  selectionManaged = false,
   openUpdateOnClick = true,
   detailTo,
   extraActions,
@@ -117,9 +120,10 @@ const ListRow = ({
     <div
       className={cn(
         "group relative flex items-center gap-4 px-5 py-3 transition-colors",
-        "before:absolute before:top-0 before:right-5 before:h-px before:bg-border-soft first:before:hidden",
+        !selectionManaged &&
+          "before:absolute before:top-0 before:right-5 before:h-px before:bg-border-soft first:before:hidden",
         tiled ? "before:left-21" : "before:left-5",
-        "hover:bg-accent/60",
+        !selectionManaged && "hover:bg-accent/60",
         clickable && "cursor-pointer",
         justCreated && "row-appear",
         justUpdated && "row-flash",

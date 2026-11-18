@@ -33,6 +33,30 @@ test("module settings cannot become separate pages or navigation entries", async
     false,
   );
 });
+test("node network relations do not weaken the module settings rule", async () => {
+  for (const code of [
+    'export const route = {path:"network-links",handle:{...SHEET_LG},element:<NodeNetworks/>};',
+    'export const route = {path:"devices/proxmox/nodes/:id/network-links",element:<NodeNetworks/>};',
+    'export const Action = () => <DropdownMenuItem asChild><Link to="network-links">Связать с сетевым устройством</Link></DropdownMenuItem>;',
+    'export const route = {path:"devices/proxmox/settings",loader:()=>redirect("/preferences#proxmox")};',
+  ]) {
+    const [result] = await eslint.lintText(code, {
+      filePath: "src/pages/Proxmox/Example.tsx",
+    });
+    assert.equal(result.messages.some((message) => message.ruleId === "no-restricted-syntax"), false);
+  }
+  for (const code of [
+    'export const route = {path:"devices/proxmox/settings",element:<ProxmoxSettings/>};',
+    'export const Action = () => <Link to="/devices/proxmox/settings">Настройки</Link>;',
+    'export const route = {path:"devices/proxmox/nodes/:id/settings",element:<NodeSettings/>};',
+  ]) {
+    const [result] = await eslint.lintText(code, {
+      filePath: "src/pages/Proxmox/Example.tsx",
+    });
+    assert.ok(result.messages.some((message) => message.ruleId === "no-restricted-syntax" && /preferences/.test(message.message)));
+  }
+});
+
 test("lint rejects the native taxi-report date fields and names the shared replacement", async () => {
   for (const type of [
     'type="date"',

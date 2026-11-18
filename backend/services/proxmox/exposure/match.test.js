@@ -61,11 +61,11 @@ test("stale and missing scope cannot produce an absence of exposure", () => {
     ).targets.length,
     0,
   );
-  assert.ok(
+  assert.equal(
     matchGuestNetworks(
       { guest, guestIndex: index, links: [], routerSnapshots: [] },
       new Date(1),
-    ).unresolved.length,
+    ).unresolved.length, 0,
   );
 });
 test("agent and fallback candidates share ownership checks across nodes of one router LAN", () => {
@@ -133,4 +133,15 @@ test("agent and fallback candidates share ownership checks across nodes of one r
     ).targets.length,
     0,
   );
+});
+test('unlinked interfaces do not add warnings to configured guest networks',()=>{
+ const withExtra={...guest,guestNetwork:{...guest.guestNetwork,addressesComplete:false,interfaces:[{...guest.guestNetwork.interfaces[0],completeAddresses:true},{bridge:'vmbr2',vlan:50,addresses:[]}]}};
+ const result=matchGuestNetworks({guest:withExtra,guestIndex:buildGuestIndex([withExtra],[link],[],new Date(1)),links:[link],routerSnapshots:[]},new Date(1));
+ assert.equal(result.targets.length,1);
+ assert.deepEqual(result.unresolved,[]);
+});
+test('guest wholly outside configured bridge/VLAN scope is not checked',()=>{
+ const result=matchGuestNetworks({guest,guestIndex:new Map(),links:[{...link,vlan:99}],routerSnapshots:[]},new Date(1));
+ assert.equal(result.configured,false);
+ assert.deepEqual(result.unresolved,[]);
 });

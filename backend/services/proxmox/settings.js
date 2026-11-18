@@ -60,15 +60,9 @@ const validateSettings = async (input, current = {}, lookups = {}) => {
     }
   }
   Object.assign(data, changes);
-  if (Object.hasOwn(input, 'networkLinks')) {
-    const { validateNetworkLinks, linksVersion } = require('./exposure/network-links');
-    const links = await validateNetworkLinks(input.networkLinks, stored.networkLinks, lookups);
-    if (JSON.stringify(links) !== JSON.stringify(JSON.parse(JSON.stringify(stored.networkLinks || [])))) {
-      changes.networkLinks = links;
-      changes.networkLinksVersion = linksVersion(links);
-    }
-    data.networkLinks = links;
-  }
+  if (Object.hasOwn(input, 'networkLinks') &&
+      JSON.stringify(input.networkLinks) !== JSON.stringify(JSON.parse(JSON.stringify(stored.networkLinks || []))))
+    fail('Изменяйте связи с сетевыми устройствами на странице узла Proxmox');
   if (data.storageCritical <= data.storageWarning)
     fail("Критический порог должен быть выше уровня предупреждения");
   if (data.autoTickets && (!data.applicantId || !data.categoryId))

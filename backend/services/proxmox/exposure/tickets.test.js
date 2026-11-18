@@ -93,7 +93,8 @@ test("durable ticket source survives interruption after creation and opt-out is 
       applicantId: "service",
       categoryId: "category",
       thresholdMinutes: 5,
-      networkLinksVersion: "v",
+      networkLinks: [{connectionId:"c",nodeName:"pve"}],
+      networkLinksVersion: require("./scope").nodeLinksVersion([{connectionId:"c",nodeName:"pve"}], {connectionId:"c",nodeName:"pve"}),
     },
   };
   const resource = {
@@ -101,12 +102,13 @@ test("durable ticket source survives interruption after creation and opt-out is 
     name: "VM",
     companyId: "tenant",
     connectionId: "c",
+    nodeName: "pve",
     status: "running",
     exposureGeneration: 1,
     monitoringEnabled: true,
     exposure: {
       generation: 1,
-      networkLinksVersion: "v",
+      networkLinksVersion: require("./scope").nodeLinksVersion([{connectionId:"c",nodeName:"pve"}], {connectionId:"c",nodeName:"pve"}),
       securityCheckedAt: instant,
       confirmedCveCount: 2,
       cveSeverityCounts: { high: 2, critical: 0 },

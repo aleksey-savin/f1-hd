@@ -31,8 +31,14 @@ const validateJump = async (req, endpoints) => {
 };
 exports.list = async (req, res) =>
   res.json(await read.list(req.params.kind, req.query, { prefs: await Preferences.findOne({}).lean() }));
-exports.detail = async (req, res) =>
-  res.json(await read.detail(req.params.kind, req.params.id, { prefs: await Preferences.findOne({}).lean() }));
+exports.detail = async (req, res) => {
+  const prefs = await Preferences.findOne({}).lean();
+  const result = await read.detail(req.params.kind, req.params.id, { prefs });
+  if (req.params.kind === 'nodes') result.item.canLinkNetworks =
+    require('../services/proxmox/exposure/contract').enabled(prefs) &&
+    !req.auth.isEndUser && req.auth.can({ proxmox: ['manage'] }) && req.auth.can({ mikrotik: ['read'] });
+  res.json(result);
+};
 exports.verify = async (req, res) => {
   const current = req.body.connectionId
     ? await Connection.findById(read.validId(req.body.connectionId)).select(
@@ -559,10 +565,6 @@ exports.saveSettings = async (req, res) => {
         ),
       },
     );
-  if (Object.hasOwn(changes, 'networkLinks')) {
-    await require('../services/proxmox/exposure/store').invalidateResources({},'networkLinksChanged');
-    await core.event({connectionId:null},'networkLinksChanged','Сохранены связи сетей Proxmox с MikroTik',actor(req));
-  }
   core.bump();
   res.json({ settings: require('../services/proxmox/exposure/network-links').publicSettings(data,req.auth.can) });
 };

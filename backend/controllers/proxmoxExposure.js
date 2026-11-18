@@ -33,3 +33,16 @@ exports.detail = async (req, res) => {
     ),
   );
 };
+exports.nodeLinks = async (req, res) => res.json(
+  await require('../services/proxmox/exposure/node-network-links').readNodeLinks(req.params.id, req.auth),
+);
+exports.saveNodeLinks = async (req, res) => res.json(
+  await require('../services/proxmox/exposure/node-network-links').saveNodeLinks(req.params.id, req.body, req.auth),
+);
+exports.nodeOptions = async (req, res) => {
+  const { node } = await require('../services/proxmox/exposure/node-network-links').loadNodeContext(req.params.id, req.auth);
+  res.json(await service.getNetworkOptions({
+    ...require('../services/proxmox/exposure/node-network-links').nodeScope(node),
+    routerId: require('../services/proxmox/view').validId(req.query.routerId),
+  }, req.auth));
+};

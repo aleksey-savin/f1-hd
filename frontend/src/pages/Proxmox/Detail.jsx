@@ -461,6 +461,11 @@ export default function ProxmoxDetail() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {kind === "nodes" && item.canLinkNetworks && (
+                  <DropdownMenuItem asChild>
+                    <Link to="network-links">Связать с сетевым устройством</Link>
+                  </DropdownMenuItem>
+                )}
                 {["nodes", "guests"].includes(kind) && manageable && (
                   <>
                     <DropdownMenuItem

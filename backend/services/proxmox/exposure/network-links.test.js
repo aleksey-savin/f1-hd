@@ -55,3 +55,13 @@ test("canonical subnet and VLAN validation reject ambiguous or unavailable links
   );
   assert.equal(linksVersion(rows), linksVersion([{ ...rows[0] }]));
 });
+test('network form reads only interface catalog, not unrelated firewall rules',async()=>{
+ const calls=[];
+ const data=await require('./network-links').collectRouterCatalogue({}, {read:async([command])=>{calls.push(command);return [{name:command.includes('/list/')?'WAN':'ether1'}]}});
+ assert.deepEqual(calls,['/interface/print','/interface/list/print']);
+ assert.equal(data.interfaces[0].name,'ether1');assert.equal(data.interfaceLists[0].name,'WAN');
+});
+test('global policy DTO never includes node network links, even for administrators',()=>{
+ const result=require('./network-links').publicSettings({networkLinks:[link],networkLinksVersion:'private',cpuThreshold:90},()=>true);
+ assert.deepEqual(result,{cpuThreshold:90});
+});
