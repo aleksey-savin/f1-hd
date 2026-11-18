@@ -743,7 +743,10 @@ documented in each component's own header.
   explicitly linked networks. On a node, use «Связать с сетевым устройством» in
   its action menu (`/devices/proxmox/nodes/:id/network-links`). The shared form
   suggests MikroTik devices by exact IPv4 subnet matches and shows every discovered
-  bridge/VLAN/subnet. Unique correspondences are preselected; multiple candidate
+  bridge/VLAN/subnet. Bridges referenced by current guest NIC configurations are
+  included even when the host network API omits runtime or externally managed
+  bridges; the save validator uses this same bridge catalogue.
+  Unique correspondences are preselected; multiple candidate
   interfaces or the same router LAN matching several segments require explicit
   choice. One node can link multiple devices. Saved mappings remain removable when
   discovery or a device is unavailable. The API requires `proxmox.read`,

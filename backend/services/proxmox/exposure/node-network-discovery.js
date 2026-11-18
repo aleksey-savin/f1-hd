@@ -196,6 +196,16 @@ async function discoverNetworks(node, connection, deps, now) {
         if (data.lastError)
           warnings.add("Не у всех гостей доступны текущие IPv4-адреса");
         for (const nic of data.interfaces || []) {
+          // The host network API can omit runtime/externally managed bridges.
+          // A bridge referenced by a current guest NIC is independent evidence.
+          if (nic.bridge && !bridges.has(nic.bridge))
+            bridges.set(nic.bridge, {
+              iface: nic.bridge,
+              bridge_ports: host
+                .filter((row) => row.ovs_bridge === nic.bridge)
+                .map((row) => row.iface)
+                .join(" "),
+            });
           if (nic.trunks) {
             warnings.add(
               "Подсети trunk-интерфейсов требуют ручного сопоставления",
@@ -220,6 +230,9 @@ async function discoverNetworks(node, connection, deps, now) {
     Array.from({ length: Math.min(4, pending.length) }, worker),
   );
   return {
+    bridges: [...bridges.keys()]
+      .sort()
+      .map((name) => ({ value: name, label: name })),
     networks: [...networks.values()].sort(
       (a, b) =>
         a.bridge.localeCompare(b.bridge) ||
@@ -334,4 +347,13 @@ async function getNodeNetworkOptions(node, deps = {}) {
       .map((router) => routerOptions(router, discovery.networks, now)),
   };
 }
-module.exports = { getNodeNetworkOptions };
+async function getNodeBridgeOptions(node, connection, deps = {}) {
+  const discovery = await cachedNetworks(
+    node,
+    connection,
+    deps,
+    new Date(deps.now || new Date()).getTime(),
+  );
+  return discovery.bridges;
+}
+module.exports = { getNodeNetworkOptions, getNodeBridgeOptions };

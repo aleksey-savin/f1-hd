@@ -213,19 +213,9 @@ const getNetworkOptions = async (input, access = {}) => {
       const connection = await Connection.findById(input.connectionId)
         .select("+tokenSecret")
         .lean();
-      const rows = await cachedCatalogue(
-        `pve:${input.connectionId}:${input.nodeName}`,
-        () =>
-          require("../transport").request(
-            connection,
-            `/nodes/${encodeURIComponent(input.nodeName)}/network`,
-            { method: "GET", timeout: 5000 },
-          ),
+      result.bridges = await require('./node-network-discovery').getNodeBridgeOptions(
+        {connectionId: input.connectionId, nodeName: input.nodeName}, connection,
       );
-      if (!Array.isArray(rows)) fail("Не удалось прочитать сети узла", 502);
-      result.bridges = rows
-        .filter((row) => /bridge/i.test(row.type || ""))
-        .map((row) => ({ value: row.iface, label: row.iface }));
     }
   }
   if (input.routerId) {

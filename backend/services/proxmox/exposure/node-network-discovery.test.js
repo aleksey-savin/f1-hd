@@ -271,3 +271,71 @@ test("shares unfinished discovery after cache TTL and starts freshness at comple
   await getNodeNetworkOptions(node, { ...deps, now: new Date(+now + 62000) });
   assert.equal(reads, 1);
 });
+test("guest-confirmed bridges missing from host API still produce recommendations and save options", async () => {
+  const guests = [
+    {
+      _id: "prod",
+      guestType: "qemu",
+      vmid: 1008,
+      status: "running",
+      guestNetwork: {
+        checkedAt: now,
+        lastAttemptOk: true,
+        interfaces: [
+          {
+            bridge: "vmbr1",
+            vlan: null,
+            addresses: [{ address: "10.0.50.70", prefix: 24 }],
+          },
+        ],
+      },
+    },
+    {
+      _id: "studio",
+      guestType: "qemu",
+      vmid: 401,
+      status: "running",
+      guestNetwork: {
+        checkedAt: now,
+        lastAttemptOk: true,
+        interfaces: [
+          {
+            bridge: "vmbr6",
+            vlan: 20,
+            addresses: [{ address: "10.0.40.200", prefix: 24 }],
+          },
+        ],
+      },
+    },
+  ];
+  const deps = depsFor(
+    [
+      { iface: "eno2", type: "eth" },
+      { iface: "eno1", type: "OVSPort", ovs_bridge: "vmbr99" },
+    ],
+    guests,
+    [
+      router("F1-MSK-GW01", [
+        address("10.0.50.1/24", "ether2"),
+        address("10.0.40.1/24", "ether7"),
+      ]),
+    ],
+  );
+  const result = await getNodeNetworkOptions(node, deps);
+  assert.deepEqual(
+    result.networks.map((n) => [n.bridge, n.vlan, n.cidr]),
+    [
+      ["vmbr1", null, "10.0.50.0/24"],
+      ["vmbr6", 20, "10.0.40.0/24"],
+    ],
+  );
+  assert.equal(result.routers[0].matches.length, 2);
+  const bridges =
+    await require("./node-network-discovery").getNodeBridgeOptions(
+      node,
+      { monitoringEnabled: true },
+      deps,
+    );
+  assert.ok(bridges.some((b) => b.value === "vmbr1"));
+  assert.ok(bridges.some((b) => b.value === "vmbr6"));
+});
