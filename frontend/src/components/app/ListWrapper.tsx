@@ -95,6 +95,7 @@ type ActiveFilter = {
 };
 
 type ListWrapperProps = {
+  syncSearchWithStore?: boolean;
   title: () => ReactNode;
   filter?: ReactNode;
   customData?: () => ReactNode;
@@ -193,6 +194,7 @@ const ListWrapper = ({
   // Шторка с формами add/update (app/FormOutlet). Экраны, рендерящие
   // <Outlet/> сами (база знаний), передают false — иначе маршрут
   // смонтируется дважды.
+  syncSearchWithStore = false,
   renderOutlet = true,
   children,
 }: ListWrapperProps) => {
@@ -428,6 +430,7 @@ const ListWrapper = ({
               <SearchBar
                 key={searchResetKey}
                 onChange={searchHandler}
+                value={syncSearchWithStore ? initialSearch : undefined}
                 defaultValue={initialSearch}
                 placeholder={searchPlaceholder}
               />
@@ -466,6 +469,7 @@ const ListWrapper = ({
             <SearchBar
               key={searchResetKey}
               onChange={searchHandler}
+              value={syncSearchWithStore ? initialSearch : undefined}
               defaultValue={initialSearch}
               placeholder={searchPlaceholder}
               size="lg"

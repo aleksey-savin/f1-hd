@@ -153,6 +153,10 @@ const Event = model(
     actorId: ref("User"),
     kind: String,
     message: String,
+    companyChange: {
+      from: { id: ref('Company'), name: String },
+      to: { id: ref('Company'), name: String },
+    },
     operationData: new Schema(
       {
         createdBy: ref("User"),

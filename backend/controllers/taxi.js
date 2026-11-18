@@ -131,17 +131,18 @@ exports.list = endpoint(null, async (req) => {
   if (!canOpenReport(req.auth)) throw new AppError("Нет доступа к отчёту по такси", 403);
   if ((req.query.scope === "all" || req.query.userId && id(req.query.userId) !== id(req.auth.userId)) && !has(req.auth, "read")) throw new AppError("Нет права видеть поездки других сотрудников", 403);
   const filter = { deletedAt: null };
-  if (req.query.scope !== "all" || !has(req.auth, "read")) filter.userId = objectId(req.auth.userId);
+  if (!["all", "available"].includes(req.query.scope) || !has(req.auth, "read")) filter.userId = objectId(req.auth.userId);
   if (req.query.userId) filter.userId = objectId(req.query.userId);
   if (req.query.companyId) filter.companyId = objectId(req.query.companyId);
   if (req.query.unassigned === "1") filter.companyId = null;
   const preferences = await Preferences.findOne({}).select("timezone defaultCompany").lean();
   const zone = preferences?.timezone || "Europe/Moscow";
   const now = dayjs().tz(zone);
+  const allPeriod = req.query.period === "all" && !req.query.from && !req.query.to;
   const from = req.query.from ? dateBoundary(req.query.from, zone, false) : now.startOf("month").toDate();
   const to = req.query.to ? dateBoundary(req.query.to, zone, true) : now.endOf("month").toDate();
   if (from > to) throw new AppError("Начало периода позже окончания", 400);
-  filter.$and = [{ $or: [ { startedAt: { $gte: from, $lte: to } }, { startedAt: null, requestedAt: { $gte: from, $lte: to } } ] }];
+  if (!allPeriod) filter.$and = [{ $or: [ { startedAt: { $gte: from, $lte: to } }, { startedAt: null, requestedAt: { $gte: from, $lte: to } } ] }];
   if (req.query.withoutTicket === "1") {
     const linked = await Work.distinct("taxiTripIds", { taxiTripIds: { $exists: true, $ne: [] } });
     filter.ticketIds = { $size: 0 }; filter._id = { $nin: linked };
@@ -156,7 +157,7 @@ exports.list = endpoint(null, async (req) => {
   ]);
   return { trips: await decorateTrips(trips, req.auth), total: sums[0]?.total || 0, totalMinor: sums[0]?.totalMinor || 0,
     estimatedMinor: sums[0]?.estimatedMinor || 0, companies, users, isActive: Boolean(settings?.isActive),
-    period: { from: dayjs(from).tz(zone).format("YYYY-MM-DD"), to: dayjs(to).tz(zone).format("YYYY-MM-DD") } };
+    period: allPeriod ? { from: "", to: "" } : { from: dayjs(from).tz(zone).format("YYYY-MM-DD"), to: dayjs(to).tz(zone).format("YYYY-MM-DD") } };
 });
 
 const candidateRows = async (auth, draft) => {

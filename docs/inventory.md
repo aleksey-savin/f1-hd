@@ -725,6 +725,20 @@ documented in each component's own header.
   `PATCH /api/proxmox/resources/:id/monitoring` pauses a resource independently
   of the connection and excludes it from alerting and availability calculation.
   Module settings remain in `/preferences#proxmox`.
+- **Proxmox VM details** — the placement section shows the guest company and
+  physical node. Inventory links are only editable for physical nodes; legacy
+  guest links are preserved but no longer block guest company assignment.
+  The «ВМ должна работать постоянно» switch lives in «Доступность». When it is
+  off, the section shows the exclusion explanation instead of statistics,
+  period controls and an empty timeline. Guest OS stays in the security section;
+  confirmed CVEs precede separately collapsed, unconfirmed matches.
+- **Proxmox backup catalog** — the guest card reads actual backup storage content
+  across the accessible nodes of its connection, filters by VMID and guest type,
+  and deduplicates shared storage copies. It shows storage/node, creation time,
+  size and the provider's `protected` flag. Partial storage failures are shown
+  alongside available results; task history is not treated as a backup catalog.
+  Company-change events retain readable names for new events and resolve legacy
+  references when the company is still accessible.
 - **Proxmox CVE severity** — `proxmox.cveMinSeverity` is `high` (default) or
   `critical`, like MikroTik. The current threshold applies to node/guest warning
   counts, external-access attention filters and opted-in CVE tickets. It works

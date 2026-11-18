@@ -10,6 +10,7 @@ export function changeReportQuery(
     else next.delete(key);
   }
   if (!Object.hasOwn(patch, "page")) next.delete("page");
+  if (patch.from || patch.to) next.delete("period");
   if (patch.scope === "own") next.delete("userId");
   return next;
 }

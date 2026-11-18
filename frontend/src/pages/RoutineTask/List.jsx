@@ -1,3 +1,4 @@
+import useListCrumbFilters from "@/hooks/use-list-crumb-filters";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
@@ -35,6 +36,7 @@ const STATUS_LABEL = { active: "Активные", paused: "На паузе" };
 const RoutineTasks = () => {
   const location = useLocation();
   const filterStore = useRoutineTaskFilterStore();
+  useListCrumbFilters("/routine-tasks", useRoutineTaskFilterStore);
 
   useEffect(() => {
     filterStore.applyFilter();
@@ -98,6 +100,7 @@ const RoutineTasks = () => {
 
   return (
     <ListWrapper
+      syncSearchWithStore
       title={() => "Регламенты"}
       filterStore={filterStore}
       addRoute="/routine-tasks/add"

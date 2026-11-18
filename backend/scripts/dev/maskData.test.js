@@ -541,3 +541,12 @@ test("the tables name no field that the models do not have", () => {
   assert.deepEqual(phantoms, []);
   for (const collection of EMPTIED) assert.equal(classifyPath(collection, "anything"), "structured");
 });
+
+test('Proxmox company-change snapshots mask names using the company identity', () => {
+  const result = rewriteDocument('proxmoxevents', { _id: ID, kind: 'companyChanged', message: 'Привязка компании изменена (Private company → не назначена)', companyChange: {
+    from: { id: OTHER, name: 'Private company' }, to: { id: null, name: 'не назначена' },
+  } }, {});
+  assert.equal(result.$set.companyChange.from.name, maskedCompany({ _id: OTHER }).$set.alias);
+  assert.equal(result.$set.companyChange.to.name, 'не назначена');
+  assert.equal(result.$set.message, `Привязка компании изменена (${maskedCompany({ _id: OTHER }).$set.alias} → не назначена)`);
+});

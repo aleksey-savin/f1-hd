@@ -106,3 +106,17 @@ export const securitySummary = (report) => {
   const note = securityNotes(report)[0];
   return `${count}${note ? ` · ${note.summary}` : ""}`;
 };
+
+// The report heading already names an all-unscored result; failed/pending
+// checks have a different heading and still need the old result's counts.
+export const securityOtherCounts = (report) => {
+  const total = report?.findingCount ?? report?.findings?.length ?? 0;
+  if (
+    ["completed", "partial"].includes(report?.status) &&
+    total > 0 &&
+    total === report.unknownSeverityCount &&
+    !cveAlertCount(report)
+  )
+    return null;
+  return cveOtherCounts(report);
+};

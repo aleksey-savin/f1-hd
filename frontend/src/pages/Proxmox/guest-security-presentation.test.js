@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   securityHeading,
+  securityOtherCounts,
   securityNotes,
   securitySummary,
 } from "./guest-security-presentation.js";
@@ -99,4 +100,23 @@ test("a required reboot gives an action instead of calling the CVE scan incomple
   };
   assert.equal(securityHeading(report), "Нужна перезагрузка Windows");
   assert.match(securityNotes(report)[0].hint, /Перезагрузите ВМ/);
+});
+
+test("report summary does not repeat unscored CVEs but preserves them during failures", () => {
+  const report = {
+    status: "completed",
+    minSeverity: "high",
+    findingCount: 2,
+    unknownSeverityCount: 2,
+    alertFindingCount: 0,
+  };
+  assert.equal(securityOtherCounts(report), null);
+  assert.equal(
+    securityOtherCounts({ ...report, status: "error" }),
+    "Без оценки опасности: 2 CVE",
+  );
+  assert.equal(
+    securityOtherCounts({ ...report, findingCount: 4, alertFindingCount: 1 }),
+    "Ниже порога: 1 CVE · Без оценки опасности: 2 CVE",
+  );
 });

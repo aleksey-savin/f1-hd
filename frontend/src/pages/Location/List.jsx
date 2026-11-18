@@ -1,4 +1,5 @@
-import { Link } from "@/components/app/navigation";
+import useListCrumbFilters from "@/hooks/use-list-crumb-filters";
+import { Link, useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useActionData, useLoaderData, useLocation } from "react-router";
@@ -42,9 +43,11 @@ const TYPE_ORDER = { building: 0, floor: 1, room: 2, workplace: 3, storage: 4 };
 // (по умолчанию РМ скрыты — их много).
 const LocationList = () => {
   const appLocation = useLocation();
+  const [, setSearchParams] = useSearchParams();
   const { companies = [] } = useLoaderData();
   const actionData = useActionData();
   const filterStore = useLocationFilterStore();
+  useListCrumbFilters("/inventory/locations", useLocationFilterStore);
   const filterOffcanvas = useMobileFilterOffcanvasStore();
   const { showToast } = useToastStore();
   const authedUser = useContext(AuthedUserContext);
@@ -115,14 +118,19 @@ const LocationList = () => {
     filterStore.setSelectedCompanies([companyId]);
     filterStore.fetch(companyId);
     // Выбор компании живёт в URL — deep-link и перезагрузка возвращают её же
-    const url = new URL(window.location);
-    url.searchParams.set("companyIds", companyId);
-    window.history.replaceState({}, "", url.pathname + url.search);
+    const query = new URLSearchParams(appLocation.search);
+    query.delete("companyScope");
+    query.set("companyIds", companyId);
+    setSearchParams(query, { replace: true, state: window.history.state?.usr });
   };
 
   // Начальная компания: из URL → компания пользователя → первая по алфавиту.
   useEffect(() => {
-    if (selectedCompanyId || companyOptions.length === 0) return;
+    if (
+      useLocationFilterStore.getState().selectedCompanyIds.length ||
+      companyOptions.length === 0
+    )
+      return;
     const urlCompanyId = new URLSearchParams(window.location.search)
       .get("companyIds")
       ?.split(",")
@@ -146,7 +154,10 @@ const LocationList = () => {
   // зависимость — location.key: redirect после удаления ведёт на тот же
   // pathname. Только на самом списке, чтобы не дёргать под шторкой.
   useEffect(() => {
-    if (appLocation.pathname === "/inventory/locations" && selectedCompanyId) {
+    if (
+      appLocation.pathname === "/inventory/locations" &&
+      useLocationFilterStore.getState().selectedCompanyIds.length
+    ) {
       filterStore.fetch();
     }
   }, [appLocation.key]);

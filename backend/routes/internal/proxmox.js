@@ -70,6 +70,7 @@ router.post(
 );
 router.get("/resources/:id/metrics", live, c.metrics);
 router.get("/resources/:id/events", c.events);
+router.get("/resources/:id/backups", live, c.backups);
 router.get("/resources/:id/availability", c.availability);
 router.put("/resources/:id/maintenance", gate("manage"), c.maintenance);
 router.put("/resources/:id/inventory-link", gate("manage"), c.inventory);

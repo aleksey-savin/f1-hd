@@ -1,3 +1,4 @@
+import useListCrumbFilters from "@/hooks/use-list-crumb-filters";
 import { useNavigate, useLocation } from "react-router";
 import { Link, useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
@@ -80,6 +81,7 @@ const MikrotikDevices = () => {
   const [upgradeIds, setUpgradeIds] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const filterStore = useMikrotikDeviceFilterStore();
+  useListCrumbFilters("/devices/mikrotik", useMikrotikDeviceFilterStore);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -116,7 +118,10 @@ const MikrotikDevices = () => {
     const clientDeviceId = searchParams.get("clientDeviceId");
     if (!recordId && !clientDeviceId) return;
     if (recordId) {
-      navigate(`/devices/mikrotik/records/${recordId}`, { replace: true, state: location.state });
+      navigate(`/devices/mikrotik/records/${recordId}`, {
+        replace: true,
+        state: location.state,
+      });
       return;
     }
     if (!filterStore.originalList.length) return;
@@ -125,7 +130,10 @@ const MikrotikDevices = () => {
       (item) => String(item.clientDeviceId) === clientDeviceId,
     );
     if (row) {
-      navigate(`/devices/mikrotik/records/${row.recordId}`, { replace: true, state: location.state });
+      navigate(`/devices/mikrotik/records/${row.recordId}`, {
+        replace: true,
+        state: location.state,
+      });
       return;
     }
     const next = new URLSearchParams(searchParams);
@@ -323,6 +331,7 @@ const MikrotikDevices = () => {
   return (
     <>
       <ListWrapper
+        syncSearchWithStore
         title={() => "Мониторинг Mikrotik"}
         filterStore={filterStore}
         filter={

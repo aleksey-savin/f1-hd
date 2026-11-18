@@ -1,3 +1,5 @@
+import { scopeApprovalPipeline } from "@/util/approval-company-scope";
+import FilterChip from "@/components/app/FilterChip";
 import { useNavigate, useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useMemo, useState } from "react";
@@ -87,9 +89,13 @@ const API = import.meta.env.VITE_API_ADDRESS;
 // заголовок прижимался к одному краю колонки, значение к другому
 const NUM = "text-right tabular-nums";
 
-type StageFilter = PipelineStageKey | "declined";
+type StageFilter = PipelineStageKey | "declined" | "all";
 
-const STAGE_FILTERS: string[] = [...STAGES.map((item) => item.key), "declined"];
+const STAGE_FILTERS: string[] = [
+  ...STAGES.map((item) => item.key),
+  "declined",
+  "all",
+];
 
 /**
  * Быстрое действие строки — главный ход стадии. «Напомнить» не залито: решение
@@ -117,6 +123,7 @@ const Approval = () => {
   const [params, setParams] = useSearchParams();
   const crumb = useCrumbFrom("Согласование работ");
 
+  const companyId = params.get("companyId") || "";
   const stageParam = params.get("stage") || "";
   const stage: StageFilter = STAGE_FILTERS.includes(stageParam)
     ? (stageParam as StageFilter)
@@ -152,7 +159,10 @@ const Approval = () => {
     store.fetch();
   }, []);
 
-  const data = store.data;
+  const data = useMemo(
+    () => scopeApprovalPipeline(store.data, companyId),
+    [store.data, companyId],
+  );
 
   const stageActions = useStageActions({
     zone: data?.zone,
@@ -180,7 +190,7 @@ const Approval = () => {
   const stageReports = useMemo(
     () =>
       (data?.reports || [])
-        .filter((row) => row.status === stage)
+        .filter((row) => stage === "all" || row.status === stage)
         .filter(inPeriod),
     [data, stage, range],
   );
@@ -210,8 +220,25 @@ const Approval = () => {
     }
   };
 
+  const companyLabel =
+    data?.reports[0]?.company.alias ||
+    data?.preview[0]?.company.alias ||
+    "Выбранная компания";
   const toolbar = (
     <>
+      {companyId && (
+        <FilterChip
+          active
+          onClick={() => patchParams({ companyId: "", stage: "" })}
+        >
+          {companyLabel} ×
+        </FilterChip>
+      )}
+      {companyId && stage !== "all" && (
+        <Button variant="ghost" size="sm" onClick={() => setStage("all")}>
+          Все отчёты
+        </Button>
+      )}
       {/* Из выбранного месяца шагами до «всего периода» не вернуться — даём
           явный выход, и он стоит ПЕРЕД степпером: это возврат к состоянию по
           умолчанию, а не следующий шаг после него */}
@@ -305,7 +332,8 @@ const Approval = () => {
   }
 
   const stageLabel =
-    STAGES.find((item) => item.key === stage)?.label || "Отчёты";
+    STAGES.find((item) => item.key === stage)?.label ||
+    (stage === "all" ? "Все отчёты" : "Отчёты");
 
   const canManageApproval = can({ approval: ["manage"] });
 

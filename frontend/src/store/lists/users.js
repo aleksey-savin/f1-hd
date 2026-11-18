@@ -35,6 +35,7 @@ const DEFAULT_SORT = {
 };
 
 let searchDebounce;
+let requestSeq = 0;
 
 const buildParams = (s) => {
   const p = new URLSearchParams();
@@ -60,6 +61,7 @@ const buildParams = (s) => {
 };
 
 const doFetch = async (get, set, { silent = false, append = false } = {}) => {
+  const seq = ++requestSeq;
   if (!silent) set({ isLoading: true });
   try {
     // База обязательна: VITE_API_ADDRESS теперь пуст (фронт и API на одном
@@ -68,6 +70,7 @@ const doFetch = async (get, set, { silent = false, append = false } = {}) => {
     const data = await api(
       `/api/users?${buildParams(get()).toString()}`,
     );
+    if (seq !== requestSeq) return;
     set((state) => ({
       items: append ? [...state.items, ...data.users] : data.users,
       total: typeof data.total === "number" ? data.total : data.users.length,
@@ -75,6 +78,7 @@ const doFetch = async (get, set, { silent = false, append = false } = {}) => {
       isSorting: false,
     }));
   } catch (error) {
+    if (seq !== requestSeq) return;
     if (!silent) set({ isLoading: false, isSorting: false });
     console.warn("Загрузка пользователей пропущена:", error);
   }
@@ -112,6 +116,11 @@ const useUserFilterStore = create((set, get) => ({
   sortBy: DEFAULT_SORT.clients,
 
   fetch: () => doFetch(get, set),
+  restoreNavigationFilters: (patch) => {
+    clearTimeout(searchDebounce);
+    requestSeq++;
+    set(patch);
+  },
 
   // Живые статусы присутствия без перезагрузки списка: мёржим workStatus из
   // общего табло (store/work-statuses, его держит User/PresenceSync) в

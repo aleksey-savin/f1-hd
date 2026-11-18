@@ -97,6 +97,7 @@ export async function resourceLoader({ params, request }) {
       "metrics",
       "events",
       "availability",
+      "backups",
       "operations",
       "security",
       "exposure",

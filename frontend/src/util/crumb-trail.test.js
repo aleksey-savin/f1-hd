@@ -9,6 +9,8 @@ import {
   crumbStateFor,
   currentCrumbAddress,
   preserveCrumbState,
+  companyVisitState,
+  resolveCompanyCrumbs,
 } from "./crumb-trail.ts";
 
 const list = { label: "Заявки", to: "/tickets?status=open" };
@@ -17,7 +19,7 @@ const user = { label: "Иван Петров", to: "/users/123" };
 
 test("смена карточки сохраняет только её настоящую иерархию", () => {
   const section = { label: "Пользователи", to: "/users" };
-  const company = { label: "F1Lab", to: "/companies/new" };
+  const company = { label: "Компания А", to: "/companies/new" };
   assert.deepEqual(
     buildCrumbTrail({
       current: user,
@@ -179,7 +181,7 @@ test("выбор предка сохраняет адрес его источн�
 
 test("компания и предки расположения не зависят от старого пути", () => {
   const section = { label: "Расположения", to: "/inventory/locations" };
-  const company = { label: "F1Lab", to: "/companies/1" };
+  const company = { label: "Компания А", to: "/companies/1" };
   const office = { label: "Офис", to: "/inventory/locations/office" };
   const current = { label: "Склад", to: "/inventory/locations/storage" };
   assert.deepEqual(
@@ -203,22 +205,24 @@ test("компания и предки расположения не завис�
 });
 
 test("компания в пути доступна по карточке только с правом чтения", () => {
-  const companies = [{ _id: "c1", alias: "F1Lab" }];
+  const companies = [{ _id: "c1", alias: "Компания А" }];
   assert.deepEqual(companyCrumbs(companies, true), [
-    { label: "F1Lab", to: "/companies/c1" },
+    { label: "Компания А", companyId: "c1", to: "/companies/c1" },
   ]);
-  assert.deepEqual(companyCrumbs(companies, false), [{ label: "F1Lab" }]);
+  assert.deepEqual(companyCrumbs(companies, false), [
+    { label: "Компания А", companyId: "c1" },
+  ]);
 });
 test("несколько компаний заметки показаны общим контекстом без ложной вложенности", () => {
   assert.deepEqual(
     companyCrumbs(
       [
-        { _id: "c1", alias: "F1Lab" },
+        { _id: "c1", alias: "Компания А" },
         { _id: "c2", alias: "Другая компания" },
       ],
       true,
     ),
-    [{ label: "F1Lab, Другая компания" }],
+    [{ label: "Компания А, Другая компания" }],
   );
   assert.deepEqual(companyCrumbs([], true), []);
   assert.deepEqual(companyCrumbs([{ _id: "c1" }], true), []);
@@ -226,9 +230,9 @@ test("несколько компаний заметки показаны общ
 
 test("переключение заметки строит только иерархию текущей заметки без старых компаний", () => {
   const section = { label: "База знаний", to: "/knowledge-base" };
-  const oldCompany = { label: "21 век", to: "/companies/old" };
+  const oldCompany = { label: "Прежняя компания", to: "/companies/old" };
   const oldNote = { label: "Информация: Интернет", to: "/knowledge-base/old" };
-  const company = { label: "Нотариус Трусова Е.А.", to: "/companies/new" };
+  const company = { label: "Компания Б", to: "/companies/new" };
   const current = {
     label: "Инструкции: Типовые задачи",
     to: "/knowledge-base/new",
@@ -349,4 +353,132 @@ test("переход из якоря оглавления сохраняет к�
     }),
     [section, group, current],
   );
+});
+
+test("подставленная компания не считается посещением, даже в старом state", () => {
+  const chain = companyCrumbs([{ _id: "c1", alias: "Компания" }], true);
+  const state = {
+    crumbTrail: [{ label: "Компания", to: "/companies/c1" }, user],
+  };
+  assert.deepEqual(companyVisitState(state, user.to), []);
+  assert.deepEqual(resolveCompanyCrumbs(chain, "/users", state), [
+    { label: "Компания", to: "/users?companyScope=c1", freshCompanyList: true },
+  ]);
+});
+
+test("реальное посещение живёт в цепочке, переживает сериализацию и не относится к другой компании", () => {
+  const company = { label: "Компания", to: "/companies/c1?tab=users" };
+  const first = crumbSourceState([company], company);
+  const next = crumbSourceState([user], user, undefined, first);
+  const state = JSON.parse(JSON.stringify(next));
+  const chain = companyCrumbs([{ _id: "c1", alias: "Компания" }], true);
+  assert.deepEqual(resolveCompanyCrumbs(chain, "/users", state), [company]);
+  assert.deepEqual(resolveCompanyCrumbs(chain, "/users", null), [
+    { label: "Компания", to: "/users?companyScope=c1", freshCompanyList: true },
+  ]);
+  assert.deepEqual(
+    resolveCompanyCrumbs(
+      companyCrumbs([{ _id: "c2", alias: "Другая" }], true),
+      "/users",
+      state,
+    ),
+    [{ label: "Другая", to: "/users?companyScope=c2", freshCompanyList: true }],
+  );
+  assert.deepEqual(crumbStateFor([company, user], 0, state).companyVisits, [
+    company.to,
+  ]);
+});
+
+test("ссылка компании проверяет доступ к назначению", () => {
+  const companies = [{ _id: "c1", alias: "Компания" }];
+  const noCompanyRead = companyCrumbs(companies, false);
+  assert.deepEqual(resolveCompanyCrumbs(noCompanyRead, "/users"), [
+    { label: "Компания", to: "/users?companyScope=c1", freshCompanyList: true },
+  ]);
+  assert.deepEqual(resolveCompanyCrumbs(noCompanyRead, undefined), [
+    { label: "Компания" },
+  ]);
+  assert.deepEqual(
+    resolveCompanyCrumbs(noCompanyRead, "/users", {
+      companyVisits: ["/companies/c1"],
+    }),
+    [{ label: "Компания" }],
+  );
+  assert.deepEqual(
+    resolveCompanyCrumbs(companyCrumbs(companies, true), undefined, {
+      companyVisits: ["/companies/c1"],
+    }),
+    [{ label: "Компания", to: "/companies/c1" }],
+  );
+});
+
+test("источник с другими фильтрами не исчезает из-за ссылки компании на тот же список", () => {
+  const origin = { label: "Пользователи", to: "/users?search=Иван" };
+  assert.deepEqual(
+    crumbReturnOrigin({ from: origin }, user.to, [
+      {
+        label: "Компания",
+        to: "/users?companyScope=c1",
+        freshCompanyList: true,
+      },
+      user,
+    ]),
+    origin,
+  );
+});
+
+test("недостоверные адреса посещений игнорируются", () => {
+  assert.deepEqual(
+    companyVisitState(
+      { companyVisits: ["//evil.test", "/users/123", "/companies/add"] },
+      user.to,
+    ),
+    [],
+  );
+});
+
+test("исходная выборка проходит через карточку, предка и сериализацию", () => {
+  const listSnapshot = {
+    path: "/users",
+    values: { searchTerm: "Иван", page: 3 },
+  };
+  const source = { label: "Пользователи", to: "/users", listSnapshot };
+  const state = JSON.parse(JSON.stringify(crumbSourceState([source], source)));
+  const items = buildCrumbTrail({
+    current: user,
+    section: { label: "Пользователи", to: "/users" },
+    state,
+  });
+  assert.deepEqual(items[0].listSnapshot, listSnapshot);
+  assert.deepEqual(crumbStateFor(items, 0).listSnapshot, listSnapshot);
+  assert.deepEqual(readCrumbState(state).from.listSnapshot, listSnapshot);
+  const fresh = { label: "Компания", to: "/users?companyScope=c1" };
+  assert.equal(crumbStateFor([fresh, user], 0).listSnapshot, undefined);
+});
+
+test("повторный выбор компании не наследует поиск из списка той же компании", () => {
+  const source = {
+    label: "Пользователи",
+    to: "/users?companyScope=c1",
+    listSnapshot: { path: "/users", values: { searchTerm: "Иван", page: 4 } },
+  };
+  const state = crumbSourceState([source], source);
+  const chain = resolveCompanyCrumbs(
+    companyCrumbs([{ _id: "c1", alias: "Компания" }], true),
+    "/users",
+    state,
+  );
+  const items = buildCrumbTrail({
+    current: user,
+    section: { label: "Пользователи", to: "/users" },
+    chain,
+    state,
+  });
+  const company = items.find((item) => item.label === "Компания");
+  assert.equal(company.listSnapshot, undefined);
+  assert.equal(
+    crumbStateFor(items, items.indexOf(company)).listSnapshot,
+    undefined,
+  );
+  assert.deepEqual(crumbReturnOrigin(state, user.to, [company, user]), source);
 });

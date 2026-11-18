@@ -1,4 +1,5 @@
 import { CONVERSATION_READ_ACCESS } from "./conversation-access.js";
+import { TAXI_REPORT_ACCESS } from "./taxi-access.js";
 import type { AccessRequest } from "@/lib/access";
 
 /**
@@ -232,6 +233,7 @@ export const SECTIONS: Section[] = [
     key: "taxi",
     listTo: "/report/taxi",
     label: "Такси",
+    can: TAXI_REPORT_ACCESS,
   },
   {
     key: "networks-report",

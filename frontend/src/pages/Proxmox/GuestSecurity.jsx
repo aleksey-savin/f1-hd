@@ -9,13 +9,17 @@ import {
   securityHeading,
   securityNotes,
   cveAlertCount,
-  cveOtherCounts,
+  securityOtherCounts,
 } from "./guest-security-presentation";
 
 // Shared by the live card and the snapshot prototype, with the same report DTO.
 export function GuestSecurityReport({ report }) {
   const [limit, setLimit] = useState(20);
-  useEffect(() => setLimit(20), [report?.checkedAt]);
+  const [reviewLimit, setReviewLimit] = useState(20);
+  useEffect(() => {
+    setLimit(20);
+    setReviewLimit(20);
+  }, [report?.checkedAt]);
   const findings = report?.findings || [];
   const hasResult = Boolean(report?.checkedAt);
   const staleResult =
@@ -28,9 +32,9 @@ export function GuestSecurityReport({ report }) {
       >
         {securityHeading(report)}
       </p>
-      {cveOtherCounts(report) && (
+      {securityOtherCounts(report) && (
         <p className="mt-2 text-sm text-muted-foreground">
-          {cveOtherCounts(report)}
+          {securityOtherCounts(report)}
         </p>
       )}
       {report?.lastError && (
@@ -43,18 +47,17 @@ export function GuestSecurityReport({ report }) {
         </p>
       )}
       {hasResult && (
-        <>
-          <p className="mt-2 text-sm text-muted-foreground">
+        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+          <p>
             {report.os?.id === "mswindows"
               ? report.scope
               : `Проверено ${report.packageCount} ${plural(report.packageCount, "пакет", "пакета", "пакетов")} гостевой ОС`}
-          </p>
-          <p className="mt-1 text-xs text-faint">
-            {staleResult ? "Последняя завершённая проверка" : "Проверено"}{" "}
+            {" · "}
+            {staleResult ? "Последняя завершённая проверка: " : ""}
             {date(report.checkedAt)}
           </p>
-          <p className="mt-1 text-xs text-faint">Источник: {report.source}</p>
-        </>
+          <p>Источник: {report.source}</p>
+        </div>
       )}
       {securityNotes(report).map((note) => (
         <div key={note.id} className="mt-3 text-sm">
@@ -72,59 +75,31 @@ export function GuestSecurityReport({ report }) {
           Уязвимости при последней проверке: {findings.length}
         </p>
       )}
-      {report?.reviewFindings?.length > 0 && (
-        <details className="mt-4 text-sm text-muted-foreground">
-          <summary className="cursor-pointer text-warning-text">
-            Требуют проверки: {report.reviewFindings.length} CVE
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {report.reviewFindings.slice(0, limit).map((finding) => (
-              <li key={finding.id}>
+      {findings.length > 0 && (
+        <div className="mt-5 divide-y divide-border-soft border-y border-border-soft">
+          {findings.slice(0, limit).map((finding) => (
+            <div key={finding.id} className="py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <a
                   href={finding.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-accent-text hover:underline"
+                  className="text-sm font-medium text-accent-text hover:underline"
                 >
                   {finding.id}
                 </a>
-                <span className="ml-2">
-                  {[...new Set(finding.packages.map((p) => p.name))].join(", ")}
+                <span className="text-xs text-muted-foreground">
+                  {{
+                    critical: "Критическая",
+                    high: "Высокая",
+                    medium: "Средняя",
+                    moderate: "Средняя",
+                    low: "Низкая",
+                  }[finding.severity?.toLowerCase()] || "Опасность не оценена"}
                 </span>
-              </li>
-            ))}
-          </ul>
-          {report.reviewFindings.length > limit && (
-            <Button
-              className="mt-3"
-              variant="outline"
-              size="sm"
-              onClick={() => setLimit((value) => value + 50)}
-            >
-              Показать ещё
-            </Button>
-          )}
-        </details>
-      )}
-      {findings.length > 0 && (
-        <div className="mt-4 divide-y divide-border-soft">
-          {findings.slice(0, limit).map((finding) => (
-            <div key={finding.id} className="py-3 first:pt-0 last:pb-0">
-              <a
-                href={finding.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm font-semibold text-accent-text hover:underline"
-              >
-                {finding.id}
-              </a>
-              {finding.severity && (
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {finding.severity}
-                </span>
-              )}
+              </div>
               {finding.packages?.length > 0 && (
-                <details className="mt-1 text-sm text-muted-foreground">
+                <details className="mt-2 text-sm text-muted-foreground">
                   <summary className="cursor-pointer">
                     Затронутые пакеты: {finding.packages.length}
                   </summary>
@@ -146,7 +121,7 @@ export function GuestSecurityReport({ report }) {
                 </details>
               )}
               {finding.updates?.map((u, i) => (
-                <p key={i} className="mt-1 text-sm text-muted-foreground">
+                <p key={i} className="mt-2 text-sm text-muted-foreground">
                   {u.kb.map((kb) => `KB${kb}`).join(", ") || u.title}
                 </p>
               ))}
@@ -163,6 +138,46 @@ export function GuestSecurityReport({ report }) {
             </Button>
           )}
         </div>
+      )}
+      {report?.reviewFindings?.length > 0 && (
+        <details className="mt-4 text-sm text-muted-foreground">
+          <summary className="cursor-pointer text-warning-text">
+            Требуют уточнения: {report.reviewFindings.length} совпадений CVE
+          </summary>
+          <p className="mt-3 max-w-[70ch]">
+            Эти совпадения не подтверждены как уязвимости установленных пакетов.
+            Нужны дополнительные сведения о применимости к этой ВМ.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {report.reviewFindings.slice(0, reviewLimit).map((finding) => (
+              <li key={finding.id}>
+                <a
+                  href={finding.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent-text hover:underline"
+                >
+                  {finding.id}
+                </a>
+                <span className="ml-2">
+                  {[
+                    ...new Set((finding.packages || []).map((p) => p.name)),
+                  ].join(", ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {report.reviewFindings.length > reviewLimit && (
+            <Button
+              className="mt-3"
+              variant="outline"
+              size="sm"
+              onClick={() => setReviewLimit((value) => value + 50)}
+            >
+              Показать ещё
+            </Button>
+          )}
+        </details>
       )}
     </>
   );
@@ -206,7 +221,7 @@ export default function GuestSecurity({ id, canCheck, guestType }) {
               )
             }
           >
-            {busy ? "Проверяем…" : "Проверить CVE"}
+            {busy ? "Проверяем…" : "Проверить уязвимости"}
           </Button>
         ) : null
       }

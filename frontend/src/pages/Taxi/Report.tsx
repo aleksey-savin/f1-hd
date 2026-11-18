@@ -174,6 +174,12 @@ function TaxiReportView({
   const change = (key: string, value: string) => {
     setQuery(changeReportQuery(query, { [key]: value }));
   };
+  const scope =
+    query.get("scope") === "available"
+      ? can({ taxi: ["read"] })
+        ? "all"
+        : "own"
+      : query.get("scope") || "own";
   const defaultPeriod = data.period || monthRange(new Date());
   const period = {
     from: query.get("from") || defaultPeriod.from,
@@ -186,7 +192,7 @@ function TaxiReportView({
     );
   const reset = () =>
     setQuery(
-      query.get("scope") === "all"
+      scope === "all"
         ? { scope: "all", ...monthRange(new Date()) }
         : monthRange(new Date()),
     );
@@ -232,7 +238,7 @@ function TaxiReportView({
             <Segmented
               fit
               ariaLabel="Область отчёта"
-              value={query.get("scope") || "own"}
+              value={scope}
               onChange={(value) => change("scope", value)}
               options={[
                 { value: "own", label: "Мои поездки" },

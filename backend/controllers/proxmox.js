@@ -143,12 +143,14 @@ exports.company = async (req, res) => {
   const resources = await Resource.find({ _id: { $in: ids }, kind, archived: false });
   if (resources.length !== ids.length) fail("Ресурс не найден", 404);
   for (const r of resources)
-    if (r.clientDeviceId && String(r.companyId) !== String(companyId))
+    if (r.kind === 'node' && r.clientDeviceId && String(r.companyId) !== String(companyId))
       fail("Сначала отвяжите карточку инвентаря", 409);
+  const companyEvents = require('../services/proxmox/company-events');
+  const names = await companyEvents.namesFor([...resources.map(r => r.companyId), companyId]);
   const completedIds = [];
   try {
   for (const r of resources) {
-    const old = String(r.companyId || "");
+    const companyChange = { from: companyEvents.snapshot(r.companyId, names), to: companyEvents.snapshot(companyId, names) };
     r.$where = { companyId: r.companyId ?? null, clientDeviceId: r.clientDeviceId ?? null, archived: false };
     r.companyId = companyId;
     await r.save();
@@ -156,8 +158,9 @@ exports.company = async (req, res) => {
     await core.event(
       r,
       "companyChanged",
-      `Привязка компании изменена (${old || "не назначена"} → ${companyId || "не назначена"})`,
+      companyEvents.message(companyChange),
       actor(req),
+      { companyChange },
     );
   }
   } catch {
@@ -330,6 +333,8 @@ exports.metrics = async (req, res) =>
   res.json(await read.metrics(req.params.id, req.query.timeframe));
 exports.events = async (req, res) =>
   res.json(await read.events(req.params.id, req.query));
+exports.backups = async (req, res) =>
+  res.json(await require('../services/proxmox/backups').catalog(req.params.id));
 exports.availability = async (req, res) =>
   res.json(await read.availability(req.params.id, req.query.days || 30));
 exports.nodeSecurity = async (req, res) => {
@@ -389,8 +394,8 @@ exports.inventory = async (req, res) => {
   const p = await Preferences.findOne({}).lean();
   if (!p?.modules?.inventory?.isActive) fail("Модуль инвентаря выключен", 409);
   const r = await getResource(req.params.id);
-  if (!["node", "guest"].includes(r.kind))
-    fail("Хранилище нельзя связать с карточкой");
+  if (r.kind !== 'node')
+    fail('С карточкой инвентаря можно связать только узел Proxmox', 422);
   if (req.body.clientDeviceId) {
     const card = await require("../models/inventory/clientDevice").findById(
       read.validId(req.body.clientDeviceId),

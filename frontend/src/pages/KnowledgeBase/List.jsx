@@ -1,4 +1,9 @@
-import { Link, useNavigate, useSearchParams } from "@/components/app/navigation";
+import useListCrumbFilters from "@/hooks/use-list-crumb-filters";
+import {
+  Link,
+  useNavigate,
+  useSearchParams,
+} from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
@@ -99,6 +104,7 @@ const KnowledgeBaseList = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const store = useKnowledgeNotesStore();
+  useListCrumbFilters("/knowledge-base", useKnowledgeNotesStore);
   const can = useCan();
   const canManage = can({ knowledge: ["manage"] });
 
@@ -111,10 +117,26 @@ const KnowledgeBaseList = () => {
   useEffect(() => {
     if (store.loaded) store.fetch({ silent: true });
     else store.ensureLoaded();
-  }, []);
+  }, [location.key]);
   useLiveTopic("knowledge", () =>
     useKnowledgeNotesStore.getState().fetch({ silent: true }),
   );
+
+  // Deep links carry the company ID; resolve its visible label from scoped data.
+  useEffect(() => {
+    const selected = store.companies;
+    if (selected.length !== 1 || selected[0].alias) return;
+    const company = store.originalList
+      .flatMap((note) => note.companies || [])
+      .find((entry) => String(entry._id) === String(selected[0]._id));
+    if (company?.alias) {
+      store.updateFilter({
+        companies: [company],
+        expandedGroups: [company.alias],
+        openCompany: company.alias,
+      });
+    }
+  }, [store.originalList, store.companies]);
 
   // Вход в режим модерации по ссылке с карточки/алерта. Режим НЕ сбрасываем при
   // переходе к заметке или назад — им управляют очереди в проводнике.
@@ -157,6 +179,7 @@ const KnowledgeBaseList = () => {
         {atRoot ? (
           <>
             <ListWrapper
+              syncSearchWithStore
               title={title}
               filter={<KnowledgeBaseFilter />}
               filterStore={store}

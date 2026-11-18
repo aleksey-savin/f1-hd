@@ -84,3 +84,13 @@ test("allocating an earlier mobile page updates its cached row and removes it fr
     ["two"],
   );
 });
+
+test("choosing a date range exits the full-period company slice", () => {
+  const query = new URLSearchParams("period=all&companyId=c1&scope=available");
+  const next = changeReportQuery(query, {
+    from: "2026-01-01",
+    to: "2026-01-31",
+  });
+  assert.equal(next.get("period"), null);
+  assert.equal(next.get("companyId"), "c1");
+});

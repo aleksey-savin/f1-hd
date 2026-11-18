@@ -54,6 +54,7 @@ import {
   guestAgentState,
 } from "./GuestAgent";
 import AvailabilityPanel from "./AvailabilityPanel";
+import Backups from "./Backups";
 import NodeSecurity from "./NodeSecurity";
 import ExposureSection, { ExposureLabel } from "./Exposure";
 import {
@@ -174,11 +175,17 @@ export default function ProxmoxDetail() {
     setOperationStatusError(null);
   }, [id]);
   const title = titleOf(item, kind);
-  const crumbType = kind === "guests"
-    ? (item.guestType === "lxc" ? "LXC" : "ВМ")
-    : { nodes: "Узел", storages: "Хранилище", connections: "Подключение" }[kind];
+  const crumbType =
+    kind === "guests"
+      ? item.guestType === "lxc"
+        ? "LXC"
+        : "ВМ"
+      : { nodes: "Узел", storages: "Хранилище", connections: "Подключение" }[
+          kind
+        ];
   const crumbTitle = [crumbType !== title ? crumbType : null, title]
-    .filter(Boolean).join(" ");
+    .filter(Boolean)
+    .join(" ");
   const crumbCompany = kind === "companies" ? null : item.company;
   const Icon = icons[kind] || RiServerLine;
   const from = useCrumbFrom(crumbTitle);
@@ -244,9 +251,7 @@ export default function ProxmoxDetail() {
   );
   const editCompany = manageable && ["guests", "nodes"].includes(kind);
   const inventoryEditable =
-    manageable &&
-    can({ device: ["manage"] }) &&
-    ["guests", "nodes"].includes(kind);
+    manageable && can({ device: ["manage"] }) && kind === "nodes";
   const canPower = kind === "guests" && can({ proxmox: ["power"] });
   const latestOperation =
     activeOperation === undefined
@@ -292,7 +297,7 @@ export default function ProxmoxDetail() {
           ...(item.exposure
             ? [{ id: "exposure", label: "Доступ из интернета" }]
             : []),
-          { id: "agent", label: "QEMU Guest Agent" },
+          { id: "agent", label: "Агент QEMU" },
           { id: "security", label: "Безопасность" },
           { id: "backups", label: "Резервные копии" },
           { id: "operations", label: "Операции ВМ" },
@@ -316,18 +321,8 @@ export default function ProxmoxDetail() {
   const placement =
     kind === "guests"
       ? [
-          ["Компания ВМ", companyLink(item.company)],
-          [
-            "Физический узел",
-            <span key="node">
-              {entityLink(item.node, "nodes")}
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                Владелец: {nameOf(item.node?.company)}
-              </span>
-            </span>,
-          ],
-          ["Подключение", entityLink(item.connection, "connections")],
-          ["Инвентарь", inventoryLink],
+          ["Компания", companyLink(item.company)],
+          ["Физический узел", entityLink(item.node, "nodes")],
         ]
       : kind === "nodes"
         ? [
@@ -463,7 +458,9 @@ export default function ProxmoxDetail() {
               <DropdownMenuContent align="end">
                 {kind === "nodes" && item.canLinkNetworks && (
                   <DropdownMenuItem asChild>
-                    <Link to="network-links">Связать с сетевым устройством</Link>
+                    <Link to="network-links">
+                      Связать с сетевым устройством
+                    </Link>
                   </DropdownMenuItem>
                 )}
                 {["nodes", "guests"].includes(kind) && manageable && (
@@ -733,7 +730,16 @@ export default function ProxmoxDetail() {
                   <Metrics id={id} kind={kind} />
                 )}
               {["guests", "nodes"].includes(kind) ? (
-                <AvailabilityPanel key={id} id={id} item={item} />
+                <AvailabilityPanel
+                  key={id}
+                  id={id}
+                  item={item}
+                  canManage={manageable}
+                  saving={busy}
+                  onExpectedRunningChange={(expectedRunning) =>
+                    submit({ intent: "monitoring", expectedRunning })
+                  }
+                />
               ) : (
                 <History id={id} type="availability" />
               )}
@@ -800,58 +806,31 @@ export default function ProxmoxDetail() {
             </Section>
           )}
           {kind === "guests" && (
-            <Section title="Резервные копии" id="backups">
-              <Properties
-                items={[
-                  [
-                    "Последняя успешная копия",
-                    item.lastBackupAt
-                      ? date(item.lastBackupAt)
-                      : "Пока не зафиксирована",
-                  ],
-                ]}
-              />
-              {item.lastBackupError && (
-                <Feedback
-                  data={{ error: true, message: item.lastBackupError }}
-                />
-              )}
-              {can({ proxmox: ["backup"] }) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-4"
-                  disabled={
-                    operationPending ||
-                    item.template ||
-                    item.freshness !== "fresh"
-                  }
-                  onClick={() => startOperation("backup")}
-                >
-                  <RiDownloadCloud2Line />
-                  Создать резервную копию
-                </Button>
-              )}
-            </Section>
+            <Backups
+              key={id}
+              id={id}
+              refreshKey={item.lastBackupAt}
+              action={
+                can({ proxmox: ["backup"] }) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={
+                      operationPending ||
+                      item.template ||
+                      item.freshness !== "fresh"
+                    }
+                    onClick={() => startOperation("backup")}
+                  >
+                    <RiDownloadCloud2Line />
+                    Создать резервную копию
+                  </Button>
+                )
+              }
+            />
           )}
           {["guests", "nodes"].includes(kind) && (
             <Section title="Мониторинг и обслуживание" id="monitoring">
-              {kind === "guests" && (
-                <SettingRow
-                  title="ВМ должна работать постоянно"
-                  hint="Остановка этой ВМ считается проблемой доступности."
-                  htmlFor="proxmox-expected"
-                >
-                  <Switch
-                    id="proxmox-expected"
-                    checked={Boolean(item.expectedRunning)}
-                    disabled={!manageable || busy || item.template}
-                    onCheckedChange={(v) =>
-                      submit({ intent: "monitoring", expectedRunning: v })
-                    }
-                  />
-                </SettingRow>
-              )}
               {item.maintenance?.until &&
               new Date(item.maintenance.until) > new Date() ? (
                 <div className="mt-3">

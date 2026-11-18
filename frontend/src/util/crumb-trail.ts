@@ -1,6 +1,16 @@
-export type CrumbLink = { label: string; to?: string };
-export type CrumbOrigin = { label: string; to: string };
+import { readListSnapshot, type ListSnapshot } from "./list-crumb-filters.ts";
+
+export type CrumbLink = {
+  label: string;
+  to?: string;
+  companyId?: string;
+  freshCompanyList?: boolean;
+  listSnapshot?: ListSnapshot;
+};
+export type CrumbOrigin = CrumbLink & { to: string };
 export type CrumbState = {
+  listSnapshot?: ListSnapshot;
+  companyVisits?: string[];
   crumbTrail?: CrumbLink[];
   from?: CrumbOrigin;
   returnContext?: { to: string; from: CrumbOrigin };
@@ -23,6 +33,12 @@ export function isCrumbAddress(value: unknown): value is string {
 export function readCrumbState(value: unknown): CrumbState {
   if (!record(value)) return {};
   const result: CrumbState = {};
+  const listSnapshot = readListSnapshot(value.listSnapshot);
+  if (listSnapshot) result.listSnapshot = listSnapshot;
+  if (Array.isArray(value.companyVisits)) {
+    const visits = value.companyVisits.filter(isCompanyAddress);
+    if (visits.length) result.companyVisits = [...new Set(visits)];
+  }
   const valid = (item: unknown): item is CrumbLink =>
     record(item) &&
     typeof item.label === "string" &&
@@ -33,13 +49,22 @@ export function readCrumbState(value: unknown): CrumbState {
     value.crumbTrail.length > 0 &&
     value.crumbTrail.every(valid)
   ) {
-    result.crumbTrail = value.crumbTrail.map(({ label, to }) => ({
+    result.crumbTrail = value.crumbTrail.map(({ label, to, listSnapshot }) => ({
       label,
       to,
+      ...(readListSnapshot(listSnapshot)
+        ? { listSnapshot: readListSnapshot(listSnapshot) }
+        : {}),
     }));
   }
   if (valid(value.from) && value.from.to)
-    result.from = { label: value.from.label, to: value.from.to };
+    result.from = {
+      label: value.from.label,
+      to: value.from.to,
+      ...(readListSnapshot(value.from.listSnapshot)
+        ? { listSnapshot: readListSnapshot(value.from.listSnapshot) }
+        : {}),
+    };
   const context = value.returnContext;
   if (
     record(context) &&
@@ -49,7 +74,13 @@ export function readCrumbState(value: unknown): CrumbState {
   ) {
     result.returnContext = {
       to: context.to,
-      from: { label: context.from.label, to: context.from.to },
+      from: {
+        label: context.from.label,
+        to: context.from.to,
+        ...(readListSnapshot(context.from.listSnapshot)
+          ? { listSnapshot: readListSnapshot(context.from.listSnapshot) }
+          : {}),
+      },
     };
   }
   return result;
@@ -57,6 +88,64 @@ export function readCrumbState(value: unknown): CrumbState {
 
 export const crumbPath = (to: string) =>
   to.split(/[?#]/, 1)[0].replace(/\/$/, "") || "/";
+
+function isCompanyAddress(value: unknown): value is string {
+  return (
+    isCrumbAddress(value) &&
+    /^\/companies\/(?!add$|update$)[^/]+$/.test(crumbPath(value))
+  );
+}
+
+/** Only an actual page is a visit. A declared parent is never evidence. */
+export function companyVisitState(state: unknown, current: string): string[] {
+  const visits = readCrumbState(state).companyVisits ?? [];
+  return isCompanyAddress(current)
+    ? [...visits.filter((to) => crumbPath(to) !== crumbPath(current)), current]
+    : visits;
+}
+
+/** Query-backed reports already have their own company parameter. */
+export function companyListAddress(list: string, companyId: string): string {
+  const parameter =
+    list.startsWith("/devices/proxmox/") ||
+    list === "/report/taxi" ||
+    list === "/finances/approval"
+      ? "companyId"
+      : "companyScope";
+  const query = new URLSearchParams({ [parameter]: companyId });
+  if (list === "/report/taxi") {
+    query.set("period", "all");
+    query.set("scope", "available");
+  }
+  if (list === "/finances/approval") query.set("stage", "all");
+  return `${crumbPath(list)}?${query}`;
+}
+
+export function resolveCompanyCrumbs(
+  chain: CrumbLink[],
+  accessibleList?: string,
+  state?: unknown,
+): CrumbLink[] {
+  const visits = readCrumbState(state).companyVisits ?? [];
+  return chain.map((item) => {
+    if (!item.companyId) return item;
+    const visited = visits.find(
+      (to) => crumbPath(to) === `/companies/${item.companyId}`,
+    );
+    const to = visited
+      ? item.to
+        ? visited
+        : undefined
+      : accessibleList
+        ? companyListAddress(accessibleList, item.companyId)
+        : undefined;
+    return {
+      label: item.label,
+      ...(to ? { to } : {}),
+      ...(!visited && to ? { freshCompanyList: true } : {}),
+    };
+  });
+}
 
 /** Only actual parents define breadcrumbs. History supplies saved ancestor filters. */
 export function buildCrumbTrail({
@@ -81,20 +170,29 @@ export function buildCrumbTrail({
         item.to.includes("#"),
     )
     .map((item) => {
-      if (!item.to || /[?#]/.test(item.to)) return item;
+      if (!item.to || item.freshCompanyList) return item;
       const previous =
         saved.find((entry) => entry.to === item.to) ??
         [...saved]
           .reverse()
           .find(
             (entry) =>
+              !/[?#]/.test(item.to!) &&
               entry.to &&
               crumbPath(entry.to) === crumbPath(item.to!) &&
               !declaredParents.some(
                 (parent) => parent !== item && parent.to === entry.to,
               ),
           );
-      return previous?.to ? { ...item, to: previous.to } : item;
+      return previous?.to
+        ? {
+            ...item,
+            to: previous.to,
+            ...(previous.listSnapshot
+              ? { listSnapshot: previous.listSnapshot }
+              : {}),
+          }
+        : item;
     });
   const items: CrumbLink[] = [];
   for (const item of [...parents, current]) {
@@ -127,7 +225,10 @@ export function crumbReturnOrigin(
     !origin ||
     crumbPath(origin.to) === crumbPath(current) ||
     hierarchy.some(
-      (item) => item.to && crumbPath(item.to) === crumbPath(origin.to),
+      (item) =>
+        item.to === origin.to &&
+        JSON.stringify(item.listSnapshot) ===
+          JSON.stringify(origin.listSnapshot),
     )
   )
     return undefined;
@@ -138,14 +239,21 @@ export function crumbReturnOrigin(
 export function crumbStateFor(
   items: CrumbLink[],
   index = items.length - 1,
+  state?: unknown,
 ): CrumbState {
   const from = items
     .slice(0, index)
     .reverse()
     .find((item) => item.to);
   return {
+    ...(items[index]?.listSnapshot
+      ? { listSnapshot: items[index].listSnapshot }
+      : {}),
+    ...(readCrumbState(state).companyVisits
+      ? { companyVisits: readCrumbState(state).companyVisits }
+      : {}),
     crumbTrail: items.slice(0, index + 1),
-    ...(from?.to ? { from: { label: from.label, to: from.to } } : {}),
+    ...(from?.to ? { from: { ...from, to: from.to } } : {}),
   };
 }
 
@@ -191,7 +299,13 @@ export function companyCrumbs(
     const label = company?.alias || company?.name || company?.fullTitle;
     if (!label) return [];
     const id = company?._id || company?.id;
-    return [{ label, ...(id && canRead ? { to: `/companies/${id}` } : {}) }];
+    return [
+      {
+        label,
+        ...(id ? { companyId: id } : {}),
+        ...(id && canRead ? { to: `/companies/${id}` } : {}),
+      },
+    ];
   });
   if (entries.length <= 1) return entries;
   return [{ label: entries.map((item) => item.label).join(", ") }];
@@ -202,8 +316,11 @@ export function crumbSourceState(
   items: CrumbLink[],
   current: CrumbOrigin,
   returnTo?: CrumbOrigin,
+  state?: unknown,
 ): CrumbState & { from: CrumbOrigin } {
+  const companyVisits = companyVisitState(state, current.to);
   return {
+    ...(companyVisits.length ? { companyVisits } : {}),
     crumbTrail: items.length ? [...items.slice(0, -1), current] : [current],
     from: current,
     ...(returnTo ? { returnContext: { to: current.to, from: returnTo } } : {}),

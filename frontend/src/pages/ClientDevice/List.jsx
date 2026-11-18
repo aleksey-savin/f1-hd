@@ -1,3 +1,4 @@
+import useListCrumbFilters from "@/hooks/use-list-crumb-filters";
 import { useSearchParams } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect, useRef } from "react";
@@ -51,6 +52,7 @@ const ClientDevices = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const can = useCan();
   const store = useClientDeviceFilterStore();
+  useListCrumbFilters("/inventory/client-devices", useClientDeviceFilterStore);
 
   const canManage = Boolean(can({ device: ["manage"] }));
   const selection = usePagedListSelection({
@@ -190,6 +192,7 @@ const ClientDevices = () => {
   return (
     <>
       <ListWrapper
+        syncSearchWithStore
         title={() => "Устройства"}
         count={store.total}
         hasActiveQuery={hasActiveQuery}

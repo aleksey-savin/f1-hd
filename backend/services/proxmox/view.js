@@ -398,7 +398,7 @@ const events = async (resourceId, query = {}) => {
       .lean(),
     Event.countDocuments(filter),
   ]);
-  return { items: items.map(view), total, page, pageSize };
+  return { items: (await require('./company-events').hydrate(items)).map(view), total, page, pageSize };
 };
 const availability = async (resourceId, days = 30) =>
   require("./availability").summary(validId(resourceId), days);

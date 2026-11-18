@@ -26,7 +26,7 @@ export function GuestAgentPanel({ item, canManage, onEdit }) {
   return (
     <Section
       id="agent"
-      title="QEMU Guest Agent"
+      title="Агент QEMU"
       action={
         canManage && item.guestType === "qemu" && onEdit ? (
           <Button variant="outline" size="sm" onClick={onEdit}>
@@ -145,7 +145,7 @@ function GuestAgentForm({ item, enable, onOpenChange, onSaved }) {
         [
           "enabled",
           "Включить Guest Agent",
-          "Разрешить обмен с QEMU Guest Agent внутри ВМ.",
+          "Разрешить обмен с агентом QEMU внутри ВМ.",
         ],
         [
           "trimClonedDisks",
@@ -174,7 +174,7 @@ function GuestAgentForm({ item, enable, onOpenChange, onSaved }) {
       ))}
       <SettingRow
         title="Канал агента"
-        hint="Способ подключения QEMU Guest Agent к виртуальной машине."
+        hint="Способ подключения агента QEMU к виртуальной машине."
         htmlFor={`${prefix}-channel`}
       >
         <Combobox

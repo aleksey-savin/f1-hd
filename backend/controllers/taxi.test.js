@@ -211,3 +211,28 @@ test('taxi HTTP routes expose reporting and allocation without booking APIs', ()
     'GET /tickets/:id/trips', 'GET /tickets/:id/candidates', 'PATCH /trips/:id/allocation', 'GET /trips/:id/allocation-options', 'DELETE /trips/:id', 'GET /trips/:id',
   ]);
 });
+
+test('company breadcrumb covers the full period and only the permitted taxi scope', async (t) => {
+  const Preferences = require('../models/preferences');
+  const matches = [];
+  t.mock.method(Preferences, 'findOne', () => chain({ timezone: 'Asia/Vladivostok' }));
+  t.mock.method(TaxiTrip, 'aggregate', async (pipeline) => { matches.push(pipeline[0].$match); return []; });
+  t.mock.method(Company, 'find', () => chain([]));
+  t.mock.method(User, 'find', () => chain([]));
+  t.mock.method(TaxiSettings, 'findById', () => chain({ isActive: true }));
+  for (const permission of ['read', 'allocate']) {
+    matches.length = 0;
+    const result = await invoke(controller.list, {
+      auth: { userId: ownId, isEndUser: false, can: ({ taxi }) => taxi?.includes(permission) },
+      query: { companyId: ownId, period: 'all', scope: 'available' },
+    });
+    assert.equal(result.error, undefined);
+    assert.deepEqual(result.body.period, { from: '', to: '' });
+    for (const filter of matches) {
+      assert.equal(filter.$and, undefined);
+      assert.equal(String(filter.companyId), ownId);
+      assert.equal(filter.deletedAt, null);
+      assert.equal(filter.userId && String(filter.userId), permission === 'read' ? undefined : ownId);
+    }
+  }
+});

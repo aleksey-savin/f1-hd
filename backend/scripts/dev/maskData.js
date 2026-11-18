@@ -498,11 +498,20 @@ const OWN_FIELDS = {
   // Операции ВМ хранятся внутри событий; скопированное задание не должно
   // возобновляться воркером. Сам журнал и его ссылки остаются для диагностики.
   proxmoxevents: {
-    fields: ["operationData"],
-    masks: ["operationData.active"],
+    fields: ["operationData", "companyChange", "kind", "message"],
+    masks: ["operationData.active", "companyChange.from.name", "companyChange.to.name"],
     apply(doc) {
       if (isPlain(doc.operationData) && doc.operationData.active === true) {
         doc.operationData.active = false;
+      }
+      for (const side of ['from', 'to']) {
+        const snapshot = doc.companyChange?.[side];
+        if (isPlain(snapshot) && filled(snapshot.name)) {
+          snapshot.name = usableId(snapshot.id) ? companyAlias(snapshot.id) : 'не назначена';
+        }
+      }
+      if (doc.kind === 'companyChanged' && doc.companyChange?.from?.name && doc.companyChange?.to?.name) {
+        doc.message = `Привязка компании изменена (${doc.companyChange.from.name} → ${doc.companyChange.to.name})`;
       }
     },
   },

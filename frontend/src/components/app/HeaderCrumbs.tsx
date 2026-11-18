@@ -108,7 +108,7 @@ export default function HeaderCrumbs() {
                       <DropdownMenuItem key={i} asChild>
                         <Link
                           to={items[i].to!}
-                          state={crumbStateFor(items, i)}
+                          state={crumbStateFor(items, i, context)}
                           className="max-w-sm whitespace-normal break-words"
                         >
                           {items[i].label}
@@ -138,7 +138,7 @@ export default function HeaderCrumbs() {
             ) : items[index].to ? (
               <Link
                 to={items[index].to!}
-                state={crumbStateFor(items, index)}
+                state={crumbStateFor(items, index, context)}
                 className="rounded-sm text-muted-foreground no-underline hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
               >
                 {items[index].label}
@@ -172,7 +172,11 @@ export function CrumbReturn() {
           <Link
             to={origin.to}
             aria-label={label}
-            state={{ crumbTrail: readCrumbState(location.state).crumbTrail }}
+            state={{
+              crumbTrail: readCrumbState(location.state).crumbTrail,
+              companyVisits: context?.companyVisits,
+              listSnapshot: origin.listSnapshot,
+            }}
           >
             <RiArrowLeftLine aria-hidden />
           </Link>

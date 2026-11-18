@@ -176,6 +176,12 @@ const useClientDeviceFilterStore = create((set, get) => ({
     }, 300);
   },
 
+  restoreNavigationFilters: (patch) => {
+    clearTimeout(searchDebounce);
+    requestSeq++;
+    set(patch);
+  },
+
   resetFilter: () => {
     set({ facets: { ...EMPTY_FACETS }, searchTerm: "", page: 1 });
     doFetch(get, set);

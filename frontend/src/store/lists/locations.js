@@ -104,6 +104,8 @@ const FACET_DEFAULTS = {
   searchTerm: "",
 };
 
+let requestSeq = 0;
+
 const useLocationFilterStore = create((set) => ({
   selectedCompanyIds: [],
   ...FACET_DEFAULTS,
@@ -142,6 +144,7 @@ const useLocationFilterStore = create((set) => ({
     }),
   isLoading: false,
   fetch: async (companyParam = null) => {
+    const seq = ++requestSeq;
     set({ isLoading: true });
     let url = "/api/inventory/companies-locations";
 
@@ -158,6 +161,7 @@ const useLocationFilterStore = create((set) => ({
     // Пустой список при ошибке — прежнее поведение, только теперь оно
     // записано одним способом, а не двумя.
     const data = await api(url).catch(() => []);
+    if (seq !== requestSeq) return;
     set({
       originalList: data,
       isLoading: false,

@@ -22,18 +22,23 @@ import {
   crumbPath,
   crumbSourceState,
   readCrumbState,
+  companyVisitState,
+  resolveCompanyCrumbs,
   type CrumbLink,
   type CrumbOrigin,
 } from "@/util/crumb-trail";
 import { useAuthedUser, useCan } from "@/store/authed-user";
+import type { ListSnapshot } from "@/util/list-crumb-filters";
 
 type PageCrumbs = {
+  listSnapshot?: ListSnapshot;
   title?: string;
   section?: string | false;
   chain?: CrumbLink[];
 };
 type Registration = PageCrumbs & { path: string };
 type CrumbContextValue = {
+  companyVisits: string[];
   items: CrumbLink[];
   owner: string;
   origin?: CrumbOrigin;
@@ -93,6 +98,11 @@ export function CrumbProvider({ children }: { children: ReactNode }) {
         ? "Мой аккаунт"
         : section?.label || "Главная");
   const incoming = readCrumbState(location.state);
+  const companyVisits = companyVisitState(
+    incoming,
+    currentCrumbAddress(owner, location, incoming),
+  );
+  incoming.companyVisits = companyVisits;
   // A list link can become inaccessible after a permissions update. Entity
   // access remains the responsibility of its route/server, not list rights.
   const permitted = (item: CrumbLink): boolean => {
@@ -111,17 +121,20 @@ export function CrumbProvider({ children }: { children: ReactNode }) {
     current: {
       label: title,
       to: currentCrumbAddress(owner, location, incoming),
+      ...(page.listSnapshot ? { listSnapshot: page.listSnapshot } : {}),
     },
     section: fallback,
-    chain: page.chain,
+    chain: resolveCompanyCrumbs(page.chain ?? [], fallback?.to, incoming),
     state: incoming,
   });
   const encoded = JSON.stringify(items);
+  const encodedVisits = JSON.stringify(companyVisits);
   const encodedOrigin = JSON.stringify(
     crumbReturnOrigin(incoming, owner, items),
   );
   const value = useMemo(
     () => ({
+      companyVisits: JSON.parse(encodedVisits) as string[],
       items: JSON.parse(encoded) as CrumbLink[],
       origin: encodedOrigin
         ? (JSON.parse(encodedOrigin) as CrumbOrigin)
@@ -129,7 +142,7 @@ export function CrumbProvider({ children }: { children: ReactNode }) {
       owner,
       register,
     }),
-    [encoded, encodedOrigin, owner, register],
+    [encoded, encodedOrigin, encodedVisits, owner, register],
   );
   return (
     <CrumbContext.Provider value={value}>{children}</CrumbContext.Provider>
@@ -156,9 +169,12 @@ export function useCrumbFrom(label?: string | null) {
   return useMemo(() => {
     if (!label && !context) return undefined;
     const current = {
+      ...context?.items.at(-1),
       label: label || context?.items.at(-1)?.label || "Главная",
       to: context?.items.at(-1)?.to ?? `${own}${location.search}`,
     };
-    return crumbSourceState(context?.items ?? [], current, context?.origin);
+    return crumbSourceState(context?.items ?? [], current, context?.origin, {
+      companyVisits: context?.companyVisits,
+    });
   }, [label, context, own, location.search]);
 }

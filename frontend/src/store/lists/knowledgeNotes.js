@@ -128,6 +128,7 @@ const handleSorting = (selected, list) => {
 // Поиск бьёт по серверу, поэтому не на каждую букву.
 const SEARCH_DEBOUNCE_MS = 300;
 let searchTimer = null;
+let requestSeq = 0;
 
 const useKnowledgeNotesStore = create((set, get) => ({
   // Выбранные значения фасетов храним объектами, а не id: серверный поиск
@@ -166,11 +167,13 @@ const useKnowledgeNotesStore = create((set, get) => ({
   // silent — живое обновление и возврат на страницу: без спиннера поверх уже
   // показанного списка (docs/live-updates.md)
   fetch: async ({ silent = false } = {}) => {
+    const seq = ++requestSeq;
     const query = datasetQuery(get());
     if (!silent) set({ isLoading: true });
     // Ошибку не глушим: список заметок — содержимое страницы, и пустой он
     // должен появляться только когда заметок действительно нет.
     const data = await api(`/api/knowledge-notes${query}`);
+    if (seq !== requestSeq) return;
 
     set((state) => {
       const originalList = Array.isArray(data) ? data : [];
@@ -288,6 +291,12 @@ const useKnowledgeNotesStore = create((set, get) => ({
       filteredList: handleSorting(data, state.filteredList),
       isSorting: false,
     }));
+  },
+
+  restoreNavigationFilters: (patch) => {
+    clearTimeout(searchTimer);
+    requestSeq++;
+    set({ ...patch, isLoading: false });
   },
 
   resetFilter: () => {

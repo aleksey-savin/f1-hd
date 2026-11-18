@@ -1,3 +1,4 @@
+import useListCrumbFilters from "@/hooks/use-list-crumb-filters";
 import { Link } from "@/components/app/navigation";
 import { setDocTitle } from "@/hooks/use-doc-title";
 import { useEffect } from "react";
@@ -38,6 +39,7 @@ const Users = () => {
   const can = useCan();
   const location = useLocation();
   const s = useUserFilterStore();
+  useListCrumbFilters("/users", useUserFilterStore);
 
   // Первичная загрузка (и рефетч после возврата на список — напр. после
   // удаления/правки, когда action редиректит на /users). Взаимодействия с
@@ -141,7 +143,11 @@ const Users = () => {
 
   const toolbar = (
     <>
-      {can({ user: ["manage"] }) && <Button asChild variant="ghost"><Link to="/users/deleted">Удалённые</Link></Button>}
+      {can({ user: ["manage"] }) && (
+        <Button asChild variant="ghost">
+          <Link to="/users/deleted">Удалённые</Link>
+        </Button>
+      )}
       <Segmented
         options={AUDIENCE_OPTIONS}
         value={s.audience}
@@ -179,6 +185,7 @@ const Users = () => {
 
   return (
     <ListWrapper
+      syncSearchWithStore
       title={() => "Пользователи"}
       count={s.total}
       hasActiveQuery={hasActiveQuery}
