@@ -4,7 +4,6 @@ import {
   routerRows,
   linksPayload,
   rankedRouters,
-  applyDiscoveredWan,
 } from "./node-network-state.js";
 const networks = [
   { key: "a", bridge: "vmbr0", vlan: null, cidr: "10.0.0.0/24" },
@@ -28,14 +27,14 @@ test("VLAN identities remain distinct; only unambiguous matches are selected", (
     [true, false, false],
   );
   assert.deepEqual(rows[1].candidates, ["vlan20", "office"]);
-  assert.equal(rows[0].wan.name, "WAN");
-  assert.equal(
+  assert.deepEqual(rows[0].wan, { kind: "auto" });
+  assert.deepEqual(
     routerRows(
       networks,
       { ...router, wanOptions: [{ kind: "interface", name: "ether1" }] },
       [],
-    )[0].wan.name,
-    "",
+    )[0].wan,
+    { kind: "auto" },
   );
 });
 test("saving retains unvisited routers and missing networks; sends only selected rows without node scope", () => {
@@ -74,20 +73,13 @@ test("ranking counts matching networks, not ambiguous duplicate interfaces", () 
   assert.equal(rankedRouters([other, router])[0].id, "r1");
 });
 
-test("live unique WAN list fills missing WAN without replacing saved or manually cleared choices", () => {
+test("new associations save without selecting an external interface", () => {
   const rows = routerRows(networks, { ...router, wanOptions: [] }, []);
-  rows[1] = { ...rows[1], wan: { kind: "interface", name: "uplink" } };
-  rows[2] = { ...rows[2], wanEdited: true };
-  const filled = applyDiscoveredWan(rows, [{ value: "WAN", label: "WAN" }]);
-  assert.deepEqual(filled[0].wan, { kind: "list", name: "WAN" });
-  assert.deepEqual(filled[1].wan, { kind: "interface", name: "uplink" });
-  assert.equal(filled[2].wan.name, "");
-  assert.equal(applyDiscoveredWan(rows, []), rows);
-  assert.equal(
-    applyDiscoveredWan(rows, [{ value: "WAN" }, { value: "wan" }]),
-    rows,
+  const payload = linksPayload([], { r1: rows });
+  assert.ok(payload.length);
+  assert.ok(
+    payload.every((link) => link.wan.kind === "auto" && !link.wan.name),
   );
-  assert.equal("wanEdited" in linksPayload([], { r1: filled })[0], false);
 });
 
 test("same CIDR across segments requires manual choice even with one matching interface", () => {

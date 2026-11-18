@@ -10,12 +10,7 @@ import AlertMessage from "@/components/app/AlertMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  linksPayload,
-  rankedRouters,
-  routerRows,
-  applyDiscoveredWan,
-} from "./node-network-state";
+import { linksPayload, rankedRouters, routerRows } from "./node-network-state";
 
 const endpoint = (id) => `/api/proxmox/nodes/${id}/network-links`;
 export const nodeNetworksLoader = ({ params, request }) =>
@@ -73,9 +68,7 @@ export default function NodeNetworks() {
   const router = routers.find((entry) => entry.id === selected);
   const rows = drafts[selected] || [];
   const payload = linksPayload(initial.links, drafts);
-  const incomplete = payload.some(
-    (link) => !link.cidr || !link.lanInterface || !link.wan?.name,
-  );
+  const incomplete = payload.some((link) => !link.cidr || !link.lanInterface);
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.ok)
       close("..", { replace: true });
@@ -91,13 +84,6 @@ export default function NodeNetworks() {
       .then((value) => {
         if (controller.signal.aborted) return;
         setOptions((current) => ({ ...current, [selected]: value }));
-        setDrafts((current) => ({
-          ...current,
-          [selected]: applyDiscoveredWan(
-            current[selected],
-            value.interfaceLists,
-          ),
-        }));
       })
       .catch((error) => {
         if (!controller.signal.aborted) setOptionsError(error.message);
@@ -122,26 +108,6 @@ export default function NodeNetworks() {
         i === index ? { ...row, ...change } : row,
       ),
     }));
-  const wanOptions = [
-    ...(options[selected]?.interfaceLists || []).map((entry) => ({
-      value: `list:${entry.value}`,
-      label: entry.label,
-      group: "Списки интерфейсов",
-    })),
-    ...(options[selected]?.interfaces || []).map((entry) => ({
-      value: `interface:${entry.value}`,
-      label: entry.label,
-      group: "Интерфейсы",
-    })),
-  ];
-  const commonWan = rows.find((row) => row.selected)?.wan || rows[0]?.wan;
-  const wanValue = commonWan?.name ? `${commonWan.kind}:${commonWan.name}` : "";
-  const mixedWan = rows
-    .filter((row) => row.selected)
-    .some(
-      (row) =>
-        row.wan?.kind !== commonWan?.kind || row.wan?.name !== commonWan?.name,
-    );
   return (
     <form
       onSubmit={(event) => {
@@ -340,48 +306,6 @@ export default function NodeNetworks() {
               Сети узла не обнаружены.
             </p>
           )}
-          {rows.some((row) => row.selected) && (
-            <Field
-              className="mt-4"
-              label="Внешний вход MikroTik"
-              hint={
-                mixedWan
-                  ? "У сохранённых связей разные внешние входы. Выбор заменит их для этого устройства."
-                  : "Интерфейс или список интерфейсов, через который приходит трафик из интернета."
-              }
-            >
-              <Combobox
-                ariaLabel="Внешний вход MikroTik"
-                value={mixedWan ? "" : wanValue}
-                loading={!options[selected] && !optionsError}
-                options={wanOptions}
-                disabled={busy}
-                placeholder={
-                  mixedWan
-                    ? "Оставить внешние входы без изменений"
-                    : "Выберите внешний вход"
-                }
-                onChange={(value) => {
-                  const separator = (value || "").indexOf(":");
-                  const wan =
-                    separator < 0
-                      ? { kind: "list", name: "" }
-                      : {
-                          kind: value.slice(0, separator),
-                          name: value.slice(separator + 1),
-                        };
-                  setDrafts((current) => ({
-                    ...current,
-                    [selected]: current[selected].map((row) => ({
-                      ...row,
-                      wan,
-                      wanEdited: true,
-                    })),
-                  }));
-                }}
-              />
-            </Field>
-          )}
           {(optionsError || router.error) && (
             <AlertMessage
               variant="danger"
@@ -404,8 +328,7 @@ export default function NodeNetworks() {
       )}
       {incomplete && (
         <p className="mt-3 text-sm text-muted-foreground">
-          Выберите внутренний интерфейс и внешний вход для каждой отмеченной
-          сети.
+          Выберите соответствие для каждой отмеченной сети.
         </p>
       )}
       <p className="mt-3 text-sm text-muted-foreground" role="status">

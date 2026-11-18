@@ -250,3 +250,20 @@ test("negated protocol does not reopen TCP, missing mandatory state remains unkn
   assert.equal(evaluatePath(g, target).fragments.length, 0);
   assert.ok(evaluatePath(g, target).unresolved.length);
 });
+test('automatic ingress checks NAT without a saved interface and keeps missing evidence unknown',()=>{
+ const data=graph();data.routes.push({'dst-address':'0.0.0.0/0',active:'true',gateway:'8.8.8.1'});
+ const auto={...target,link:{...target.link,wan:{kind:'auto'}}};
+ const result=evaluatePath(data,auto);
+ assert.ok(result.fragments.some(row=>row.verdict==='public'));
+ const missing=evaluatePath(graph(),auto);
+ assert.equal(missing.fragments.length,0);
+ assert.ok(missing.unresolved.some(row=>row.code==='externalInterfaceUnknown'));
+});
+test('internal DNAT ingress with a public address is not promoted to Internet',()=>{
+ const data=graph([], [{chain:'dstnat',action:'dst-nat',protocol:'tcp','dst-port':'80','to-addresses':'10.0.0.7','in-interface':'office'}]);
+ data.interfaces.push({name:'office'});data.addresses.push({address:'9.9.9.9/24',interface:'office'});
+ data.routes.push({'dst-address':'0.0.0.0/0',active:'true',gateway:'8.8.8.1'});
+ const result=evaluatePath(data,{...target,link:{...target.link,wan:{kind:'auto'}}});
+ assert.equal(result.fragments.some(row=>row.verdict==='public'),false);
+ assert.equal(result.unresolved.some(row=>row.code==='externalAddressUnknown'),false);
+});

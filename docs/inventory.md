@@ -748,7 +748,12 @@ documented in each component's own header.
   bridges; the save validator uses this same bridge catalogue.
   Unique correspondences are preselected; multiple candidate
   interfaces or the same router LAN matching several segments require explicit
-  choice. One node can link multiple devices. Saved mappings remain removable when
+  choice. External ingress is automatic for new mappings: the current snapshot's
+  active default routes and WAN interface list establish candidates; NAT and
+  firewall rules are then evaluated on those paths. A DNAT rule's input interface
+  alone is not proof of Internet ingress. Multiple uplinks are supported; missing
+  evidence stays unknown and never prevents saving the association. Existing
+  manual WAN mappings remain valid. One node can link multiple devices. Saved mappings remain removable when
   discovery or a device is unavailable. The API requires `proxmox.read`,
   `proxmox.manage`, and `mikrotik.read`, not `settings.manage`; node scope comes
   from the resource, and concurrent saves use a revision guard. General monitoring

@@ -21,11 +21,6 @@ export function routerRows(networks, router, links) {
         physical: "Нет в текущих данных узла",
       });
   }
-  const wanLists = router.wanOptions.filter(
-    (wan) => wan.kind === "list" && /^wan$/i.test(wan.name),
-  );
-  const defaultWan =
-    wanLists.length === 1 ? wanLists[0] : { kind: "list", name: "" };
   return segments.flatMap((network) => {
     const saved = existing.filter(
       (link) => segmentKey(link) === segmentKey(network),
@@ -56,7 +51,7 @@ export function routerRows(networks, router, links) {
         cidr: network.cidr || "",
         lanInterface:
           candidates.length === 1 && !ambiguous ? candidates[0] : "",
-        wan: defaultWan,
+        wan: { kind: "auto" },
       },
     ];
   });
@@ -79,20 +74,5 @@ export function linksPayload(existing, drafts) {
       lanInterface,
       wan,
     }),
-  );
-}
-
-export function applyDiscoveredWan(rows, interfaceLists) {
-  const candidates = interfaceLists.filter((entry) =>
-    /^wan$/i.test(entry.value),
-  );
-  if (candidates.length !== 1) return rows;
-  return rows.map((row) =>
-    row.wan?.name || row.wanEdited
-      ? row
-      : {
-          ...row,
-          wan: { kind: "list", name: candidates[0].value },
-        },
   );
 }

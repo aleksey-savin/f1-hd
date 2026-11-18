@@ -93,12 +93,13 @@ const validateNetworkLinks = async (input, current = [], context = {}) => {
         raw[key].length > 100
       )
         fail("Выберите интерфейсы сетевой связи");
-    if (
+    const automaticWan = raw.wan == null || raw.wan.kind === 'auto';
+    if (!automaticWan && (
       !["interface", "list"].includes(raw.wan?.kind) ||
       typeof raw.wan?.name !== "string" ||
       !raw.wan.name.trim() ||
       raw.wan.name.length > 100
-    )
+    ))
       fail("Выберите внешний интерфейс MikroTik");
     const row = {
       _id: raw._id || String(new mongoose.Types.ObjectId()),
@@ -109,7 +110,7 @@ const validateNetworkLinks = async (input, current = [], context = {}) => {
       vlan: raw.vlan ?? null,
       cidr: cidrRange(raw.cidr).cidr,
       lanInterface: raw.lanInterface,
-      wan: { kind: raw.wan.kind, name: raw.wan.name },
+      wan: automaticWan ? {kind:'auto'} : { kind: raw.wan.kind, name: raw.wan.name },
     };
     const range = cidrRange(row.cidr);
     for (const previous of result) {
@@ -131,9 +132,9 @@ const validateNetworkLinks = async (input, current = [], context = {}) => {
         return (
           options.bridges.some((x) => x.value === link.bridge) &&
           options.interfaces.some((x) => x.value === link.lanInterface) &&
-          options[
+          (link.wan.kind === 'auto' || options[
             link.wan.kind === "list" ? "interfaceLists" : "interfaces"
-          ].some((x) => x.value === link.wan.name)
+          ].some((x) => x.value === link.wan.name))
         );
       });
     if (!(await exists(row)))

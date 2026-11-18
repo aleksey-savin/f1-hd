@@ -65,3 +65,8 @@ test('global policy DTO never includes node network links, even for administrato
  const result=require('./network-links').publicSettings({networkLinks:[link],networkLinksVersion:'private',cpuThreshold:90},()=>true);
  assert.deepEqual(result,{cpuThreshold:90});
 });
+test('missing WAN is stored as automatic, without a manual interface requirement',async()=>{
+ const {wan:_wan,...input}=link;
+ const result=await validateNetworkLinks([input],[],context);
+ assert.deepEqual(result[0].wan,{kind:'auto'});
+});

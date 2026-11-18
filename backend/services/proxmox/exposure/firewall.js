@@ -332,10 +332,7 @@ const evaluatePath = (graph, target, { limits = {}, sharedBudget } = {}) => {
     unknown("routingUnavailable");
     return { fragments, unresolved };
   }
-  const wan =
-    target.link.wan.kind === "list"
-      ? graph.lists[target.link.wan.name]
-      : [target.link.wan.name];
+  const wan = require('./auto-wan').externalInterfaces(graph, target.link);
   if (!wan?.length) {
     unknown("externalInterfaceUnknown");
     return { fragments, unresolved };
@@ -351,6 +348,8 @@ const evaluatePath = (graph, target, { limits = {}, sharedBudget } = {}) => {
     unknown("externalAddressUnknown");
     return { fragments, unresolved };
   }
+  if ((!target.link.wan || target.link.wan.kind === 'auto') && wan.some(name => !outside.some(row => row.interface === name)))
+    unknown('externalAddressUnknown');
   const assigned = outside.flatMap((row) =>
     parseIPv4Set(row.address.split("/")[0]),
   );

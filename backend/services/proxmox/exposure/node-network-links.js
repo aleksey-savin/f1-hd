@@ -64,9 +64,9 @@ const prepareNodeLinks = async (node, input, current, access) => {
         return (
           options.bridges.some((row) => row.value === link.bridge) &&
           options.interfaces.some((row) => row.value === link.lanInterface) &&
-          options[
+          (link.wan.kind === 'auto' || options[
             link.wan.kind === "list" ? "interfaceLists" : "interfaces"
-          ].some((row) => row.value === link.wan.name)
+          ].some((row) => row.value === link.wan.name))
         );
       },
     },

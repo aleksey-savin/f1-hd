@@ -13,7 +13,7 @@ const networkLinkSchema = new Schema({
   cidr: { type: String, required: true },
   routerId: ref("Mikrotik"),
   lanInterface: { type: String, required: true },
-  wan: { kind: { type: String, enum: ["interface", "list"] }, name: String },
+  wan: { kind: { type: String, enum: ["auto", "interface", "list"] }, name: String },
 });
 const routerSchema = new Schema(
   {
