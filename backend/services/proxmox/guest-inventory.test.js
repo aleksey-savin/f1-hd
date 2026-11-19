@@ -68,3 +68,53 @@ test("Windows inventory rejects incomplete WUA searches and retains missing KB a
     parseInventory(windows, JSON.stringify({ ...value, resultCode: 3 })),
   );
 });
+
+test("Windows WUA failures preserve independently collected servicing metadata", () => {
+  for (const status of ["error", "timeout"]) {
+    const inventory = parseInventory({ id: "mswindows" }, JSON.stringify({
+      schema: 1, build: "17763.8027", installationType: "Server",
+      rebootRequired: null, windowsUpdate: { status, errorCode: status === "error" ? "8024402C" : null }, updates: [],
+    }));
+    assert.equal(inventory.os.build, "17763.8027");
+    assert.equal(inventory.os.installationType, "Server");
+    assert.equal(inventory.rebootRequired, null);
+    assert.equal(inventory.windowsUpdate.status, status);
+    assert.deepEqual(inventory.updates, []);
+  }
+});
+test("partial Windows inventory rejects fabricated failures and unvalidated updates", () => {
+  const value = { schema: 1, build: "17763.1", rebootRequired: false, updates: [], windowsUpdate: { status: "error", errorCode: "8024402C" } };
+  for (const patch of [{ build: "" }, { windowsUpdate: { status: "error", errorCode: "secret" } }, { updates: [{}] }, { rebootRequired: "false" }])
+    assert.throws(() => parseInventory({ id: "mswindows" }, JSON.stringify({ ...value, ...patch })));
+});
+test("Windows collector owns a killable child and never waits indefinitely for COM cleanup", () => {
+  const script = Buffer.from(collectorFor({ id: "mswindows" }).at(-1), "base64").toString("utf16le");
+  assert.doesNotMatch(script, /Start-Job|Stop-Job|Remove-Job|WaitForExit\(\)|Get-Process|taskkill/i);
+  assert.match(script, /WaitForExit\(180000\)/);
+  assert.match(script, /\.Kill\(\)/);
+  assert.match(script, /ReadToEndAsync/);
+  assert.match(script, /InnerException/);
+  assert.ok(script.indexOf("CurrentVersion") < script.indexOf("$process.Start()"));
+});
+test("Windows component update payloads are validated and bounded", () => {
+  const child = { id: "child", title: "component", kb: ["1234567"], cves: [], severity: "", security: true };
+  const value = { schema: 1, build: "17763.1", resultCode: 2, updates: [{ ...child, id: "parent", componentUpdates: [child] }] };
+  assert.deepEqual(parseInventory({ id: "mswindows" }, JSON.stringify(value)).updates[0].componentUpdates, [child]);
+  for (const componentUpdates of [[{ ...child, kb: ["bad"] }], Array(2000).fill(child), [{ ...child, componentUpdates: [child] }]])
+    assert.throws(() => parseInventory({ id: "mswindows" }, JSON.stringify({ ...value, updates: [{ ...child, componentUpdates }] })));
+});
+
+test("Windows failure metadata returns only allowlisted public fields", () => {
+  const inventory = parseInventory({ id: "mswindows" }, JSON.stringify({ schema: 1, build: "17763.1", updates: [], windowsUpdate: { status: "error", errorCode: "8024402c", raw: "private upstream" } }));
+  assert.deepEqual(inventory.windowsUpdate, { status: "error", errorCode: "8024402C" });
+});
+
+test("Windows component uncertainty is explicit and must be a boolean", () => {
+  const update = { id: "parent", title: "Rollup", kb: ["1234567"], cves: ["CVE-2026-12345"], severity: "", security: true, componentCoverageIncomplete: true };
+  const value = { schema: 1, build: "17763.1", resultCode: 2, updates: [update] };
+  assert.equal(parseInventory({ id: "mswindows" }, JSON.stringify(value)).updates[0].componentCoverageIncomplete, true);
+  assert.throws(() => parseInventory({ id: "mswindows" }, JSON.stringify({ ...value, updates: [{ ...update, componentCoverageIncomplete: "false" }] })));
+  const script = Buffer.from(collectorFor({ id: "mswindows" }).at(-1), "base64").toString("utf16le");
+  assert.match(script, /\$entry\.componentCoverageIncomplete = \$script:componentCoverageIncomplete/);
+  assert.match(script, /\$depth -ge 2[\s\S]*?BundledUpdates\.Count -gt 0[\s\S]*?componentCoverageIncomplete = \$true/);
+});

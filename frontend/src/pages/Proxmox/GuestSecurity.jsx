@@ -145,7 +145,7 @@ export function GuestSecurityReport({ report }) {
             Требуют уточнения: {report.reviewFindings.length} совпадений CVE
           </summary>
           <p className="mt-3 max-w-[70ch]">
-            Эти совпадения не подтверждены как уязвимости установленных пакетов.
+            Эти совпадения не подтверждены как уязвимости установленного ПО.
             Нужны дополнительные сведения о применимости к этой ВМ.
           </p>
           <ul className="mt-3 space-y-2">
@@ -161,7 +161,12 @@ export function GuestSecurityReport({ report }) {
                 </a>
                 <span className="ml-2">
                   {[
-                    ...new Set((finding.packages || []).map((p) => p.name)),
+                    ...new Set([
+                      ...(finding.packages || []).map((p) => p.name),
+                      ...(finding.updates || []).flatMap((u) =>
+                        (u.kb || []).map((kb) => `KB${kb}`),
+                      ),
+                    ]),
                   ].join(", ")}
                 </span>
               </li>

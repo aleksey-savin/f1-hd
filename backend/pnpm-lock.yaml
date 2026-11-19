@@ -52,6 +52,9 @@ importers:
       express-validator:
         specifier: ^7.3.2
         version: 7.3.2
+      fast-xml-parser:
+        specifier: ^5.7.3
+        version: 5.7.3
       helmet:
         specifier: ^8.3.0
         version: 8.3.0

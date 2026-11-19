@@ -165,3 +165,31 @@ test("Windows CVEs are deduplicated; missing CVE metadata is partial", () => {
     "partial",
   );
 });
+test("Windows Update failure preserves baseline findings and cannot become a complete clean result", () => {
+  const windowsUpdate = { status: "error", errorCode: "8024402C" };
+  const input = { os: { id: "mswindows" }, baselineCovered: true, updates: [], windowsUpdate, rebootRequired: null };
+  assert.equal(evaluateWindows(input).status, "partial");
+  assert.deepEqual(evaluateWindows(input).windowsUpdate, windowsUpdate);
+  assert.equal(evaluateWindows(input).rebootRequired, null);
+  const report = evaluateWindows({ ...input, baselineUpdates: [{title: "Windows fix", kb: ["5000001"], cves:["CVE-2025-12345"]}] });
+  assert.equal(report.findings.length, 1);
+});
+test("an unmapped component keeps a Windows bundle partial even when another component has CVEs", () => {
+  assert.equal(evaluateWindows({ os:{}, baselineCovered:true, updates:[{title:"bundle",kb:["5000001"],security:true,cves:["CVE-2025-12345"],cveCoverageIncomplete:true}] }).status,"partial");
+});
+test('guest PBS keeps Debian results and adds limited vendor kernel assessment',async()=>{
+ const result=await queryLinux({os:{id:'debian',version:'13',kernel:'7.0.6-2-pve'},packages:[{name:'proxmox-kernel-7.0.6-2-pve-signed',version:'7.0.6-2',source:'proxmox-kernel',sourceVersion:'7.0.6-2'}]}, {load:async()=>({rows:[],source:'Debian',fetchedAt:new Date()})});
+ assert.equal(result.status,'partial');
+ assert.equal(result.kernelCovered,false);
+ assert.equal(result.kernelAssessment.complete,false);
+ assert.ok(result.findings.some(f=>f.id==='CVE-2026-64564'));
+});
+
+test('unknown Windows reboot state remains a partial result',()=>{assert.equal(evaluateWindows({os:{},baselineCovered:true,updates:[],windowsUpdate:{status:'completed'},rebootRequired:null}).status,'partial');});
+test('Windows bundle candidates remain separate from confirmed vulnerabilities',()=>{
+ const reviewFindings=[{id:'CVE-2026-12345',reason:'component-applicability-unconfirmed',packages:[],updates:[{kb:['5128923']}]}];
+ const report=evaluateWindows({os:{id:'mswindows'},baselineCovered:true,updates:[],reviewFindings});
+ assert.equal(report.status,'partial');
+ assert.equal(report.findings.length,0);
+ assert.deepEqual(report.reviewFindings,reviewFindings);
+});

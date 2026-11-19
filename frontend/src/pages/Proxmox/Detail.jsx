@@ -21,6 +21,8 @@ import {
   RiShutDownLine,
   RiRestartLine,
   RiDownloadCloud2Line,
+  RiLinkM,
+  RiLinkUnlink,
 } from "react-icons/ri";
 import AnchorRail from "@/components/app/AnchorRail";
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
@@ -238,20 +240,53 @@ export default function ProxmoxDetail() {
     ) : (
       nameOf(entry)
     );
-  const inventoryLink = item.clientDeviceId ? (
-    <Link
-      className="text-accent-text hover:underline"
-      state={from}
-      to={`/inventory/client-devices/${idOf(item.clientDeviceId)}`}
-    >
-      {nameOf(item.clientDevice)}
-    </Link>
-  ) : (
-    "Не связано"
-  );
   const editCompany = manageable && ["guests", "nodes"].includes(kind);
   const inventoryEditable =
     manageable && can({ device: ["manage"] }) && kind === "nodes";
+  const inventoryAction = item.clientDeviceId
+    ? "Отвязать физическое устройство"
+    : "Связать с физическим устройством";
+  const inventoryLink = (
+    <div className="flex max-w-full items-center gap-2">
+      {item.clientDeviceId ? (
+        <Link
+          className="min-w-0 break-words text-accent-text hover:underline"
+          state={from}
+          to={`/inventory/client-devices/${idOf(item.clientDeviceId)}`}
+        >
+          {nameOf(item.clientDevice)}
+        </Link>
+      ) : (
+        <span>Не связано</span>
+      )}
+      {inventoryEditable && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="-my-1.5 shrink-0 max-sm:-my-3 max-sm:size-11"
+          aria-label={inventoryAction}
+          title={
+            !item.clientDeviceId && !item.companyId
+              ? "Сначала назначьте компанию"
+              : inventoryAction
+          }
+          disabled={busy || (!item.clientDeviceId && !item.companyId)}
+          onClick={() =>
+            item.clientDeviceId
+              ? submit({ intent: "inventory", clientDeviceId: null })
+              : openEdit("inventory")
+          }
+        >
+          {item.clientDeviceId ? (
+            <RiLinkUnlink aria-hidden />
+          ) : (
+            <RiLinkM aria-hidden />
+          )}
+        </Button>
+      )}
+    </div>
+  );
   const canPower = kind === "guests" && can({ proxmox: ["power"] });
   const latestOperation =
     activeOperation === undefined
@@ -329,7 +364,49 @@ export default function ProxmoxDetail() {
             ["Владелец узла", companyLink(item.company)],
             ["Версия Proxmox VE", item.version || "Не получена"],
             ["Подключение", entityLink(item.connection, "connections")],
-            ["Инвентарь", inventoryLink],
+            ["Физическое устройство", inventoryLink],
+            ...(item.networkDevices
+              ? [
+                  [
+                    "Сетевые устройства",
+                    item.networkDevices.length ? (
+                      <div key="network-devices" className="space-y-3">
+                        {item.networkDevices.map((device) => (
+                          <div key={device.id}>
+                            {device.available ? (
+                              <Link
+                                to={`/devices/mikrotik/records/${device.id}`}
+                                state={from}
+                                className="text-accent-text hover:underline"
+                              >
+                                {device.name}
+                              </Link>
+                            ) : (
+                              <span>{device.name}</span>
+                            )}
+                            <ul className="mt-1 space-y-1 text-xs font-normal text-muted-foreground">
+                              {device.networks.map((network, index) => (
+                                <li key={index}>
+                                  {network.bridge}
+                                  {network.vlan != null
+                                    ? ` / VLAN ${network.vlan}`
+                                    : ""}
+                                  {" · "}
+                                  {network.cidr}
+                                  {" → "}
+                                  {network.lanInterface}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      "Не связаны"
+                    ),
+                  ],
+                ]
+              : []),
           ]
         : kind === "storages"
           ? [
@@ -370,7 +447,7 @@ export default function ProxmoxDetail() {
     edit === "company"
       ? "Назначить компанию"
       : edit === "inventory"
-        ? "Связать с инвентарём"
+        ? "Связать с физическим устройством"
         : "Плановое обслуживание";
   const saveEdit = () => {
     if (edit === "maintenance") {
@@ -507,19 +584,6 @@ export default function ProxmoxDetail() {
                     Назначить компанию
                   </DropdownMenuItem>
                 )}
-                {inventoryEditable && (
-                  <DropdownMenuItem
-                    disabled={!item.companyId}
-                    onSelect={() =>
-                      openEdit(
-                        "inventory",
-                        idOf(item.clientDevice) || item.clientDeviceId,
-                      )
-                    }
-                  >
-                    Связать с инвентарём
-                  </DropdownMenuItem>
-                )}
                 {kind === "guests" && canPower && (
                   <DropdownMenuItem
                     disabled={Boolean(powerReason) || item.status !== "running"}
@@ -653,30 +717,6 @@ export default function ProxmoxDetail() {
               }
             >
               <Properties items={placement} />
-              {inventoryEditable && (
-                <div className="mt-4 border-t border-border-soft pt-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!item.companyId}
-                    onClick={() =>
-                      openEdit(
-                        "inventory",
-                        idOf(item.clientDevice) || item.clientDeviceId,
-                      )
-                    }
-                  >
-                    {item.clientDeviceId
-                      ? "Изменить связь с инвентарём"
-                      : "Связать с инвентарём"}
-                  </Button>
-                  {!item.companyId && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Сначала назначьте компанию.
-                    </p>
-                  )}
-                </div>
-              )}
               {kind === "connections" &&
                 item.endpoints?.map((ep, index) => (
                   <div
@@ -971,7 +1011,7 @@ export default function ProxmoxDetail() {
           </>
         ) : (
           <Field
-            label={edit === "company" ? "Компания" : "Устройство"}
+            label={edit === "company" ? "Компания" : "Физическое устройство"}
             hint={
               edit === "company"
                 ? "Компания ВМ и владелец физического узла назначаются независимо."
@@ -992,7 +1032,7 @@ export default function ProxmoxDetail() {
                       ),
                     )
               }
-              clearable
+              clearable={edit === "company"}
             />
           </Field>
         )}
@@ -1001,8 +1041,11 @@ export default function ProxmoxDetail() {
           <Button variant="ghost" onClick={() => setEdit(null)}>
             Отмена
           </Button>
-          <Button disabled={busy} onClick={saveEdit}>
-            Сохранить
+          <Button
+            disabled={busy || (edit === "inventory" && !value)}
+            onClick={saveEdit}
+          >
+            {edit === "inventory" ? "Связать" : "Сохранить"}
           </Button>
         </FormActions>
       </FormSheet>

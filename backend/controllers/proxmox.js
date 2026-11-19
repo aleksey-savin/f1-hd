@@ -37,6 +37,8 @@ exports.detail = async (req, res) => {
   if (req.params.kind === 'nodes') result.item.canLinkNetworks =
     require('../services/proxmox/exposure/contract').enabled(prefs) &&
     !req.auth.isEndUser && req.auth.can({ proxmox: ['manage'] }) && req.auth.can({ mikrotik: ['read'] });
+  if (req.params.kind === 'nodes') result.item.networkDevices = await
+    require('../services/proxmox/exposure/node-network-summary').nodeNetworkSummary(result.item, prefs, req.auth);
   res.json(result);
 };
 exports.verify = async (req, res) => {

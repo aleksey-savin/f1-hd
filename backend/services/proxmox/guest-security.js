@@ -97,7 +97,7 @@ const advanceScan = async (scan, resource, connection, deps) => {
       if (!command)
         return await finish(
           "unsupported",
-          "Пока поддерживаются Debian, Ubuntu и Windows",
+          "Пока поддерживаются Debian, Ubuntu, Fedora и Windows",
         );
       const job = {
         os,
@@ -149,6 +149,10 @@ const advanceScan = async (scan, resource, connection, deps) => {
       });
     }
   } catch (error) {
+    if (error.code === "PROXMOX_GUEST_AGENT_NOT_RUNNING" || error.code === "PROXMOX_GUEST_AGENT_TIMEOUT")
+      return await finish("unavailable", error.code === "PROXMOX_GUEST_AGENT_NOT_RUNNING"
+        ? "Агент QEMU не запущен или не отвечает в гостевой ОС"
+        : "Агент QEMU не ответил за отведённое время");
     if (error.code === "CVE_FEED_UNAVAILABLE")
       return await finish(
         "unsupported",
@@ -157,7 +161,9 @@ const advanceScan = async (scan, resource, connection, deps) => {
     const message = /HTTP (401|403)/.test(error.message)
       ? "API-токен Proxmox не разрешает команды гостевого агента. Для PVE 8 нужно VM.Monitor, для новых версий — VM.GuestAgent.Unrestricted"
       : error.name === "TimeoutError" || error.name === "AbortError"
-        ? "Истекло время загрузки базы CVE. Повторите проверку"
+        ? scan.status === "checking"
+          ? "Истекло время загрузки базы CVE. Повторите проверку"
+          : "Истекло время обращения к Proxmox или гостевому агенту. Повторите проверку"
         : publicError(error);
     await finish("error", message);
   }

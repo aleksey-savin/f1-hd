@@ -14,7 +14,7 @@ const endpoint = {
   tlsMode: "fingerprint",
   fingerprint: "aa".repeat(32),
 };
-function replyWith(t, status, capture = () => {}) {
+function replyWith(t, status, capture = () => {}, body = "{}", reason = "Rejected") {
   t.mock.method(tls, "connect", () => {
     let request = "";
     let replied = false;
@@ -27,7 +27,7 @@ function replyWith(t, status, capture = () => {}) {
         if (!replied && request.includes("\r\n\r\n")) {
           replied = true;
           process.nextTick(() => this.push(
-            `HTTP/1.1 ${status} Rejected\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}`,
+            `HTTP/1.1 ${status} ${reason}\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
           ));
         }
       },
@@ -86,4 +86,30 @@ test("guest-exec JSON preserves command arguments, punctuation and newlines", as
   await requestEndpoint(endpoint, "/api2/json/nodes/pve/qemu/100/agent/exec", { method: "POST", body, json: true });
   assert.match(written, /Content-Type: application\/json/i);
   assert.deepEqual(JSON.parse(written.split("\r\n\r\n")[1]), body);
+});
+
+for (const [message, code] of [
+  ["QEMU guest agent is not running", "PROXMOX_GUEST_AGENT_NOT_RUNNING"],
+  ["QEMU guest agent command timed out", "PROXMOX_GUEST_AGENT_TIMEOUT"],
+]) {
+  test(`guest agent failure is classified without exposing upstream details: ${code}`, async t => {
+    replyWith(t, 500, () => {}, JSON.stringify({ message: message + ": private-server-data" }));
+    await assert.rejects(requestEndpoint(endpoint, "/api2/json/nodes/pve/qemu/100/agent/get-osinfo"), error => {
+      assert.equal(error.code, code);
+      assert.doesNotMatch(error.message, /private-server-data/);
+      return true;
+    });
+  });
+}
+test("unrelated HTTP500 is not classified as guest-agent unavailability", async t => {
+  replyWith(t, 500, () => {}, JSON.stringify({ message: "QEMU guest agent is not running" }));
+  await assert.rejects(requestEndpoint(endpoint, "/api2/json/nodes/pve/storage"), error => {
+    assert.equal(error.code, undefined);
+    assert.equal(error.message, "API Proxmox: HTTP 500");
+    return true;
+  });
+});
+test("PVE reason phrase identifies an unavailable agent when JSON body has no message", async t => {
+  replyWith(t, 500, () => {}, "{}", "QEMU guest agent is not running");
+  await assert.rejects(requestEndpoint(endpoint, "/api2/json/nodes/pve/qemu/100/agent/get-osinfo"), {code:"PROXMOX_GUEST_AGENT_NOT_RUNNING"});
 });

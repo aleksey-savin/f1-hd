@@ -821,6 +821,27 @@ documented in each component's own header.
   24 months. Package inventories never go to a third-party matching API.
   `ProxmoxGuestSecurity` keeps one report and a private inventory/job per guest;
   leases and checkpoints prevent repeated guest command dispatch after a crash.
+  Ubuntu falls back from a missing OSV release to Canonical USN OVAL, evaluating
+  binary-package AND/OR conditions locally; unsupported conditions remain
+  unconfirmed, and USN-only coverage remains partial. The backend image includes
+  `bzip2`; XML parsing rejects DTD/entities and bounds input and decompressed size.
+  Fedora uses native RPM version ordering and official `fedora`/`updates` DNF5
+  advisory metadata. It requires guest Python RPM bindings and access to the RPM
+  database/repositories; the collector never installs packages or changes guest
+  security policy. Unavailable metadata, third-party packages, old-release kernels
+  and unproven lifecycle coverage cannot yield a clean result.
+  Windows registry metadata is collected independently of WUA. WUA runs in one
+  owned process with a 180-second deadline and bounded cleanup; failures still
+  allow a partial MSRC servicing-build assessment. Applicable missing bundled
+  components are matched independently; truncated/failed component inspection
+  remains explicitly incomplete. Verified Microsoft wrapper-to-component links
+  for .NET KB5128923/KB5128928 supply review candidates only when component
+  applicability is not proven; candidates never contribute to confirmed alerts.
+  Neither superseded KBs nor aggregate update
+  severity are blindly attributed to every CVE.
+  Guest Proxmox kernels receive limited vendor-rule assessment using the installed
+  running kernel package and the distro-specific fixed ABI. This does not imply
+  complete kernel coverage; the report retains the rule and source limitations.
   Failed refreshes retain the prior report with its date. Uncertain package
   matches, missing running-kernel coverage and incomplete Windows checks are
   visible separately. Unsupported distributions/releases never produce a clean

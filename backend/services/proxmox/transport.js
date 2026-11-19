@@ -227,6 +227,22 @@ const requestEndpoint = (
                     ? `API Proxmox отклонил токен или права доступа (HTTP ${res.statusCode}). Проверьте ID и секрет API-токена, права пользователя и самого токена (Privilege Separation).`
                     : `API Proxmox: HTTP ${res.statusCode}`,
                 );
+                // Classify only known agent errors on the agent endpoint. Never
+                // expose upstream bodies (which may contain host or command data).
+                if (res.statusCode === 500 && /\/qemu\/\d+\/agent(?:\/|\?|$)/.test(path)) {
+                  let message = res.statusMessage || "";
+                  try {
+                    const body = JSON.parse(data);
+                    if (typeof body.message === "string") message += ` ${body.message}`;
+                  } catch { /* A non-JSON failure keeps its safe HTTP message. */ }
+                  if (/QEMU guest agent is not running/i.test(message)) {
+                    err.code = "PROXMOX_GUEST_AGENT_NOT_RUNNING";
+                    err.message = "Агент QEMU не запущен или не отвечает";
+                  } else if (/QEMU guest agent (?:command )?(?:timed out|timeout)|guest-ping.*got timeout/i.test(message)) {
+                    err.code = "PROXMOX_GUEST_AGENT_TIMEOUT";
+                    err.message = "Истекло время ответа агента QEMU";
+                  }
+                }
                 err.statusCode = denied ? 502 : res.statusCode;
                 return reject(err);
               }

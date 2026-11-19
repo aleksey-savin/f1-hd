@@ -149,3 +149,36 @@ test("CVE collection refuses a replaced guest UUID before agent commands", async
   assert.equal(writes.at(-1).status, "unavailable");
   assert.match(writes.at(-1).lastError, /UUID/i);
 });
+
+test("timeouts identify the scan stage and unavailable QGA preserves earlier report", async () => {
+  for (const status of ["queued", "collecting", "checking"]) {
+    const writes = [];
+    const error = Object.assign(new Error("timeout"), { name: "TimeoutError" });
+    await advanceScan({ status, job: { nodeName: "pve", vmid: 100, pid: 123 } }, vm, connection, {
+      request: async () => { throw error; }, evaluate: async () => { throw error; }, save: async (patch) => writes.push(patch),
+    });
+    assert.match(writes.at(-1).lastError, status === "checking" ? /базы CVE/ : /гостев|Proxmox/);
+    if (status !== "checking") assert.doesNotMatch(writes.at(-1).lastError, /базы CVE/);
+  }
+  const writes = [];
+  await advanceScan({ status: "queued", report: { findings: [{ id: "CVE-2026-1234" }] } }, vm, connection, {
+    request: async () => { throw Object.assign(new Error("private upstream"), { code: "PROXMOX_GUEST_AGENT_NOT_RUNNING" }); }, save: async (patch) => writes.push(patch),
+  });
+  assert.equal(writes.at(-1).status, "unavailable");
+  assert.match(writes.at(-1).lastError, /Агент QEMU/);
+  assert.doesNotMatch(writes.at(-1).lastError, /private/);
+  assert.equal(Object.hasOwn(writes.at(-1), "report"), false);
+});
+
+test("a failed Windows search checkpoints servicing metadata for MSRC evaluation", async () => {
+  const writes = [];
+  await advanceScan({ status: "collecting", job: { os: { id: "mswindows" }, nodeName: "pve", vmid: 100, pid: 123 } }, vm, connection, {
+    request: async () => ({ exited: 1, exitcode: 0, "out-data": JSON.stringify({ schema: 1, build: "17763.8027", installationType: "Server", rebootRequired: true, updates: [], windowsUpdate: { status: "error", errorCode: "8024402C" } }) }),
+    save: async (patch) => writes.push(patch),
+  });
+  assert.equal(writes.at(-1).status, "checking");
+  assert.equal(writes.at(-1).inventory.os.build, "17763.8027");
+  assert.equal(writes.at(-1).inventory.rebootRequired, true);
+  assert.equal(writes.at(-1).inventory.windowsUpdate.errorCode, "8024402C");
+  assert.equal(writes.at(-1).job, null);
+});

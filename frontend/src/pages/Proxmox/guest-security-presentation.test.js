@@ -120,3 +120,52 @@ test("report summary does not repeat unscored CVEs but preserves them during fai
     "Ниже порога: 1 CVE · Без оценки опасности: 2 CVE",
   );
 });
+test("Windows DNS failure shows partial baseline coverage with a concrete next action", () => {
+  const report = {
+    status: "partial",
+    os: { id: "mswindows" },
+    findings: [],
+    baselineCovered: true,
+    windowsUpdate: { status: "error", errorCode: "8024402C" },
+  };
+  const notes = securityNotes(report);
+  assert.match(notes[0].text, /DNS/);
+  assert.match(notes[0].hint, /сборк/i);
+  assert.doesNotMatch(securityHeading(report), /не найдены/);
+});
+test("limited official Linux sources and Proxmox rules remain visible alongside findings", () => {
+  const report = {
+    status: "partial",
+    os: { id: "debian", kernel: "7.0.6-2-pve" },
+    findings: [{ id: "CVE-2026-64564" }],
+    kernelCovered: false,
+    kernelAssessment: {
+      kind: "proxmox-vendor-rules",
+      rules: ["CVE-2026-64564"],
+      note: "Проверен отдельный бюллетень Proxmox",
+    },
+    limitations: ["Проверены опубликованные исправления"],
+  };
+  const notes = securityNotes(report);
+  assert.match(notes.find((n) => n.id === "kernel").text, /частично/);
+  assert.ok(notes.some((n) => n.text === report.limitations[0]));
+  assert.match(securityHeading(report), /Найдена/);
+});
+test("partly mapped .NET bundles do not hide unresolved component CVEs", () => {
+  const report = {
+    status: "partial",
+    os: { id: "mswindows" },
+    baselineCovered: true,
+    updates: [
+      {
+        id: "bundle",
+        title: ".NET Framework",
+        kb: ["5128923"],
+        security: true,
+        cves: ["CVE-2025-12345"],
+        cveCoverageIncomplete: true,
+      },
+    ],
+  };
+  assert.match(securityNotes(report)[0].text, /KB5128923/);
+});

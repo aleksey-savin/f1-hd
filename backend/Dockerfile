@@ -9,6 +9,7 @@
 # script (bcryptjs is pure JS; ssh2's native helper is optional), so skipping
 # lifecycle scripts only closes a supply-chain hole.
 FROM node:24-alpine AS base
+RUN apk add --no-cache bzip2
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN corepack enable && corepack install
@@ -24,6 +25,7 @@ FROM base AS deps
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 
 FROM node:24-alpine AS prod
+RUN apk add --no-cache bzip2
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules

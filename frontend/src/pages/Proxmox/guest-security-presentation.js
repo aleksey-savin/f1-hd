@@ -34,6 +34,39 @@ export const scanActive = (report) =>
 export const securityNotes = (report) => {
   if (!report) return [];
   const notes = [];
+  if (report.windowsUpdate && report.windowsUpdate.status !== "completed") {
+    const code = report.windowsUpdate.errorCode;
+    const timeout = report.windowsUpdate.status === "timeout";
+    notes.push({
+      id: "windows-update",
+      title: "Windows Update не проверен",
+      summary: "Windows Update недоступен",
+      text:
+        code === "8024402C"
+          ? "Windows Update: DNS не разрешает имя сервера обновлений (0x8024402C)."
+          : timeout
+            ? "Windows Update не завершил поиск за 180 секунд."
+            : `Не удалось получить список обновлений Windows${code ? ` (0x${code})` : ""}.`,
+      hint: `${report.baselineCovered ? "Сборка Windows проверена по Microsoft MSRC. " : ""}${code === "8024402C" ? "Проверьте DNS и доступ к серверам обновлений." : "Проверьте работу Windows Update в гостевой ОС и повторите проверку."}`,
+    });
+  }
+  for (const [index, text] of (report.limitations || []).entries()) {
+    notes.push({
+      id: `coverage-${index}`,
+      title: "Покрытие проверки ограничено",
+      summary: "покрытие ограничено",
+      text,
+      hint: "",
+    });
+  }
+  if (report.rebootRequired === null)
+    notes.push({
+      id: "reboot-unknown",
+      title: "Состояние перезагрузки неизвестно",
+      summary: "перезагрузка не проверена",
+      text: "Не удалось проверить, нужна ли Windows перезагрузка для применения обновлений.",
+      hint: "Проверьте состояние обновлений в гостевой ОС.",
+    });
   if (report.rebootRequired)
     notes.push({
       id: "reboot",
@@ -45,12 +78,20 @@ export const securityNotes = (report) => {
   if (report.kernelCovered === false)
     notes.push({
       id: "kernel",
-      title: "Ядро Linux не проверено",
-      summary: "ядро Linux не проверено",
-      text: `Ядро Linux ${report.os?.kernel || "не определено"}: CVE не проверены.`,
-      hint: /-pve$/.test(report.os?.kernel || "")
-        ? "Автоматическая проверка этого ядра пока не поддерживается."
-        : "Автоматическая проверка не смогла сопоставить работающее ядро с установленными пакетами.",
+      title: report.kernelAssessment
+        ? "Ядро Proxmox проверено частично"
+        : "Ядро Linux не проверено",
+      summary: report.kernelAssessment
+        ? "ядро Proxmox проверено частично"
+        : "ядро Linux не проверено",
+      text: report.kernelAssessment
+        ? `Ядро Proxmox ${report.os?.kernel || "не определено"} проверено частично.`
+        : `Ядро Linux ${report.os?.kernel || "не определено"}: CVE не проверены.`,
+      hint:
+        report.kernelAssessment?.note ||
+        (/-pve$/.test(report.os?.kernel || "")
+          ? "Автоматическая проверка этого ядра пока не поддерживается."
+          : "Автоматическая проверка не смогла сопоставить работающее ядро с установленными пакетами."),
     });
   if (
     report.status === "partial" &&
@@ -65,7 +106,11 @@ export const securityNotes = (report) => {
       hint: "Проверьте доступные обновления Windows.",
     });
   for (const update of report.updates || []) {
-    if (!update.security || update.cves?.length) continue;
+    if (
+      !update.cveCoverageIncomplete &&
+      (!update.security || update.cves?.length)
+    )
+      continue;
     const product = /\.NET Framework/i.test(update.title || "")
       ? ".NET Framework"
       : "Windows";
@@ -75,7 +120,9 @@ export const securityNotes = (report) => {
       title: `Доступно обновление ${product}`,
       summary: `обновление ${product}${kb ? ` ${kb}` : ""}`,
       text: `Доступно обновление безопасности ${product}${kb ? ` ${kb}` : ""}.`,
-      hint: "Установите его через Windows Update. Список CVE для этого обновления недоступен.",
+      hint: update.cveCoverageIncomplete
+        ? "Часть компонентов обновления не сопоставлена с CVE. Установите обновление через Windows Update."
+        : "Установите его через Windows Update. Список CVE для этого обновления недоступен.",
     });
   }
   return notes;

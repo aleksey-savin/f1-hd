@@ -4,10 +4,12 @@ const { affectedByRanges, compareDebianVersions } = require("./deb-version");
 const { severityOf } = require('./cve-policy');
 const severityRank = finding => ['unknown', 'low', 'medium', 'high', 'critical'].indexOf(severityOf(finding));
 const queryLinux = async (inventory, { load = loadFeed } = {}) => {
+  if (inventory.os.id === "fedora") return require("./fedora-cve").evaluateFedora(inventory);
   const feed = await load({
     id: inventory.os.id,
     version: inventory.os.version,
   });
+  if (feed.kind === "ubuntu-oval") return require("./ubuntu-oval").evaluateUbuntuOval(inventory, feed);
   const bySource = new Map();
   for (const p of inventory.packages) {
     if (!bySource.has(p.source)) bySource.set(p.source, []);
@@ -65,6 +67,14 @@ const queryLinux = async (inventory, { load = loadFeed } = {}) => {
       if (fixed && !finding.fixedVersion) finding.fixedVersion = fixed;
     }
   }
+  const kernelAssessment = require("./guest-proxmox-kernel").assessProxmoxKernel(inventory);
+  for (const finding of kernelAssessment?.findings || []) {
+    const previous = findings.get(finding.id);
+    if (previous) {
+      previous.packages.push(...finding.packages);
+      if (severityRank(finding) > severityRank(previous)) Object.assign(previous, {severity:finding.severity, score:finding.score});
+    } else findings.set(finding.id, finding);
+  }
   for (const id of findings.keys()) review.delete(id);
   const order = (a, b) => b.id.localeCompare(a.id);
   const kernelPackages = inventory.packages.filter((p) =>
@@ -84,6 +94,7 @@ const queryLinux = async (inventory, { load = loadFeed } = {}) => {
   return {
     status: kernelCovered ? "completed" : "partial",
     kernelCovered,
+    ...(kernelAssessment ? { kernelAssessment: kernelAssessment.coverage } : {}),
     os: inventory.os,
     packageCount: inventory.packages.length,
     source: feed.source,
@@ -114,14 +125,19 @@ const evaluateWindows = (inventory) => {
   return {
     status:
       inventory.baselineCovered !== true ||
+      Boolean(inventory.reviewFindings?.length) ||
+      (inventory.windowsUpdate && inventory.windowsUpdate.status !== "completed") ||
+      inventory.rebootRequired === null ||
       inventory.rebootRequired ||
-      inventory.updates.some((u) => u.security && !u.cves.length)
+      inventory.updates.some((u) => u.cveCoverageIncomplete || (u.security && !u.cves.length))
         ? "partial"
         : "completed",
     source: "Windows Update · Microsoft MSRC",
     scope: "Сборка Windows и недостающие обновления",
     baselineCovered: inventory.baselineCovered === true,
-    rebootRequired: inventory.rebootRequired || false,
+    rebootRequired: inventory.rebootRequired === null ? null : inventory.rebootRequired || false,
+    windowsUpdate: inventory.windowsUpdate,
+    reviewFindings: inventory.reviewFindings || [],
     os: inventory.os,
     packageCount: 0,
     findings: [...findings.values()].sort((a, b) => b.id.localeCompare(a.id)),
