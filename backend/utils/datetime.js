@@ -1,4 +1,4 @@
-const { formatInTimeZone } = require("date-fns-tz");
+const { formatInTimeZone, fromZonedTime } = require("date-fns-tz");
 
 // Единая точка правды о бизнес-таймзоне приложения. Сервер живёт в UTC, поэтому
 // любое человекочитаемое время (тексты заявок/комментариев, письма, telegram,
@@ -60,15 +60,8 @@ const fmtMonthYear = (date, timeZone) => {
   }
 };
 
-/**
- * Календарный день инстанта в заданной зоне, ключом «2026-07-08».
- *
- * Нужен там, где сравниваются ДНИ, а не моменты: «сегодня» для отсутствий и
- * статусов присутствия. Сервер живёт в UTC, поэтому `getDate()` и
- * `toISOString().slice(0, 10)` дают день по UTC — для восточных поясов сутки
- * наступают позже, и «сегодня» уезжает. Фронтовая пара — `businessDayKey`
- * в `frontend/src/util/format-date.js`, ботовая — `dayKey` в `tgBotApi`.
- */
+// Calendar day of an instant in the explicit organization zone. East of UTC,
+// the local day begins before the UTC day. Frontend equivalent: organizationDayKey.
 const dayKey = (date, timeZone) =>
   new Date(date).toLocaleDateString("en-CA", {
     timeZone: timeZone || DEFAULT_TIMEZONE,
@@ -77,7 +70,47 @@ const dayKey = (date, timeZone) =>
 /** Ключ дня → UTC-полночь: так лежат календарные даты (absence.from/to и др.). */
 const dayKeyToUtcMidnight = (key) => new Date(`${key}T00:00:00.000Z`);
 
+// Calendar keys are validated at the API boundary. Shift the key in UTC,
+// then resolve each midnight separately so DST days retain their actual length.
+const calendarDateRange = (from, to, timeZone) => {
+  const midnight = (key, next = false) => {
+    if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+      throw new RangeError("Expected a YYYY-MM-DD calendar date");
+    }
+    const date = new Date(`${key}T00:00:00.000Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== key) {
+      throw new RangeError("Invalid calendar date");
+    }
+    if (next) date.setUTCDate(date.getUTCDate() + 1);
+    return fromZonedTime(`${date.toISOString().slice(0, 10)}T00:00:00`, timeZone || DEFAULT_TIMEZONE);
+  };
+  const range = {};
+  if (from) range.$gte = midnight(from);
+  if (to) range.$lt = midnight(to, true);
+  if (from && to && from > to) throw new RangeError("Invalid calendar range");
+  return range;
+};
+
+// New clients submit a day key. Preserve explicitly zoned timestamps from
+// older/API clients; interpret legacy unzoned datetime strings in organization time.
+const graceDeadline = (value, timeZone) => {
+  if (!value) return null;
+  let date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    date = new Date(calendarDateRange(value, value, timeZone).$lt.getTime() - 1);
+  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?$/.test(value)) {
+    calendarDateRange(value.slice(0, 10), null, timeZone);
+    date = fromZonedTime(value, timeZone || DEFAULT_TIMEZONE);
+  } else if (/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    date = new Date(value);
+  }
+  if (!date || !Number.isFinite(date.getTime())) throw new RangeError("Invalid grace deadline");
+  return date;
+};
+
 module.exports = {
+  calendarDateRange,
+  graceDeadline,
   DEFAULT_TIMEZONE,
   resolveTimezone,
   formatInAppTimezone,

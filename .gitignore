@@ -118,7 +118,5 @@ build-info.json
 # Vite dependency cache written by the dev container
 .vite/
 
-# Local Claude Code settings (per developer)
-.claude/settings.local.json
 .worktrees/
 .superpowers/

@@ -10,7 +10,22 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-07-w5a-auth-session-compatibility-design.md` (owner approved 2026-11-07).
 
-## Global Constraints
+## Current status — 2026-11-22
+
+W5a is integrated into `main`. Commit `bc995a6` on 2026-11-09 introduced the
+implementation; subsequent commits updated it. The isolated checkout is no
+longer needed for W5a development. The original constraints and execution record
+below describe the November 7 implementation session, not pending integration work.
+
+The cleanup review found exact versions of 167 of the checkout's 168 changed or
+new files in `main` history. The remaining navigation file differs from a
+historical version only by a Proxmox menu entry, which is also present in current
+`main`. The owner approved removal of `.worktrees/w5a-auth-sessions`; the local
+SDD evidence under `.superpowers` is retained. Deployment and current release-gate
+status were not verified by this review. Remaining W5 deliveries are still separate
+work; see the design and productization roadmap.
+
+## Original implementation constraints
 
 - Read AGENTS.md and relevant project docs before changing code; compare analogous implementations. Spec controls scope.
 - No commits, staging, stash or push. Work in the isolated W5a checkout, preserving the mirrored unrelated MCP/Proxmox changes. Do not modify production or existing dev containers/volumes.
@@ -101,6 +116,6 @@ Tasks 1–5 receive task-scoped reviews; disjoint work ran concurrently behind e
 
 ## Execution result — 2026-11-07
 
-Implementation and independent reviews are complete in the isolated W5a worktree; nothing is staged or committed, and main application code is unchanged. Sol/high handled backend security and substantive reviews; Sol/medium handled the fixed-contract frontend work; Luna/medium handled mechanical corrections; Astra/high performed final integration and Task6 review, with its sole evidence finding closed on scoped re-review.
+At the end of the November 7 session, implementation and independent reviews were complete in the isolated W5a worktree; nothing had been staged or committed, and main application code was unchanged. Integration followed on November 9, as recorded above. Sol/high handled backend security and substantive reviews; Sol/medium handled the fixed-contract frontend work; Luna/medium handled mechanical corrections; Astra/high performed final integration and Task6 review, with its sole evidence finding closed on scoped re-review.
 
-The corrected real-Mongo/old-and-new-browser/fake-Telegram rehearsal passed 8/8 entries, including positive and withheld-cookie renewal controls across the old browser deadline. Frontend container checks passed 515 tests, lint, types and build; bot passed 49 tests, types and audit. The four original-baseline failures were fixed in the authorized follow-up on 2026-11-07. The subsequent Node24 backend gate passed lint/typecheck and 3279 tests with zero failures and one opt-in skip. The overall release gate remains non-green because backend/frontend dependency audits still report advisories. Their exact logs, applicability qualifications and cleanup verification are retained in the local SDD verification record. This completion does not authorize deployment or claim closure of all W5 findings.
+The corrected real-Mongo/old-and-new-browser/fake-Telegram rehearsal passed 8/8 entries, including positive and withheld-cookie renewal controls across the old browser deadline. Frontend container checks passed 515 tests, lint, types and build; bot passed 49 tests, types and audit. The four original-baseline failures were fixed in the authorized follow-up on 2026-11-07. The subsequent Node24 backend gate passed lint/typecheck and 3279 tests with zero failures and one opt-in skip. At that time, the overall release gate remained non-green because backend/frontend dependency audits reported advisories. Their exact logs, applicability qualifications and cleanup verification are retained in the local SDD verification record. This completion does not authorize deployment or claim closure of all W5 findings.

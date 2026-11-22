@@ -1,6 +1,6 @@
 # W5a — Browser authentication with client-session continuity
 
-Date: 2026-11-07 · Status: implemented and independently reviewed in an isolated worktree; release gates conditional. Owner approval: 2026-11-07
+Date: 2026-11-07 · Status updated 2026-11-22: implemented, independently reviewed, and integrated into `main` in `bc995a6` on 2026-11-09; deployment and current release gates not verified. Owner approval: 2026-11-07
 
 W5 source: `2026-09-30-productization-audit.md`, especially S9, S16, S20,
 S22–S23. This is the first delivery within W5, not a claim that all W5
@@ -302,7 +302,16 @@ Task-scoped reviews and final Astra/high review passed after their reproduced fi
 
 This is not a deployed-stack or real Telegram delivery claim. It does not boot nginx or establish production old-asset retention. The existing old-bundle expiry timer remains the approved boundary.
 
-Follow-up on 2026-11-07 fixed the four reproduced baseline failures: explicit masking rules for new models (including removal of Proxmox credentials and disabling copied operations), the missing Proxmox actions in the shipped administrator catalogue, and deterministic expiry time in the WireGuard test. The full Node24 backend run now has 3279 passing tests, zero failures and one opt-in skip; lint and typecheck pass. The full release gate is still not green because unchanged backend/frontend dependencies produce audit advisories. W5a's stale static middleware-order assertions were repaired and checked separately. Frontend 515 tests, lint, types and build and bot 49 tests, types and audit passed; final cache regression 21/21 and typecheck passed. No dependency audit exception, version change, secret rotation, staging, commit, production update or transfer of implementation into main was made. Follow the deployment runbook and resolve or explicitly assess the remaining gate failures before release.
+Follow-up on 2026-11-07 fixed the four reproduced baseline failures: explicit masking rules for new models (including removal of Proxmox credentials and disabling copied operations), the missing Proxmox actions in the shipped administrator catalogue, and deterministic expiry time in the WireGuard test. The full Node24 backend run now has 3279 passing tests, zero failures and one opt-in skip; lint and typecheck pass. The full release gate is still not green because unchanged backend/frontend dependencies produce audit advisories. W5a's stale static middleware-order assertions were repaired and checked separately. Frontend 515 tests, lint, types and build and bot 49 tests, types and audit passed; final cache regression 21/21 and typecheck passed. No dependency audit exception, version change, secret rotation, staging, commit, production update or transfer into main was made during that November 7 session. Integration into `main` followed in `bc995a6` on November 9. These test and audit results are historical evidence, not a current release-gate assessment. Follow the deployment runbook and resolve or explicitly assess the remaining gate failures before release.
+
+## Checkout cleanup — 2026-11-22
+
+The retained W5a checkout is no longer needed: its implementation is in `main`,
+and the only changed file without an exact match in `main` history adds a Proxmox
+menu entry already present in the current application. The owner approved removal
+of `.worktrees/w5a-auth-sessions`. The plan, this design, and local SDD evidence
+under `.superpowers` are retained. This does not close the remaining W5 scope or
+establish deployment status.
 
 ## Remaining W5 deliveries
 

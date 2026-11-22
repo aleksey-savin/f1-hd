@@ -75,7 +75,7 @@ const {
   createClientTimezoneResolver,
   formatClientTimeLabel,
 } = require("../services/clientTimezone");
-const { resolveTimezone } = require("../utils/datetime");
+const { resolveTimezone, calendarDateRange } = require("../utils/datetime");
 const Subdivision = require("../models/subdivision");
 const {
   ADDRESS_FIELDS,
@@ -342,18 +342,9 @@ exports.getClosed = async (req, res, next) => {
     const query = { isClosed: true };
     const and = [];
 
-    // Период по дате закрытия: календарные дни yyyy-MM-dd, обе границы
-    // необязательны; конец — эксклюзивно следующим днём, чтобы включить весь
-    // день `to`
-    const fromDate = q.from ? new Date(q.from) : null;
-    if (fromDate && !isNaN(fromDate)) {
-      query.finishedAt = { ...(query.finishedAt || {}), $gte: fromDate };
-    }
-    const toDate = q.to ? new Date(q.to) : null;
-    if (toDate && !isNaN(toDate)) {
-      toDate.setDate(toDate.getDate() + 1);
-      query.finishedAt = { ...(query.finishedAt || {}), $lt: toDate };
-    }
+    // Archive filters are inclusive organization calendar dates.
+    const range = calendarDateRange(q.from, q.to, resolveTimezone(await Preferences.findOne({})));
+    if (Object.keys(range).length) query.finishedAt = range;
 
     const companies = parseIdList(q.companies);
     if (companies.length) query["company._id"] = { $in: companies };
@@ -434,6 +425,7 @@ exports.getClosed = async (req, res, next) => {
 
     res.status(200).json({ tickets: transformedTickets, total, page, limit });
   } catch (error) {
+    if (error instanceof RangeError) return next(new AppError("Некорректный период", 400));
     next(new AppError("Failed to fetch closed tickets", 500, true, error));
   }
 };

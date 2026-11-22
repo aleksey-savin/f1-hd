@@ -4,7 +4,7 @@ import SettingRow from "@/components/app/SettingRow";
 import SwitchField from "@/components/app/SwitchField";
 import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
-import { toDateInputValue } from "@/util/format-date";
+import { organizationDayKey } from "@/util/format-date";
 import { useAuthedUser } from "@/store/authed-user";
 
 import SectionForm from "./SectionForm";
@@ -29,8 +29,8 @@ const PrefsSecurity = ({ prefs }) => {
   const [required, setRequired] = useState(Boolean(policy.requireForAdmins));
   const [until, setUntil] = useState(
     policy.graceUntil
-      ? toDateInputValue(new Date(policy.graceUntil))
-      : toDateInputValue(new Date(Date.now() + 14 * 24 * 3600 * 1000)),
+      ? organizationDayKey(policy.graceUntil, prefs?.timezone)
+      : organizationDayKey(new Date(Date.now() + 14 * 24 * 3600 * 1000), prefs?.timezone),
   );
 
   const canRequire = Boolean(authedUser.twoFactorEnabled);
@@ -42,7 +42,7 @@ const PrefsSecurity = ({ prefs }) => {
           requireForAdmins: required,
           // Конец дня: «до 23 августа» человек читает как «включая
           // двадцать третье».
-          graceUntil: required && until ? `${until}T23:59:59` : null,
+          graceUntil: required && until ? until : null,
         },
       })}
     >

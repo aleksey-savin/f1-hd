@@ -1,4 +1,4 @@
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { fromZonedTime } from "date-fns-tz";
 
 import { getLocalStorageData } from "./auth";
 
@@ -30,7 +30,7 @@ export const displayTimeZone = () => tz();
 // даты (обычно `|| "—"`).
 const isEmpty = (date) => date === null || date === undefined || date === "";
 
-/* ── Отображение ИНСТАНТОВ (моментов времени) — в бизнес-таймзоне ── */
+// Display instants in the personal/organization display timezone.
 
 // Хелперы, которыми пользуется отчёт по услуге, принимают вторым аргументом
 // `{ timeZone }`: документ организации показывается в поясе ОРГАНИЗАЦИИ, каким
@@ -201,19 +201,18 @@ export const formatIn = (value) => {
 
 /* ── Сравнение ДНЕЙ (а не моментов) ── */
 
-/**
- * Календарный день инстанта в бизнес-таймзоне, ключом «2026-07-08».
- *
- * Нужен там, где сравниваются дни, а не моменты («сегодня», «вчера», «эта
- * работа за тот же день»): `date.getDate()` и `toDateString()` берут зону
- * браузера, и сотрудник западнее организации видит «вчера» там, где у компании
- * ещё сегодня. Серверная пара — `toLocaleDateString("en-CA", { timeZone })` в
- * `backend/services/workStatusReset.js` и `dayKey` в telegram-bot.
- */
+// Historical name: this is the display-zone day, including the personal override.
+// Use organizationDayKey for schedule selection and organization date filters.
 export const businessDayKey = (date = new Date()) =>
   new Date(date).toLocaleDateString("en-CA", { timeZone: tz() });
 
-/** Разница в календарных днях бизнес-зоны: сегодня → 0, вчера → 1. */
+// Business rules and list filters use organization days, ignoring personal display settings.
+export const organizationDayKey = (date = new Date(), timeZone) =>
+  new Date(date).toLocaleDateString("en-CA", {
+    timeZone: timeZone || getLocalStorageData().timezone || DEFAULT_TIMEZONE,
+  });
+
+/** Difference in display-zone calendar days: today is 0, yesterday is 1. */
 export const businessDaysAgo = (date) => {
   if (isEmpty(date)) return null;
   const parsed = new Date(date);
@@ -258,40 +257,22 @@ export const formatDayKey = (key) => {
   return `${day}.${month}.${year}`;
 };
 
-/* ── <input type="datetime-local"> ↔ UTC (симметричная пара в бизнес-таймзоне) ── */
-
-// Настенное время в бизнес-таймзоне строкой «YYYY-MM-DDTHH:mm».
-//
-// Собираем сами, а не через date-fns/format: toZonedTime уже вернул Date, у
-// которого локальные геттеры показывают нужную зону, и остаётся только
-// разложить их с ведущими нулями. Конвенция дат (docs/datetime-conventions.md)
-// предпочитает Intl и голый JS там, где date-fns не добавляет смысла.
+// Datetime fields contain wall time in the display zone. Never pass that
+// wall time through a browser-local Date: a browser DST gap can normalize it.
 const toWallTime = (date) => {
-  const d = toZonedTime(date, tz());
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(
-    d.getHours(),
-  )}:${p(d.getMinutes())}`;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz(), year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(date)).map(({ type, value }) => [type, value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 };
 
-// Значение для app/DateTimeField (контракт <input type="datetime-local">):
-// настенное время инстанта в бизнес-таймзоне. Пара к localToUtc (обратное преобразование при сохранении).
-export const toDateTimeLocal = (date = new Date()) =>
-  toWallTime(new Date(date));
+export const toDateTimeLocal = (date = new Date()) => toWallTime(date);
+export const utcToLocalForm = (utcDateString) => toWallTime(utcDateString);
+export const localToUtc = (localDateString) =>
+  fromZonedTime(localDateString, tz()).toISOString();
 
-// То же для ISO-строки с бэка (исторический альяс toDateTimeLocal).
-export const utcToLocalForm = (utcDateString) =>
-  toWallTime(new Date(utcDateString));
-
-export const localToUtc = (localDateString) => {
-  return fromZonedTime(new Date(localDateString), tz()).toISOString();
-};
-
-// Сдвиг значения datetime-local на N минут, не выходя из бизнес-таймзоны:
-// значение разбирается localToUtc, сдвигается по epoch и печатается обратно
-// toDateTimeLocal. Прежний приём (арифметика поверх браузерного
-// timeDateInputFormat) держался на том, что зоны разбора и печати взаимно
-// сокращаются, и ломался, стоило одной стороне стать зонированной.
+// Shift elapsed minutes in the same display zone used for saving.
 export const shiftLocalForm = (localDateString, minutes) => {
   if (!localDateString) {
     return "";

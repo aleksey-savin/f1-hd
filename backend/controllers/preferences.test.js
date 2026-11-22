@@ -601,3 +601,13 @@ test('messaging settings require global settings management permission', async (
   assert.equal(result.error?.statusCode, 403);
   assert.equal(saves.length, 0);
 });
+
+test("two-factor grace date ends in organization time, including a timezone change in the same save", async (t) => {
+  t.mock.method(require("../services/twoFactor"), "isEnabledFor", async () => true);
+  const saves = storedPreferences(t, { timezone: "Europe/Moscow" });
+  const { error } = await callUpdate({ timezone: "Asia/Vladivostok", twoFactorPolicy: {
+    requireForAdmins: true, graceUntil: "2026-11-22",
+  } });
+  assert.equal(error, undefined);
+  assert.equal(saves.at(-1).twoFactorPolicy.graceUntil.toISOString(), "2026-11-22T13:59:59.999Z");
+});

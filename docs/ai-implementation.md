@@ -1,8 +1,14 @@
 # AI Integration — Implementation Notes
 
-_Last updated: 2026-11-09. This document describes the AI features as currently
+_Last reviewed against repository code: 2026-11-22. This document describes the AI features as currently
 implemented, so the code can be reviewed and optimized later. It is a snapshot,
-not a spec — verify against the code before relying on any detail._
+not a spec — verify against the code before relying on any detail. This review
+used source code, not live provider calls or deployment checks._
+
+Sections 1–6 describe current implementation contracts. Dated accounts of previous
+bugs, removed UI, corpus counts, and parser measurements are historical context,
+not current production measurements. See the historical observations section for
+previous verification limits.
 
 ## Overview
 
@@ -74,8 +80,9 @@ The other AI capabilities are:
    the ticket page, regenerable on demand. Staff-only.
 3. **Speech recognition / call summary** — staff can summarize audio attachments
    on ticket pages; new email-created tickets with audio attachments trigger the
-   same process automatically in the background. OpenAI speech-to-text is used for
-   recognition, followed by an AI cleanup/summary pass that produces both a
+   same process automatically in the background. The configured OpenAI, Yandex,
+   or local speech provider performs recognition, followed by an AI cleanup/summary
+   pass that produces both a
    structured Russian call summary and a short ticket title. On the ticket page
    the call **dialog** (diarized segments) is shown; the summary/title feed
    email-created tickets (see §3).
@@ -99,17 +106,18 @@ OpenAI/Anthropic SDK), matching the pre-existing `getAiModels` pattern. Output i
 in Russian.
 
 All LLM prompt text lives in **`backend/prompts/`** (one prompt per file, each with
-a header comment stating what it does and where it is used), imported via the
-`@/prompts` alias rather than inlined in services:
+a header comment stating what it does and where it is used), loaded by the
+services rather than inlined in them:
 - `prompts/ticketGuide.js` — ticket solution-guide system prompt (§2);
 - `prompts/callSummary.js` — call ASR post-processing prompt builder, `({ segments,
   context }) → { system, user }`; the support
   organisation name comes in as `context.supportCompany` (§3);
 - `prompts/transcription.js` — OpenAI speech-to-text Russian support-call hint (§3);
 - `prompts/ticketCategory.js` — category-classification prompt builder, `({ title,
-  description, categories }) → { system, user }` (§4);
+  description, categories, needsTitle, needsCategory }) → { system, user }` (§4);
 - `prompts/ticketTerms.js` — the ticket's conceptual apparatus (§5);
-- `prompts/termReference.js` — reference on one concept (§5).
+- `prompts/termReference.js` — reference on one concept (§5);
+- `prompts/userReview.js` — structured user-review event extraction (§6).
 
 ---
 
@@ -242,8 +250,9 @@ ai: {
 ### Backend
 - `controllers/preferences.js`
   - `update` — `ai` is wired through the destructure + create + update branches.
-  - `getInitial` — returns `ai: { isActive, speechToText: { isActive } }` so the
-    client can gate AI guide + speech controls.
+  - `getInitial` — returns `ai: { isActive, features: resolveAiFeatures(ai) }`.
+    Clients use the resolved feature flags together with user permissions; there
+    is no nested `ai.speechToText` block in this response.
   - `getAiModels` — `POST /api/preferences/ai-models { provider, apiKey, feature,
     folderId }`. Calls the provider's list-models endpoint (OpenAI, Anthropic and
     DeepSeek `GET /v1/models`; Yandex AI Studio `GET
@@ -310,7 +319,7 @@ aiGuide: {
   status: "idle" | "pending" | "ready" | "error",
   kind:   "solution" | "questions",
   summary: String,
-  items:  [{ text: String, done: Boolean }],   // checkable in the UI
+  items:  [{ text: String, done: Boolean }],   // legacy done field; UI is read-only
   sources: [{ _id: ObjectId(KnowledgeNote), title: String, type: String }], // KB notes used
   provider, model: String,
   error: String,
@@ -468,8 +477,7 @@ aiGuide: {
   - **feeds past closed tickets of the SAME company** (`collectPastTickets`): up
     to 5, same category first then by recency, each with its works' descriptions
     (what was actually done) and the closing comment **only when it is ≥ 100
-    chars** — 390 of 400 closing comments are the «Работы по заявке выполнены»
-    boilerplate and would only burn tokens. This is the institutional memory that
+    chars**, excluding short boilerplate closing messages. This is the institutional memory that
     stops the model from asking what a previous ticket already answered;
   - **pulls in relevant knowledge-base notes** via
     `services/knowledgeBaseContext.js` `collectRelevantNotes({ companyId, categoryId,
@@ -524,11 +532,13 @@ module aliases and deps `pdf-parse`, `mammoth`, `exceljs` (which replaced `xlsx`
 - `components/Ticket/View/AiGuideSection.jsx` — the whole «Руководство ИИ» section
   (eyebrow + panel), replacing `AiAssistant` / `AiGuide` / `AiCategory` / `AiSection`
   and the `.ai-*` CSS block in `index.css`:
-  - `idle` / `pending` / `error` are **one line each**; `pending` polls
-    `GET /api/tickets/:num` every 4 s until the status changes;
+  - `idle` / `pending` / `error` are **one line each**. While pending, the
+    component requests a 4-second cadence from the shared Pulse transport. Ticket
+    revisions trigger loader revalidation; there is no component-owned timer
+    fetching the full ticket every four seconds;
   - `ready` → summary, then the items as a **read-only numbered list** (no
     checkboxes, no progress ring), collapsed to 5 with «Показать все N»;
-  - `questions` (3 of 4 guides) → amber «Не хватает данных» line, action
+  - `questions` → amber «Не хватает данных» line, action
     **«Спросить заявителя»** puts the questions as a draft into the chronicle's
     comment box (`store/view-ticket` → `pushCommentDraft`, consumed and cleared by
     `Chronicle`), plus a per-item `+` that appends a single question. Nothing is
@@ -545,11 +555,11 @@ module aliases and deps `pdf-parse`, `mammoth`, `exceljs` (which replaced `xlsx`
   - footer: provider · model · when generated · how many comments were taken into
     account.
 - `pages/Ticket/View.jsx` — renders `<AiGuideSection />` **third, right after
-  «Детали»** (since 2026-07-31), gated by `!isEndUser && ai?.isActive`; the rail
+  «Детали»** (since 2026-07-31), gated by `ai?.features?.guide && can(AI_ACCESS)`; the rail
   entry is «Руководство ИИ» and follows the same order. It answers "what to do",
   which is what a ticket is opened for — but not before the facts: company,
   requester and assignee are facts, a guide is a proposal.
-- `store/prefs.js` — carries the `ai.isActive` flag from `getInitial`.
+- `store/prefs.js` — carries `ai.isActive` and resolved `ai.features` from `getInitial`.
 
 ---
 
@@ -589,8 +599,9 @@ older ticket code used `mimetype`, while later attachment upload code used
   by extension or MIME type: `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `wav`, `webm`,
   `ogg`, `oga`, `opus` and matching `audio/*` / selected `video/*` MIME types.
 - `transcribeAttachment(attachment)` reads `Preferences.ai.speechToText`,
-  resolves the **provider** (`openai` | `yandex`) via `getSpeechToTextConfig`
-  (throws if disabled or the provider's key is missing), then dispatches to a
+  resolves the **provider** (`openai` | `yandex` | `local`) via `getSpeechToTextConfig`
+  (requires both `ai.isActive` and `speechToText.isActive`; cloud keys are required,
+  while a local server key is optional), then dispatches to a
   provider-specific recognizer that returns normalized `segments`. The summary
   pass, name-correction, and assembly are shared across providers.
 - **OpenAI path** (`transcribeWithOpenai`):
@@ -621,19 +632,21 @@ older ticket code used `mimetype`, while later attachment upload code used
     competing hypotheses of the *same* phrase, so joining them glued the phrase
     to itself. It is also the alternative the speaker tag and timestamps are
     read from, so text and metadata stay consistent.
-- Both paths then:
+- The **local path** reuses `transcribeWithOpenai` with the configured local
+  endpoint and model; the OpenAI-specific model-name guard does not apply.
+- All three paths then:
   - normalize diarization to **at most two participants**, because the current
     business assumption is that calls always contain exactly two people;
   - make a second AI call (`summarizeDialog`) that returns a **cleaned dialog**, a
     **plain-prose** Russian description (reads like a ticket description — no
     section headings or bullet lists) **and a short ticket title**. This always
     runs on the **main configured AI provider** from preferences via
-    `aiService.generateJson` — for **both** ASR providers (OpenAI and Yandex) — so
+    `aiService.generateJson` — for all three ASR providers — so
     the summary uses the strong global model (e.g. gpt-4o / Claude Opus) rather than
-    a cheap fixed model. It passes `requireActive:false` (the speech feature has its
-    own toggle, so the AI-guide master switch `ai.isActive` is **not** required —
-    only a configured provider key) and `maxTokens:4096` (the dialog+summary JSON is
-    large; Anthropic's 1500 default would truncate it → invalid JSON). On
+    a cheap fixed model. It passes `requireActive:false` because
+    `getSpeechToTextConfig` has already checked the AI master and speech switches;
+    this is not an exemption from those switches. It also passes `maxTokens:4096`
+    to allow a larger dialog/summary response from Anthropic. On
     failure/empty the raw dialog is shown without a summary and the reason is logged
     at **error** level ("Speech summary/dialog generation failed");
   - `normalizeDialog` accepts the model's `dialog` as either `[{speaker,text}]`
@@ -688,13 +701,13 @@ older ticket code used `mimetype`, while later attachment upload code used
 ### Email auto-trigger — `backend/middleware/emailHandling.js`
 - When a new email becomes a **new ticket**, saved attachments are checked with
   `isAudioAttachment`.
-- If `prefs.ai.speechToText.isActive` and at least one ticket attachment is audio,
+- If `resolveAiFeatures(prefs.ai).speechToText` and at least one ticket attachment is audio,
   `transcribeTicketAudioAttachments(ticket._id)` is started in the background
   after `ticket.save()`.
 - The email processor does not await OpenAI before continuing IMAP processing.
   Each audio attachment is saved as `pending`, then `ready`/`error`.
 - **Title/description overwrite needs both: a telephony sender AND a successful
-  recognition.** On the **first** audio attachment that yields a summary, the ticket's
+  recognition, with `resolveAiFeatures(prefs.ai).callSummary` enabled.** On the **first** audio attachment that yields a summary, the ticket's
   `description` is overwritten with the call summary and `title` with the generated
   title — **but only when both hold**: (1) the ticket came from a **cloud-telephony
   account**, determined by looking up the sender (`ticket.realSender` email) and
@@ -728,7 +741,7 @@ older ticket code used `mimetype`, while later attachment upload code used
   UI: set to `pending` at creation (when speech is on and an attachment is audio),
   flipped to `processed` once the description/title are updated, and finalized after
   the loop to `processed` (any attachment transcribed) or `error` (none). Returned
-  by `getOne` and `getAllOpened`; drives the live badge (see Frontend).
+  by `getOne` and `getAllOpened`; the card refreshes through Pulse (see Frontend).
 - **`pending` expires.** The transcription runs as a detached background task, so a
   process restart kills it *without* rejecting the promise — the `.catch` guard in
   `emailHandling.js` never fires and the status stays `pending`. That costs more
@@ -783,13 +796,13 @@ the file chip is shared with the chronicle via `View/AttachmentChip.jsx`, type
 detection in `View/attachment-utils.js`).
 - Audio is the one attachment kind kept expanded: a native `<audio>` row plus a
   **«Распознать»** / **«Расшифровка»** button. Recognition is gated by
-  `!ticket.isArchived`, `can({ ticket: ["perform"] })` and
-  `ai.speechToText.isActive`; the call updates the `view-ticket` store with the
+  `!ticket.isArchived`, `can(AI_ACCESS)` (`ticket.perform` + `ai.use`) and
+  `ai.features.speechToText`; the call updates the `view-ticket` store with the
   returned attachments.
 - Per-attachment state is a meta line next to the player: «ИИ распознаёт
-  запись…» / «не удалось распознать». The card poll still watches
-  `aiSpeech.status`.
-- `store/prefs.js` carries `ai.speechToText.isActive` from `getInitial`.
+  запись…» / «не удалось распознать». Shared Pulse updates revalidate the
+  ticket loader when recognition changes the ticket.
+- `store/prefs.js` carries the resolved `ai.features.speechToText` flag from `getInitial`.
 - `UI/AiSpeechBadge.jsx` — **removed with the ticket-card redesign (2026-07-30)**,
   and with it the AI badges in list rows: a background job nobody is waiting on
   does not deserve a marker in a list of 47 tickets. What replaced them:
@@ -811,31 +824,33 @@ detection in `View/attachment-utils.js`).
 
 Picks the best-matching `TicketCategory` for a new ticket from its title/description
 and the categories' descriptions, filling `categoryId` **only when it is empty** (a
-manually chosen category is never overwritten). Gated by the same master switch
-`ai.isActive` as the solution guide.
+manually chosen category is never overwritten). Callers gate category and title generation through the resolved
+`ai.features.category` and `ai.features.title` switches, both requiring `ai.isActive`.
 
 **Status field** — `ticketSchema.aiCategory.status` (`pending` | `processed` | `error`,
 mirroring `aiSpeech`) tracks the background job for the UI. It is set to `pending` at
 creation (or by the service when it starts), flipped to `processed` once detection is
 done (whether or not a category was assigned) and `error` on failure. Returned by
-`getOne` and the opened-list projection; drives a live badge (see Frontend below).
+`getOne` and the opened-list projection; the card renders pending state beside
+the category field (see Frontend below).
 
 ### Prompt — `backend/prompts/ticketCategory.js`
-Builder `({ title, description, categories }) → { system, user }`, where `categories`
-is `[{ id, title, description }]`. The system prompt frames the model as a support-ticket
-classifier, tells it to choose **one** category primarily by the category's `description`
-(title as a hint), and to return `null` if nothing fits confidently. Output is strict
-JSON: `{ "categoryId": "<id from the list>" | null, "reason": "..." }` (`reason` is
-log-only). The user message is `JSON.stringify({ ticket: { title, description },
-categories })`.
+Builder `({ title, description, categories, needsTitle, needsCategory })`, where
+`categories` is `[{ id, title, description }]`. It asks for one category primarily
+by its description, or `null` if none fits confidently, plus `closest` candidate
+IDs and a reason. With `needsTitle`, it also requests a short title; with
+`needsCategory:false`, it requests only the title. The service validates returned
+category IDs against the supplied candidates. Title generation shares this call
+rather than making a second provider request.
 
 ### Service — `backend/services/ticketCategoryService.js`
-`detectTicketCategory(ticketId)` (mirrors `ticketAiGuide.js`; **never throws** — errors
+`detectTicketCategory(ticketId, { category = true } = {})` (mirrors `ticketAiGuide.js`; **never throws** — errors
 are logged):
 - loads the ticket (`num title description htmlDescription categoryId`); **returns early
-  if `categoryId` is already set**;
-- loads `TicketCategory.find({ isActive: true }).select("title description")`; returns if
-  there are none;
+  if `categoryId` is already set**, clearing any pending AI title;
+- When category detection is enabled, loads active category candidates; no
+  candidates clears pending category/title state. With category detection off,
+  a pending `aiTitle` can still be generated without loading categories;
 - strips HTML and truncates the description (local `stripHtml`/`truncate`, ~2k chars;
   category descriptions capped ~600), then calls `aiService.generateJson({ system, user })`
   (default `requireActive: true`, so it respects `ai.isActive`);
@@ -849,24 +864,23 @@ are logged):
 
 ### Triggers
 - **Web form** — `controllers/ticket.js` `add`: sets `aiCategory.status = "pending"` at
-  creation (when no `categoryId` and `ai.isActive`); after the 201 it runs
+  creation when category detection is enabled and no category was selected;
+  title generation has its own resolved flag. After the 201 it runs
   `detectTicketCategory` in the background (the AI guide is **not** auto-generated —
   manual-only, see §2). Never blocks/fails ticket creation.
 - **Email (no transcription)** — `middleware/emailHandling.js` new-ticket branch: when the
-  ticket will **not** be transcribed and `ai.isActive`, sets `aiCategory.status = "pending"`
+  ticket will **not** be transcribed and category detection is enabled, sets `aiCategory.status = "pending"`
   and fires `detectTicketCategory` in the background from the email subject/body.
 - **Telephony / transcribe→summary→title** — `transcribeTicketAudioAttachments`: after the
-  `aiSpeech.status` finalization (and when `ai.isActive`), awaits `detectTicketCategory` so
+  `aiSpeech.status` finalization (and when the resolved category feature is enabled), awaits `detectTicketCategory` so
   the category is chosen from the **call summary** that replaced the description (when the
   overwrite applied — see Email auto-trigger gate), not the raw telephony-provider email.
   Email replies that become comments are not categorized.
-- **Telegram** — the bot is a **separate service** with its own models and no shared code,
-  so detection is self-contained in `telegram-bot/services/ticketCategoryService.js` (a
-  mirror of the backend prompt + a minimal `axios`-based provider call). On a new ticket
-  (`tgBotApi.js` `addTicket`), after save and when `ai.isActive`, it runs detection in the
-  background. Requires the `ai` sub-doc on `telegram-bot/models/preferences.js`, a
-  `TicketCategory` model, and `aiCategory` on the bot's ticket model. **Keep this file in
-  sync with the backend prompt/logic.**
+- **Telegram** — `tg-service/src/api/backend.ts#createTicket` submits to the
+  authenticated backend bot API. `backend/routes/bot.js` routes `POST /bot/tickets`
+  through the shared `ticketController.add`, including its feature gates and
+  category/title generation. The bot has no separate category service, AI-rule
+  model, or provider credentials to synchronize.
 
 ### Speech-recognition ticket logs
 The speech flow also writes `TicketLog` start/end/error entries via the same
@@ -878,8 +892,8 @@ The speech flow also writes `TicketLog` start/end/error entries via the same
   The state now lives where the value does: the «Категория» row of
   `Ticket/View/Sections.jsx` says «ИИ подбирает категорию…» while
   `aiCategory.status === "pending"` and the category is still empty. The card's
-  background poll (`ticketSignature` includes `aiCategory.status`) revalidates when
-  it resolves, so the title appears by itself.
+  shared Pulse subscription revalidates the ticket loader when the ticket changes,
+  so the category appears without a component-owned polling loop.
 
 ---
 
@@ -898,10 +912,10 @@ aiTerms: {
   startedAt, error, generatedAt,
   items: [{
     term: String,
-    inText: Boolean,           // встречается в тексте заявки дословно
-    reference: {               // пусто, пока справку не открывали
+    inText: Boolean,           // appears verbatim in the ticket text
+    reference: {               // empty until the reference is opened
       summary, blocks: [{ title, kind: "text"|"list"|"steps", text, items }],
-      links: [{ url, title, host }],   // только прошедшие живую проверку
+      links: [{ url, title, host }],   // only links that passed a live availability check
       provider, model, generatedAt,
     },
   }],
@@ -938,17 +952,16 @@ shown in the ticket chronicle, but reaches prompts only once an administrator
 flips `isActive` in «Настройки → ИИ» — one emotional sentence would otherwise
 quietly poison generation for the whole team. Scope always comes from the ticket
 (category + company); `rulesFor` appends active rules to the guide, category and
-reference prompts alike. The bot mirrors the read side
-(`telegram-bot/models/aiFeedback.js`) so category detection behaves the same
-wherever a ticket is created.
+reference prompts alike. Telegram-created tickets use the same backend
+service and rules through `ticketController.add`.
 
 ### API
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/api/tickets/ai-terms/analyze` | `ticket.perform` + `ai.use` | extract the ticket's concepts |
-| POST | `/api/tickets/ai-terms/reference` | `ticket.perform` + `ai.use` | reference for one concept |
-| POST | `/api/tickets/ai-terms/save-note` | `ticket.perform` + `ai.use` + `knowledge.manage` | store it as a note |
-| POST | `/api/tickets/ai-feedback` | `ticket.perform` + `ai.use` | record a correction |
+| POST | `/api/tickets/ai-terms/analyze` | `ticket.perform` + `ai.use` + access to the ticket | extract the ticket's concepts |
+| POST | `/api/tickets/ai-terms/reference` | `ticket.perform` + `ai.use` + access to the ticket | reference for one concept |
+| POST | `/api/tickets/ai-terms/save-note` | `ticket.perform` + `ai.use` + `knowledge.read` + `knowledge.manage` + access to the ticket | store it as a note |
+| POST | `/api/tickets/ai-feedback` | `ticket.perform` + `ai.use` + access to the ticket | record a correction |
 | GET/POST | `/api/preferences/ai-rules[/toggle,/delete]` | `settings.manage` | review and enable rules |
 
 ### Frontend
@@ -972,6 +985,94 @@ reading is the worst thing to do to their attention. Layout rules are in
 
 ---
 
+## 6. User review and account decisions
+
+The overview describes source selection, cache reuse, and history progress. This
+section records the storage, access, and decision contracts. The implementation
+lives in `backend/services/userReview/`; its Mongo store is implemented in
+`index.js`, not a separate `store.js`.
+
+### Configuration and jobs
+
+`Preferences.userReview` contains `enabled` (default false), `suggestDeletion`
+(default false), `disabledDays` (90), `inactivityDays` (180), and `historyPaused`
+(default true). Configuration belongs in global system settings and requires
+`settings.manage`. `_userReviewState` stores worker cursors and history state;
+settings forms must not supply that state.
+
+Text analysis and starting history scans require both `userReview.enabled` and
+`ai.isActive`. Inactivity and known-disabled-age candidate rules do not require
+an AI provider. `backend/app.js` registers candidate discovery every five minutes
+and analysis every minute through the shared job runner. Analysis claims use
+five-minute leases and tokens; source fingerprints are checked again before
+publishing results. A changed source returns to pending instead of publishing
+stale evidence. The worker stops at 100 processed jobs or its AI budget, whichever
+comes first; reaching the AI budget also ends the run even if later jobs might
+be cache hits.
+
+### Storage and evidence
+
+- `UserReviewAnalysis` has one row per `ticketId`, with source fingerprint,
+  `pending|processing|done|error` status, extracted events, method/input metadata,
+  lease and stage timestamps, attempts, and `retryAt`.
+- `UserReviewProposal` has a unique `key`, optional matched user, source ticket
+  IDs, evidence, manual bindings, and candidate users. Kinds are
+  `departure|inactivity|deletion|unresolved`; decision states are
+  `pending|disabled|deleted|dismissed|deferred|restored`. Decision actor/time,
+  reason, and deferral are separate from analysis status.
+- `policy.js#normalizeAnalysis` validates model output and grounds quotations,
+  identities, and emails in source text. Unsupported findings are discarded
+  individually, while supported findings from the same response are retained.
+  Malformed output and provider failures can still fail the analysis job.
+- The claim query retries ordinary errors while attempts are below five and
+  their retry time has arrived. It also reclaims the three legacy unsupported
+  quote/identity/email error messages after their retry time, even when the
+  previous attempt limit was reached. These historical errors do not require a
+  manual retry to use the corrected grounding policy.
+
+### Access and API
+
+These routes are mounted at `/api/user-review` and require authentication.
+Service checks require a staff user and the operation's `userReview` permission;
+store queries also enforce source and user visibility. `ai.use` is not a
+substitute for these separate permissions.
+
+| Method | Path under `/api/user-review` | Permission | Purpose |
+|---|---|---|---|
+| GET | `/summary` | `userReview.read` | Scoped counts, settings, capabilities, and scan progress |
+| GET | `/proposals` | `userReview.read` | Filtered, paginated review queue |
+| GET | `/analyses` | `userReview.read` | Scoped analysis records |
+| POST | `/scan` | `userReview.analyze` | Start or resume history discovery; feature and AI must be enabled |
+| POST | `/pause` | `userReview.analyze` | Set the history pause state |
+| POST | `/analyses/:id/retry` | `userReview.analyze` | Requeue an accessible analysis and clear cached input metadata |
+| POST | `/proposals/:id/decision` | `userReview.manage` plus intent-specific checks | Apply a human decision |
+
+Decision intents are `disable`, `delete`, `restore`, `dismiss`, `defer`, `match`,
+and `retry`. Account mutations additionally require `user.manage`; retrying a
+proposal's sources additionally requires `userReview.analyze`. Manual matching
+checks current target eligibility and source visibility. Decisions revalidate
+current evidence and account state before account mutations.
+
+The retry endpoint remains available in the backend; its existence does not imply
+an Errors tab or per-error retry button in the current UI. See the user-review
+section of `docs/ux-ui-guide.md` for presentation rules.
+
+### Account lifecycle and rollout
+
+`services/userLifecycle.js#executeUserLifecycle` is shared with ordinary user
+management. Deletion is soft: IDs, credentials, membership, and historical links
+remain. Disable/delete revoke user and impersonation sessions; restoration leaves
+access disabled. Last-holder-of-permission and administrator protections still
+apply. Workers create proposals; they do not automatically disable or delete users.
+
+See `docs/deployment.md`, "User review and retained user identities", for the
+role-upgrade and activity-backfill migrations. Restricted roles do not receive
+all review permissions automatically. The UI lives in `pages/UserReview/` and
+`components/UserReview/`, with dashboard and ticket integrations and a separate
+section in global system settings.
+
+---
+
 ## API summary
 
 | Method | Path | Auth | Purpose |
@@ -979,15 +1080,19 @@ reading is the worst thing to do to their attention. Layout rules are in
 | POST | `/api/preferences/ai-models` | `settings.manage` | list provider models |
 | POST | `/api/preferences/ai/check` | `settings.manage` | probe the chat provider (real generation) |
 | POST | `/api/preferences/ai/speech-check` | `settings.manage` | probe the speech recognition channel |
-| POST | `/api/tickets/ai-guide/generate` | `ticket.perform` + access to the ticket | (re)generate guide for a ticket |
-| POST | `/api/tickets/:ticketNum/attachments/speech-to-text` | `ticket.perform` + access to the ticket | summarize an audio attachment |
-| POST | `/api/tickets/ai-terms/analyze` | `ticket.perform` | extract the ticket's concepts |
-| POST | `/api/tickets/ai-terms/reference` | `ticket.perform` | reference for one concept |
-| POST | `/api/tickets/ai-terms/save-note` | `ticket.perform` + `knowledge.manage` | store a reference as a note |
-| POST | `/api/tickets/ai-feedback` | `ticket.perform` | record a correction to AI-written data |
+| POST | `/api/tickets/ai-guide/generate` | `ticket.perform` + `ai.use` + access to the ticket | (re)generate guide for a ticket |
+| POST | `/api/tickets/:ticketNum/attachments/speech-to-text` | `ticket.perform` + `ai.use` + access to the ticket | summarize an audio attachment |
+| POST | `/api/tickets/ai-terms/analyze` | `ticket.perform` + `ai.use` + access to the ticket | extract the ticket's concepts |
+| POST | `/api/tickets/ai-terms/reference` | `ticket.perform` + `ai.use` + access to the ticket | reference for one concept |
+| POST | `/api/tickets/ai-terms/save-note` | `ticket.perform` + `ai.use` + `knowledge.read` + `knowledge.manage` + access to the ticket | store a reference as a note |
+| POST | `/api/tickets/ai-feedback` | `ticket.perform` + `ai.use` + access to the ticket | record a correction to AI-written data |
 | GET | `/api/preferences/ai-rules` | `settings.manage` | review corrections |
 | POST | `/api/preferences/ai-rules/toggle` | `settings.manage` | let a correction reach the prompts |
 | POST | `/api/preferences/ai-rules/delete` | `settings.manage` | drop a correction |
+
+All ticket AI routes also require their corresponding resolved feature flag;
+saving a reference additionally requires the knowledge-base module. User-review
+endpoints and their separate permissions are listed in §6.
 
 (Provider settings persist via the existing `POST /api/preferences`; AI guide and
 speech results are returned inside the existing `GET /api/tickets/:num`.)
@@ -997,39 +1102,34 @@ speech results are returned inside the existing `GET /api/tickets/:num`.)
 ## Known limitations / optimization opportunities
 
 Operational / correctness:
-- **Container deps**: `pdf-parse`/`mammoth`/`exceljs` were added to `package.json` but
-  the Docker image must be rebuilt (or `pnpm install` run in-container) — the
-  container ships its own `node_modules`.
-- ~~Fire-and-forget generation leaves `status:"pending"` forever~~ — closed
-  2026-07-31 for the AI guide, ticket-level speech and attachment-level speech:
-  each carries a `startedAt` and expires (see the respective sections).
-  `aiCategory.status` still has no lifetime, but nothing gates on it — a stuck
-  value only means the category was not auto-filled.
-- **No concurrency guard / rate limiting** on generation — a burst of new tickets
-  or email tickets with audio fires N parallel provider calls.
+- **Container dependencies**: rebuild the image when dependency declarations
+  change; updating host dependencies does not update the container image.
+- AI-guide and speech pending states expire through their `startedAt` checks.
+  `aiCategory.status` has no equivalent pending-expiry helper.
+- **No shared provider-call concurrency limit** for category, guide, and speech
+  generation: separate tickets can issue calls concurrently. User review has its
+  own worker leases and per-run AI budget; document-parser child limits apply
+  only to extraction, not provider calls.
 - **Email auto-transcription is background-only**: email-created tickets can show
   speech `pending`/`error` after the email itself has already been marked seen.
 
 Cost / quality:
 - **No prompt caching** (Anthropic). Regeneration re-sends the full context each
   time; caching the system prompt + static context would cut cost.
-- **`max_tokens` defaults to 1500** but is now overridable via
-  `generateJson({ maxTokens })` (the speech summary passes 4096 so the full cleaned
-  dialog + summary JSON isn't truncated). A *very* long call could still exceed
+- **Anthropic `max_tokens` defaults to 1500** and is overridable via
+  `generateJson({ maxTokens })`; the OpenAI path does not send this cap.
+  The speech summary passes 4096 so the full cleaned
+  dialog + summary JSON has more room. A *very* long call could still exceed
   4096 (→ caught, raw dialog shown without summary); splitting summary and dialog
   into two calls would remove that ceiling.
 - **Models hardcoded as defaults** (`gpt-4o`, `claude-opus-4-8`,
   `gpt-4o-transcribe-diarize`).
-- ~~Plaintext API key storage~~ — closed 2026-07-31: keys are encrypted at rest
-  and read through `readStoredSecret` (see above).
 - **Speech recognition quality in Russian is variable**; the raw dialog is shown
   for reference while the AI summary (not the verbatim transcript) is what feeds
   the email ticket's description/title.
-- **Yandex SpeechKit path is untested against the live API** — the v3 async REST
-  flow (request/operation poll/getRecognition parsing, speaker-tag extraction) is
-  implemented from the docs and may need field-name/format tweaks. It also blocks
-  on synchronous polling (up to ~6 min) and accepts only MP3/WAV/OGG-OPUS inline
-  (100 MB), unlike the OpenAI path which also takes mp4/m4a/webm.
+- **Yandex SpeechKit uses operation polling** (up to roughly six minutes) and
+  accepts MP3/WAV/OGG-OPUS inline, unlike the OpenAI/local path, which also accepts
+  mp4/m4a/webm. Live-service verification was not part of this documentation review.
 - **Diarize model cannot use prompts**; quality improvements are limited to
   `language:"ru"`, chunking, two-speaker normalization, and the post-recognition
   summary pass.
@@ -1041,9 +1141,7 @@ Coverage:
 - **The guide is the only source of AI-made checklists.** Steps of an existing
   guide can be turned into a ticket checklist, but there is no «generate a
   checklist from scratch» call — neither in the ticket checklist editor nor in
-  the checklist-template form. Coverage is therefore capped by guide coverage:
-  99 ready guides out of 3387 tickets over the last year (2.9 %), plus 374
-  `idle` and 27 `error`.
+  the checklist-template form. Only tickets with generated guides can use this path.
 - **`pptx` and `rtf` not extracted** (accepted as uploads but skipped); would need
   another lib.
 - **No OCR** — scanned/image-only PDFs yield little/no text (images still go via
@@ -1057,7 +1155,9 @@ Coverage:
   configurable. Document parsing is skipped, not retried, when it hits them; a
   file that needs more (a spreadsheet with millions of cells) yields no text for
   the AI.
-- Speech audio cap is 25 MB, matching OpenAI transcription API limits.
+- Speech upload caps in the service are 25 MiB for OpenAI/local recognition
+  and 100 MiB for Yandex; these are implementation constants, not a statement
+  about current external provider limits.
 - Speech diarization assumes exactly two participants; calls with conferences or
   transfers may be oversimplified.
 - **Caller identification is phone-number-only.** If the caller's number is not in
@@ -1079,7 +1179,24 @@ UX:
 
 ---
 
-## Touched files (reference)
+## Historical observations and verification limits
+
+- Earlier notes recorded 99 ready guides out of 3,387 tickets (2.9%), plus
+  374 idle and 27 error records. The measurement date and reproducible query
+  were not recorded here; these figures are not current coverage metrics.
+- Earlier parser experiments measured process startup time and peak RSS on
+  particular Node versions and crafted files. The measurements in §2 are
+  historical examples; the configured limits and their limitations are the
+  implementation contract, not a guaranteed memory ceiling.
+- Pending-state expiry and encrypted provider-key storage were recorded as
+  fixes on 2026-07-31. They are current behavior, not open limitations.
+- Earlier notes said the Yandex SpeechKit flow had not been tested against the
+  live API. No live-provider checks were performed for the 2026-11-22 review,
+  so this document does not establish its current deployment verification status.
+
+---
+
+## Implementation files (reference)
 
 Backend — models: `preferences.js`, `ticket.js`, **`aiFeedback.js`**;
 types: `preferences.ts`, `ticket.ts`, `_shared.ts`.
@@ -1107,7 +1224,12 @@ Ticket card: `View/AiGuideSection.jsx`, **`View/TicketTerms.jsx`**,
 `util/ticket-events.js`, `store/prefs.js`, `styles/tailwind.css`
 (`.ai-term`, `.ai-mark`).
 
-Telegram-bot (self-contained category detection + its share of the AI rules):
-`models/ticket.js`, `models/ticketCategory.js`, `models/preferences.js`,
-**`models/aiFeedback.js`**, `services/ticketCategoryService.js`,
-`services/crypto/secretBox.js`, `middleware/tgBotApi.js`.
+Telegram transport: `tg-service/src/api/backend.ts`, `tg-service/src/bot/index.ts`.
+Backend bot intake: `backend/routes/bot.js` delegates to `controllers/ticket.js`.
+
+User review: `backend/services/userReview/{index,policy,input-plan,detector}.js`,
+`backend/services/userLifecycle.js`, `backend/controllers/userReview.js`,
+`backend/routes/internal/userReview.js`, `backend/models/userReviewAnalysis.js`,
+`backend/models/userReviewProposal.js`, and `backend/prompts/userReview.js`.
+Frontend: `pages/UserReview/`, `components/UserReview/`,
+`components/Preferences/UserReview.tsx`, and `components/Dashboard/UserReviewAttention.tsx`.

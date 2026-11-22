@@ -1,3 +1,4 @@
+const { graceDeadline, resolveTimezone } = require("../utils/datetime");
 const fs = require("fs");
 
 const Preferences = require("../models/preferences");
@@ -383,9 +384,13 @@ exports.update = async (req, res, next) => {
         }
       }
 
-      const grace = body.twoFactorPolicy?.graceUntil
-        ? new Date(body.twoFactorPolicy.graceUntil)
-        : null;
+      let grace = null;
+      try {
+        if (wanted) grace = graceDeadline(body.twoFactorPolicy?.graceUntil,
+          resolveTimezone({ timezone: has("timezone") ? body.timezone : preferences.timezone }));
+      } catch {
+        return next(new AppError("Некорректная дата окончания отсрочки", 400));
+      }
       preferences.twoFactorPolicy = {
         requireForAdmins: wanted,
         // Отсрочка живёт только вместе с требованием; выключили — обнуляем,

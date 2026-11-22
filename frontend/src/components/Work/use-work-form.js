@@ -144,7 +144,7 @@ export const useWorkForm = ({
 
   const durationMs = useMemo(() => {
     if (!startedAt || !finishedAt) return null;
-    return new Date(finishedAt).getTime() - new Date(startedAt).getTime();
+    return new Date(localToUtc(finishedAt)).getTime() - new Date(localToUtc(startedAt)).getTime();
   }, [startedAt, finishedAt]);
 
   const isReversed = durationMs != null && durationMs < 0;

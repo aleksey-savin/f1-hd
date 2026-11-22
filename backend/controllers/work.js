@@ -1,3 +1,5 @@
+const Preferences = require("../models/preferences");
+const { resolveTimezone, calendarDateRange } = require("../utils/datetime");
 const { Types } = require("mongoose");
 
 const Work = require("../models/work");
@@ -568,15 +570,8 @@ exports.getFinished = async (req, res, next) => {
     const query = { finishedAt: { $ne: null } };
     const and = [];
 
-    // Период по дате завершения: границы необязательны; конец — эксклюзивно
-    // следующим днём, чтобы включить весь день `to`
-    const fromDate = q.from ? new Date(q.from) : null;
-    if (fromDate && !isNaN(fromDate)) query.finishedAt.$gte = fromDate;
-    const toDate = q.to ? new Date(q.to) : null;
-    if (toDate && !isNaN(toDate)) {
-      toDate.setDate(toDate.getDate() + 1);
-      query.finishedAt.$lt = toDate;
-    }
+    Object.assign(query.finishedAt,
+      calendarDateRange(q.from, q.to, resolveTimezone(await Preferences.findOne({}))));
 
     const companies = parseObjectIdList(q.companies);
     if (companies.length) query.company = { $in: companies };
@@ -709,6 +704,7 @@ exports.getFinished = async (req, res, next) => {
       totalDurationMs: durationAgg[0]?.total || 0,
     });
   } catch (error) {
+    if (error instanceof RangeError) return next(new AppError("Некорректный период", 400));
     next(new AppError("Failed to fetch finished works", 500, true, error));
   }
 };

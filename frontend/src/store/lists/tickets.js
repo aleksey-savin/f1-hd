@@ -1,3 +1,4 @@
+import { organizationDayKey } from "@/util/format-date";
 import { create } from "zustand";
 
 import { api } from "@/lib/api";
@@ -137,19 +138,11 @@ const matchesFacets = (ticket, state, userId) => {
   if (state.states.length > 0 && !state.states.includes(ticket.state)) {
     return false;
   }
-  // Период создания — календарные дни включительно: «по 18.07» значит «весь
-  // день 18-го», поэтому верхняя граница сдвигается на конец суток
-  if (
-    state.createdFrom &&
-    new Date(ticket.createdAt) < new Date(state.createdFrom)
-  ) {
-    return false;
-  }
-  if (
-    state.createdTo &&
-    new Date(ticket.createdAt) > new Date(`${state.createdTo}T23:59:59`)
-  ) {
-    return false;
+  // Compare both inclusive calendar bounds in organization time, as archives do.
+  if (state.createdFrom || state.createdTo) {
+    const day = organizationDayKey(ticket.createdAt);
+    if (state.createdFrom && day < state.createdFrom) return false;
+    if (state.createdTo && day > state.createdTo) return false;
   }
   if (state.routineTask === "present" && !ticket.routineTask) return false;
   if (state.routineTask === "absent" && ticket.routineTask) return false;

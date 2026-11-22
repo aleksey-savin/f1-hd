@@ -45,7 +45,7 @@ import {
   tzCity,
   tzOffsetMinutes,
 } from "../../util/timezone-display";
-import { DEFAULT_TIMEZONE, businessDayKey } from "../../util/format-date";
+import { DEFAULT_TIMEZONE, organizationDayKey } from "../../util/format-date";
 
 import {
   ACCOUNT_KINDS,
@@ -116,7 +116,7 @@ const defaultWeek = () =>
 // «Сегодня» календарём организации, а не UTC: effectiveFrom — календарная дата,
 // и toISOString() восточнее UTC до смены суток выбирал бы вчерашнюю версию
 // графика (и подставлял вчерашнюю дату в новую).
-const todayKey = () => businessDayKey();
+const todayKey = () => organizationDayKey();
 
 // Действующая версия — последняя, начавшаяся не позже сегодняшнего дня
 // (как её выбирает планировщик на бэкенде); версии без даты действуют всегда.

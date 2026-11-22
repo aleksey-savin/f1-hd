@@ -1,535 +1,509 @@
-# Даты и таймзоны — устройство и конвенции
+# Dates and timezones
 
-_Обновлено: 2026-07-29 (сквозная ревизия: выверены все ссылки на код, добавлен
-третий класс дат и датовые модули, появившиеся с командным календарём,
-вычищен накопленный долг фронта). Документ — источник правды для нового кода;
-детали сверяйте с `backend/utils/datetime.js` и
-`frontend/src/util/format-date.js`. Как формат выглядит на экране — в
-`docs/ux-ui-guide.md` («Даты и время на экране»); причины решений —
-в `docs/ux-ui-changelog.md`._
+_Reviewed against the source on 2026-11-22. This document describes date storage,
+conversion, and calculation conventions. The main implementations are
+`backend/utils/datetime.js` and `frontend/src/util/format-date.js`. See
+[UX/UI guide](ux-ui-guide.md) for visible formats and shared fields,
+[UX/UI changelog](ux-ui-changelog.md) for design history, and
+[user presence and calendar](user-presence-and-calendar.md) for schedule behavior._
 
-## TL;DR — четыре правила
+## Core rules
 
-1. **Показываешь дату человеку** — только через хелперы
-   (`utils/datetime.js` на бэке, `util/format-date.js` на фронте). Голый
-   `toLocaleString()` на сервере = UTC, на клиенте = таймзона браузера — и то и
-   другое расходится с бизнес-временем.
-2. **Читай день той же зоной, какой он записан.** Календарное поле лежит
-   UTC-полночью — его день читается UTC-срезом ISO. Инстант — момент, его
-   локальный день даёт `toDateInputValue`, день организации — `businessDayKey`.
-   Отсюда запрет: `new Date().toISOString().slice(0, 10)` для **«сегодня»** —
-   это UTC-день, для UTC+10 «вчера» каждое утро до 10:00.
-3. **Поле даты со временем (`app/DateTimeField`, контракт
-   `<input type="datetime-local">`)** — настенное время в нём означает
-   **бизнес-таймзону**: загрузка `utcToLocalForm(iso)`, сохранение
-   `localToUtc(value)`, «Сейчас» — `toDateTimeLocal()`. Пары не смешивать.
-4. **Период документа считает сервер и присылает строкой.** Месяц отчёта,
-   квартал акта, год договора — свойство документа, а не зрителя, и в зоне
-   клиента они одни, а в зоне смотрящего другие. Форматировать их в браузере
-   нельзя ни через какой хелпер.
+1. Use the shared formatters for human-readable dates. Choose the timezone by
+   purpose: organization time for business calculations and server-generated
+   documents; the viewer's display timezone for ordinary frontend timestamps.
+2. Identify the data type before converting it. An instant, a calendar date
+   stored at UTC midnight, and a day-key string have different meanings.
+   UTC slicing is valid for a stored UTC-midnight calendar date. It is wrong
+   for finding today's date in a non-UTC timezone.
+3. Use the shared `DateField`, `DateRangeField`, and `DateTimeField` components.
+   Datetime forms load with `utcToLocalForm`, save with `localToUtc`, and use
+   `toDateTimeLocal` for "Сейчас" (Now). These helpers use the display timezone,
+   including the personal override. Keep load and save conversions symmetric.
+4. Use the server's period label and month key for business documents. Do not
+   derive a report month from its UTC start instant in the viewer's timezone.
 
-## Модель данных
+## Data model
 
-Три представления даты. Путаница между ними — источник большинства датовых
-багов, поэтому класс поля надо знать до того, как писать формат.
-
-| Класс | Как лежит в Mongo | Что это | Как показывать |
+| Type | Storage and transport | Meaning | Display |
 | --- | --- | --- | --- |
-| **Инстант** | UTC `Date`, наружу ISO | точка на оси времени | в бизнес-таймзоне (`fmtDateTime` / `formatDate`) |
-| **Календарная дата** | UTC-полночь (`"2026-07-08" → 2026-07-08T00:00:00Z`), между фронтом и бэком строкой `YYYY-MM-DD` | день без времени | «как записано», `formatCalendarDate` (пиннинг в UTC) |
-| **Календарная дата строкой** | `String` `"2026-07-08"` | день, который вообще не хочет быть `Date` | как есть; в `Date` переводить только через `dayKeyToUtcMidnight` |
+| Instant | MongoDB `Date`, ISO timestamp over the API | A point in time | Explicit organization timezone on the backend; display timezone on the frontend, with report overrides |
+| Calendar date | UTC-midnight `Date`; date fields exchange `YYYY-MM-DD` | A day without a time | `formatCalendarDate`, pinned to UTC |
+| Day key | `String`, such as `2026-07-08` | A named calendar day | `formatDayKey`; convert to a UTC-midnight `Date` only where the receiving API requires it |
 
-- **Инстанты** — `createdAt`, `deadline`, `startedAt`/`finishedAt`,
-  `offlineSince`, `lastSyncAt`… Таймзона для них — вопрос только отображения.
-- **Календарные даты** — `purchasedAt`, `warrantyExpirationDate`,
-  `lastMaintenanceDate`, `nextMaintenanceDate`
-  (`models/inventory/clientDevice.js`), `expiresAt` услуг
-  (`models/knowledgeNote.js`, внутри `serviceExpiry`), `isActiveSince`
-  привязки тарифа, `from`/`to` отсутствий (`models/absence.js` — там же
-  комментарий-напоминание), `workSchedules[].effectiveFrom` — «действует с»
-  версии графика (`models/user.js`).
-- **Календарные даты строкой** — производственный календарь:
-  `models/productionCalendar.js` (`date`, `transferredFrom`) и снимок
-  `backend/data/production-calendar/`; ответы типа «дата» в анкете шаблона
-  заявки (`customFields[].value`, см. [ticket-templates](./ticket-templates.md)).
-  Это сознательный выбор: и календарь, и ответ на вопрос — день как он назван,
-  их сравнивают и показывают по ключу дня, а `Date` тут только добавлял бы
-  поводов уехать на сутки.
+Instants include `createdAt`, `deadline`, `startedAt`, `finishedAt`,
+`offlineSince`, and `lastSyncAt`. Converting their display timezone must not
+change the stored instant.
 
-### Три уровня таймзон
+UTC-midnight calendar fields include device purchase, warranty, and maintenance
+dates in `backend/models/inventory/clientDevice.js`; service expiry dates in
+`backend/models/knowledgeNote.js`; tariff binding `isActiveSince`; absence
+`from`/`to`; and `workSchedules[].effectiveFrom` in `backend/models/user.js`.
 
-Правило одно: **считает всё пояс организации, показывает — личный, если задан.**
+Day-key strings include production calendar `date` and `transferredFrom`
+(`backend/models/productionCalendar.js`, `backend/data/production-calendar/`)
+and date answers in ticket template `customFields[].value`. See
+[ticket templates](ticket-templates.md). These values should remain named days,
+without timezone conversion.
 
-- **организация** — `Preferences.timezone`. **Единственный пояс расчёта**: в нём
-  заданы все графики (и личный график сотрудника, и график обслуживания
-  клиента), в нём сервер режет сутки, считает переработки и границы периодов
-  отчётов. Он же пояс показа по умолчанию.
-- **человек** — `User.timezone`. **Где он находится**: в этом поясе ему
-  показываются даты («Мой аккаунт → Внешний вид») и от него же считается
-  «который час у заявителя». **На расчёт не влияет никогда** — иначе настройка
-  удобства молча двигала бы человеку доплату.
-- **клиент** — `Subdivision.timezone` / `Company.timezone`: тоже факт
-  местонахождения, только у организации-заявителя. См. раздел «Зона клиента».
-  На деньги не влияет: график обслуживания читается в поясе организации.
+## Timezone responsibilities
 
-**Отчёт по услуге показывается в поясе организации** — единственное исключение
-из «показывает личный». Документ посчитан в поясе организации, и работа,
-попавшая в «нерабочее время», обязана выглядеть нерабочей у любого зрителя: в
-личном поясе 19:30 превращались в 16:30, и таблица спорила с собственным
-заголовком. Пояс приезжает в ответе (`zone` у конвейера, карточки и страницы
-по ссылке) и раздаётся всему, что рисует раздел, — `Report/report-zone`
-(`ReportZoneProvider`, `useReportDates`). Карточка называет пояс строкой
-«Часовой пояс отчёта» в условиях расчёта, а колонка «Начало» подписывает его,
-когда настенное время у зрителя другое; выгрузка в Excel и PDF — тот же пояс.
-
-**Графики задаются в поясе организации.** Это сказано у поля в интерфейсе.
-Сотруднику во Владивостоке при организации в Москве смену 09:30–17:00 местного
-записывают как 02:30–10:00 — тогда переработки у него нет. Записать её местным
-временем значит отправить всю смену в переработку.
-
-**В базе всё в UTC.** Инстанты (`Work.startedAt`, `periodFrom`, `deadlineAt`)
-— моменты времени; календарные даты (`Absence.from/to`, `effectiveFrom`) лежат
-UTC-полуночью. Пояс — то, в чём инстант ЧИТАЮТ, и он никогда не хранится
-внутри значения.
-
-**Бизнес-таймзона** — `Preferences.timezone` (IANA-идентификатор, выбирается в
-Настройки → Основные из `frontend/src/store/timezones.js`; схемный дефолт
-`Europe/Moscow` в `models/preferences.js`). На клиент приезжает в
-`localStorage.timezone`: кладётся при входе (`pages/Auth/session.ts`),
-обновляется **на каждой загрузке корня** (`layout/Root.jsx` — иначе смена пояса
-не доезжала бы до тех, кто её не сохранял) и удаляется при выходе. Рядом лежит
-`localStorage.personalTimezone` — личный пояс показа; `util/format-date`
-читает сначала его. Сервер (Docker) живёт в UTC — `TZ` не задан, и на это
-нельзя опираться.
-
-## Бэкенд
-
-### `backend/utils/datetime.js` — единственный источник
-
-| Экспорт | Что делает |
+| Purpose | Timezone |
 | --- | --- |
-| `DEFAULT_TIMEZONE` | `"Europe/Moscow"` — единый дефолт (= схема Preferences). **Не хардкодить зоны по коду.** |
-| `resolveTimezone(prefs)` | `prefs?.timezone \|\| DEFAULT_TIMEZONE`. Читать `prefs.timezone` напрямую нельзя: на пустых настройках получается `undefined` без фолбэка |
-| `formatInAppTimezone(date, tz, pattern)` | безопасный `date-fns-tz/formatInTimeZone`: битая зона в настройках не роняет текст (фолбэк — серверное время) |
-| `fmtDateTime(date, tz)` | канонический «дата, время», `—` для пустого |
-| `fmtDayMonth(date, tz)` | «2 августа» — сроки и даты решений в письмах |
-| `fmtMonthYear(date, tz)` | «июль 2026» — период отчёта строкой (исполнитель правила 4) |
-| `dayKey(date, tz)` | календарный день инстанта ключом `YYYY-MM-DD` — для сравнения ДНЕЙ |
-| `dayKeyToUtcMidnight(key)` | ключ дня → `Date` UTC-полуночи, то есть в том виде, как лежат календарные поля |
+| Billing, employee overtime, schedule selection, report and ticket/work filter boundaries | `Preferences.timezone`, falling back to `Europe/Moscow` |
+| Ordinary frontend timestamps and datetime forms | `personalTimezone`, then organization `timezone`, then `Europe/Moscow` |
+| Service report timestamps and exports | The report's organization `zone` |
+| Requester's local clock | User, subdivision ancestors, company, then organization timezone |
+| Calendar field navigation and `toDateInputValue` | Browser-local calendar days |
+| UTC-midnight calendar fields | UTC, to preserve the stored day |
 
-`fmtDayMonth`/`fmtMonthYear` сделаны на `Intl`, а не на date-fns намеренно:
-локалей date-fns в зависимостях бэкенда нет (стоит только `date-fns-tz`), и
-шаблон `"d MMMM"` дал бы «2 August» — в письме клиенту это брак.
+### Organization and personal timezones
 
-Модуль импортируют ~25 файлов. Опорные потребители: тексты заявок/комментариев
-Mikrotik (`services/mikrotik/tickets.js` `fmtTime`), имена файлов экспорта
-(`services/mikrotik/artifacts.js` `timestampForName`), уведомления
-(`middleware/notifications.js`), rate-limit сообщения (`routes/internal/auth.js`
-— смещение от Москвы через `getTimezoneOffset` из date-fns-tz), каскад зоны
-клиента (`services/clientTimezone.js`), рабочий календарь
-(`services/workCalendar.js`), сборка периода отчёта (`services/reportCard.js`).
+`Preferences.timezone` is the business timezone. Configure it in global System
+settings. The frontend stores it as `localStorage.timezone` during login
+(`frontend/src/pages/Auth/session.ts`) and refreshes it when the root loads
+(`frontend/src/layout/Root.jsx`). The personal preference is stored alongside
+it as `personalTimezone`.
 
-### Границы периодов в отчётах
+`frontend/src/util/format-date.js` reads these values on every call. Its
+`displayTimeZone()` returns the personal timezone when set, otherwise the
+organization timezone or the default. Do not cache that result at module load.
 
-Любые границы «день/месяц/квартал/год» — по настенным часам бизнес-таймзоны
-через `dayjs.tz` (плагины utc+timezone):
+`User.timezone` changes display and form interpretation; it does not change the
+organization timezone used to calculate payroll or billing. Employee and service
+schedules used by those calculations are expressed in organization wall time.
+For example, a 09:30–17:00 shift in Vladivostok corresponds to 02:30–10:00 in
+Moscow. Entering local employee hours as organization hours changes the schedule.
+
+The server's process timezone is not the business timezone. Do not depend on
+its current UTC deployment setting or on the browser timezone when calculating
+business periods.
+
+### Service reports
+
+Service reports display timestamps in the organization timezone used for the
+calculation. `frontend/src/components/Report/report-zone` provides
+`ReportZoneProvider` and `useReportDates`. The API supplies `zone`; the report
+conditions show "Часовой пояс отчёта" (Report timezone). Excel and PDF exports
+use the same zone. This keeps an overtime entry visibly outside working hours
+even when the viewer has a different personal timezone.
+
+Use the server-provided `row.period` for the period label and `row.month` for
+month filtering. `periodFrom.slice(0, 7)` can select the previous month because
+local midnight east of UTC falls on the preceding UTC date.
+
+## Backend
+
+### Shared datetime helpers
+
+`backend/utils/datetime.js` owns the backend defaults and formatting helpers.
+
+| Export | Behavior |
+| --- | --- |
+| `DEFAULT_TIMEZONE` | `Europe/Moscow`, matching the Preferences schema and frontend fallback |
+| `resolveTimezone(prefs)` | `prefs?.timezone || DEFAULT_TIMEZONE` |
+| `formatInAppTimezone(date, tz, pattern)` | Formats with `date-fns-tz`; on failure falls back to server-local `toLocaleString("ru-RU")` |
+| `fmtDateTime(date, tz)` | Numeric date and time; `—` for an empty value |
+| `fmtDayMonth(date, tz)` | Day and Russian month name, such as `2 августа` |
+| `fmtMonthYear(date, tz)` | Russian month and year, such as `июль 2026` |
+| `dayKey(date, tz)` | Calendar day of an instant in the supplied zone, as `YYYY-MM-DD` |
+| `dayKeyToUtcMidnight(key)` | Converts a day key to a UTC-midnight `Date` |
+| `calendarDateRange(from, to, zone)` | Inclusive calendar keys to MongoDB `$gte` / exclusive `$lt` instant bounds; either bound may be omitted |
+| `graceDeadline(value, zone)` | Date-only security deadline to the end of the organization day; preserves explicitly zoned API timestamps |
+
+Use `resolveTimezone` when adding code that reads the organization timezone.
+Do not introduce another hardcoded fallback. Existing defaults, including the
+bot configuration response, must remain consistent.
+
+`fmtDayMonth` and `fmtMonthYear` use `Intl` for Russian month names. A date-fns
+pattern alone does not establish a Russian locale. The fallback in
+`formatInAppTimezone` prevents a formatting failure from aborting text creation;
+it does not guarantee business-timezone output for an invalid zone.
+
+Consumers include Mikrotik ticket text and export filenames, notifications,
+client timezone labels, the work calendar, and `backend/services/reportCard.js`.
+
+### Period boundaries and day comparisons
+
+Build day, month, quarter, and year boundaries in the organization timezone.
+For a calendar month, a typical conversion is:
 
 ```js
-const tz = resolveTimezone(await Preferences.findOne({}));
-const from = dayjs.tz(date, tz).startOf("month").toDate(); // instant UTC
-const to = dayjs.tz(date, tz).endOf("month").toDate();
+const zone = resolveTimezone(await Preferences.findOne({}));
+const from = dayjs.tz("2026-07-01", zone).startOf("month").toDate();
+const to = dayjs.tz("2026-07-01", zone).endOf("month").toDate();
 ```
 
-Так работают: dashboard (`controllers/dashboard.js`), `companyStatsService`,
-`companiesReportService` (в нём же `generatePeriods` — тренды аналитики),
-`employeesSummaryService`, `teamScheduleService`, `personalReportService`,
-`controllers/finances/employeesTrend.js`, `controllers/finances/report.js`,
-границы месяца отчёта (`services/reportApproval.js` `monthBoundsOf` — пишет
-`ServicePlanReport.periodFrom/To`). Mongo-агрегации по дням —
-`$dateToString`/`$dayOfMonth` с опцией `timezone: tz` (пример —
-`companyStatsService`).
+This requires the dayjs UTC and timezone plugins. Supply `timezone: zone` to
+MongoDB date aggregations too. Relevant implementations include dashboard and
+company statistics, employee and personal reports, team schedules, and
+`backend/services/reportApproval.js` (`monthBoundsOf`).
 
-**Переработки — два понятия, два субъекта.** Их нельзя смешивать, но считаются
-они одной арифметикой (`services/workWindow.js`), поэтому расходиться не могут:
+For "today", absence checks, and schedule version selection on the backend,
+use `dayKey(instant, zone)`. Convert the key back with `dayKeyToUtcMidnight`
+when querying UTC-midnight calendar fields. East of UTC, the local calendar day
+starts earlier than the UTC day: at UTC+10, UTC slicing still returns yesterday
+until 10:00 local time.
 
-- **доплата СОТРУДНИКУ** — `services/workOvertime.js` поверх
-  `services/workCalendar.js`. База — ЕГО график: версия личного графика на
-  дату, а если личного нет — дефолтный из настроек. Окно обслуживания клиента
-  здесь не участвует никогда: до 2026-09 участвовало, и человек получал разные
-  переработки за одинаковый вечер в зависимости от того, к кому его послали.
-  Личный и сводный отчёты обязаны совпадать, поэтому своей формулы не заводить.
-- **оплата КЛИЕНТУ** — `services/servicePlanBilling.js`. База — график
-  обслуживания: тариф → компания → дефолтный. Это порт той же методики, а не
-  источник: правки арифметики начинаются с `workWindow`/`workOvertime`.
+### List filters and date-only deadlines
 
-Предпросмотр в форме работы (`services/workPreview.js`) своей формулы не имеет
-вовсе — он зовёт функции биллинга, потому что показывает ту самую цифру,
-которую клиент потом подписывает.
+Open-ticket creation filters and closed-ticket/work archive filters use
+organization calendar days. The frontend compares `organizationDayKey` values;
+archive APIs accept `from` and `to` as `YYYY-MM-DD` and resolve each midnight
+with `calendarDateRange`. The upper bound is exclusive midnight after `to`.
+Do not add 24 elapsed hours: a daylight-saving transition can make the day
+23 or 25 hours long. Invalid, timestamp-shaped, or reversed archive date
+parameters return HTTP 400.
 
-Тесты: `services/workWindow.test.js`, `services/workOvertime.test.js`,
-`services/servicePlanBilling.test.js` (сверка с замороженным снимком
-`services/__fixtures__/billing-baseline.json`) и регрессия
-`scripts/checkWorkCalendar.js`. Инвариант, который держит всё:
-**время в графике + переработка = длительность работы**.
+The security form submits `twoFactorPolicy.graceUntil` as a day key. The backend
+stores the instant one millisecond before the next organization-local midnight.
+If timezone and policy change in one request, the submitted organization zone
+applies. Explicitly zoned timestamps remain accepted for API compatibility;
+legacy unzoned datetime strings are interpreted in organization time. Existing
+stored deadlines are not migrated. Review an existing grace deadline before
+resaving it if it was originally entered with different timezone assumptions.
 
-### День как единица (а не момент)
+### Schedulers
 
-Где сравниваются **дни** — «сегодня», «в отпуске ли сейчас», «какая версия
-графика действует» — берём `dayKey(date, tz)`, а не `getDate()` и не
-`toISOString().slice(0, 10)`: сервер в UTC, и для восточных поясов сутки
-наступают позже. Обратно в `Date` (для запроса по календарным полям) —
-`dayKeyToUtcMidnight`. Так устроен `services/workStatusReset.js`
-(присутствие по отсутствиям).
+Daily maintenance jobs in `backend/app.js` (`registerMaintenanceCrons`) and
+routine tasks in `backend/middleware/taskManager.js` pass an explicit timezone
+to `cron.schedule`. Maintenance jobs read the setting when registered at startup;
+a timezone change requires restarting them. `middleware/routineTasks.js`
+validates expressions and delegates scheduling to the manager.
 
-### Cron / планировщики
+A cadence such as `*/5 * * * *` does not select a particular local hour. Once a
+schedule restricts hours or days, its timezone matters. Keep scheduler and
+frontend preview timezone selection consistent.
 
-- Ежедневные задания — `cron.schedule(expr, fn, { timezone })`: ночная
-  очистка/сканы в `app.js` (`registerMaintenanceCrons` — таймзона читается из
-  настроек при старте; смена зоны подхватывается рестартом) и рутинные задачи
-  (`middleware/taskManager.js`; `middleware/routineTasks.js` сам `cron.schedule`
-  не вызывает — только валидирует выражение и делегирует менеджеру).
-- Интервальные (`*/5 * * * *` и чаще) — таймзона не важна.
-- Расписания экспорта Mikrotik — свой компилятор `services/mikrotik/schedule.js`
-  `computeNextRun` (date-fns-tz, шаг по UTC-полуночам — БЕЗ пропусков дат на
-  переводе часов).
+Mikrotik exports use `backend/services/mikrotik/schedule.js` (`computeNextRun`),
+which handles calendar dates across daylight-saving transitions.
 
-### telegram-bot (отдельный пакет)
+### Telegram service
 
-Без date-fns-tz: `Intl` с `timeZone: prefs.timezone || DEFAULT_TIMEZONE`
-(`middleware/tgBotApi.js` `formatDate`), «дедлайн сегодня» (метка 🕗) — через
-`dayKey(date, tz)` (`toLocaleDateString("en-CA", { timeZone })`), а не через
-`getDate()` сервера.
+The current bot is `tg-service`. Its `src/bot/render.ts` formatter accepts an
+explicit timezone and uses `Intl` through `toLocaleDateString`. Ticket deadlines
+and update timestamps use `botConfig.timezone`, supplied by
+`backend/controllers/bot.js` with the organization timezone and a
+`Europe/Moscow` fallback. Overdue status compares instants.
 
-`DEFAULT_TIMEZONE` живёт в **трёх** копиях, и они обязаны совпадать:
-`backend/utils/datetime.js`, `telegram-bot/middleware/tgBotApi.js` и схемный
-дефолт `telegram-bot/models/preferences.js`.
+Requester-local clock labels are prepared by the backend's
+`formatClientTimeLabel` in `backend/services/clientTimezone.js`. The bot does not
+need a second implementation of the timezone inheritance rules.
 
-## Фронтенд
+## Frontend
 
-### `frontend/src/util/format-date.js`
+### Display helpers
 
-Таймзона читается **при каждом вызове** (`localStorage.timezone`, фолбэк
-`DEFAULT_TIMEZONE`) — не кэшировать её на уровне модуля: значение протухает
-после логина/смены настройки. Все хелперы отображения возвращают `null` на
-пустом значении (иначе `new Date(null)` дал бы «01.01.1970»), поэтому в UI
-пишется `formatShortDate(x) || "—"`.
+These exports come from `frontend/src/util/format-date.js`. Ordinary instant
+formatters use the display timezone, not necessarily the organization timezone.
 
-Отображение **инстантов** (бизнес-таймзона):
+| Helper | Output or purpose |
+| --- | --- |
+| `displayTimeZone()` | Current personal/organization/default display zone |
+| `formatDate` | Date and time with weekday |
+| `formatShortDate` | Numeric date of an instant |
+| `formatShortDateTime` | Numeric date and time without weekday |
+| `formatDateTime` | Day, month name, and time without year |
+| `formatWeekdayDateTime` | The same with weekday |
+| `formatDayMonthTime` | Numeric day/month and time |
+| `formatTime` | Time only |
+| `formatDayMonthLong` | Day and month name |
+| `formatDayMonth` | Numeric day and month |
+| `formatAgo` | Relative past time; older values use `formatShortDateTime` |
+| `formatIn` | Relative future time; distant values use `formatDate` |
+| `formatCalendarDate` | Stored calendar date, formatted in UTC |
+| `formatDayKey` | `YYYY-MM-DD` to `DD.MM.YYYY`, without timezone conversion |
+| `formatMonthLabel` | `YYYY-MM` to a month label, preserving the named month |
 
-| Хелпер | Что показывает | Типовое место |
-| --- | --- | --- |
-| `formatDate` | канонические дата + время с днём недели | комментарии, логи, таблицы |
-| `formatShortDate` | только дата инстанта | «создан», «последняя копия» |
-| `formatDateTime` | дата + время без года | компактные строки |
-| `formatWeekdayDateTime` | то же + день недели | отчёт по услуге: день недели объясняет нерабочее время |
-| `formatDayMonthTime` | день, месяц и время цифрами | оси и тултипы графиков, ленты |
-| `formatTime` | только время | ленты и логи, где день вынесен отдельной меткой |
-| `formatDayMonth` | день и месяц цифрами | там же, для не-сегодняшних записей |
-| `formatMonthYear` / `formatMonth` | месяц с годом / месяц | заголовки месячных периодов |
-| `formatAgo` | «только что» / «N мин назад», для старого — полная дата | протухающие статусы (Mikrotik, почтовые каналы) |
+The date display helpers generally return `null` for empty input; callers can
+use `formatShortDate(value) || "—"`. `formatMonthLabel` instead returns an empty
+string when it cannot extract a year and month. These are formatting helpers,
+not comprehensive input validators.
 
-`formatShortDate`, `formatDateTime` и `formatWeekdayDateTime` принимают вторым
-аргументом `{ timeZone }` — явный пояс вместо пояса показа. Пользуется им
-только отчёт по услуге (см. «Три уровня таймзон»), и не напрямую, а через
-`useReportDates()`. Аргумент — объект, а не строка: `list.map(formatShortDate)`
-передаёт вторым индекс.
+`formatShortDate`, `formatDateTime`, and `formatWeekdayDateTime` accept an optional
+second argument `{ timeZone }`. Service reports use that override through
+`useReportDates`. It is an options object so an array callback's numeric index
+is not mistaken for a timezone string.
 
-Точные видимые строки — в `docs/ux-ui-guide.md`, «Даты и время на экране».
-Русский CLDR добавляет к части из них «в» и «г.» — если формат надо подрезать,
-это делается на месте (`components/app/MonthStepper.tsx`), а не новым хелпером.
+Russian UI output may contain the locale's `в` before the time and `г.` after
+the year. Preserve established formats from the UX/UI guide. There are no
+`formatMonthYear` or `formatMonth` exports in this frontend module; backend
+`fmtMonthYear` is a separate helper.
 
-Сравнение **дней** (а не моментов): `businessDayKey(date?)` — календарный день
-в бизнес-таймзоне ключом `YYYY-MM-DD`, `businessDaysAgo(date)` — разница в
-днях (сегодня → 0). Серверная пара — `dayKey` в `utils/datetime.js`. Через них
-считаются «сегодня/вчера» в логе компании, «с HH:MM» в табло присутствия и
-выбор действующей версии графика в форме пользователя.
+### Day comparisons and form values
 
-Отображение **календарных дат** — `formatCalendarDate` (`timeZone: "UTC"`):
-день показывается «как записан» и не съезжает ни в какой таймзоне браузера.
-Для полей из «Модели данных» выше.
+Despite their names, `businessDayKey` and `businessDaysAgo` use the display
+timezone, including `personalTimezone`. They serve viewer-relative "today" and
+"yesterday" comparisons. Do not use them as proof of the organization's current
+day when a personal override is set. The employee form now uses
+`organizationDayKey` for active schedule selection and the default effective
+date. Backend business rules use `dayKey` with an explicit organization zone.
 
-**Календарный месяц строкой** — `formatMonthLabel("2026-07")`, вообще без
-таймзоны: это не момент времени, переводить его в чью-либо зону нельзя.
+| Helper | Contract |
+| --- | --- |
+| `businessDayKey(date?)` | Display-zone calendar day of an instant; defaults to now |
+| `businessDaysAgo(date)` | Difference between display-zone calendar days |
+| `organizationDayKey(date?, timeZone?)` | Organization calendar day, ignoring the personal override; optional explicit organization zone for settings forms |
+| `toDateInputValue(date?)` | Browser-local `YYYY-MM-DD`; defaults to today |
+| `toDateTimeLocal(date?)` | Display-zone wall time as `YYYY-MM-DDTHH:mm`; defaults to now |
+| `utcToLocalForm(iso)` | Same conversion for an API timestamp |
+| `localToUtc(value)` | Display-zone wall time to an ISO UTC timestamp |
+| `shiftLocalForm(value, minutes)` | Converts to an instant, shifts by elapsed minutes, and converts back |
 
-Значения инпутов и обратные преобразования:
+The shared date fields keep the same string value contracts as HTML date and
+datetime-local inputs, but use the shared calendar UI. Do not replace them with
+native date pickers. `components/app/date-value.ts` parses day keys with a local
+constructor and returns `toIsoDay`. The internal `Date` is a calendar adapter;
+it does not turn the selected day into a zoned instant. Calendar "today" uses
+the browser's day.
 
-| Хелпер | Направление | Семантика |
-| --- | --- | --- |
-| `toDateInputValue(date?)` | → `app/DateField` (значение как у `<input type="date">`) | **локальный** календарный день инстанта (дефолт — сегодня) |
-| `toDateTimeLocal(date?)` | → `app/DateTimeField` (значение как у `<input type="datetime-local">`) | настенное время в **бизнес-таймзоне** (дефолт — сейчас; кнопки «Сейчас», а также границы `min`/`max`) |
-| `utcToLocalForm(iso)` | ISO → datetime-local | то же для строки с бэка (загрузка форм) |
-| `localToUtc(value)` | datetime-local → ISO | обратное: настенное бизнес-время → UTC (сохранение форм) |
-| `shiftLocalForm(value, ±N)` | datetime-local → datetime-local | сдвиг на N минут, не выходя из **бизнес-таймзоны** (чипы длительности в форме работы) |
-| `formatDayKey(key)` | day-key → «04.09.2026» | без таймзоны: подписи полей-календарей, бейджи периода |
+Datetime form conversion must remain symmetric:
 
-**Поля-календари** (`app/DateField`, `DateRangeField`, `DateTimeField` поверх
-react-day-picker) держат тот же строковый контракт. `Date` живёт только
-внутри них: day-key разбирается **локальным** конструктором (`parseDayKey` в
-`components/app/date-value.ts`, `new Date(y, m - 1, d)`), наружу уходит
-`toIsoDay`; `timeZone` календарю не передаётся — его «сегодня» браузерное,
-как у `util/period.js`, и день никуда не переводится.
+```jsx
+// Load a timestamp into DateTimeField.
+value={utcToLocalForm(ticket.deadline)}
 
-### Другие датовые модули фронта
+// Set the current time or add elapsed minutes.
+setValue(toDateTimeLocal());
+setValue(shiftLocalForm(value, 30));
 
-- **`util/cron.js`** — расписания целиком: разбор и сборка выражения, перевод
-  на русский, валидация и ближайшие запуски (`nextCronRuns`, `formatCronRun`,
-  `relativeToNow`) в **бизнес-таймзоне**, синхронно с серверным node-cron. Это
-  единственный владелец «следующего выполнения»; карточки регламентов и их
-  сортировка берут его (см. `ux-ui-guide`, `ScheduleBuilder`).
-- **`util/period.js`** — границы месяца для фильтров списков. Считает в
-  браузерной зоне, но наружу отдаёт только ключи `YYYY-MM-DD`, и дальше день
-  никуда не переводится — самосогласованно by design.
-- **`util/relative-time.js`** — «сегодня / вчера / N дн. назад» для адресной
-  книги, поверх `businessDaysAgo`.
-- **`util/time-helpers.js`** — `msToHMS`: длительность `ЧЧ:ММ`, tz-агностично
-  (это интервал, а не момент).
-- **`util/get-working-status.js`** — «рабочее время компании»: `toZonedTime` в
-  зоне клиента, без неё — зона организации с явным `DEFAULT_TIMEZONE`.
-
-### Конвенция datetime-форм (дедлайны заявок, работы)
-
-Симметричная пара, всё в бизнес-таймзоне:
-
-```
-загрузка:   value={utcToLocalForm(ticket.deadline)}   // app/DateTimeField
-«Сейчас»:   setValue(toDateTimeLocal())
-сохранение: formData.append("deadline", localToUtc(input.value))
+// Save the field's display-zone wall time as an instant.
+formData.append("deadline", localToUtc(value));
 ```
 
-Нарушение симметрии (загрузка в одной зоне, сохранение в другой) — это баг
-класса «пересохранил без правок — время уехало на разницу поясов». Ровно так
-до 2026-07-29 создавались работы: форма показывала бизнес-время, а action
-сохранял `new Date(value).toISOString()`, то есть браузерное.
+Saving with `new Date(value).toISOString()` would interpret the string in the
+browser timezone instead. With different browser and display zones, an unchanged
+form submission could then move the timestamp. Load and save also need the same
+display-zone setting during the edit. Do not assume a minute-precision field
+preserves seconds from an arbitrary API timestamp.
 
-Отдельно — **арифметика «±N минут»** над уже введённым значением:
+The conversion helpers format wall-time parts with `Intl` and pass the raw
+wall-time string to `fromZonedTime`. A browser-local `Date` must not be an
+intermediate representation: its own DST gap can change hours even when the
+display zone has no transition. Work-form duration and validation subtract the
+same converted UTC instants used for saving.
 
-```
-±N минут:   setValue(shiftLocalForm(value, ±N))
-```
+Datetime fields do not carry an offset or a daylight-saving fold marker.
+Ambiguous or nonexistent wall times in the selected display zone follow the
+installed timezone library's resolution behavior; they cannot represent both
+occurrences of a repeated minute independently.
 
-`shiftLocalForm` разбирает значение `localToUtc`, сдвигает по epoch и печатает
-обратно `toDateTimeLocal` — то есть не выходит из бизнес-зоны. Прежний приём
-(арифметика поверх браузерного `timeDateInputFormat`) держался на том, что зоны
-разбора и печати взаимно сокращаются, и сломался бы, стоило одной стороне стать
-зонированной; вместе с миграцией форм работ он удалён.
+Countdowns to instants use epoch differences, such as `deadline - Date.now()`.
+Calendar-date expiry checks must retain their calendar semantics rather than
+silently treating UTC midnight as a local deadline.
 
-### Счётчики и «сегодня»
+### Specialized formatters
 
-- «До дедлайна N ч M мин», просрочка, гарантия — только epoch-математика над
-  `Date` (`endTime - Date.now()`), без парсинга строк. Tz-агностично.
-- «Сегодня?» — сравнение `businessDayKey`, а не `toDateString()`.
+The shared formatter is the default for ordinary UI timestamps. Existing pure
+formatters may take an explicit timezone when they need a specialized output:
 
-## Зона клиента
+- `frontend/src/util/conversation-format.js`, `conversation-thread.js`, and
+  `chronicle-dialog.js` group or label messages and activity in a supplied zone.
+- `frontend/src/util/mikrotik-changes.ts` and
+  `components/Mikrotik/activity-format.js` format monitoring-specific labels.
+- `frontend/src/components/Report/export-format.js` formats report exports with
+  an explicit report zone.
+- `backend/services/mcp/text.js` deliberately emits ISO-like UTC timestamps with
+  a `Z` marker. This is an explicit UTC representation, not server-local time.
+- Telegram rendering and backend client-clock labels use the explicit zones
+  described above.
 
-Появилась из повторяющейся боли: техподдержка во Владивостоке звонила главбуху
-московского филиала в его 3 часа ночи. Специалист должен видеть местное время
-заявителя ДО того, как наберёт номер.
+Reuse these module-specific helpers within their domain. Do not replace an
+explicit report, client, or UTC zone with the viewer's display zone merely to
+route every date through one module.
 
-### Каскад
+### Related frontend modules
 
-Считает **только** `backend/services/clientTimezone.js`, первое непустое:
+- `util/cron.js` owns routine schedule parsing, validation, descriptions, and
+  previews (`nextCronRuns`, `formatCronRun`, `relativeToNow`). It uses the
+  organization timezone, matching the server scheduler.
+- `util/period.js` builds calendar filter keys in browser time.
+- `util/relative-time.js` uses `businessDaysAgo` for address-book relative dates.
+- `util/time-helpers.js` owns `msToHMS`; durations have no timezone.
+- `util/get-working-status.js` and `useWorkingStatus` show a client's working
+  hours using the supplied client zone, with organization time as fallback.
 
-| Уровень | Поле | Смысл |
-| --- | --- | --- |
-| 1 | `User.timezone` | личный пояс заявителя (удалёнщик сидит не там, где его отдел) |
-| 2 | `Subdivision.timezone` | его подразделение |
-| 3 | ↑ по `Subdivision.parent` | отдел наследует филиал, до корня дерева |
-| 4 | `Company.timezone` | вся компания в одном поясе |
-| 5 | `Preferences.timezone` | глобальный |
+## Client timezone
 
-Пустое значение (`null` / `""`) везде означает **«наследовать»**. Копировать
-унаследованный пояс в дочернюю запись нельзя: филиал переедет — копии у его
-сотрудников протухнут, а пустое поле всегда даёт актуальный ответ. По этой же
-причине у нового пользователя `timezone` остаётся пустым, а форма показывает
-унаследованное значение подсказкой.
+The requester-local clock helps staff decide when to contact someone. The
+backend resolver in `services/clientTimezone.js` uses the first nonempty value:
 
-### Два резолвера, одно поле
+1. `User.timezone`.
+2. `Subdivision.timezone`.
+3. Ancestors through `Subdivision.parent`.
+4. `Company.timezone`.
+5. `Preferences.timezone`, with the shared default.
 
-`User.timezone` читают оба, но трактуют `null` **по-разному** — не смешивать:
+An empty value means inheritance. Do not copy inherited values into child
+records; those copies would become stale when a parent changes timezone.
 
-| | `services/workCalendar.resolvePersonalTimezone` | `services/clientTimezone.resolveClientTimezone` |
-| --- | --- | --- |
-| про кого | наши сотрудники | заявители-клиенты |
-| зачем | «который час у него» в табеле, подпись в карточке | показать, который час у клиента |
-| `null` → | `Preferences.timezone` | подразделение → предки → компания → организация |
+`services/workCalendar.resolvePersonalTimezone` has a different purpose: it
+provides employee-local display time and falls directly back to the organization
+zone. It does not traverse client subdivisions. Neither resolver chooses the
+zone for payroll or billing calculations.
 
-**Ни один из них не участвует в расчёте.** До 2026-09 первый задавал границы
-суток в переработках, и это делало настройку «показывать даты в моём поясе»
-опасной: поставив себе удобный пояс, сотрудник сдвинул бы себе доплату. Теперь
-все графики заданы в поясе организации, и расчёт знает только его.
+The API returns `clientTimezone: { timezone, source, sourceName }` in ticket,
+user, and subdivision data. `createClientTimezoneResolver` batches resolution
+for lists, and `annotateSubdivisionTree` annotates the hierarchy.
+`normalizeTimezone`, `isValidTimezone`, `timezoneCity`, `offsetMinutesFrom`, and
+`offsetDiffLabel` support validation and labels.
 
-### Окно рабочего дня и смены через полночь
+The frontend's `util/timezone-display.js` displays these results. Its
+`inheritedTimezone` traversal is only a form hint, not an alternative authority
+for the API. Compare actual offsets at the relevant instant when deciding
+whether to show a difference; different zone identifiers can share an offset.
 
-Пара `{start, end}` недельного графика разбирается **только**
-`services/workWindow.js` — до 2026-09 копий было три, и guard стоял в одной.
+Keep `backend/data/timezoneCities.json` synchronized with the primary cities in
+`frontend/src/store/timezones.js`. `frontend/src/util/timezone-catalog.test.js`
+checks their agreement. The catalog contains city and country labels; offsets
+are computed at display time by `util/timezone-catalog`, including daylight
+saving. Unknown catalog entries supplied through the API retain their zone ID.
 
-- `end > start` — обычное окно `[D start, D end)`;
-- `end < start` — смена **через полночь**: `[D start, (D+1) end)`. Окно
-  принадлежит целиком тому дню, в котором НАЧАЛОСЬ: пятничная ночная смена —
-  хвост пятницы, а не работа в субботу, и коэффициента выходного на неё нет;
-- `end === start` — **нулевое окно**, не сутки. В базе есть тариф со всеми
-  семью днями `00:00–00:00`, и это осознанное «окна нет, всё переработка».
-  Круглосуточный день заявляется флагом `is24hours`.
+The client working-hours indicator interprets `Company.workSchedule` in the
+client timezone supplied to `getWorkingStatus`. This display behavior is separate
+from service billing, which uses organization time for the service schedule.
+Do not transfer the indicator's zone selection into billing calculations.
 
-Праздник, короткий день и отсутствие смотрят на день НАЧАЛА смены, никогда на
-следующий. Бакет переработки (`weekday`/`weekend`/`holiday`) — наоборот, по
-календарному дню, в котором минута физически произошла: работа в 07:00 первого
-января праздничная, чья бы смена ни начиналась накануне.
+## Work schedules and overtime
 
-Переработка считается как **сегмент суток минус объединение окон**; окна
-строятся с запасом в день назад — хвост вчерашней смены накрывает утро.
-Пересечение окон соседних дней запрещено валидацией
-(`validations/workSchedule.js`), а на старых данных окна сливаются, поэтому
-минута не может быть учтена дважды ни при каких данных.
+Employee overtime and customer billing use shared window arithmetic in
+`backend/services/workWindow.js`, but choose different schedules:
 
-**Момент из графика получают только через `instantOf(dateKey, minutes, zone)`.**
-`полночь + N минут` и `cursor.hour(H)` запрещены: dayjs наследует замороженное
-смещение, и после перехода на летнее время каждый следующий день цикла уезжает
-на час — навсегда.
+- `workOvertime.js`, through `workCalendar.js`, uses the employee's schedule
+  version for the date, falling back to the default employee schedule.
+- `servicePlanBilling.js` uses the service schedule: tariff, then company,
+  then default. `workPreview.js` calls billing functions to preview the
+  customer's eventual charge.
 
-Личный график может содержать `intervals` с временем и местом работы (`office`
-или `remote`). Они непрерывно покрывают рабочее окно `start`–`end`, включая
-переход через полночь. `utils/workScheduleIntervals.js` переводит их в минуты
-дня начала смены. Норма и переработки используют прежнее общее рабочее окно;
-место работы их не меняет. Сокращённый день обрезает последний интервал вместе
-с окончанием смены. Планировщик присутствия проверяет интервалы каждую минуту;
-ручной выбор (`auto: false`) освобождает только ночной сброс.
+Both use organization time. Keep personal and employee-summary reports aligned;
+do not introduce a separate overtime formula. Tests include
+`workWindow.test.js`, `workOvertime.test.js`, `servicePlanBilling.test.js`, the
+billing baseline fixture, and `backend/scripts/checkWorkCalendar.js`.
+The invariant is **scheduled time + overtime = work duration**.
 
-Частичное отсутствие хранит одну дату начала (`from === to`) и необязательное
-`timeRange: {start, end}` с настенными часами организации. Конец раньше начала
-означает следующие сутки; равные часы запрещены. `utils/absencePeriod.js`
-проверяет пересечения полуоткрытых интервалов на общей оси календарных минут,
-включая соседние даты. При получении реального момента используется
-`instantOf`, как для смены. Частичные отсутствия изменяют только доступность
-и присутствие: финансовый `dayPlan`, норма и границы переработок сохраняются.
-См. [статусы, график и календарь сотрудников](user-presence-and-calendar.md).
+### Overnight shifts and daylight saving
 
-### API и фронтенд
+Parse weekly `{start, end}` windows through `workWindow.windowMinutes`:
 
-Бэкенд отдаёт единый объект `clientTimezone: { timezone, source, sourceName }`
-— в заявке (`getOne`, `all-opened`, `recently-closed`), в карточке пользователя
-и на каждом узле дерева подразделений (`annotateSubdivisionTree`). Для списков
-есть батч-резолвер `createClientTimezoneResolver` (подразделения и компании
-грузятся пачкой — иначе был бы запрос на строку). Кроме каскада сервис
-экспортирует `normalizeTimezone`, `isValidTimezone`, `timezoneCity`,
-`offsetMinutesFrom`, `offsetDiffLabel` — ими пользуются валидации пользователя
-и компании и биллинг.
+| Relationship | Meaning |
+| --- | --- |
+| `end > start` | Same-day window `[D start, D end)` |
+| `end < start` | Overnight window `[D start, (D+1) end)` |
+| `end === start` | Zero-length window; use `is24hours` for a full day |
 
-Фронтенд каскад-истину **не считает**: `util/timezone-display.js` только
-показывает (`describeClientTimezone`, `orgTimezone`, `tzCity`,
-`tzOffsetMinutes`). Единственное исключение — `inheritedTimezone`: она
-проходит вверх по `parent` ради подсказки «унаследовано» в форме пользователя,
-и на неё нельзя опираться нигде больше. Показываем, когда **фактическое
-смещение** отличается от нашего, а не когда отличается строка зоны:
-Europe/Volgograd и Europe/Moscow — одно и то же настенное время.
+A shift belongs to its start day. Holidays, shortened days, and full-day absence
+rules apply to that start day. Overtime categories (`weekday`, `weekend`,
+`holiday`) depend on the calendar day when the overtime minute actually occurs.
+An overnight scheduled minute is still within the schedule even after midnight.
 
-Для телеграма и уведомлений подпись собирает бэкенд —
-`formatClientTimeLabel`; в боте своей логики зон нет. Названия городов для неё
-лежат в `backend/data/timezoneCities.json`: это **копия** главных (первых)
-городов каталога `frontend/src/store/timezones.js`, и править оба файла нужно
-вместе. Совпадение проверяет `frontend/src/util/timezone-catalog.test.js`.
-`Intl` тут не подходит: он называет зону, а не город (`Asia/Novosibirsk`
-по-русски у него «Красноярск»), и телеграм расходился бы с интерфейсом.
+Overtime is the day segment minus the union of applicable work windows. Include
+the previous day's window so an overnight tail covers the next morning.
+`backend/validations/workSchedule.js` rejects overlapping adjacent schedules;
+calculation merges windows in legacy data to avoid counting minutes twice.
 
-Каталог — около 150 зон IANA по всему миру, с русскими городами, страной и
-частью света. Смещение в нём не хранится: подпись «Ханой, Хошимин (UTC+7)»
-собирает `util/timezone-catalog` в момент показа, поэтому летнее время всегда
-верное. Зона вне каталога (её можно проставить через API) показывается в поле
-как есть.
+Use `workWindow.instantOf(dateKey, minutes, zone)` to turn schedule wall time
+into an instant. Do not calculate it as midnight plus elapsed minutes or mutate
+a reused dayjs cursor's hour: fixed offsets can produce incorrect local hours
+across daylight-saving transitions.
 
-### График работы клиента
+### Location intervals and partial absences
 
-`Company.workSchedule` — настенное время **в поясе клиента**. `getWorkingStatus`
-(и через него `useWorkingStatus`) принимает зону параметром; без него берётся
-зона организации, то есть прежнее поведение. До этого филиал в другом поясе
-показывал «работает» посреди своей ночи.
+Personal schedules may contain continuous `intervals` with `office` or `remote`
+locations covering the `start`–`end` window, including overnight shifts.
+`backend/utils/workScheduleIntervals.js` expresses them as minutes relative to
+the shift's start day. Location does not change the overall work window used
+for normal hours and overtime. A shortened day trims the final interval with
+the shift end. Presence scheduling checks intervals every minute; a manual
+choice (`auto: false`) remains protected until the nightly reset.
 
-## Намеренные исключения (не «чинить»)
+A partial absence has one start date (`from === to`) and
+`timeRange: {start, end}` in organization wall time. An earlier end means the
+next day; equal times are invalid. `backend/utils/absencePeriod.js` checks
+half-open intervals on a shared calendar-minute axis, including adjacent days.
+Convert to actual instants with `instantOf`. Partial absences affect availability
+and presence, but do not change the financial `dayPlan`, normal hours, or
+overtime boundaries. See [user presence and calendar](user-presence-and-calendar.md).
 
-- **Чтение календарного поля UTC-срезом** — `String(value).slice(0, 10)` или
-  `toISOString().split("T")[0]` над полем, которое **записано UTC-полночью**,
-  КОРРЕКТНО: читаем тот же день, каким он записан (правило 2). Так сделаны
-  префилл `DateField` (контракт `<input type="date">`) в
-  `components/ClientDevice/Form.jsx`
-  (`toDateInput`), `isActiveSince` в `Company/View/ServicePlansSection.jsx`,
-  `effectiveFrom` в `controllers/team/schedule.js` и `controllers/user.js`
-  (там же сравнение версий графика по дню). Запрет из правила 2
-  касается **«сегодня»** (`new Date()`), а не чтения записанного дня.
-- **`util/period.js`, `WorkCalendar` и `TimeByDayChart`** (финансы) — работают
-  с day-key-строками `YYYY-MM-DD` самосогласованно в браузерной зоне; менять
-  только вместе с сервером ключей.
+## Intentional exceptions and mistakes to avoid
 
-## Анти-паттерны
+UTC slicing is correct when reading a calendar field stored at UTC midnight.
+Examples include device date prefills, tariff `isActiveSince`, and schedule
+`effectiveFrom`. It is not a general solution for converting an instant to a
+date-field value.
 
-- `toLocaleString()` / `toLocaleDateString()` мимо хелперов — даёт таймзону
-  сервера (UTC) или браузера и плодит новый формат. Отдельно ловите локальные
-  `const fmtDate = …` в шапке компонента: это тот же анти-паттерн, просто с
-  именем.
-- `toISOString().split("T")[0]` **и `.slice(0, 10)`** для «сегодня» или для
-  значения датапикера — UTC-день (архив заявок искал со сдвигом на день;
-  пресет «Этот год» заполнял 31.12; привязка тарифа подставляла вчера).
-- `toDateString()` / `getDate()` для сравнения «сегодня ли» — зона браузера
-  вместо организации; нужен `businessDayKey` (`dayKey` на бэке).
-- Чтение `prefs.timezone` мимо `resolveTimezone` — теряется фолбэк, а на
-  пустых настройках падает или молча уходит в `undefined`.
-- Хардкод зон (`"Asia/Vladivostok"`, `"Europe/Moscow"`) по коду — только
-  `DEFAULT_TIMEZONE` из утилей; реальная зона всегда из настроек.
-- `new Date(y, m, d)` на сервере для границ периодов — это UTC-границы;
-  использовать `dayjs.tz`. Отдельно: `new Date(y, m+1, 0)` — это **00:00**
-  последнего дня, а не конец месяца (терялся почти весь последний день).
-  Тот же класс — `toDate.setHours(23, 59, 59, 999)`: часы ставятся по зоне
-  сервера, то есть по UTC.
-- Несимметричные load/save у datetime-форм (см. конвенцию выше).
-- **Форматирование периода документа на фронте.** `periodFrom` отчёта — полночь
-  первого числа в поясе организации, и любой фронтовый хелпер, включая
-  правильный, показывал её в зоне зрителя предыдущим месяцем: карточка говорила
-  «июнь», письмо — «июль». Месяц приходит с сервера готовой строкой
-  (`row.period`, `services/reportCard`). С личным поясом показа это правило
-  стало ещё жёстче: пояс зрителя теперь и правда бывает другим. То же с
-  фильтром периода: месяц отчёта для сравнения приходит ключом (`row.month`,
-  «2026-09»), а `periodFrom.slice(0, 7)` даёт предыдущий месяц в любом поясе
-  восточнее UTC (`Report/period-filter`).
-- **`полночь + N минут` и `cursor.hour(H)` для времени из графика.** dayjs
-  наследует замороженное смещение пояса: после перехода на летнее время каждый
-  следующий день цикла уезжает на час — навсегда. Только
-  `workWindow.instantOf(dateKey, minutes, zone)`.
-- **Свой разбор пары `{start, end}`.** Три копии, из которых guard стоял в
-  одной, стоили двойного счёта в счетах и в зарплате. Разбирает только
-  `services/workWindow.windowMinutes`.
-- **`end <= start` как «битый день».** `end < start` — это смена через
-  полночь, а `end === start` — нулевое окно. Схлопывать их в одну ветку нельзя:
-  первое обнуляло ночные смены, второе держит живой тариф.
+`util/period.js`, `WorkCalendar`, and the financial `TimeByDayChart` work with
+calendar day keys using browser-local date operations. Change that contract
+only together with its consumers; do not reinterpret their keys as timestamps.
 
-## Долг
+Avoid these patterns:
 
-- **Названия месяцев мимо хелперов** — рукописные массивы в
-  `Company/View/ActivityTiles.jsx` и `Team/calendar.ts`, свои
-  `Intl.DateTimeFormat` в `app/MonthStepper.tsx`, `Report/TrendsChart.tsx`,
-  `pages/Finances/PersonalReportPage.tsx`. Каждый tz-безопасен (формат берётся
-  от синтетической даты, собранной из day-key), но это пять параллельных
-  наборов (day-key-форматтеры архивов и `MonthStepper` сведены в
-  `formatDayKey` 2026-09-04).
-- **Копии `msToHMS`** — `Dashboard/WorksCard.jsx`,
-  `Work/AddScheduledDashboard.jsx`, `pages/Dashboard.jsx` при живом
-  `util/time-helpers.js`.
+- Formatting instants with an unzoned `toLocaleString` or a component-local
+  formatter instead of the shared helpers.
+- Using UTC slicing for display-zone or organization-zone "today", or browser
+  `getDate`/`toDateString` for comparisons in another zone.
+- Assuming `businessDayKey` ignores the personal override, or that
+  `toDateInputValue` uses organization time.
+- Reading preferences without a fallback, or adding scattered hardcoded zones.
+- Building business period boundaries with server-local constructors or
+  `setHours`. `new Date(y, m + 1, 0)` is the start of the last day, not the end
+  of the month.
+- Mixing browser and display zones when loading and saving datetime forms.
+- Deriving a business document's period label from a UTC instant on the frontend.
+- Duplicating work-window parsing, treating an overnight window as invalid,
+  or treating equal start/end times as a full day.
 
-## Как проверить руками
+## Remaining cleanup
 
-1. Поставить в браузере ОС-таймзону, отличную от бизнес-зоны (например,
-   Europe/Moscow при бизнес-зоне Asia/Vladivostok), перелогиниться.
-2. Открыть заявку: «Создана», комментарии, дедлайн в форме — одинаковое
-   бизнес-время везде; пересохранить дедлайн без правок — он не сдвигается.
-3. **Создать** работу (и запланированную): открыть её на редактирование —
-   время то же, что вводили.
-4. Карточки компании / пользователя / услуги / шаблона / регламента:
-   «создано» и «обновлено» — бизнес-время, а не браузерное.
-5. Архив заявок: выбрать день в датапикере — выборка именно за этот день.
-6. Привязка тарифа: «действует с» по умолчанию — сегодняшний день организации;
-   в карточке показывается ровно то, что ввели.
-7. Карточка устройства: даты покупки/гарантии совпадают с введёнными.
-8. Тексты заявок мониторинга Mikrotik: «недоступно с …» соответствует времени
-   создания заявки (см. также `docs/mikrotik-management.md`).
-9. Регламентные задания: «следующее выполнение» на карточке совпадает с
-   реальным срабатыванием серверного cron.
-10. Отчёт по сотрудникам за период (финансы): последний день периода входит в
-    выборку целиком.
+Some month labels still use local implementations: arrays in
+`Company/View/ActivityTiles.jsx` and `Team/calendar.ts`, and `Intl.DateTimeFormat`
+in `app/MonthStepper.tsx`, `Report/TrendsChart.tsx`, and
+`pages/Finances/PersonalReportPage.tsx`. They use calendar-derived dates rather
+than business instants. Consolidation should preserve each label's format and
+calendar semantics. The previously listed duplicate `msToHMS` implementations
+are gone; the shared implementation is `util/time-helpers.js`.
+
+Regression coverage for timezone conversions, schedule selection, filter bounds,
+and security deadlines is in `frontend/src/util/datetime-regression.test.js`,
+`backend/controllers/archive-dates.test.js`, `backend/utils/datetime.test.js`,
+and `backend/controllers/preferences.test.js`.
+
+## Manual verification
+
+Use test data and independently vary the organization, personal, and browser
+zones. These checks describe expected behavior; this documentation review did
+not execute them against a running application.
+
+1. Set the organization to `Asia/Vladivostok`, clear the personal override, and
+   use a browser in `Europe/Moscow`. Ordinary timestamps and datetime forms
+   should show organization time. Save an unchanged minute-aligned deadline;
+   its stored instant must not shift.
+2. Set the personal zone to `Europe/Moscow` and the browser to a third zone.
+   Ordinary timestamps and datetime forms should now use personal time.
+   Repeat the unchanged-save check. Creating and reopening a work entry should
+   preserve the entered wall time and saved instant. Repeat with a New York
+   browser on March 8, 2026, using Moscow display time `02:30`: the browser's
+   DST gap must not change the displayed or saved hour.
+3. Use an instant close to midnight that falls on different calendar days in
+   these zones. `businessDayKey` should follow the display zone,
+   `toDateInputValue` the browser, and backend `dayKey` the supplied zone.
+4. Change only the personal zone. Service report periods, report timestamps,
+   exports, overtime totals, and billing totals must remain in organization
+   time and retain their values.
+5. Enter device purchase/warranty dates, a tariff effective date, an absence,
+   and a schedule effective date. Reopen them with different timezone settings;
+   each stored calendar day must remain unchanged. Check default "today" values
+   against the field's intended browser or organization calendar explicitly.
+6. Select a single day and a month in archive filters. Verify that the returned
+   period matches those organization calendar keys and includes the whole final
+   day, including the last millisecond. Check both 23-hour and 25-hour DST days.
+7. Compare server-generated notification timestamps and Telegram deadlines with
+   the organization timezone. Check requester-local clock labels separately
+   against the inheritance chain.
+8. Compare routine-task previews with actual scheduled executions in organization
+   time. Re-register/restart maintenance scheduling after changing its zone.
+9. Check overnight and daylight-saving schedules, zero-length and full-day
+   windows, and partial absences crossing midnight. Preserve the overtime
+   invariant and the existing financial treatment of partial absences.
+10. Save a two-factor grace date with organization, personal, and browser zones
+    all different. Reopen it and verify the same organization date. The stored
+    instant must be the end of that day in organization time.
