@@ -1,3 +1,4 @@
+const { randomUUID } = require("node:crypto");
 const { Ticket } = require("@/models/ticket");
 const Company = require("@/models/company");
 const Work = require("@/models/work");
@@ -90,7 +91,8 @@ const buildUserContent = (ticket, company) => {
     lines.push(`Заявитель: ${parts.filter(Boolean).join(", ") || "—"}`);
   }
 
-  const companyName = company?.fullTitle || company?.alias || ticket.company?.alias;
+  const companyName =
+    company?.fullTitle || company?.alias || ticket.company?.alias;
   if (companyName) lines.push(`Компания: ${companyName}`);
 
   const comments = (ticket.comments || [])
@@ -163,9 +165,7 @@ const collectPastTickets = async (ticket) => {
   return ranked.map((item) => ({
     ...item,
     works: works.filter((work) =>
-      (work.tickets || []).some(
-        (id) => id.toString() === item._id.toString(),
-      ),
+      (work.tickets || []).some((id) => id.toString() === item._id.toString()),
     ),
   }));
 };
@@ -207,26 +207,34 @@ const buildPastContext = (items) =>
 const PENDING_TTL_MS = 5 * 60 * 1000;
 
 /**
- * Гасит зависший pending при чтении заявки — единственном месте, куда панель
- * ходит за статусом. Если сборка всё-таки жива, свой результат она запишет
- * поверх.
- *
- * @param {object} ticket план-объект заявки (мутируется на месте)
+ * Expire only the pending run observed by this read. Losing ownership prevents
+ * an interrupted worker from publishing over a subsequent attempt.
+ * @param {object} ticket ticket snapshot, updated in place after a matching write
  */
 exports.expireStalePendingGuide = async (ticket) => {
   const guide = ticket?.aiGuide;
   if (guide?.status !== "pending") return ticket;
 
-  // Заявки, начатые до появления startedAt, гасим сразу: живая сборка перепишет
+  // Legacy pending records without a start time expire immediately.
   const startedAt = guide.startedAt ? new Date(guide.startedAt).getTime() : 0;
   if (startedAt && Date.now() - startedAt < PENDING_TTL_MS) return ticket;
 
   const error = "сборка прервалась, запустите её заново";
 
-  await Ticket.findByIdAndUpdate(ticket._id, {
-    "aiGuide.status": "error",
-    "aiGuide.error": error,
-  }).catch(() => {});
+  const expired = await Ticket.findOneAndUpdate(
+    {
+      _id: ticket._id,
+      "aiGuide.status": "pending",
+      "aiGuide.startedAt": guide.startedAt || null,
+      "aiGuide.runId": guide.runId || null,
+    },
+    {
+      $set: { "aiGuide.status": "error", "aiGuide.error": error },
+      $unset: { "aiGuide.runId": "" },
+    },
+    { new: true },
+  ).catch(() => null);
+  if (!expired) return ticket;
 
   // Панель отсылает к хронике заявки — там должно быть что прочитать
   await logAiTicketEvent(
@@ -255,11 +263,44 @@ const normalizeItems = (items) => {
  * @returns {Promise<object|null>} the resulting aiGuide sub-document
  */
 exports.generateTicketAiGuide = async (ticketId) => {
+  const runId = randomUUID();
+  const owner = {
+    _id: ticketId,
+    "aiGuide.runId": runId,
+    "aiGuide.status": "pending",
+  };
+  const signal = AbortSignal.timeout(4 * 60 * 1000);
+  const claimed = await Ticket.findOneAndUpdate(
+    {
+      _id: ticketId,
+      $or: [
+        { "aiGuide.status": { $ne: "pending" } },
+        {
+          "aiGuide.startedAt": { $lte: new Date(Date.now() - PENDING_TTL_MS) },
+        },
+        { "aiGuide.startedAt": null },
+      ],
+    },
+    {
+      $set: {
+        "aiGuide.status": "pending",
+        "aiGuide.startedAt": new Date(),
+        "aiGuide.runId": runId,
+        "aiGuide.error": "",
+      },
+    },
+    { new: true },
+  );
+  if (!claimed) return null;
   try {
     const ticket = await Ticket.findById(ticketId)
       .populate({ path: "categoryId", select: "title" })
       .populate({ path: "applicantId", select: "firstName lastName position" })
-      .populate({ path: "comments", select: "content createdBy createdAt attachments", populate: { path: "createdBy", select: "firstName lastName" } });
+      .populate({
+        path: "comments",
+        select: "content createdBy createdAt attachments",
+        populate: { path: "createdBy", select: "firstName lastName" },
+      });
 
     if (!ticket) {
       logger.log("warn", "AI guide: ticket not found", { ticketId });
@@ -331,14 +372,15 @@ exports.generateTicketAiGuide = async (ticketId) => {
         system,
         user,
         images,
+        signal,
       });
     } catch (error) {
-      if (images.length) {
+      if (images.length && !signal.aborted) {
         logger.log("warn", "AI guide: retrying without images", {
           ticketId,
           error: error.message,
         });
-        result = await aiService.generateJson({ system, user });
+        result = await aiService.generateJson({ system, user, signal });
       } else {
         throw error;
       }
@@ -366,7 +408,15 @@ exports.generateTicketAiGuide = async (ticketId) => {
       generatedFromCommentCount: ticket.comments?.length || 0,
     };
 
-    await Ticket.findByIdAndUpdate(ticketId, { aiGuide });
+    signal.throwIfAborted();
+    if (
+      !(await Ticket.findOneAndUpdate(
+        owner,
+        { $set: { aiGuide } },
+        { new: true },
+      ))
+    )
+      return null;
 
     logger.log("info", "AI guide generated", {
       ticketId,
@@ -389,7 +439,12 @@ exports.generateTicketAiGuide = async (ticketId) => {
 
     const aiGuide = { status: "error", error: reason };
 
-    await Ticket.findByIdAndUpdate(ticketId, { aiGuide }).catch(() => {});
+    const saved = await Ticket.findOneAndUpdate(
+      owner,
+      { $set: { aiGuide } },
+      { new: true },
+    ).catch(() => null);
+    if (!saved) return null;
 
     await logAiTicketEvent(
       ticketId,

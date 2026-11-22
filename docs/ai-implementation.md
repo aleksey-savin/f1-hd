@@ -324,12 +324,17 @@ aiGuide: {
   provider, model: String,
   error: String,
   generatedAt: Date,
+  startedAt: Date,
+  runId: String, // ownership token while pending
   generatedFromCommentCount: Number,
 }
 ```
 
 ### Services — `backend/services/`
-- **`aiService.js`** — `generateJson({ system, user, images, maxTokens, requireActive })`:
+- **`aiService.js`** — `generateJson({ system, user, images, maxTokens, requireActive, signal })`:
+  - uses a four-minute deadline for every provider, including the local JSON-mode
+    retry. An optional caller signal can shorten this budget. Provider connection
+    checks use 15 seconds;
   - reads the singleton `Preferences`; throws `AppError` if no provider key, and
     (unless `requireActive:false`) if `ai.isActive` is off;
   - OpenAI → `POST /v1/chat/completions` with `response_format:{type:"json_object"}`,
@@ -360,8 +365,9 @@ aiGuide: {
       The count covers every PDF, DOCX, XLSX and TXT attachment taken in hand,
       including ones later refused by size; images (own cap of 5) and other types
       are not counted. A hostile document can cost the whole 15 s child timeout and
-      the attachments of one call are read one after another, so the worst case of
-      one guide is bounded by 10 × 15 s, not by the number of attachments.
+      the attachments of one call are read one after another. Child parsing time
+      is capped at 10 × 15 s; storage downloads and queue waits are additional,
+      so this is not a bound on the entire guide request.
     - **Parsing runs in a child process; this is the defence.** The file is
       untrusted, and `exceljs`, `mammoth` and `pdf-parse` can exhaust memory or
       freeze the whole process on files of a few KB (a defined-name range over the
@@ -494,19 +500,21 @@ aiGuide: {
     `buildKnowledgeContext` and appended to the prompt as a **priority source**.
     Per-user `canViewNote` is intentionally **not** applied — the guide is a shared
     staff-only artifact. The used notes are persisted on `aiGuide.sources`;
-  - calls `generateJson` with images; **text-only fallback** if the vision call
-    fails (e.g. non-vision model) so a guide is still produced;
-  - persists `aiGuide` via `findByIdAndUpdate`; **never throws** — failures are
-    recorded as `status:"error"`.
-  - `expireStalePendingGuide` — generation runs inside a live request, so a
-    process restart (deploy, nodemon) kills it *without* an exception: the catch
-    above never fires and `status` stays `pending` while the ticket card polls it
-    forever. `aiGuide.startedAt` gives `pending` a 5-minute lifetime; the ticket
-    read path (`controllers/ticket.js` `getOne`) flips an expired one to `error`
-    and writes a chronicle line, because the panel's error text points there. A
-    generation that is still alive simply overwrites the verdict with its result.
-    `regenerateAiGuide` sets `startedAt` and clears the previous `error` — a stale
-    reason used to resurface as the cause of the *next* run.
+  - atomically claims one pending run per ticket with a unique `runId`. A second
+    request cannot start another provider call while that claim is active;
+  - calls `generateJson` with images, with a text-only fallback for vision errors.
+    Context preparation and both calls share a four-minute signal. Storage reads
+    and parser queues are not themselves cancellable; an expired run cannot start
+    another provider call or publish a result;
+  - persists success or failure only while it still owns the pending run. A stale
+    completion or error cannot replace a newer attempt. Generation errors are
+    stored as `status:"error"`; a database failure during claim acquisition can
+    still propagate to the controller;
+  - `expireStalePendingGuide` gives pending claims a five-minute lifetime. The
+    ticket read path conditionally expires the exact run it observed and logs the
+    interruption. Expired runs lose ownership and cannot publish later. A new
+    request can atomically replace an expired claim, including legacy claims
+    without `runId`.
 
 `backend/package.json` / `tsconfig.json` — added `@/services` and `@/prompts`
 module aliases and deps `pdf-parse`, `mammoth`, `exceljs` (which replaced `xlsx`).
@@ -519,7 +527,8 @@ module aliases and deps `pdf-parse`, `mammoth`, `exceljs` (which replaced `xlsx`
 - `getOne` — `delete doc.aiGuide` when `isEndUser` or without `ai.use`
   (internal aid only).
 - `regenerateAiGuide` — `POST /tickets/ai-guide/generate { _id }`, **synchronous**,
-  returns the refreshed guide. Route: `isAuth, canPerformTickets, canUseAi,
+  returns the refreshed guide, or HTTP 409 if a run is already active or the
+  attempt lost ownership. Route: `isAuth, canPerformTickets, canUseAi,
   byBodyId` — the AI tools need `ticket.perform` and `ai.use`, and `byBodyId`
   additionally checks the caller's relation to that ticket.
 - `toggleAiGuideItem` / `POST /tickets/ai-guide/toggle-item` — **removed 2026-07-30**
@@ -621,7 +630,8 @@ older ticket code used `mimetype`, while later attachment upload code used
     `languageRestriction` `ru-RU`, text normalization, and
     `speakerLabeling:"SPEAKER_LABELING_ENABLED"` for diarization;
     auth via `Authorization: Api-Key <key>` (+ optional `x-folder-id`);
-  - polls `GET /operations/{id}` every 3 s (up to ~6 min) until `done`;
+  - polls `GET /operations/{id}` every 3 s until `done`. Submission, polling waits,
+    HTTP requests and result retrieval share a six-minute recognition deadline;
   - fetches `GET /stt/v3/getRecognition?operation_id={id}` (NDJSON stream) and
     parses results into `{speaker,text,start,end}` segments, taking the speaker
     from word/channel tags. Yandex emits both a raw `final` and a normalized
@@ -634,6 +644,11 @@ older ticket code used `mimetype`, while later attachment upload code used
     read from, so text and metadata stay consistent.
 - The **local path** reuses `transcribeWithOpenai` with the configured local
   endpoint and model; the OpenAI-specific model-name guard does not apply.
+- Recognition has a six-minute deadline for OpenAI/Yandex and four minutes for
+  local servers. Recognition and the summary share a ten-minute budget; the
+  summary also has the chat service's four-minute limit. These cancel provider
+  requests and Yandex polling waits, not storage downloads or synchronous parsing.
+  Speech connection checks use 15 seconds.
 - All three paths then:
   - normalize diarization to **at most two participants**, because the current
     business assumption is that calls always contain exactly two people;
@@ -798,7 +813,9 @@ detection in `View/attachment-utils.js`).
   **«Распознать»** / **«Расшифровка»** button. Recognition is gated by
   `!ticket.isArchived`, `can(AI_ACCESS)` (`ticket.perform` + `ai.use`) and
   `ai.features.speechToText`; the call updates the `view-ticket` store with the
-  returned attachments.
+  returned attachments. Reading an existing transcript is independent of these
+  generation gates: it remains available on archived tickets, when AI is disabled,
+  and during a failed or pending retry that retains earlier text.
 - Per-attachment state is a meta line next to the player: «ИИ распознаёт
   запись…» / «не удалось распознать». Shared Pulse updates revalidate the
   ticket loader when recognition changes the ticket.
@@ -854,10 +871,12 @@ are logged):
 - strips HTML and truncates the description (local `stripHtml`/`truncate`, ~2k chars;
   category descriptions capped ~600), then calls `aiService.generateJson({ system, user })`
   (default `requireActive: true`, so it respects `ai.isActive`);
-- **validates** the returned `categoryId` against the candidate id set; on a valid match
-  `Ticket.findByIdAndUpdate(ticketId, { categoryId, "aiCategory.status": "processed" })`,
-  otherwise leaves the category empty (status `processed`) and logs at `info`; on any error
-  sets status `error`.
+- **validates** the returned `categoryId` against the candidate ID set. The
+  category is written only while it is still empty and AI status is pending.
+  The title is independently written only if it still matches the original title
+  and its AI status is pending. Human edits made during generation survive;
+- a no-match result marks the still-pending empty category processed; an error
+  updates only still-pending fields. Result log entries follow successful writes.
 - writes **ticket-log** entries (`TicketLog`) for start / end / error via
   `services/aiTicketLog.js` `logAiTicketEvent(ticketId, event, severity)` (system actor
   "ИИ"; `info`/`danger`).
@@ -934,11 +953,13 @@ exact.
 - `buildTermReference` — generates on demand with `prompts/termReference` and
   **returns a stored reference as is**: opening an already-analysed term must be
   a read, not a new generation.
-- `verifyDocLinks` — every link is fetched (HEAD, GET on 403/405/501, 6 s
-  timeout) and dropped unless it answers < 400. A hallucinated URL is the model's
-  most frequent sin, and a dead link in a reference costs more than a missing one.
-  There is deliberately **no domain whitelist**: there are as many vendors as
-  there are subjects.
+- `verifyDocLinks` uses `publicUrlProbe` for HTTP(S) links: HEAD, with a GET
+  fallback on 403/405/501, sharing one six-second deadline across DNS, requests,
+  and redirects. Only public addresses are allowed; credentials and private,
+  loopback, link-local, reserved, or mixed public/private DNS answers are rejected.
+  Validated DNS answers are pinned to the connection and each redirect is checked
+  again (at most five redirects). Only response headers are read. Unsafe, failed,
+  or HTTP-error links are discarded. There is no vendor-domain allowlist.
 - `saveReferenceAsNote` — builds markdown, creates an **unapproved** note bound to
   the ticket's category, and runs `rescanNoteDerived` (extracted to
   `helpers/knowledgeNoteDerived.js`, shared with the knowledge-base controller) so
@@ -1107,7 +1128,8 @@ Operational / correctness:
 - AI-guide and speech pending states expire through their `startedAt` checks.
   `aiCategory.status` has no equivalent pending-expiry helper.
 - **No shared provider-call concurrency limit** for category, guide, and speech
-  generation: separate tickets can issue calls concurrently. User review has its
+  generation: separate tickets can issue calls concurrently. Guide generation
+  does enforce one active claim per ticket. User review has its
   own worker leases and per-run AI budget; document-parser child limits apply
   only to extraction, not provider calls.
 - **Email auto-transcription is background-only**: email-created tickets can show
@@ -1124,9 +1146,10 @@ Cost / quality:
   into two calls would remove that ceiling.
 - **Models hardcoded as defaults** (`gpt-4o`, `claude-opus-4-8`,
   `gpt-4o-transcribe-diarize`).
-- **Speech recognition quality in Russian is variable**; the raw dialog is shown
-  for reference while the AI summary (not the verbatim transcript) is what feeds
-  the email ticket's description/title.
+- **Speech recognition quality in Russian is variable**; the displayed dialog may be
+  AI-cleaned. Raw ASR text is not stored separately when cleaned turns replace it;
+  the original audio remains available. The summary and generated title update
+  eligible telephony tickets only under the email overwrite gates described above.
 - **Yandex SpeechKit uses operation polling** (up to roughly six minutes) and
   accepts MP3/WAV/OGG-OPUS inline, unlike the OpenAI/local path, which also accepts
   mp4/m4a/webm. Live-service verification was not part of this documentation review.
@@ -1173,9 +1196,9 @@ UX:
   (2026-07-30); state lives in the ticket checklist the steps are copied into.
 - Speech recognition is request/response for manual clicks; there is no progress
   polling beyond button spinner state.
-- An existing transcript stays collapsed until «Расшифровка» is pressed: the
-  summary already sits in the ticket description, and showing both would be one
-  thought told twice.
+- An existing transcript stays collapsed until «Расшифровка» is pressed: it
+  can be read regardless of generation availability. A manual transcription does
+  not necessarily put its summary into the ticket description.
 
 ---
 

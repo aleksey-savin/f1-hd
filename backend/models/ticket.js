@@ -348,6 +348,7 @@ const ticketSchema = new Schema(
     isArchived: { type: Boolean, default: false },
 
     aiGuide: {
+      runId: String,
       status: {
         type: String,
         enum: ["idle", "pending", "ready", "error"],

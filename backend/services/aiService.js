@@ -79,7 +79,7 @@ const callOpenai = async ({
   authScheme = "Bearer",
   extraHeaders = {},
   jsonMode = true,
-  timeoutMs,
+  signal,
 }) => {
   const content = images.length
     ? [
@@ -109,6 +109,7 @@ const callOpenai = async ({
     body.response_format = { type: "json_object" };
   }
 
+  signal.throwIfAborted();
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -121,7 +122,7 @@ const callOpenai = async ({
     body: JSON.stringify(body),
     // Без предела висим до победного: неверный адрес в закрытой сети не даёт
     // отказа, пакеты просто пропадают
-    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+    signal,
   });
 
   if (!response.ok) {
@@ -164,7 +165,7 @@ const buildYandexModelUri = (folderId, model) => {
 
 // Yandex AI Studio — OpenAI-совместимый шлюз к яндексовому каталогу.
 // Авторизация Api-Key + заголовок x-folder-id; модель — полный modelUri.
-const callYandexAi = ({ apiKey, model, folderId, system, user }) => {
+const callYandexAi = ({ apiKey, model, folderId, system, user, signal }) => {
   if (!folderId) {
     throw new AppError("Yandex AI Studio folder ID is not set", 400, true);
   }
@@ -185,6 +186,7 @@ const callYandexAi = ({ apiKey, model, folderId, system, user }) => {
     authScheme: "Api-Key",
     extraHeaders: { "x-folder-id": folderId },
     jsonMode: false,
+    signal,
   });
 };
 
@@ -196,7 +198,7 @@ const callYandexAi = ({ apiKey, model, folderId, system, user }) => {
 // отказом, а молча висит — дольше, чем живёт pending у руководства заявки
 // (services/ticketAiGuide.js), и карточка успела бы объявить сборку прерванной.
 const LOCAL_DEFAULT_PATH = "/v1";
-const LOCAL_TIMEOUT_MS = 4 * 60 * 1000;
+const GENERATION_TIMEOUT_MS = 4 * 60 * 1000;
 
 // Адрес вводит человек, поэтому принимаем все живые написания:
 // «192.168.1.10:11434», «http://host:1234/» и «http://host:11434/v1».
@@ -224,7 +226,7 @@ const buildLocalBaseUrl = (raw) => {
   return `${url.origin}${path || LOCAL_DEFAULT_PATH}`;
 };
 
-const callLocal = async ({ apiKey, model, baseUrl, system, user }) => {
+const callLocal = async ({ apiKey, model, baseUrl, system, user, signal }) => {
   if (!String(model || "").trim()) {
     throw new AppError("Local model is not set", 400, true);
   }
@@ -238,7 +240,7 @@ const callLocal = async ({ apiKey, model, baseUrl, system, user }) => {
     images: [],
     endpoint: `${buildLocalBaseUrl(baseUrl)}/chat/completions`,
     label: "Локальная модель",
-    timeoutMs: LOCAL_TIMEOUT_MS,
+    signal,
   };
 
   try {
@@ -246,7 +248,7 @@ const callLocal = async ({ apiKey, model, baseUrl, system, user }) => {
     // всего — но часть сборок llama.cpp отвечает на него 400
     return await callOpenai({ ...params, jsonMode: true });
   } catch (error) {
-    if (error?.statusCode !== 400) throw error;
+    if (error?.statusCode !== 400 || signal.aborted) throw error;
 
     logger.log("warn", "Local model rejected json_object, retrying without it", {
       model,
@@ -263,6 +265,7 @@ const callAnthropic = async ({
   user,
   images,
   maxTokens,
+  signal,
 }) => {
   const content = images.length
     ? [
@@ -278,7 +281,9 @@ const callAnthropic = async ({
       ]
     : user;
 
+  signal.throwIfAborted();
   const response = await fetch(ANTHROPIC_ENDPOINT, {
+    signal,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -392,7 +397,11 @@ exports.generateJson = async ({
   images = [],
   maxTokens,
   requireActive = true,
+  signal: parentSignal,
 }) => {
+  const timeout = AbortSignal.timeout(GENERATION_TIMEOUT_MS);
+  const signal = parentSignal ? AbortSignal.any([parentSignal, timeout]) : timeout;
+  signal.throwIfAborted();
   const preferences = await Preferences.findOne({});
   const ai = preferences?.ai;
 
@@ -426,6 +435,7 @@ exports.generateJson = async ({
       user,
       images,
       maxTokens,
+      signal,
     });
     const data = parseJsonResponse(raw);
 
@@ -478,6 +488,7 @@ exports.checkProvider = async ({
       user: 'Верни JSON: {"ok": true}',
       images: [],
       maxTokens: 64,
+      signal: AbortSignal.timeout(15000),
     });
     parseJsonResponse(raw);
 

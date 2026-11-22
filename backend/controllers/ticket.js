@@ -1106,15 +1106,8 @@ exports.regenerateAiGuide = async (req, res, next) => {
       return next(new AppError(`Ticket not found`, 404, true));
     }
 
-    // Ошибку прошлой попытки чистим сразу: она пережила бы сборку и всплыла бы
-    // как причина уже в новом результате. startedAt — срок жизни pending
-    await Ticket.findByIdAndUpdate(_id, {
-      "aiGuide.status": "pending",
-      "aiGuide.startedAt": new Date(),
-      "aiGuide.error": "",
-    });
-
     const aiGuide = await generateTicketAiGuide(_id);
+    if (!aiGuide) return next(new AppError("Руководство уже формируется или попытка была заменена", 409));
 
     if (aiGuide?.status === "error") {
       return next(

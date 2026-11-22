@@ -17,8 +17,12 @@ backend/help/
   staff/<section>/<article>.md       articles for staff
 ```
 
-The directory ships with `sections.js` only. A section with no articles is not
-shown to anyone, so the catalogue can list sections ahead of their content.
+The repository currently ships `sections.js` and the staff article
+`staff/admin/ai-agents.md`. There are no client articles yet. A section with no
+articles is hidden, so the catalogue can list sections ahead of their content.
+
+In-app articles, section labels and the article example below remain in Russian
+to match the application. This implementation guide stays in English.
 
 ## Adding an article
 
@@ -55,7 +59,7 @@ linkLabel: Открыть главную
 | `summary` | yes | One or two sentences under the heading; the search looks here and in `title` |
 | `order` | no | Position inside the section. Articles without it follow the ordered ones, sorted by title |
 | `updated` | no | `YYYY-MM-DD`; anything else is ignored |
-| `link` + `linkLabel` | no | A button leading into the portal. `link` must start with a single `/`; both fields are required together. The button is hidden from a reader who has no right to the target section (`frontend/src/util/sections.ts`) |
+| `link` + `linkLabel` | no | A button leading into the portal. `link` must be a same-origin path starting with a single `/`, without backslashes or control characters; both fields are required together. Invalid pairs are omitted. The frontend checks the target section’s declared permission in `frontend/src/util/sections.ts`; unknown paths have no such check. Target routes and APIs still enforce their own access rules |
 
 The header is flat `key: value` pairs parsed by `services/help/frontMatter.js`
 (no YAML library): a value may contain colons and may be wrapped in quotes.
@@ -79,8 +83,10 @@ gif. The frontend rewrites the relative path to the image endpoint below
 (`resolveImages` in `frontend/src/util/help.js`); absolute URLs and anything
 inside code spans or fenced code blocks are left alone.
 
-Images are served by the help endpoint, not from `/uploads`: `/uploads` has no
-access check, and a staff screenshot must not be reachable by a client.
+Images are served by the audience-protected help endpoint. `/uploads` uses
+messaging-attachment access checks while retaining public access for legacy
+files; those rules do not enforce help audiences. Keep staff screenshots in the
+help directory so clients cannot retrieve them.
 
 ## Sections
 
@@ -114,8 +120,9 @@ All routes require a session (`routes/internal/help.js`,
 | `GET /api/help/:audience/:section/:slug` | `{ audience, slug, title, summary, updated, link, linkLabel, body, section: { key, title }, siblings: [{ slug, title }] }` |
 | `GET /api/help/:audience/:section/img/:file` | the image file, `X-Content-Type-Options: nosniff` |
 
-Every refusal is a 404 with no reason: a foreign audience, a section hidden by
-a module switch, an unknown article, a file name outside the allowed pattern.
+Content refusals return the same generic 404: a foreign audience, a section
+hidden by a module switch, an unknown article or an invalid image filename.
+Unauthenticated requests return 401; internal failures can return 500.
 The article and the image are looked up in the already filtered catalogue, so a
 path parameter never reaches the file system unless it names a visible section.
 
@@ -123,11 +130,14 @@ path parameter never reaches the file system unless it names a visible section.
 
 `services/help/catalogue.js#getCatalogue` reads the directory once per process
 in production: a new article appears after a deploy. Outside production the
-directory is read on every call, so an edited file shows up on reload.
+article directory is read on every call, so edited Markdown shows up on reload.
+`sections.js` is loaded through Node's module cache in both modes: restart the
+backend after changing section definitions. Production content updates require
+a rebuilt or updated backend image and a restarted process.
 
 ## Tests
 
 ```
-cd backend && node --test services/help/*.test.js controllers/help.test.js
-cd frontend && node --test src/util/help.test.js
+(cd backend && node --test services/help/*.test.js controllers/help.test.js)
+(cd frontend && node --test src/util/help.test.js)
 ```

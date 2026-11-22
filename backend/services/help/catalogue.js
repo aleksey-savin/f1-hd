@@ -17,8 +17,18 @@ const isDate = (value) => {
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 };
-// Ссылка только внутрь портала: «/путь», но не «//хост»
-const INTERNAL_LINK = /^\/(?!\/)/;
+// Validate URL semantics as well as the root-relative spelling. Browsers treat
+// backslashes as separators and remove some controls during URL parsing.
+const isInternalLink = (value) => {
+  if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return false;
+  if ([...value].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) return false;
+  const origin = "https://help.invalid";
+  try {
+    return new URL(value, origin).origin === origin;
+  } catch {
+    return false;
+  }
+};
 
 const readArticle = (file, slug) => {
   const parsed = parseFrontMatter(fs.readFileSync(file, "utf8"));
@@ -28,7 +38,7 @@ const readArticle = (file, slug) => {
 
   // Пустой `order:` — «без порядка», а не ноль
   const order = meta.order?.trim() ? Number(meta.order) : NaN;
-  const linked = INTERNAL_LINK.test(meta.link || "") && Boolean(meta.linkLabel);
+  const linked = isInternalLink(meta.link) && Boolean(meta.linkLabel);
   return {
     article: {
       slug,

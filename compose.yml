@@ -4,9 +4,9 @@
 #                          everything (see README)
 #   docker compose ps      status
 #
-# One published port: HTTP_PORT → the frontend nginx, which proxies /api and
-# /uploads to the backend. MongoDB and the backend are reachable only inside
-# the compose network. TLS is terminated by an external reverse proxy.
+# HTTP_PORT exposes frontend nginx, which proxies /api and /uploads. MongoDB
+# also publishes MONGO_PORT on loopback by default; the backend has no host port.
+# TLS is terminated by an external reverse proxy.
 #
 # Health checks live in the images (Dockerfile HEALTHCHECK) so that
 # `docker compose up --wait` is enough; MongoDB's is the one exception because
@@ -146,8 +146,8 @@ networks:
       com.docker.network.driver.mtu: "1420"
 
 volumes:
-  # Data volumes are external: deploy.sh creates them once, and `docker compose
-  # down -v` can never take them away.
+  # The three external volumes survive `docker compose down -v`. The managed
+  # hd_storage and tg_service_data volumes below do not; see the backup guide.
   hd_data:
     external: true
   hd_mongodb_config:

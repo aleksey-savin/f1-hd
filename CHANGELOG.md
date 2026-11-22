@@ -15,6 +15,14 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Fixed
 
+- Help article buttons reject external destinations disguised as portal paths, including backslashes and control characters.
+
+- Deployment preserves an existing legacy `MIKROTIK_ENC_KEY` when initializing `APP_ENC_KEY`. Restore aborts before restoring data if application services cannot be stopped.
+
+- AI documentation links reject internal and reserved network destinations, including redirects and DNS changes.
+- Automatic AI category and title selection preserves edits made while generation is running. Guide generation allows one active attempt per ticket and discards stale results.
+- AI generation and speech recognition enforce provider deadlines, including retries and Yandex polling. Stored transcripts remain readable when AI generation is unavailable or a retry fails.
+
 - Datetime forms no longer shift values at the browser's daylight-saving transition when the display timezone differs. Work duration validation uses the same UTC conversion as saving.
 - Ticket and work date filters now cover complete organization-local calendar days, including daylight-saving transitions. Employee schedule selection uses the organization day regardless of the viewer's personal timezone.
 - Two-factor grace dates now expire at the end of the organization day instead of server-local time.
@@ -25,6 +33,11 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 - AI findings unsupported by the source conversation are discarded separately from supported user-review results.
 
 ### Upgrade instructions
+
+- Recovery and host migration require a final backup with application and external writers stopped. Built-in backups exclude S3 objects and Telegram's SQLite volume; preserve them separately. Restore overlays files and does not remove collections absent from the dump. See [deployment](docs/deployment.md#backup-and-restore).
+- If an older deployment already generated a different `APP_ENC_KEY` over a legacy key, this update does not repair existing encrypted data automatically. Recover the original key and determine which key was used before changing configured keys.
+
+- AI chat calls now have a four-minute budget; speech recognition has six minutes for cloud providers and four minutes for local providers, with ten minutes shared with summarization. Slow providers may now time out. No migration or configuration change is required for these fixes.
 
 - Date filters for closed tickets and finished works accept `YYYY-MM-DD` bounds in the organization timezone; invalid dates, reversed ranges, and timestamp-shaped bounds return HTTP 400. Update custom callers that send timestamps. No date migration is performed. Review existing two-factor grace deadlines before resaving: new date-only saves use organization end-of-day, while explicitly zoned API timestamps retain their instant.
 

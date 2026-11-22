@@ -1,3 +1,4 @@
+const { probePublicUrl } = require("./publicUrlProbe");
 const { Ticket } = require("@/models/ticket");
 const KnowledgeNote = require("@/models/knowledgeNote");
 const { AppError } = require("@/middleware/errorHandling");
@@ -119,19 +120,10 @@ const verifyDocLinks = async (links) => {
     candidates.map(async (link) => {
       try {
         const host = new URL(link.url).hostname;
-        const probe = (method) =>
-          fetch(link.url, {
-            method,
-            redirect: "follow",
-            signal: AbortSignal.timeout(LINK_TIMEOUT_MS),
-          });
-
-        let response = await probe("HEAD");
-        // Часть серверов документации HEAD не умеет или отдаёт на него отказ
-        if ([403, 405, 501].includes(response.status)) {
-          response = await probe("GET");
-        }
-        if (response.status >= 400) return null;
+        const status = await probePublicUrl(link.url, {
+          signal: AbortSignal.timeout(LINK_TIMEOUT_MS),
+        });
+        if (status >= 400) return null;
 
         return { url: link.url, title: link.title || host, host };
       } catch {

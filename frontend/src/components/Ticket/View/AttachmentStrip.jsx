@@ -252,30 +252,34 @@ const AttachmentStrip = ({
                 />
               </span>
 
-              {canTranscribe && (
+              {speech?.text && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="xs"
-                  disabled={busyName === attachment.name}
                   onClick={() =>
-                    speech?.status === "ready"
-                      ? setOpenText(
-                          openText === attachment.name ? "" : attachment.name,
-                        )
-                      : transcribe(attachment)
+                    setOpenText(
+                      openText === attachment.name ? "" : attachment.name,
+                    )
                   }
                 >
-                  {speech?.status === "ready" ? (
-                    <RiFileTextLine />
-                  ) : (
-                    <RiVoiceprintLine />
-                  )}
-                  {busyName === attachment.name
+                  <RiFileTextLine /> Расшифровка
+                </Button>
+              )}
+              {canTranscribe && speech?.status !== "ready" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={
+                    busyName === attachment.name || speech?.status === "pending"
+                  }
+                  onClick={() => transcribe(attachment)}
+                >
+                  <RiVoiceprintLine />
+                  {busyName === attachment.name || speech?.status === "pending"
                     ? "Распознаём…"
-                    : speech?.status === "ready"
-                      ? "Расшифровка"
-                      : "Распознать"}
+                    : "Распознать"}
                 </Button>
               )}
 

@@ -64,6 +64,10 @@ commands when translation would change their meaning; explain them in English
 when needed. This requirement supersedes older language instructions in project
 documentation.
 
+Exception: user-facing in-app help articles under `backend/help/`, their section
+labels, and article examples in developer documentation remain in Russian to
+match the application. Developer-facing documentation about help stays in English.
+
 ## Version and changelog maintenance
 
 For every change that affects users or operators, update the root `CHANGELOG.md`

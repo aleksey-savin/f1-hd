@@ -107,6 +107,7 @@ export interface ITicketAiGuideSource {
 }
 
 export interface ITicketAiGuide {
+  runId?: string;
   status?: TicketAiGuideStatus;
   kind?: TicketAiGuideKind;
   summary?: string;

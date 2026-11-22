@@ -31,14 +31,20 @@ const storage = require("@/services/storage");
 const logger = require("@/utils/logger");
 const { SecretUnreadableError } = require("@/helpers/preferencesSecrets");
 const { encryptSecret } = require("@/services/crypto/secretBox");
-const { resolveSpeechConfig, transcribeAttachment } = require("./speechToTextService");
+const {
+  resolveSpeechConfig,
+  transcribeAttachment,
+} = require("./speechToTextService");
 
 // Шифртекст нашего формата, но под другим ключом — как после потери APP_ENC_KEY
 const foreignCiphertext = (plaintext) => {
   const key = crypto.randomBytes(32);
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const ciphertext = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
   return [
     "v1",
     iv.toString("base64"),
@@ -54,7 +60,10 @@ const dead = foreignCiphertext("dead-key");
 const PATHS = [
   {
     name: "OpenAI со своим ключом",
-    ai: { provider: "anthropic", speechToText: { provider: "openai", apiKey: dead } },
+    ai: {
+      provider: "anthropic",
+      speechToText: { provider: "openai", apiKey: dead },
+    },
     path: "ai.speechToText.apiKey",
   },
   {
@@ -123,12 +132,16 @@ for (const { name, ai, path } of PATHS) {
 
 test("строгий читатель: читаемый ключ расшифровывается, пустой остаётся пустым", () => {
   const readable = {
-    speechToText: { provider: "yandex", yandex: { apiKey: encryptSecret("sk-yandex") } },
+    speechToText: {
+      provider: "yandex",
+      yandex: { apiKey: encryptSecret("sk-yandex") },
+    },
   };
   assert.equal(resolveSpeechConfig(readable).apiKey, "sk-yandex");
   assert.equal(
-    resolveSpeechConfig({ speechToText: { provider: "yandex", yandex: { apiKey: "" } } })
-      .apiKey,
+    resolveSpeechConfig({
+      speechToText: { provider: "yandex", yandex: { apiKey: "" } },
+    }).apiKey,
     "",
   );
 });
@@ -162,7 +175,11 @@ test("локальный сервер распознавания: нечитае
     speechToText: {
       isActive: true,
       provider: "local",
-      local: { baseUrl: "http://whisper.example.ru:8000", model: "large-v3", apiKey: dead },
+      local: {
+        baseUrl: "http://whisper.example.ru:8000",
+        model: "large-v3",
+        apiKey: dead,
+      },
     },
   });
   silenceLog(t);
@@ -179,7 +196,11 @@ test("локальный сервер распознавания с ключом
   storedSpeech(t, {
     isActive: true,
     provider: "local",
-    local: { baseUrl: "http://ollama.example.ru:11434", model: "llama3", apiKey: dead },
+    local: {
+      baseUrl: "http://ollama.example.ru:11434",
+      model: "llama3",
+      apiKey: dead,
+    },
     speechToText: {
       isActive: true,
       provider: "local",
@@ -217,7 +238,9 @@ test("читаемый ключ локального сервера уходит
   assert.equal(calls[0].options.headers.Authorization, "Bearer proxy-key");
 });
 
-for (const { name, ai, path } of PATHS.filter(({ ai }) => ai.speechToText.provider !== "local")) {
+for (const { name, ai, path } of PATHS.filter(
+  ({ ai }) => ai.speechToText.provider !== "local",
+)) {
   test(`обязательный ключ не читается: расшифровка называет поле и не обращается к поставщику — ${name}`, async (t) => {
     storedSpeech(t, {
       isActive: true,
@@ -239,3 +262,63 @@ for (const { name, ai, path } of PATHS.filter(({ ai }) => ai.speechToText.provid
     assert.equal(calls.length, 0);
   });
 }
+
+for (const provider of ["openai", "local", "yandex"])
+  test(`${provider} recognition aborts a stalled request`, async (t) => {
+    storedSpeech(t, {
+      isActive: true,
+      provider: "openai",
+      speechToText: {
+        isActive: true,
+        provider,
+        apiKey: "test",
+        model: "gpt-4o-transcribe",
+        local: { baseUrl: "https://speech.example", model: "whisper" },
+        yandex: { apiKey: "test", folderId: "test", model: "general" },
+      },
+    });
+    silenceLog(t);
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    t.mock.method(AbortSignal, "timeout", () => timeout(20));
+    let captured;
+    t.mock.method(globalThis, "fetch", (_url, { signal }) => {
+      captured = signal;
+      return new Promise((_resolve, reject) => {
+        signal.throwIfAborted();
+        signal.addEventListener("abort", () => reject(signal.reason), {
+          once: true,
+        });
+      });
+    });
+    const keepAlive = setTimeout(() => {}, 1000);
+    try {
+      await assert.rejects(transcribeAttachment(call), {
+        name: "TimeoutError",
+      });
+      assert.equal(captured.aborted, true);
+    } finally {
+      clearTimeout(keepAlive);
+    }
+  });
+
+test("Yandex polling sleep observes the same recognition deadline", async (t) => {
+  storedSpeech(t, {
+    isActive: true,
+    speechToText: {
+      isActive: true,
+      provider: "yandex",
+      yandex: { apiKey: "test", folderId: "test" },
+    },
+  });
+  silenceLog(t);
+  const timeout = AbortSignal.timeout.bind(AbortSignal);
+  t.mock.method(AbortSignal, "timeout", () => timeout(20));
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (_url, { signal }) => {
+    assert.ok(signal);
+    calls++;
+    return { ok: true, json: async () => ({ id: "operation" }) };
+  });
+  await assert.rejects(transcribeAttachment(call), { name: "AbortError" });
+  assert.equal(calls, 1);
+});

@@ -66,8 +66,9 @@ const truncate = (value, max = MAX_FIELD_LENGTH) => {
  *   closest?: string[], error?: string }>}
  */
 exports.detectTicketCategory = async (ticketId, { category = true } = {}) => {
+  let ticket;
   try {
-    const ticket = await Ticket.findById(ticketId).select(
+    ticket = await Ticket.findById(ticketId).select(
       "num title description htmlDescription categoryId aiCategory aiTitle company",
     );
 
@@ -80,22 +81,30 @@ exports.detectTicketCategory = async (ticketId, { category = true } = {}) => {
     // без снятия pending висел бы вечно, а метка ✦ так и не появилась бы.
     const dropPendingTitle = async () => {
       if (ticket.aiTitle?.status !== "pending") return;
-      await Ticket.findByIdAndUpdate(ticketId, {
-        $unset: { aiTitle: "" },
-      }).catch(() => {});
+      await Ticket.updateOne(
+        { _id: ticketId, title: ticket.title, "aiTitle.status": "pending" },
+        {
+          $unset: { aiTitle: "" },
+        },
+      ).catch(() => {});
     };
 
     // Не перезаписываем уже выбранную категорию (например, заданную оператором).
     if (ticket.categoryId) {
       await dropPendingTitle();
-      return { outcome: "already_set", categoryId: ticket.categoryId.toString() };
+      return {
+        outcome: "already_set",
+        categoryId: ticket.categoryId.toString(),
+      };
     }
 
     const needsTitle = ticket.aiTitle?.status === "pending";
     if (!category && !needsTitle) return { outcome: "title_only" };
 
     const categories = category
-      ? await TicketCategory.find({ isActive: true }).select("title description")
+      ? await TicketCategory.find({ isActive: true }).select(
+          "title description",
+        )
       : [];
 
     if (category && !categories.length) {
@@ -115,9 +124,12 @@ exports.detectTicketCategory = async (ticketId, { category = true } = {}) => {
 
     // Помечаем заявку как обрабатываемую ИИ и фиксируем старт в логе заявки.
     if (category) {
-      await Ticket.findByIdAndUpdate(ticketId, {
-        aiCategory: { status: "pending" },
-      });
+      await Ticket.updateOne(
+        { _id: ticketId, categoryId: null },
+        {
+          $set: { "aiCategory.status": "pending" },
+        },
+      );
       await logAiTicketEvent(ticketId, "начал подбор категории заявки");
     }
 
@@ -149,7 +161,10 @@ exports.detectTicketCategory = async (ticketId, { category = true } = {}) => {
     // включает администратор, см. services/aiRules.js
     const rules = await rulesFor({ companyId: ticket.company?._id });
 
-    const { data } = await aiService.generateJson({ system: system + rules, user });
+    const { data } = await aiService.generateJson({
+      system: system + rules,
+      user,
+    });
 
     const chosenId =
       typeof data?.categoryId === "string" ? data.categoryId.trim() : "";
@@ -180,47 +195,36 @@ exports.detectTicketCategory = async (ticketId, { category = true } = {}) => {
             .slice(0, MAX_TITLE_LENGTH)
         : "";
 
-    const setOps = category ? { "aiCategory.status": "processed" } : {};
-    const unsetOps = {};
+    // Each field has its own compare-and-set guard. A user may edit either
+    // field while the provider is running; never publish over that edit.
     if (needsTitle) {
-      if (aiTitle) {
-        setOps.title = aiTitle;
-        setOps["aiTitle.status"] = "processed";
-      } else {
-        unsetOps.aiTitle = "";
-      }
-      await logAiTicketEvent(
-        ticketId,
+      const saved = await Ticket.updateOne(
+        { _id: ticketId, title: ticket.title, "aiTitle.status": "pending" },
         aiTitle
-          ? `ИИ написал тему заявки: «${aiTitle}»`
-          : "не смог написать тему заявки — осталась выведенная из описания",
-        aiTitle ? "info" : "warning",
+          ? { $set: { title: aiTitle, "aiTitle.status": "processed" } }
+          : { $unset: { aiTitle: "" } },
       );
+      if (saved.matchedCount)
+        await logAiTicketEvent(
+          ticketId,
+          aiTitle
+            ? `ИИ написал тему заявки: «${aiTitle}»`
+            : "не смог написать тему заявки — осталась выведенная из описания",
+          aiTitle ? "info" : "warning",
+        );
     }
-    const buildUpdate = (extra = {}) => {
-      const set = { ...setOps, ...extra };
-      return {
-        ...(Object.keys(set).length ? { $set: set } : {}),
-        ...(Object.keys(unsetOps).length ? { $unset: unsetOps } : {}),
-      };
-    };
-
-    // Подбор категории выключен — проход писал только тему
-    if (!category) {
-      if (Object.keys(setOps).length || Object.keys(unsetOps).length) {
-        await Ticket.findByIdAndUpdate(ticketId, buildUpdate());
-      }
-      return { outcome: "title_only" };
-    }
-
+    if (!category) return { outcome: "title_only" };
+    const saved = await Ticket.updateOne(
+      { _id: ticketId, categoryId: null, "aiCategory.status": "pending" },
+      {
+        $set: {
+          "aiCategory.status": "processed",
+          ...(match ? { categoryId: chosenId } : {}),
+        },
+      },
+    );
+    if (!saved.matchedCount) return { outcome: "already_set" };
     if (!match) {
-      logger.log("info", "Category detection: no confident match", {
-        ticketId: ticket._id.toString(),
-        num: ticket.num,
-        chosenId: chosenId || null,
-        reason: reason || undefined,
-      });
-      await Ticket.findByIdAndUpdate(ticketId, buildUpdate());
       await logAiTicketEvent(
         ticketId,
         "не нашёл подходящую категорию для заявки",
@@ -228,22 +232,10 @@ exports.detectTicketCategory = async (ticketId, { category = true } = {}) => {
       );
       return { outcome: "not_found", categoryId: null, reason, closest };
     }
-
-    await Ticket.findByIdAndUpdate(
-      ticketId,
-      buildUpdate({ categoryId: chosenId }),
-    );
-
-    logger.log("info", "Ticket category detected", {
-      ticketId: ticket._id.toString(),
-      num: ticket.num,
-      categoryId: chosenId,
-    });
     await logAiTicketEvent(
       ticketId,
       `ИИ определил категорию заявки: «${match.title}»`,
     );
-
     return {
       outcome: "assigned",
       categoryId: chosenId,
@@ -259,10 +251,16 @@ exports.detectTicketCategory = async (ticketId, { category = true } = {}) => {
     });
     // Тема ехала этим же вызовом — снимаем её ожидание вместе с ошибкой
     // категории, иначе заявка останется с вечным pending и без метки.
-    await Ticket.findByIdAndUpdate(ticketId, {
-      ...(category ? { $set: { "aiCategory.status": "error" } } : {}),
-      $unset: { aiTitle: "" },
-    }).catch(() => {});
+    if (category)
+      await Ticket.updateOne(
+        { _id: ticketId, categoryId: null, "aiCategory.status": "pending" },
+        { $set: { "aiCategory.status": "error" } },
+      ).catch(() => {});
+    if (ticket)
+      await Ticket.updateOne(
+        { _id: ticketId, title: ticket.title, "aiTitle.status": "pending" },
+        { $unset: { aiTitle: "" } },
+      ).catch(() => {});
     await logAiTicketEvent(
       ticketId,
       `Ошибка автоопределения категории заявки: ${error.message}`,

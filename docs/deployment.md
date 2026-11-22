@@ -19,9 +19,11 @@ backups, moving an installation, rollback.
 | `*/Dockerfile` | one multi-stage file per service, targets `dev` and `prod` |
 | `frontend/nginx.conf` | nginx inside the frontend image: serves the SPA, proxies `/api` and `/uploads` to the backend |
 
-Network shape: exactly one port is published (`HTTP_PORT`, default 8080) by the
-frontend nginx. MongoDB and the backend are reachable only on the compose
-network. TLS and the public domain belong to an external reverse proxy.
+Network shape: frontend nginx publishes `HTTP_PORT` (default 8080); MongoDB
+publishes `MONGO_PORT` on loopback by default (`127.0.0.1:27017`). The backend
+has no published port. TLS and the public domain belong to an external reverse
+proxy. `deploy.sh` explicitly uses `compose.yml`, regardless of `COMPOSE_FILE`;
+that variable selects the development stack only for plain Compose commands.
 
 ## `deploy.sh`
 
@@ -131,8 +133,14 @@ Reference with comments: `.env.example`.
 Rotation costs: `BETTER_AUTH_SECRET` — everybody is logged out and existing
 TOTP secrets become unreadable. `APP_ENC_KEY` — every secret stored in the
 database (mail passwords, AI and RouterOS credentials, Mikrotik backups) becomes
-unreadable; it replaced `MIKROTIK_ENC_KEY`, which is still accepted under the
-old name. `MONGODB_PASSWORD` — change it in MongoDB too.
+unreadable. Its previous name, `MIKROTIK_ENC_KEY`, remains a runtime fallback.
+When `APP_ENC_KEY` is absent or empty, deployment copies a nonempty legacy key
+into it; only an installation with neither key gets a generated key. An existing
+`APP_ENC_KEY` always takes precedence and is never replaced automatically.
+If an earlier deployment already generated the wrong key, recover the original
+key from a trusted copy and establish which key encrypted the stored values
+before changing anything; these fixes do not repair mixed-key data.
+`MONGODB_PASSWORD` — change it in MongoDB too.
 
 Mail mode. `MAIL_MODE` decides where outgoing e-mail goes, whatever the mail
 settings in the database say; `NODE_ENV` plays no part.
@@ -312,7 +320,8 @@ applied (`{_id, appliedAt, mode: run | baseline | mark}`).
 something has to run, so a routine update has no extra downtime, while a data
 migration never races the previous version of the code. If an entry fails the
 application stays stopped: fix the cause and run `./deploy.sh` again (it
-resumes at that entry), or skip the entry with `migrate mark`.
+resumes at that entry), or mark it only after verifying that its required changes have already been
+applied. `mark` records completion without executing or validating the migration.
 
 The migration step also stops the deployment if application writers cannot be
 stopped. Taxi defaults are ledger-backed migrations, including
@@ -352,6 +361,10 @@ Not in the list on purpose: `eraseApiKeyValues.js` (irreversible, run by hand
 once the hashes are proven), `renameRoleKeys.js` (dev tool), the MikroTik model
 catalogue (`seedMikrotikModels.js`, run by hand), diagnostics. The inventory
 catalogue has its own runner — see «Seeds» below.
+
+The standalone `./deploy.sh migrate up` command does not stop writers or take
+a backup. For production upgrades use the full deployment flow; manual writes
+require a separately arranged backup and maintenance window.
 
 Any script can still be run by hand inside the container:
 `docker compose run --rm backend node scripts/<name>.js [--apply]`, then
@@ -403,31 +416,35 @@ Never start a second polling process with a live bot token. A local fake
 Telegram transport verifies application routing/outbox behaviour, **not real
 Telegram API delivery**.
 
-The opt-in synthetic rehearsal is in
-`backend/auth/w5aContinuity.integration.test.js`; its helper/browser/bot sources
-are under Docker-excluded `backend/auth/__tests__/`. From `backend`, after the
-Task2/4/5 review barriers and scoped Docker/HTTP/Chromium permission:
+The historical synthetic rehearsal is
+`backend/auth/w5aContinuity.integration.test.js`, with helpers under
+Docker-excluded `backend/auth/__tests__/`. It is skipped by ordinary test runs.
+It depends on a separately prepared `/tmp/hd-w5a-baseline` source snapshot,
+existing dependencies, Playwright Chromium and the local `mongo:8` image. That
+temporary snapshot is not distributed with this repository: the rehearsal is
+not a self-contained installation check. Its original context is in the
+[W5a implementation plan](superpowers/plans/2026-11-07-w5a-auth-session-compatibility.md).
+Do not treat the plan's task-specific review barriers as current deployment
+prerequisites.
+
+When deliberately reproducing that historical fixture in an isolated test
+environment, its opt-in command, from `backend`, is:
 
 ```sh
 ulimit -c 0
 W5A_REHEARSAL=1 W5A_BROWSER=1 node --test auth/w5aContinuity.integration.test.js
 ```
 
-It requires the read-only `/tmp/hd-w5a-baseline` source snapshot, existing
-backend/frontend/tg-service dependencies, a locally installed Playwright
-Chromium, and the existing `mongo:8` image. It never installs or pulls. It
-creates a uniquely named `codex-w5a-mongo-*` disposable container with tmpfs
-data and a random loopback port, synthetic Mongo records, temporary uploads and
-bot SQLite, and fresh browser contexts. It removes only its own fixture objects.
-Ordinary test runs skip it. Without `W5A_BROWSER=1`, browser coverage is skipped
-and must not be reported as passed. The fixture mounts real route/controller
-components rather than starting app.js or deployment nginx; the deployment
-stack and proxy chain still require the final container gate and smoke checks.
+It creates disposable MongoDB, uploads, bot SQLite and browser fixtures; it does
+not verify live Telegram delivery or the deployed nginx/proxy chain. Without
+`W5A_BROWSER=1`, browser coverage is skipped and must not be reported as passed.
 
-Preparation is not a release gate result: record actual commands, counts,
-failures and skipped coverage after execution. In particular, the Node26 host
-rehearsal does not replace the final Node24 checks. Run the complete `check.sh`
-gate only after all review barriers are released.
+For a release, run `./check.sh` and `./check.sh images` from the source checkout,
+record failures and skipped coverage, and perform the client-session and bot
+checks above on an isolated staging installation of the actual candidate
+images. Use the production Node version supplied by the container checks.
+The deployment smoke test covers HTTP reachability only; it does not establish
+session continuity, backup recoverability or compatibility of old browser tabs.
 
 ## Seeds
 
@@ -515,39 +532,88 @@ age-based deletion proposals. Do not infer this date from a profile update.
 
 ## Backup and restore
 
-`./deploy.sh backup` writes `backups/<timestamp>/` with `mongo.archive.gz`
-(`mongodump --archive --gzip` of the application database), `hd_uploads.tar.gz`,
-`hd_storage.tar.gz` and a `manifest`. The last five are kept. `deploy` takes one
-automatically before running migrations on a non-empty database. Copy the
-directory elsewhere; it is the whole installation apart from `.env`.
+`./deploy.sh backup` writes `backups/<timestamp>/` with an application-database
+`mongo.archive.gz` (`mongodump --archive --gzip`) and a `manifest`. It also
+archives `hd_uploads` and `hd_storage` when those volumes exist. The last five
+backup directories are kept locally. Copy completed backups off the host and
+keep a protected copy of `.env`, including the original encryption keys.
 
-`./deploy.sh restore backups/<timestamp>` stops the application, restores the
-database with `--drop` (renaming it if the dump came from a database with
-another name), unpacks the volumes and fixes ownership. It does not start the
-application: run `migrate status` (the ledger comes with the dump), then
-`./deploy.sh`.
+This is **not a complete installation backup**:
+
+- S3 objects are not downloaded or archived. Maintain a separate bucket backup
+  and retention policy covering both attachments and private artifacts.
+- `hd_tg_service_data` is not included. It holds Telegram's SQLite delivery
+  deduplication, board and in-progress dialog state. Back up and restore that
+  volume separately with `tg-service` stopped; preserve the whole volume,
+  including SQLite WAL files. Account bindings in MongoDB are separate.
+- Images, reverse-proxy configuration and external integration state are not
+  included. Retain the release identity and the configuration needed to recover.
+
+Backup does not stop writers. `deploy` also takes its automatic backup **before**
+stopping writers for pending migrations. Database and volume archives are read
+sequentially, so live writes can leave them inconsistent. For a recoverable
+maintenance snapshot, prevent new traffic and stop all application writers
+(including external importers), while keeping MongoDB running:
+
+```sh
+docker compose -f compose.yml stop backend frontend tg-service && ./deploy.sh backup
+```
+
+Verify that the stop succeeded before proceeding. Keep writers stopped while
+copying Telegram state and taking any matching external-storage snapshot.
+Do not use `docker compose down -v`: `hd_storage` and `hd_tg_service_data` are
+not external volumes and can be deleted by that command.
+
+`./deploy.sh restore backups/<timestamp>` stops the application and refuses to
+continue if that stop fails. MongoDB remains available. Restore uses `--drop`
+for collections in the dump, maps the source database name to the configured
+name when needed, extracts available volume archives and fixes ownership.
+It leaves the application stopped. Inspect `./deploy.sh migrate status` using
+the intended release, then run `./deploy.sh` when ready to start it.
+
+Restore is **not an exact reset** of an existing installation: collections absent
+from the dump are not removed, volume files are overlaid rather than cleared,
+and missing volume archives leave existing files untouched. A failure can leave
+a partial restore. Prefer an empty, isolated recovery target; preserve any
+existing target data before deliberately cleaning it. Retrying alone does not
+remove residual data. Verify attachment access and the intended database state
+before admitting users. No restore command can undo writes to external systems.
 
 ## Moving an installation to a new host
 
-The old host keeps running until DNS is switched; nothing below touches it
-beyond a read-only dump.
+Separate rehearsal from the final cutover. A rehearsal can use a live backup,
+but it must not send real mail, poll the production Telegram bot, process live
+inbound integrations or run jobs against production devices. `MAIL_MODE=off`
+only disables outgoing email; it does not isolate other integrations. Use an
+isolated network and test credentials, and verify the restrictions before
+starting the copied application.
 
-1. Old host: `./deploy.sh backup`.
-2. Copy `backups/<timestamp>` to the new host, together with the old `.env`.
-3. New host: clone the repository, `./deploy.sh env` (installs Docker, writes
-   `.env`, asks for the URL). Then edit `.env`:
-   - `APP_ENC_KEY` and `BETTER_AUTH_SECRET` = the old values — mandatory, or
-     every stored secret is unreadable and every session and TOTP secret is
-     lost;
-   - `S3_*` as before if attachments live in S3;
-   - `TICKET_COUNTER_STARTING_NUMBER`, `TG_TOKEN`, `TRUST_PROXY_HOPS=2`,
-     `HTTP_PORT=127.0.0.1:8080` as needed.
-4. `./deploy.sh restore backups/<timestamp>`.
-5. `./deploy.sh` — backup, pending migrations, start, smoke test.
-6. Point the reverse proxy at `127.0.0.1:8080`, sign in with a real account.
-
-Rehearse steps 4–5 on the new host before the real switch: it is empty, and
-`restore` can be repeated.
+1. Prepare the target release and Docker environment. Copy the old `.env`
+   securely and preserve `APP_ENC_KEY` (or its legacy value),
+   `BETTER_AUTH_SECRET` and the existing public URL/cookie identity. Run
+   `./deploy.sh env`; it retains configured values rather than asking for a new
+   URL. Adjust port bindings and proxy hops for the new host. Leave the live bot
+   disabled during rehearsal.
+2. Rehearse recovery on an empty isolated target, including S3 availability,
+   local artifacts and Telegram state. Restore does not clean a used target;
+   prepare a fresh target for the final recovery.
+3. Begin the final maintenance window. Block traffic to the old application and
+   stop its backend, frontend, Telegram service and external writers. Verify
+   they stopped; leave MongoDB running. Take a **new final backup**, preserve
+   Telegram state, and copy the backup plus any separately managed storage.
+   Writes accepted after this snapshot will not appear on the new host.
+4. On the new host, run `./deploy.sh restore backups/<timestamp>`. Restore the
+   separately saved Telegram volume while its service is stopped. Confirm the
+   original secrets and external-storage configuration are present. Keep the
+   old application stopped throughout cutover.
+5. Run `./deploy.sh` for the intended release, inspect migration results and
+   verify the proxy and application with controlled access. Check sign-in,
+   attachments and the required integrations. Only one host may poll the live
+   Telegram token or run production background jobs.
+6. Switch the reverse proxy/DNS, then admit users. Keep old endpoints blocked
+   while DNS caches expire. Retain the old data and final backup for recovery;
+   after the new host accepts writes, switching back requires reconciling those
+   writes rather than simply restarting the old copy.
 
 ## Rollback
 
@@ -612,9 +678,11 @@ rotating files under `backend/logs/` are kept.
 ## Known advisories
 
 `./check.sh` fails on a dependency advisory of level high or critical. The ones
-below have no fixed version in the npm registry and are listed in
-`pnpm.auditConfig.ignoreGhsas` of the service; an entry leaves the list together
-with the dependency or as soon as a fixed version is published.
+below are the repository's explicit exceptions in
+`pnpm.auditConfig.ignoreGhsas` of the service. This table is not a current audit
+result or a claim that every other dependency is clear. Run the gate for the
+release being deployed, review its full output, and reassess exceptions when
+updating dependencies.
 
 | Advisory | Package | Service | Why it does not apply |
 |---|---|---|---|

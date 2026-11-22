@@ -354,7 +354,14 @@ ensure_env() {
   [ -n "$(env_get MONGODB_DATABASE)" ]   || env_set MONGODB_DATABASE hd
   [ -n "$(env_get MONGODB_PASSWORD)" ]   || env_set MONGODB_PASSWORD "$(openssl rand -hex 24)"
   [ -n "$(env_get BETTER_AUTH_SECRET)" ] || env_set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
-  [ -n "$(env_get APP_ENC_KEY)" ]        || env_set APP_ENC_KEY "$(openssl rand -base64 32)"
+  if [ -z "$(env_get APP_ENC_KEY)" ]; then
+    # Preserve ciphertext created under the legacy key. The current name wins
+    # at runtime, so generating a different key would hide the working fallback.
+    local encryption_key
+    encryption_key=$(env_get MIKROTIK_ENC_KEY)
+    [ -n "$encryption_key" ] || encryption_key=$(openssl rand -base64 32)
+    env_set APP_ENC_KEY "$encryption_key"
+  fi
   [ -n "$(env_get TG_API_TOKEN)" ]       || env_set TG_API_TOKEN "$(openssl rand -hex 32)"
   [ -n "$(env_get HTTP_PORT)" ]          || env_set HTTP_PORT 8080
   ask APP_PUBLIC_URL "Public URL of the app (what browsers will open)" \
@@ -454,7 +461,8 @@ restore() {
   need_tools; ensure_docker; ensure_env; load_env; ensure_volumes
   source=$(sed -n 's/^DB=//p' "$dir/manifest" 2>/dev/null); source=${source:-$DB_NAME}
   log "Restoring $dir into database $DB_NAME"
-  dc stop backend frontend tg-service >/dev/null 2>&1 || true
+  dc stop backend frontend tg-service >/dev/null 2>&1 \
+    || die "cannot stop application services — restore was not run; fix the cause and retry"
   dc up -d --wait mongodb
   [ "$source" = "$DB_NAME" ] || ns="--nsFrom '$source.*' --nsTo '$DB_NAME.*'"
   dc exec -T -e MONGO_PASS="$DB_PASS" mongodb sh -c \

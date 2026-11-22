@@ -101,3 +101,34 @@ test("шаблон имени", () => {
   for (const good of ["a", "new-ticket", "2fa"]) assert.ok(NAME.test(good));
   for (const bad of ["", "..", "a/b", "A", "a_b", "-a", "a-", "%2e%2e", "a.md"]) assert.ok(!NAME.test(bad));
 });
+
+test("article buttons accept portal paths but reject external URL disguises", (t) => {
+  const cases = [
+    ["/dashboard", true],
+    ["/preferences#integrations", true],
+    ["/tickets?search=%D1%82%D0%B5%D1%81%D1%82", true],
+    ["/", true],
+    ["https://example.invalid/path", false],
+    ["//example.invalid/path", false],
+    ["/\\example.invalid/path", false],
+    ["/path\\other", false],
+    ["/\t/example.invalid/path", false],
+    ["/path\u0000", false],
+    ["javascript:alert(1)", false],
+    ["tickets", false],
+  ];
+  const files = Object.fromEntries(cases.map(([link], index) => [
+    `staff/tickets/link-${index}.md`,
+    article("Ссылка", `order: ${index}\nlink: ${link}\nlinkLabel: Открыть\n`),
+  ]));
+  const root = tree(files);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const articles = loadCatalogue(root, DEFS).sections.find(
+    (section) => section.audience === "staff" && section.key === "tickets",
+  ).articles;
+  cases.forEach(([link, accepted], index) => {
+    assert.equal(articles[index].link, accepted ? link : null, JSON.stringify(link));
+    assert.equal(articles[index].linkLabel, accepted ? "Открыть" : null);
+    if (accepted) assert.equal(new URL(articles[index].link, "https://portal.invalid").origin, "https://portal.invalid");
+  });
+});

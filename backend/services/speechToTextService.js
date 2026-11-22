@@ -1,3 +1,4 @@
+const { setTimeout: delay } = require("node:timers/promises");
 const path = require("path");
 
 const Preferences = require("@/models/preferences");
@@ -82,7 +83,8 @@ const getAttachmentMimeType = (attachment) =>
   attachment?.mimetype || attachment?.mimeType || "application/octet-stream";
 
 const getAttachmentExtension = (attachment) =>
-  path.extname(attachment?.name || attachment?.originalName || "")
+  path
+    .extname(attachment?.name || attachment?.originalName || "")
     .slice(1)
     .toLowerCase();
 
@@ -103,7 +105,7 @@ const isAudioAttachment = (attachment) => {
   );
 };
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms, signal) => delay(ms, undefined, { signal });
 
 // Основной провайдер, у которого распознавание может взять данные. Пары не
 // произвольные: у OpenAI один ключ на чат и на расшифровку, у Яндекса один ключ
@@ -207,7 +209,6 @@ const getSpeechToTextConfig = async () => {
     return {
       ...config,
       endpoint: `${aiService.buildLocalBaseUrl(config.baseUrl)}/audio/transcriptions`,
-      timeoutMs: LOCAL_SPEECH_TIMEOUT_MS,
     };
   }
 
@@ -325,7 +326,7 @@ const normalizeDialog = (parsed) => {
 // того, чем распознавали речь (OpenAI или Yandex): глобальная модель обычно
 // сильнее дешёвой gpt-4o-mini и делает итог качественнее. generateJson бросит
 // исключение, если AI выключен/не настроен, — его перехватит вызывающий код.
-const summarizeDialog = async ({ segments, context = {} }) => {
+const summarizeDialog = async ({ segments, context = {}, signal }) => {
   if (!segments.length) return { summary: "", title: "", dialog: [] };
 
   const { system, user } = buildSummaryPrompt({
@@ -340,6 +341,7 @@ const summarizeDialog = async ({ segments, context = {} }) => {
     user,
     maxTokens: SUMMARY_MAX_TOKENS,
     requireActive: false,
+    signal,
   });
 
   const summary = normalizeSummary(parsed);
@@ -360,7 +362,7 @@ const transcribeWithOpenai = async (
     apiKey,
     model,
     endpoint = OPENAI_TRANSCRIPTIONS_ENDPOINT,
-    timeoutMs,
+    signal,
     provider = "openai",
     supportCompany = "",
   },
@@ -395,12 +397,13 @@ const transcribeWithOpenai = async (
     attachment: attachment.name,
   });
 
+  signal.throwIfAborted();
   const response = await fetch(endpoint, {
     method: "POST",
     // Локальные серверы ключа не спрашивают — пустой заголовок не шлём
     headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
     body: formData,
-    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+    signal,
   });
 
   if (!response.ok) {
@@ -493,7 +496,7 @@ const parseYandexResults = (rawText) => {
 
 const transcribeWithYandex = async (
   attachment,
-  { apiKey, folderId, model },
+  { apiKey, folderId, model, signal },
 ) => {
   const extension = getAttachmentExtension(attachment);
   const containerType = YANDEX_CONTAINER_BY_EXTENSION[extension];
@@ -517,7 +520,9 @@ const transcribeWithYandex = async (
     attachment: attachment.name,
   });
 
+  signal.throwIfAborted();
   const startResponse = await fetch(YANDEX_RECOGNIZE_ENDPOINT, {
+    signal,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -566,11 +571,11 @@ const transcribeWithYandex = async (
   // Ждём завершения операции распознавания.
   let done = false;
   for (let attempt = 0; attempt < YANDEX_MAX_POLL_ATTEMPTS; attempt += 1) {
-    await sleep(YANDEX_POLL_INTERVAL_MS);
+    await sleep(YANDEX_POLL_INTERVAL_MS, signal);
 
     const statusResponse = await fetch(
       `${YANDEX_OPERATION_ENDPOINT}/${operationId}`,
-      { headers: yandexAuthHeaders(apiKey, folderId) },
+      { headers: yandexAuthHeaders(apiKey, folderId), signal },
     );
 
     if (!statusResponse.ok) {
@@ -608,7 +613,7 @@ const transcribeWithYandex = async (
 
   const resultResponse = await fetch(
     `${YANDEX_GET_RECOGNITION_ENDPOINT}?operation_id=${operationId}`,
-    { headers: yandexAuthHeaders(apiKey, folderId) },
+    { headers: yandexAuthHeaders(apiKey, folderId), signal },
   );
 
   if (!resultResponse.ok) {
@@ -655,8 +660,15 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
     throw new AppError("Attachment is not a supported audio file", 400, true);
   }
 
+  const signal = AbortSignal.timeout(10 * 60 * 1000);
   const config = await getSpeechToTextConfig();
   const { provider } = config;
+  config.signal = AbortSignal.any([
+    signal,
+    AbortSignal.timeout(
+      provider === "local" ? LOCAL_SPEECH_TIMEOUT_MS : 6 * 60 * 1000,
+    ),
+  ]);
 
   // Настоящие расшифровки и наполняют строку состояния канала в настройках
   let recognition;
@@ -693,6 +705,7 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
     const result = await summarizeDialog({
       segments,
       context: { ...context, supportCompany: config.supportCompany },
+      signal,
     });
     summary = result.summary || "";
     title = result.title || "";
@@ -727,7 +740,11 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
     : "";
 
   if (!text) {
-    throw new AppError("Speech recognition returned an empty result", 502, true);
+    throw new AppError(
+      "Speech recognition returned an empty result",
+      502,
+      true,
+    );
   }
 
   return {
@@ -786,9 +803,7 @@ exports.expireStalePendingSpeech = async (ticket) => {
       },
     },
     {
-      arrayFilters: [
-        { "stuck.name": { $in: stale.map((item) => item.name) } },
-      ],
+      arrayFilters: [{ "stuck.name": { $in: stale.map((item) => item.name) } }],
     },
   ).catch(() => {});
 
@@ -867,6 +882,7 @@ exports.checkSpeechToText = async ({
         sampleRateHertz: "16000",
       });
       const response = await fetch(`${YANDEX_STT_PROBE_ENDPOINT}?${query}`, {
+        signal: AbortSignal.timeout(15000),
         method: "POST",
         headers: { Authorization: `Api-Key ${apiKey}` },
         body: silence,
@@ -890,6 +906,7 @@ exports.checkSpeechToText = async ({
       }
 
       const response = await fetch("https://api.openai.com/v1/models", {
+        signal: AbortSignal.timeout(15000),
         headers: { Authorization: `Bearer ${apiKey}` },
       });
 
