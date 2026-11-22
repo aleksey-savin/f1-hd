@@ -979,3 +979,17 @@ test("device list: staff see every host and every part, as before", async () => 
     inventoryNumber: "B-001",
   });
 });
+
+test("company tech includes personally assigned devices without a location", async (t) => {
+  seedDevices(techDevices.map(row => device({ ...row, locationId: null })));
+  t.mock.method(require("@/models/company"), "findById", () => query({ _id: oid(OWN), alias: "Own" }));
+  t.mock.method(Location, "find", () => query([]));
+  const users = [{ _id: oid(CLIENT_ID), company: { _id: oid(OWN), alias: "Own" } }];
+  t.mock.method(User, "find", filter => query(users.filter(sift(filter))));
+  const outcome = await call(locationController.getCompanyTech, {
+    auth: client,
+    params: { companyId: OWN },
+  });
+  assertOk(outcome);
+  assert.deepEqual(namesOf(outcome.res.payload.devices), ["Личный ноутбук"]);
+});

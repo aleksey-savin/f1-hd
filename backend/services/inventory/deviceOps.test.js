@@ -945,3 +945,22 @@ test("moveDevice: снимок с повтором детали не может 
   const result = await moveDevice(HOST, LOC2, { componentIds: [C1, C1, C1] });
   assert.equal(result.ok, false); assert.equal(saved.length, 0);
 });
+
+for (const configuration of [null, { deviceModelId: M1, deletedAt: new Date() }, { deviceModelId: "bbbbbbbbbbbbbbbbbbbbbbb2" }]) {
+  test(`portal creation rejects invalid configuration: ${JSON.stringify(configuration)}`, async (t) => {
+    t.mock.method(DeviceModel, "findById", async () => ({ _id: M1, deviceTypeId: TYPE }));
+    t.mock.method(DeviceConfiguration, "findById", async () => configuration);
+    const result = await createDevice(body({ deviceTypeId: undefined, deviceModelId: M1, configurationId: C1 }));
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 400);
+    assert.equal(saved.length, 0);
+  });
+}
+
+test("portal creation accepts the model's live configuration", async (t) => {
+  t.mock.method(DeviceModel, "findById", async () => ({ _id: M1, deviceTypeId: TYPE }));
+  t.mock.method(DeviceConfiguration, "findById", async () => ({ _id: C1, deviceModelId: M1 }));
+  const result = await createDevice(body({ deviceTypeId: undefined, deviceModelId: M1, configurationId: C1 }));
+  assert.equal(result.ok, true);
+  assert.equal(String(result.device.configurationId), C1);
+});

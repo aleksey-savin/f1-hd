@@ -255,6 +255,11 @@ const validateNewDevice = async (payload) => {
     payload.userId = payload.userId || parent.userId;
   }
 
+  if (payload.configurationId) {
+    const wrong = await configurationError(payload.configurationId, payload.deviceModelId);
+    if (wrong) return { error: new AppError(wrong.message, wrong.status) };
+  }
+
   const company = await Company.findById(payload.companyId);
   if (!company) {
     return { error: new AppError("Invalid company ID", 400) };
@@ -1242,6 +1247,7 @@ module.exports = {
   checkNewDevice,
   planMoveDevice,
   locationError,
+  configurationError,
   createDevice,
   checkAgentDevice,
   createAgentDevice,

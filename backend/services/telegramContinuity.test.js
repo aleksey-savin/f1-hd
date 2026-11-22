@@ -21,7 +21,13 @@ before(async () => {
   const originalDb = mongoose.connection.db;
   const originalReady = Object.getOwnPropertyDescriptor(mongoose.connection, "readyState");
   const originalClient = mongoose.connection.getClient;
-  mongoose.connection.db = { collection: (name) => assert.fail(`unexpected auth initialization query: ${name}`) };
+  mongoose.connection.db = { collection: (name) => new Proxy({}, {
+    get(_target, method) {
+      // Better Auth 1.7 initializes indexes, but must not read/write identities here.
+      if (method === "createIndex") return async () => "test_index";
+      return () => assert.fail(`unexpected auth initialization query: ${name}.${String(method)}`);
+    },
+  }) };
   Object.defineProperty(mongoose.connection, "readyState", { configurable: true, value: 1 });
   mongoose.connection.getClient = () => ({});
   try {

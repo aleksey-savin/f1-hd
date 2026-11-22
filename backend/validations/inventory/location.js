@@ -155,54 +155,31 @@ const coordinatesValidation = [
 
 // Custom validation for parent-child relationship
 const hierarchyValidation = [
-  body("parent")
-    .optional()
-    .custom(async (parentId, { req }) => {
-      if (parentId) {
-        const Location = require("../../models/inventory/location");
-
-        // Check if parent exists
-        const parent = await Location.findById(parentId);
-        if (!parent) {
-          throw new Error("Родительское расположение не найдено");
-        }
-
-        // Родитель должен принадлежать той же компании, что и создаваемое/
-        // редактируемое расположение. isAuth выставляет только req.userId (не
-        // req.user), поэтому сверяем с company из тела запроса — его всегда шлёт
-        // форма, и контроллер использует тот же источник.
-        const targetCompany = req.body.company;
-        if (
-          targetCompany &&
-          parent.company &&
-          parent.company.toString() !== targetCompany.toString()
-        ) {
-          throw new Error(
-            "Родительское расположение должно принадлежать той же компании",
-          );
-        }
-
-        // For updates, check circular reference
-        if (req.params.id && parentId === req.params.id) {
-          throw new Error("Расположение не может быть родителем самого себя");
-        }
-
-        // Check if setting this parent would create a circular reference
-        if (req.params.id) {
-          let current = parent;
-          while (current.parent) {
-            if (current.parent.toString() === req.params.id) {
-              throw new Error(
-                "Данное назначение создаст циклическую зависимость",
-              );
-            }
-            current = await Location.findById(current.parent);
-            if (!current) break;
-          }
-        }
-      }
-      return true;
-    }),
+  body("parent").custom(async (givenParentId, { req }) => {
+    const Location = require("../../models/inventory/location");
+    // Validate the effective relationship, including partial API updates.
+    const currentLocation = req.params.id
+      ? await Location.findById(req.params.id)
+      : null;
+    const parentId = givenParentId === undefined ? currentLocation?.parent : givenParentId;
+    if (!parentId) return true;
+    const parent = await Location.findById(parentId);
+    if (!parent) throw new Error("Родительское расположение не найдено");
+    const targetCompany = req.body.company ?? currentLocation?.company;
+    if (targetCompany && parent.company && String(parent.company) !== String(targetCompany)) {
+      throw new Error("Родительское расположение должно принадлежать той же компании");
+    }
+    const visited = new Set(req.params.id ? [String(req.params.id)] : []);
+    let current = parent;
+    while (current) {
+      const id = String(current._id);
+      if (visited.has(id)) throw new Error("Данное назначение создаст циклическую зависимость");
+      visited.add(id);
+      if (!current.parent) break;
+      current = await Location.findById(current.parent);
+    }
+    return true;
+  }),
 ];
 
 // Combined validation

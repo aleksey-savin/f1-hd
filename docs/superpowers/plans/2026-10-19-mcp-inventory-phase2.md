@@ -493,10 +493,10 @@
 ### Task 13: Docs and the live check
 
 **Files:**
-- Create: `docs/inventory-changes.md`. Sections: purpose, roles, life cycle, operations table, refs, limits, Telegram flow, notifications, sweep, data model, security model, known limits (portal page in phase 3), tests.
+- Create: [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes). Sections: purpose, roles, life cycle, operations table, refs, limits, Telegram flow, notifications, sweep, data model, security model, known limits (portal page in phase 3), tests.
 - Modify:
   - `docs/mcp.md` («Inventory change tools» + scope list);
-  - `docs/inventory.md` (one line in «Agent access (MCP)» linking `docs/inventory-changes.md`).
+  - `docs/inventory.md` (one line in «Agent access (MCP)» linking [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes)).
 
 - [ ] **Step 1: Write the docs** from the code (English, no UI talk).
 - [ ] **Step 2: Live check** inside `hd-backend-1` on the local DB (docker with the sandbox off).

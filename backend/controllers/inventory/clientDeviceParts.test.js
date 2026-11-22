@@ -489,7 +489,7 @@ const existingPart = () =>
     inventoryNumber: "CMP-000001",
   });
 
-test("update: правка детали без parentDeviceId сохраняет ПК, явный null снимает", async (t) => {
+test("update preserves the parent and rejects direct detachment", async (t) => {
   const { saved } = stubCatalog(t);
   const part = existingPart();
   t.mock.method(ClientDevice, "findById", () => chain(part));
@@ -507,8 +507,8 @@ test("update: правка детали без parentDeviceId сохраняет
     params: { id: String(other._id) },
     body: { companyId: COMPANY, deviceTypeId: CPU, parentDeviceId: null },
   });
-  assert.ifError(cleared.error);
-  assert.equal(saved[1].parentDeviceId ?? null, null);
+  assert.equal(cleared.error?.statusCode, 409);
+  assert.equal(saved.length, 1);
 });
 
 // --- delete: ПК с деталями не удаляется ------------------------------------
@@ -711,4 +711,50 @@ test("update: изменение расположения ПК перемеща�
   assert.equal(saved.length, 2); assert.equal(String(part.locationId), target);
   assert.equal(String(part.$where.parentDeviceId), String(pc._id));
   assert.equal(String(part.$where.locationId), LOCATION);
+});
+
+for (const target of ["self", HOST]) {
+  test(`update rejects direct parent change: ${target}`, async (t) => {
+    const { saved } = stubCatalog(t);
+    const pc = existingPc();
+    t.mock.method(ClientDevice, "findById", () => chain(pc));
+    const { error } = await call(controller.update, {
+      params: { id: String(pc._id) },
+      body: { companyId: COMPANY, deviceTypeId: PC, parentDeviceId: target === "self" ? String(pc._id) : target },
+    });
+    assert.equal(error?.statusCode, 409);
+    assert.equal(saved.length, 0);
+  });
+}
+
+for (const configuration of [null, { deviceModelId: M2 }, { deviceModelId: M1, deletedAt: new Date() }]) {
+  test(`update rejects unavailable or foreign configuration: ${JSON.stringify(configuration)}`, async (t) => {
+    const { saved } = stubCatalog(t);
+    const pc = new ClientDevice({ companyId: COMPANY, deviceModelId: M1 });
+    t.mock.method(ClientDevice, "findById", () => chain(pc));
+    t.mock.method(DeviceModel, "findById", () => chain(models[0]));
+    t.mock.method(DeviceConfiguration, "findById", () => chain(configuration));
+    const { error } = await call(controller.update, {
+      params: { id: String(pc._id) },
+      body: { companyId: COMPANY, deviceModelId: M1, configurationId: C1 },
+    });
+    assert.equal(error?.statusCode, 400);
+    assert.equal(saved.length, 0);
+  });
+}
+
+test("update accepts the existing parent and the model's live configuration", async (t) => {
+  const { saved } = stubCatalog(t);
+  const part = new ClientDevice({ companyId: COMPANY, deviceModelId: M1, parentDeviceId: HOST });
+  t.mock.method(ClientDevice, "findById", () => chain(part));
+  t.mock.method(DeviceModel, "findById", () => chain(models[0]));
+  t.mock.method(DeviceConfiguration, "findById", () => chain({ _id: C1, deviceModelId: M1 }));
+  const { error } = await call(controller.update, {
+    params: { id: String(part._id) },
+    body: { companyId: COMPANY, deviceModelId: M1, configurationId: C1, parentDeviceId: HOST },
+  });
+  assert.ifError(error);
+  assert.equal(saved.length, 1);
+  assert.equal(String(saved[0].parentDeviceId), HOST);
+  assert.equal(String(saved[0].configurationId), C1);
 });

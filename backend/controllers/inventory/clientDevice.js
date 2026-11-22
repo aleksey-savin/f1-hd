@@ -43,6 +43,7 @@ const {
   getEffectiveTypeId,
   planDeviceParts,
   locationError,
+  configurationError,
   planMoveDevice,
   validateAssembly,
 } = require("../../services/inventory/deviceOps");
@@ -1061,6 +1062,15 @@ exports.update = async (req, res, next) => {
     if (!deviceVisibleTo(deviceViewer(req.auth), device)) {
       return next(new AppError("Устройство недоступно", 404));
     }
+    // Assembly membership changes use the dedicated attach/detach operations.
+    if ("parentDeviceId" in req.body &&
+        String(payload.parentDeviceId || "") !== String(device.parentDeviceId || "")) {
+      return next(new AppError("Используйте действие присоединения или открепления комплектующего", 409));
+    }
+    if (payload.configurationId) {
+      const wrong = await configurationError(payload.configurationId, payload.deviceModelId);
+      if (wrong) return next(new AppError(wrong.message, wrong.status));
+    }
     // Отсутствующее поле сохраняет прежнее значение; явная очистка запрещена.
     if (!("locationId" in req.body)) payload.locationId = device.locationId;
     if (device.locationId && !payload.locationId) {
@@ -1159,9 +1169,8 @@ exports.update = async (req, res, next) => {
       payload.buildId = null;
     }
 
-    // Связь с хозяином сборки: форма правки её не присылает — тогда остаётся
-    // прежней (иначе правка детали открепила бы её). Снимает связь
-    // detachComponent; явный ключ в теле применяется как есть.
+    // The edit form omits the parent; keep it. Membership changes belong to
+    // attachComponent/detachComponent, and a different parent is rejected above.
     if (!("parentDeviceId" in req.body)) {
       payload.parentDeviceId = device.parentDeviceId;
     }

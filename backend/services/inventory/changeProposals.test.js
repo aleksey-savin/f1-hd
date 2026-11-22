@@ -268,3 +268,14 @@ test("слияния: в отказе по праву — русское наз�
     ],
   );
 });
+
+test("different MCP keys share the requester's open-proposal limit", async () => {
+  let open = 4;
+  const { proposals } = setup({ store: {
+    countOpen: async () => open,
+    create: async doc => { await new Promise(resolve => setImmediate(resolve)); open++; return doc; },
+  } });
+  const outcomes = await Promise.all(["k1", "k2"].map(keyId => proposals.propose(base(), { keyId })));
+  assert.equal(outcomes.filter(result => result.ok).length, 1);
+  assert.equal(open, 5);
+});

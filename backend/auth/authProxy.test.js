@@ -15,11 +15,11 @@ async function serve(t, app) {
 
 test('Express hops 2 overwrites forged auth/forwarding identity before installed better-auth IP reader', async (t) => {
   const f = await fixture();
-  const { getIp } = await import('better-auth/api');
+  const { getIP } = await import('better-auth/api');
   const { toNodeHandler } = await import('./instance.mjs');
   const app = express();
   app.set('trust proxy', parseTrustProxyHops('2'));
-  app.post('/probe', toNodeHandler({ handler: async (request) => Response.json({ ip: getIp(request, f.ctx.options) }) }));
+  app.post('/probe', toNodeHandler({ handler: async (request) => Response.json({ ip: getIP(request, f.ctx.options) }) }));
   const send = await serve(t, app);
   for (const ip of ['198.51.100.10', '198.51.100.11']) {
     const response = await send('/probe', { 'x-forwarded-for': `1.2.3.4, ${ip}, 10.0.0.2`, 'x-real-ip': '4.3.2.1', [AUTH_IP_HEADER]: '8.8.8.8' });
@@ -86,7 +86,7 @@ test('stable Task4 raw-body bridge preserves canonical Express IP through real b
   const mongoose = require('mongoose');
   const config = require('./config');
   const bootstrap = require('./bootstrap');
-  const { getIp } = await import('better-auth/api');
+  const { getIP } = await import('better-auth/api');
   const { authBodyLimit } = require('../middleware/authBodyLimit');
   const { authPathAllowList } = require('../middleware/authPathAllowList');
   const { browserOrigin } = require('../middleware/browserOrigin');
@@ -98,7 +98,7 @@ test('stable Task4 raw-body bridge preserves canonical Express IP through real b
   t.mock.property(config, 'secret', 'proxy-test-only-secret-of-at-least-32-characters');
   const previousDb = Object.getOwnPropertyDescriptor(mongoose.connection, 'db');
   const previousReady = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
-  mongoose.connection.db = { collection: () => ({}) };
+  mongoose.connection.db = { collection: () => ({ createIndex: async () => "test_index" }) };
   Object.defineProperty(mongoose.connection, 'readyState', { configurable: true, value: 1 });
   t.after(() => {
     if (previousDb) Object.defineProperty(mongoose.connection, 'db', previousDb); else delete mongoose.connection.db;
@@ -109,7 +109,7 @@ test('stable Task4 raw-body bridge preserves canonical Express IP through real b
   const ctx = await auth.$context;
   // Only this diagnostic endpoint is replaced; dispatch, bounded body replay,
   // Node adapter and the installed IP reader are all the production ones.
-  t.mock.method(auth, 'handler', async (request) => Response.json({ ip: getIp(request, ctx.options), body: await request.json() }));
+  t.mock.method(auth, 'handler', async (request) => Response.json({ ip: getIP(request, ctx.options), body: await request.json() }));
   const app = express(); app.set('trust proxy', parseTrustProxyHops('2'));
   app.all('/api/auth/{*path}', authPathAllowList, browserOrigin({ publicUrl: ORIGIN }), authBodyLimit(), bootstrap.authRequestHandler);
   const send = await serve(t, app);

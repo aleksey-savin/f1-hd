@@ -13,7 +13,7 @@
 
 **Tech Stack:** Node.js + Mongoose (CommonJS), тесты `node:test`; React + Vite + TypeScript, Tailwind/shadcn (`components/app`).
 
-**Spec:** `docs/superpowers/specs/2026-10-29-mcp-inventory-model-specs-design.md`. Механика пакетов описана в `docs/inventory-changes.md`, инструменты — в `docs/mcp.md`.
+**Spec:** `docs/superpowers/specs/2026-10-29-mcp-inventory-model-specs-design.md`. Механика пакетов описана в [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes), инструменты — в `docs/mcp.md`.
 
 ## Global Constraints
 
@@ -83,7 +83,7 @@
   - `backend/services/inventory/catalogEditOps.js` (`FIELDS`, `EDITABLE`, `normalize`, `kindRules`);
   - `backend/services/inventory/changeOps/catalogEditKinds.js` (поля агента, `LABELS`);
   - `backend/services/mcp/inventoryChangeTools.js` (описание параметров в `INVENTORY_PROPOSE_DESCRIPTION`);
-  - `docs/inventory-changes.md` (таблица видов: строки `updateVendor`, `updateModel`).
+  - [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes) (таблица видов: строки `updateVendor`, `updateModel`).
 - Test: `backend/services/inventory/catalogEditOps.test.js`, `backend/services/inventory/changeOps.test.js`
 
 **Interfaces:**
@@ -118,7 +118,7 @@
   - `backend/services/inventory/changeOps/kit.js` (`defineKind.check` передаёт `checked.provides` дальше);
   - `backend/services/inventory/changeOps.js` (`checkPackage` копит `provides` и передаёт `ctx.provided` в `check`; в `items` поле не сохраняется);
   - `backend/services/inventory/changeOps/catalogEditKinds.js` (`updateConfiguration` передаёт `ctx.provided` в сервис);
-  - `docs/inventory-changes.md` (раздел «Refs between operations»: абзац про `provided`).
+  - [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes) (раздел «Refs between operations»: абзац про `provided`).
 - Test: `backend/services/inventory/catalogOps.test.js`, `catalogEditOps.test.js`, `changeOps.test.js`
 
 **Interfaces:**
@@ -160,7 +160,7 @@
 - Modify:
   - `backend/services/inventory/changeProposals.js` (автор из модели, рамка, `origin`, отметки после `create`);
   - `backend/models/inventory/inventoryChange.js` (поле `origin`);
-  - `docs/inventory-changes.md` (новый раздел «Model specs (agent)»: режим, рамка, отметки).
+  - [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes) (новый раздел «Model specs (agent)»: режим, рамка, отметки).
 - Test: `backend/services/inventory/changeProposals.test.js`
 
 **Interfaces:**

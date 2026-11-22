@@ -112,37 +112,40 @@ function createProposals({ store, ops, now = () => new Date() }) {
         items = checked.items;
       }
 
-      if (requester && !requester.error) {
+      // The key lock protects the daily quota; the requester lock protects
+      // the open quota even when several MCP keys propose for the same person.
+      if (!requester || requester.error) return refuse(errors);
+      return withLock(`requester:${requester._id}`, async () => {
         if ((await store.countOpen(requester._id)) >= MAX_OPEN) errors.push(`too many open proposals for this requester (${MAX_OPEN}): wait until some are decided`);
         if ((await store.countByKeySince(caller.keyId, new Date(at.getTime() - DAY_MS))) >= MAX_PER_DAY) errors.push(`too many proposals from this key in the last 24 hours (${MAX_PER_DAY})`);
-      }
-      if (errors.length) return refuse(errors);
+        if (errors.length) return refuse(errors);
 
-      const doc = {
-        number: await store.nextNumber(),
-        title,
-        reason,
-        requestedBy: requester._id,
-        requestedVia: { keyId: caller.keyId, keyName: caller.keyName },
-        operations: items.map((item) => ({
-          kind: item.kind,
-          ...(item.ref ? { ref: item.ref } : {}),
-          params: item.params,
-          text: item.text,
-          // Вид для страницы портала; предложения до него — без page (страница берёт text)
-          ...(item.page ? { page: item.page } : {}),
-          targets: item.targets,
-          ...(item.componentIds ? { componentIds: item.componentIds } : {}),
-          ...(item.componentRefs ? { componentRefs: item.componentRefs } : {}),
-          // Снимок ссылок (renameOptions, слияния): применение идёт ровно по нему
-          ...(item.refs ? { refs: item.refs } : {}),
-          result: { state: "pending" },
-        })),
-        status: STATUS.awaitingRequester,
-        expiresAt: new Date(at.getTime() + TTL_MS),
-        timeline: [{ at, kind: "proposed", user: requester._id, text: "Предложено ИИ-агентом" }],
-      };
-      return { ok: true, change: await store.create(doc) };
+        const doc = {
+          number: await store.nextNumber(),
+          title,
+          reason,
+          requestedBy: requester._id,
+          requestedVia: { keyId: caller.keyId, keyName: caller.keyName },
+          operations: items.map((item) => ({
+            kind: item.kind,
+            ...(item.ref ? { ref: item.ref } : {}),
+            params: item.params,
+            text: item.text,
+            // Вид для страницы портала; предложения до него — без page (страница берёт text)
+            ...(item.page ? { page: item.page } : {}),
+            targets: item.targets,
+            ...(item.componentIds ? { componentIds: item.componentIds } : {}),
+            ...(item.componentRefs ? { componentRefs: item.componentRefs } : {}),
+            // Снимок ссылок (renameOptions, слияния): применение идёт ровно по нему
+            ...(item.refs ? { refs: item.refs } : {}),
+            result: { state: "pending" },
+          })),
+          status: STATUS.awaitingRequester,
+          expiresAt: new Date(at.getTime() + TTL_MS),
+          timeline: [{ at, kind: "proposed", user: requester._id, text: "Предложено ИИ-агентом" }],
+        };
+        return { ok: true, change: await store.create(doc) };
+      });
     });
   }
   return { propose };

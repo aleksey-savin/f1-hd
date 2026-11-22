@@ -13,7 +13,7 @@
 - Backend: Node CommonJS, Express 5, Mongoose, `node:test`.
 - Frontend: React 19, React Router data loaders, Tailwind + shadcn primitives from `components/app`, TS utils tested with `node --test`.
 
-**Spec:** `docs/superpowers/specs/2026-10-16-mcp-inventory-design.md` (phase 3). The approved mockup (owner «да, норм», 20.10) is https://claude.ai/artifact/MRyneSKyAQAeFWACHtnj2M; file `.superpowers/sdd/2026-10-20-mcp-inventory-phase3/mockup.html`. The phase 2 module doc is `docs/inventory-changes.md`.
+**Spec:** `docs/superpowers/specs/2026-10-16-mcp-inventory-design.md` (phase 3). The approved mockup (owner «да, норм», 20.10) is https://claude.ai/artifact/MRyneSKyAQAeFWACHtnj2M; file `.superpowers/sdd/2026-10-20-mcp-inventory-phase3/mockup.html`. The phase 2 module doc is [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes).
 
 ## Global Constraints
 
@@ -125,7 +125,7 @@
 - Create: `routes/internal/inventory/inventoryChange.js`
 - Modify: `routes/index.js` (mount the router alongside the other `/inventory` sub-routers)
 - Modify: `routes/inventoryMount.js` (prefix `/changes` → `[inventoryModuleIsActive, isNotClient]`) and `routes/inventoryMount.test.js` (a case `/api/inventory/changes/abc`)
-- Modify: `docs/inventory-changes.md` (section «Portal HTTP» in English: the endpoints, who sees what, codes)
+- Modify: [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes) (section «Portal HTTP» in English: the endpoints, who sees what, codes)
 
 **Interfaces:**
 - Consumes: `op.page` (Task 1), `STATUS`, `STATUS_LABELS`, `isOpen` (`changeSteps.js`), `MESSAGES` and `liveInventoryDecisions` (`changeDecisions.js`), `isStuck` semantics (`change.stuck === true && status === "failed"`).
@@ -192,7 +192,7 @@
   - The no-Telegram answer becomes «next: no Telegram message could be sent — the person has no linked Telegram bot (or Telegram notifications are off in the helpdesk); they can approve it in the portal: <link>».
   - The propose answer gives the portal link for the person again; drop the comment that the page comes later.
   - If the tool description changes, re-measure the `routes/mcp.test.js` budget. The cap stays at +5000.
-- Modify: `docs/live-updates.md` (topic `inventoryChanges`), `docs/inventory-changes.md` (bell link, wording)
+- Modify: `docs/live-updates.md` (topic `inventoryChanges`), [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes) (bell link, wording)
 - Test: `services/pulseTopics.test.js` (if it enumerates models), `services/inventory/changeNotifications.test.js`, `services/inventory/changeRender.test.js`, `services/mcp/inventoryChangeTools.test.js`, `tg-service/src/bot/inventoryChange.test.ts`, `routes/mcp.test.js`
 
 **Interfaces:**
@@ -359,7 +359,7 @@ Behaviour:
 ---
 
 ## Docs (folded into the tasks above)
-- `docs/inventory-changes.md`:
+- [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes):
   - Task 2: the «Portal HTTP» section;
   - Task 3: the topic, the bell link and the wording;
   - Task 5: one line «Portal page: `/inventory/changes/:id` (frontend `pages/InventoryChange/Change.jsx`)». It stays without UI description, per the module-doc convention.

@@ -15,6 +15,11 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Fixed
 
+- Updated backend authentication, MCP, Mongoose, upload, and transitive validation/request-parser dependencies to address the reported high and critical dependency advisories.
+
+- Inventory edits reject direct assembly reparenting and foreign, missing, or deleted device configurations. Configurations cannot be reassigned to another model. Location updates validate the stored company/parent when fields are omitted, and company equipment lists include personally assigned devices without locations.
+- Inventory proposals from different MCP keys share the requester quota lock within one backend process, preventing concurrent submissions from exceeding the five-open-proposal limit.
+
 - Help article buttons reject external destinations disguised as portal paths, including backslashes and control characters.
 
 - Deployment preserves an existing legacy `MIKROTIK_ENC_KEY` when initializing `APP_ENC_KEY`. Restore aborts before restoring data if application services cannot be stopped.
@@ -33,6 +38,14 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 - AI findings unsupported by the source conversation are discarded separately from supported user-review results.
 
 ### Upgrade instructions
+
+- The backend now uses Better Auth 1.7. Its MongoDB adapter attempts to create authentication indexes automatically. Check startup logs for duplicate-value, conflicting-index, or permission errors; failed permanent index builds require correcting the cause and restarting the backend. Existing authentication data is not automatically deduplicated.
+
+- Inventory API clients must use the dedicated component attach/detach endpoints to change assembly membership. Configuration ownership is immutable through configuration updates. These validations do not repair previously inconsistent inventory records; no data migration is included.
+
+- AI-agent inventory proposal operations and recovery limits are now documented in `docs/inventory.md`. Approval remains requester-only in Telegram or the portal; moves require the full assembly, and crash recovery records are best-effort rather than transactional. No runtime or data migration is included in this documentation consolidation.
+
+- Inventory documentation now distinguishes schema indexes from historical database observations and documents local/S3 photo storage and best-effort cleanup. No index or data migration accompanies these documentation corrections; inspect the target database before changing legacy indexes.
 
 - Recovery and host migration require a final backup with application and external writers stopped. Built-in backups exclude S3 objects and Telegram's SQLite volume; preserve them separately. Restore overlays files and does not remove collections absent from the dump. See [deployment](docs/deployment.md#backup-and-restore).
 - If an older deployment already generated a different `APP_ENC_KEY` over a legacy key, this update does not repair existing encrypted data automatically. Recover the original key and determine which key was used before changing configured keys.

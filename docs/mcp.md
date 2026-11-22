@@ -1601,9 +1601,9 @@ Added 2026-10-20. Code: `services/mcp/inventoryChangeTools.js` (tools and the
 read store `mongoChangeStore`), registered in `services/mcp/server.js`,
 assembled in `routes/mcp.js` as `tools.inventoryChanges`. The agent's whole
 write surface to the inventory: propose, read status, list. Approving and
-applying exist only for the requester, in Telegram. The life cycle, operation
+applying require the requester’s decision, in Telegram or the portal. The life cycle, operation
 kinds, refs, limits, notifications and security model are in
-[`docs/inventory-changes.md`](./inventory-changes.md); this section covers only
+[inventory proposal documentation](./inventory.md#8-ai-agent-inventory-changes); this section covers only
 the tool layer.
 
 **Family gate.** `toolFamilies().inventoryChanges` = key scope `inventoryChanges`
@@ -1660,7 +1660,7 @@ and true restores; a merge moves all references and hides the source, retire
 hides an unused record, `deleteGroup` deletes an empty group, live existing ids
 only, in a package with no other operation on the same records, and conflicts
 are fixed by `updateConfiguration` in a separate proposal first. The semantics
-are in [`docs/inventory-changes.md`](./inventory-changes.md) («Catalog edits,
+are in [inventory proposal documentation](./inventory.md#8-ai-agent-inventory-changes) («Catalog edits,
 merges and retires»). The parity test of `inventoryChangeTools.test.js` parses
 each line (a shared line counts for each of its kinds) and checks, both ways,
 every registry field and its `*`, nested lists included; a second test checks

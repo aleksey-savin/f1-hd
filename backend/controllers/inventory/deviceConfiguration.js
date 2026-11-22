@@ -123,6 +123,12 @@ exports.update = async (req, res, next) => {
       );
     }
 
+    // A configuration belongs to its original model; moving it also changes
+    // every device/build that references it and can empty the source model.
+    if (deviceModelId && String(deviceModelId) !== String(deviceConfiguration.deviceModelId)) {
+      return next(new AppError("Нельзя изменить модель конфигурации", 409));
+    }
+
     // Update fields
     if (deviceModelId) {
       // Validate that device model exists

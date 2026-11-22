@@ -15,7 +15,7 @@
 
 **Tech Stack:** Node CommonJS, Mongoose, `node:test`; React for the picker filter.
 
-**Spec:** `docs/superpowers/specs/2026-10-20-mcp-inventory-phase4-design.md`. The parent spec is `docs/superpowers/specs/2026-10-16-mcp-inventory-design.md`, and the module doc is `docs/inventory-changes.md`. Mockup: https://claude.ai/artifact/9opwPYPd2n1uphvD5go8U9 (file `.superpowers/sdd/2026-10-20-mcp-inventory-phase4/mockup.html`); it needs the owner's «ок» before Task 9 and before the texts are final.
+**Spec:** `docs/superpowers/specs/2026-10-20-mcp-inventory-phase4-design.md`. The parent spec is `docs/superpowers/specs/2026-10-16-mcp-inventory-design.md`, and the module doc is [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes). Mockup: https://claude.ai/artifact/9opwPYPd2n1uphvD5go8U9 (file `.superpowers/sdd/2026-10-20-mcp-inventory-phase4/mockup.html`); it needs the owner's «ок» before Task 9 and before the texts are final.
 
 ## Global Constraints
 
@@ -301,7 +301,7 @@
   - `services/mcp/inventoryChangeTools.js` (the operation-kind list in the tool description gains the new kinds in one compact line each; the propose answer includes the merge/retire count lines and the conflicts);
   - `services/mcp/server.js` INSTRUCTIONS `inventoryChanges` (one paragraph: merge only on a `catalogDuplicates` finding or on the person's explicit request; resolve conflicts in a separate proposal first; hidden records are not selectable);
   - `routes/mcp.test.js` (re-measure the budget; ruling: the cap for `inventoryChanges` may rise to at most +7000 over BASELINE 30181, and nothing else may grow);
-  - `docs/inventory-changes.md` (operations table, merge/retire lifecycle, hidden records, the `refs` snapshot, rights — in English, no UI);
+  - [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes) (operations table, merge/retire lifecycle, hidden records, the `refs` snapshot, rights — in English, no UI);
   - `docs/mcp.md` (the kinds list).
 - Test: `services/mcp/inventoryFindings.test.js`, `services/mcp/inventoryChangeTools.test.js`, `routes/mcp.test.js`
 

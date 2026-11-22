@@ -172,7 +172,7 @@ test("configurationForDevice: не прислана — единственная
 **Files:**
 - Modify: `backend/services/inventory/catalogOps.js` — `execute`, `planModel`, `planConfiguration`
 - Test: `backend/services/inventory/catalogOps.test.js` (стиль файла: `stubModule`, без базы)
-- Modify: `docs/inventory-changes.md` — строка `createConfiguration` таблицы операций (поведение заполнения/включения режима), одной-двумя фразами по-английски
+- Modify: [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes) — строка `createConfiguration` таблицы операций (поведение заполнения/включения режима), одной-двумя фразами по-английски
 
 **Interfaces:**
 - Consumes: `agentConfigurationMode`, `liveConfigurations` (Task 1).

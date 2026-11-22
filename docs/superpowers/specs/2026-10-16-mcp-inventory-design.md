@@ -183,7 +183,7 @@
 
 ## Фаза 4 — уборка дублей
 
-Подробная спецификация 20.10 — `docs/superpowers/specs/2026-10-20-mcp-inventory-phase4-design.md` (правка справочников + слияние + скрытие неиспользуемого). Там же уточнения к этому разделу: мёртвые поля не трогаются, источник слияния переименовывается. **Реализовано 28.10, не закоммичено, в браузере не проверено** (план `docs/superpowers/plans/2026-10-20-mcp-inventory-phase4.md`; решения исполнителя — в `docs/inventory-changes.md`).
+Подробная спецификация 20.10 — `docs/superpowers/specs/2026-10-20-mcp-inventory-phase4-design.md` (правка справочников + слияние + скрытие неиспользуемого). Там же уточнения к этому разделу: мёртвые поля не трогаются, источник слияния переименовывается. **Реализовано 28.10, не закоммичено, в браузере не проверено** (план `docs/superpowers/plans/2026-10-20-mcp-inventory-phase4.md`; решения исполнителя — в [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes)).
 
 Операции `mergeModels`, `mergeAttributes`, `mergeDeviceTypes`, `deleteUnusedAttribute`:
 - при предложении фиксируется явный список `_id` переносимых ссылок и их число. Это устройства, конфигурации, join-строки, а также `DeviceType.configurationIds`, `DeviceTypeAttribute.extendableFromIds`, `DeviceModel.compatibleWithModelIds` и `DeviceConfigurationRecommendation.deviceConfigurationId`;
@@ -219,7 +219,7 @@
 ## Документация
 
 - `docs/mcp.md`: разделы «Inventory tools» и «Inventory change tools» на английском, как остальной док;
-- новый `docs/inventory-changes.md` (жизненный цикл, операции, модель данных, безопасность);
+- новый [inventory proposal documentation](../../inventory.md#8-ai-agent-inventory-changes) (жизненный цикл, операции, модель данных, безопасность);
 - поправить устаревшие места `docs/inventory.md` (стр. 298, 189/198, 461);
 - спецификация `docs/superpowers/specs/2026-10-16-mcp-inventory-design.md`.
 

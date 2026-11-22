@@ -1224,7 +1224,7 @@ exports.getCompanyTech = async (req, res, next) => {
       company: companyId,
       isActive: true,
     }).select("name type parent");
-    const companyUsers = await User.find({ company: companyId }).select("_id");
+    const companyUsers = await User.find({ "company._id": companyId }).select("_id");
 
     const devicesRaw = await ClientDevice.find({
       deletedAt: null,

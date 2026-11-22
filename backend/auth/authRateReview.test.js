@@ -134,9 +134,9 @@ test('magic invalid and consumed-token redirects consume five-request window and
 
 test('library abuse resolver masks IPv6 /64 while session audit retains exact trusted header', async () => {
   const f = await fixture();
-  const { getIp } = await import('better-auth/api');
+  const { getIP } = await import('better-auth/api');
   for (const ip of ['2001:db8:abcd:1234::1', '2001:db8:abcd:1234::ffff']) {
-    assert.equal(getIp(headers(ip), f.ctx.options), '2001:0db8:abcd:1234:0000:0000:0000:0000');
+    assert.equal(getIP(headers(ip), f.ctx.options), '2001:0db8:abcd:1234:0000:0000:0000:0000');
     await f.auth.api.signInEmail({ headers: headers(ip), body: { email: f.user.email, password: PASSWORD } });
     assert.equal(f.data.authSessions.at(-1).ipAddress, ip);
   }

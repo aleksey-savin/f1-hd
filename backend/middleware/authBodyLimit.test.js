@@ -186,6 +186,8 @@ test("real bootstrap dispatch consumes bounded raw body through its preserved Ta
   // Only Mongo persistence is synthetic. No connect(), DB or external service.
   const originalDb = Object.getOwnPropertyDescriptor(mongoose.connection, "db");
   mongoose.connection.db = { collection: (name) => ({
+    createIndex: async () => "test_index",
+    deleteMany: async () => ({ deletedCount: 0 }),
     findOne: async (query) => { seen.push({ name, query }); return null; },
     aggregate: (pipeline) => { seen.push({ name, pipeline }); return { toArray: async () => [] }; },
   }) };
