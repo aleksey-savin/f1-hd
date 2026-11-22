@@ -29,7 +29,7 @@ const runServiceExpiryScan = async () => {
     }
     operations.push({
       updateOne: {
-        filter: { _id: note._id },
+        filter: { _id: note._id, content: note.content ?? null, archivedAt: null },
         update: {
           $set: {
             "serviceExpiry.entries": entries,

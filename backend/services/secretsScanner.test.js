@@ -105,3 +105,15 @@ test("redactSecrets: text without secrets and empty input", () => {
   });
   assert.deepEqual(redactSecrets(undefined), { text: "", count: 0 });
 });
+
+test("scanNote checks raw Markdown omitted from plain text", () => {
+  for (const content of [
+    "```\npassword = R00tP@ss123\n```",
+    "[portal](https://user:tiny@host.test)",
+    '<div private-key="sensitive-value"></div>',
+  ]) {
+    const found = scanNote({ title: "Note", plainText: "", content });
+    assert.ok(found.length > 0, content);
+    assert.deepEqual(scanNote({ title: "Note", plainText: "", content }, found.map(f => f.hash)), []);
+  }
+});

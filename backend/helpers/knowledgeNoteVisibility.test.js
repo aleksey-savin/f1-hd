@@ -77,3 +77,11 @@ test("isUnverifiedAgentDraft: отметка агента и нет провер
   assert.equal(isUnverifiedAgentDraft(note({ agent: {} })), false);
   assert.equal(isUnverifiedAgentDraft(null), false);
 });
+
+ test("archived notes are visible only to managers and moderators", () => {
+  const archived = note({ approved: true, archivedAt: new Date() });
+  assert.equal(canViewNote(archived, client), false);
+  assert.equal(canViewNote(archived, engineer), false);
+  assert.equal(canViewNote(archived, manager), true);
+  assert.equal(canViewNote(archived, moderator), true);
+});

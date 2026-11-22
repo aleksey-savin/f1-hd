@@ -62,6 +62,8 @@ const canViewNote = (note, auth, kbConfig = {}) => {
     return false;
   }
 
+  if (note.archivedAt && !canManage) return false;
+
   if (canManage) {
     return true;
   }

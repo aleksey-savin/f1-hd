@@ -383,24 +383,21 @@ much cannot widen the boundary:
   (a draft has no approval; `knowledgeSource.js` selects `agent` and
   `updatedAt` for this).
 
-- **Only the current `secretsScan.flagged` decides.** A note whose findings a
-  moderator marked «Не секрет» is served: `ignoreSecretFinding` recomputes
-  `flagged = findings.length > 0`, and the hourly and on-save scans honour
-  `ignoredHashes`. `findings`, `ignoredHashes` and `scannedAt` are never
-  consulted; a note without a `secretsScan` subdocument is served.
-- **Approval does not clear the flag** (`approve` leaves `secretsScan`
-  alone): an approved note with undismissed findings stays hidden.
-- **Why this is enough:** approving requires `confirmNoSecrets: true`, any
-  edit resets approval, and the scanner flags credentials. HD does **no
-  secret scanning of its own** on the read path (owner decision, 2026-09-17) —
-  the moderation flag is the only guard. Drafts are the exception upstream:
-  they are scanned when written (see «Knowledge base write tools»), and an
-  agent-written note is scanned on every save from the form too, whatever
-  `scanForSecrets` says. Limits: the flag is only maintained
-  while `knowledgeBase.scanForSecrets` is on; notes never scanned stay
-  visible until the hourly pass after scanning is switched on; the scanner
-  stores at most 25 findings, so dismissing those 25 on a note with more
-  leaves it unflagged until the next scan.
+- **Stored flag and raw-content checks.** A flagged note is unavailable.
+  Full-note reads also check raw Markdown for known credential formats,
+  passwords in URLs and secret-named fields. This protects notes created before
+  the expanded scanner ran. The source selects `secretsScan.ignoredHashes`;
+  moderator dismissals are honoured by the read check. Search does not load
+  raw content and uses the stored flag, so an older candidate can appear in
+  search but be refused when opened.
+- **Approval does not clear the flag.** Approval requires both confirmations
+  and the reviewed version; concurrent edits invalidate it. Human-authored
+  notes are scanned on save when scanning is enabled, while agent notes are
+  always scanned on save. The hourly scanner checks raw Markdown too and
+  cannot overwrite results for changed content or a changed ignore list.
+- **Limits.** These are credential-detection rules, not a guarantee of detecting
+  every possible secret. Raw content uses exact-format and structural checks;
+  entropy/proximity heuristics remain limited to title and projected text.
 - **Not per user.** `canViewNote` is not applied (there is no viewer) and
   company bindings do not restrict: whoever holds a `knowledge`-scoped key
   can read every servable note. **Note text is returned unmasked** — unlike
@@ -675,10 +672,10 @@ snippet.
   `update` with `content` checks the new content and the title (new or
   current). An `update` without `content` checks only the new title when one
   is passed, and nothing when only `type` or bindings change: the stored
-  content is not rescanned, neither projected nor raw. A stored text that would
-  be refused today (edited by a person, or saved before a rule existed) does
-  not block a rename or a rebinding; it is still covered by `rescanNoteDerived`
-  on save (see «Saving»).
+  content is not part of patch validation. However, the availability check
+  rejects a stored note containing undismissed raw credentials before any
+  update, including a rename or rebinding. A person must correct or review
+  the note in the portal. `rescanNoteDerived` also runs on save.
 - **`ignoredHashes`.** On update the note's `secretsScan.ignoredHashes` are
   honoured for scanner findings, so a value a moderator already dismissed does
   not block. The two local checks produce no finding and no hash, so nothing
@@ -1709,9 +1706,9 @@ Knowledge base and tickets protect contact/secret data through **different**
 mechanisms — a deliberate difference between the two specs, not an
 inconsistency:
 
-- **Knowledge base** — the moderation gate is the only guard (see
-  «Knowledge base tools» → Scope). Note content is returned **unmasked**,
-  exactly as written; HD does no secret scanning of its own on this path.
+- **Knowledge base** — the moderation gate and raw-content credential checks
+  determine availability (see «Knowledge base tools» → Scope). Accepted content
+  is not credential-redacted; a failed check refuses the note instead.
 - **Tickets** — structured contact/secret/finance fields are **never
   selected** from the database at all (positive projections — see below),
   and every piece of free text that *is* selected is passed through
@@ -1887,7 +1884,7 @@ Added after implementation and live verification:
 | `services/mcp/maskText.test.js` | masked/unchanged table (20 masked rows incl. sentence-final and bracketed phones, 24 technical-number rows that must survive: IPs, versions, dates, serials, invoice/inventory numbers); empty input; a performance guard for long digit runs |
 | `services/mcp/text.test.js` | `ticketPlainText` (HTML→lines, e-mail quote stripping, data-URI drop), `buildSnippet` (matching passage, single line)/`iso`, `fallbackTerms`/`hasAllTerms` |
 | `services/mcp/knowledgeTools.test.js` | scope filter via `sift` (MongoDB matching rules; an agent draft is in, a person's draft is not, archive / deletion / flag still apply, a draft survives a deleted key), ranking (verified first on equal score), the draft label in search and in a full note, the draft line of its own between the header and the content (absent on a verified note), snippet, content shaping, logging |
-| `services/mcp/knowledgeWriteTools.test.js` | both tools over a fake source: draft authored by the requester and marked with the key; unknown requester and one without the right; every bad field reported at once; line break and oversize; unknown and ambiguous names; duplicates (case, ё, spaces; person-written; two parallel creates leave one); data URIs; a secret refuses whatever the preference; the daily limit; partial update, empty list clears, omitted list keeps; nothing to change; human note and hidden/malformed id answers; rename into another title; `ignoredHashes`; a credential hidden in a code fence refused, ordinary router configuration in a code block accepted, the same written as prose refused; linear time on 40,000 characters of each adversarial shape (CPU time, 250 ms bound); a URL with a password refused, a port, a user without a password, an e-mail address and a Windows path accepted; a secret-named field with a value refused by line number, without the name or the value, empty values, placeholders and public fields accepted (`secretFields` directly too); the helpdesk's own markers accepted and saved as sent, a real value glued to a marker refused; switch words accepted, `trap-community=public` / `key=value` / `password=yes123` refused; a wg-quick config with `PrivateKey = …` refused at its line, with public fields only accepted; a moderator's mark lifts the scanner finding but not the field rule; a title-only or bindings-only update does not rescan the stored content, a credential in the new title is refused, new content is checked; control and invisible characters in a title; the requester reason comes before the note is read and before the directory is loaded (update and create); a blank name in a list; a value glued to a marker refused in a code block and in prose (colon, `=`, quoted, in a URL) without the value in the answer; a marker alone accepted (line end before another line, quoted, before another field, as a URL password); `password=` in prose refused with a marker as without; what the tool accepts `rescanNoteDerived` does not flag; a redacted RouterOS export in a code block accepted; a name run after `=` (also through quotes and brackets) not a field; a field refusal is the fixed template with a line number (several lines, two hits on one line, CRLF, at most five) and for the I3 shapes holds no piece of the content |
+| `services/mcp/knowledgeWriteTools.test.js` | both tools over a fake source: draft authored by the requester and marked with the key; unknown requester and one without the right; every bad field reported at once; line break and oversize; unknown and ambiguous names; duplicates (case, ё, spaces; person-written; two parallel creates leave one); data URIs; a secret refuses whatever the preference; the daily limit; partial update, empty list clears, omitted list keeps; nothing to change; human note and hidden/malformed id answers; rename into another title; `ignoredHashes`; a credential hidden in a code fence refused, ordinary router configuration in a code block accepted, the same written as prose refused; linear time on 40,000 characters of each adversarial shape (CPU time, 250 ms bound); a URL with a password refused, a port, a user without a password, an e-mail address and a Windows path accepted; a secret-named field with a value refused by line number, without the name or the value, empty values, placeholders and public fields accepted (`secretFields` directly too); the helpdesk's own markers accepted and saved as sent, a real value glued to a marker refused; switch words accepted, `trap-community=public` / `key=value` / `password=yes123` refused; a wg-quick config with `PrivateKey = …` refused at its line, with public fields only accepted; a moderator's mark lifts the scanner finding but not the field rule; a title-only or bindings-only update cannot bypass raw credentials in stored content, a credential in the new title is refused, new content is checked; control and invisible characters in a title; the requester reason comes before the note is read and before the directory is loaded (update and create); a blank name in a list; a value glued to a marker refused in a code block and in prose (colon, `=`, quoted, in a URL) without the value in the answer; a marker alone accepted (line end before another line, quoted, before another field, as a URL password); `password=` in prose refused with a marker as without; what the tool accepts `rescanNoteDerived` does not flag; a redacted RouterOS export in a code block accepted; a name run after `=` (also through quotes and brackets) not a field; a field refusal is the fixed template with a line number (several lines, two hits on one line, CRLF, at most five) and for the I3 shapes holds no piece of the content |
 | `helpers/knowledgeNoteVisibility.test.js` | `canViewNote` for an agent draft: hidden from a client under every `hideNotApproved` value, visible once verified; a person's unverified note unchanged; manager, moderator and ordinary staff unchanged; `isUnverifiedAgentDraft` |
 | `services/knowledgeBaseContext.test.js` | `collectRelevantNotes` over a stubbed `KnowledgeNote.find` (no database): an unverified agent draft is left out, a verified agent note and a person's unverified note stay; the query selects `approved` and `agent.keyId`; only drafts ⇒ empty result |
 | `services/mcp/requester.test.js` | `pickRequester`: one staff member; none / client / service account / inactive bot / banned; two with one id refused; a number-typed `chatId`; `TELEGRAM_ID` |

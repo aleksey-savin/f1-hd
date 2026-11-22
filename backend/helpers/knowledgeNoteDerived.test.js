@@ -39,14 +39,14 @@ test("сканирование выключено, заметка агента �
 });
 
 test("заметка агента: ignoredHashes сохраняются и гасят находку", async () => {
-  const hash = scanNote(makeNote(SECRET_TEXT))[0].hash;
+  const hashes = scanNote(makeNote(SECRET_TEXT)).map(finding => finding.hash);
   const note = makeNote(SECRET_TEXT, {
     agent: { keyId: "k1", keyName: "Агент" },
-    secretsScan: { ignoredHashes: [hash] },
+    secretsScan: { ignoredHashes: hashes },
   });
   await rescanNoteDerived(note, off);
   assert.equal(note.secretsScan.flagged, false);
-  assert.deepEqual(note.secretsScan.ignoredHashes, [hash]);
+  assert.deepEqual(note.secretsScan.ignoredHashes, hashes);
 });
 
 test("сканирование включено, заметка человека: помечена (прежнее поведение)", async () => {

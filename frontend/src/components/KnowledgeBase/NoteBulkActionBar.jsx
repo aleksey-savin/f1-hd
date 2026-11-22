@@ -43,6 +43,7 @@ const NoteBulkActionBar = () => {
   const fetchNotes = useKnowledgeNotesStore((state) => state.fetch);
 
   const [openModal, setOpenModal] = useState(null);
+  const [reviewedVersions, setReviewedVersions] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
 
   const selectedItems = originalList.filter((note) =>
@@ -90,7 +91,7 @@ const NoteBulkActionBar = () => {
   };
 
   const verifyHandler = ({ confirmCurrent, confirmNoSecrets }, reset) =>
-    request("approve-multiple", { confirmCurrent, confirmNoSecrets }).then(() =>
+    request("approve-multiple", { confirmCurrent, confirmNoSecrets, expectedVersions: reviewedVersions }).then(() =>
       reset?.(),
     );
 
@@ -145,6 +146,7 @@ const NoteBulkActionBar = () => {
     if (key === "decline-archive") {
       return request("decline-archive-multiple");
     }
+    if (key === "verify") setReviewedVersions(Object.fromEntries(selectedItems.map(note => [note._id, note.__v ?? 0])));
     setOpenModal(key);
   };
 

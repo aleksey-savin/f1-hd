@@ -26,7 +26,7 @@ const SEARCH_FIELDS = [
 ].join(" ");
 
 // Поиск текста целиком не читает: `content` может нести base64-картинки.
-const NOTE_FIELDS = `${SEARCH_FIELDS} content createdAt`;
+const NOTE_FIELDS = `${SEARCH_FIELDS} content createdAt secretsScan.ignoredHashes`;
 
 exports.findCandidates = () =>
   KnowledgeNote.find(scopeFilter()).select(SEARCH_FIELDS).lean();

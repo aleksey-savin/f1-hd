@@ -591,22 +591,20 @@ test("update refuses a secret-named field in new content", async () => {
   assert.equal(source.updated.length, 0);
 });
 
-// ── Правка без content проверяет только то, что меняется ───────────────────
-// Сохранённый текст мог править человек (и оставить в нём то, что агенту в новом
-// тексте не разрешили бы): переименование и смена привязок из-за него не падают.
+// Stored raw credentials make an agent note unavailable, including for metadata edits.
 const STORED_WITH_SECRETS = ["Архив: ftp://backup:Zx9qLm@10.0.0.7/dumps", "```\npassword = R00tP@ss123\n```", "Вход: password = R00tP@ss123"];
 
-test("a title-only update does not rescan the stored content", async () => {
+test("metadata-only updates cannot bypass the raw credential boundary", async () => {
   for (const content of STORED_WITH_SECRETS) {
     const mine = agentNote(22, { content });
     const renamed = make({ notes: [mine] });
     const result = await renamed.tools.update({ requester: 1001, id: String(mine._id), title: "Новое имя" }, CALLER);
-    assert.equal(result.isError, undefined, `${content}: ${textOf(result)}`);
-    assert.deepEqual(Object.keys(renamed.source.updated[0].patch).sort(), ["requesterId", "title"]);
+    assert.equal(result.isError, true, `${content}: ${textOf(result)}`);
+    assert.equal(renamed.source.updated.length, 0);
 
     const retyped = make({ notes: [mine] });
-    assert.equal((await retyped.tools.update({ requester: 1001, id: String(mine._id), type: "backlog", companies: [] }, CALLER)).isError, undefined, content);
-    assert.equal(retyped.source.updated.length, 1);
+    assert.equal((await retyped.tools.update({ requester: 1001, id: String(mine._id), type: "backlog", companies: [] }, CALLER)).isError, true, content);
+    assert.equal(retyped.source.updated.length, 0);
   }
 });
 

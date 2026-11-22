@@ -1,3 +1,4 @@
+const { scanNote } = require("../secretsScanner");
 const {
   toStems,
   scoreNote,
@@ -41,7 +42,8 @@ const isServable = (note) =>
   (note.approved === true || isAgentNote(note)) &&
   note.archivedAt == null &&
   note.pendingDeletion !== true &&
-  note.secretsScan?.flagged !== true;
+  note.secretsScan?.flagged !== true &&
+  scanNote({ content: note.content, agent: note.agent }, note.secretsScan?.ignoredHashes || []).length === 0;
 
 const MAX_QUERY_LENGTH = 300;
 const DEFAULT_LIMIT = 8;

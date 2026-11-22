@@ -15,6 +15,11 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Fixed
 
+- Knowledge-base moderation now rejects stale reviewed versions and concurrent edits. Single and bulk archive/deletion decisions enforce pending requests; the legacy delete endpoint submits a request. Archived notes are hidden from ordinary readers, including direct links.
+- Knowledge-base background scans cannot overwrite results for changed source data. Secret checks cover raw Markdown code, URLs and HTML; MCP full-note reads enforce these checks immediately for older notes while respecting moderator dismissals.
+
+- Wide knowledge-base tables now scroll within the note on mobile instead of being clipped beyond the screen. Reading and editing stay within the available width.
+
 - Updated backend authentication, MCP, Mongoose, upload, and transitive validation/request-parser dependencies to address the reported high and critical dependency advisories.
 
 - Inventory edits reject direct assembly reparenting and foreign, missing, or deleted device configurations. Configurations cannot be reassigned to another model. Location updates validate the stored company/parent when fields are omitted, and company equipment lists include personally assigned devices without locations.
@@ -38,6 +43,8 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 - AI findings unsupported by the source conversation are discarded separately from supported user-review results.
 
 ### Upgrade instructions
+
+- Deploy the knowledge-base frontend and backend together and reload open clients. Approval API callers must send `expectedVersion` (the displayed note's `__v`, or `0` when absent); bulk approval uses `expectedVersions` keyed by note ID. Stale/missing versions are rejected or skipped. The legacy delete API now requests moderated deletion. No data migration is required. New structural findings may require review even when an older value-based finding was dismissed. Existing notes receive persisted raw-content findings on their next enabled scan or save; MCP full-note reads check immediately. Rolling back restores the previous moderation and scanning gaps.
 
 - The backend now uses Better Auth 1.7. Its MongoDB adapter attempts to create authentication indexes automatically. Check startup logs for duplicate-value, conflicting-index, or permission errors; failed permanent index builds require correcting the cause and restarting the backend. Existing authentication data is not automatically deduplicated.
 

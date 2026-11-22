@@ -168,8 +168,19 @@ const knowledgeNoteSchema = new Schema(
       scannedAt: Date,
     },
   },
-  { timestamps: true },
+  { timestamps: true, optimisticConcurrency: true },
 );
+
+// Older imported notes may lack __v. Their first save must also be conditional:
+// only one writer can create the version field.
+knowledgeNoteSchema.pre("save", function () {
+  if (!this.isNew) {
+    this.$where = {
+      ...this.$where,
+      __v: this.__v === undefined ? { $exists: false } : this.__v,
+    };
+  }
+});
 
 knowledgeNoteSchema.index({ "companies._id": 1 });
 knowledgeNoteSchema.index({ "users._id": 1 });

@@ -467,9 +467,24 @@ body[data-scroll-locked][data-scroll-locked] {
 .kb-doc .toastui-editor-contents > h4 {
   max-width: 74ch;
 }
-.kb-doc .toastui-editor-contents table,
+.kb-doc {
+  min-width: 0;
+  max-width: 100%;
+}
+.kb-doc .toastui-editor-contents {
+  overflow-wrap: anywhere;
+}
+/* Wide tables scroll within the document instead of being clipped by the
+   mobile shell. Keep their natural column widths and the prose reading width. */
+.kb-doc .toastui-editor-contents table {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
 .kb-doc .toastui-editor-contents pre {
-  max-width: none;
+  max-width: 100%;
+  overflow-x: auto;
 }
 .kb-doc .toastui-editor-defaultUI {
   min-height: 380px;

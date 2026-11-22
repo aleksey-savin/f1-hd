@@ -37,7 +37,7 @@ On top of the content sits a **moderation layer**:
 2. **Two-phase deletion** — a manager *requests* deletion; a moderator *confirms*
    (hard delete) or *declines*.
 3. **Two-phase archival** — a manager *requests* archival; a moderator *confirms*
-   (note disappears everywhere but is restorable) or *declines*. A manager can
+   (note is hidden from ordinary readers but remains available to managers and moderators) or *declines*. A manager can
    *unarchive*.
 4. **Secret leak scanning** — an hourly job greps every note for passwords / API
    keys / private keys and flags leaks for a moderator (raw secret never stored).
@@ -46,7 +46,8 @@ On top of the content sits a **moderation layer**:
 
 The module is gated by a **module flag** and three **dictionary rights**
 (`knowledge.read`, `knowledge.manage`, `knowledge.moderate`), and everything is
-additionally scoped per-user in the controllers (defence in depth).
+filtered per-user on read; management mutations require the management or
+moderation permission.
 
 ## Module gating & permissions
 
@@ -71,8 +72,8 @@ the moderator list is gone from it.
 A moderator is **a holder of `knowledge.moderate`**, i.e. a role — the catalogue
 ships `kb-moderator` for exactly that. The stale
 `Preferences.knowledgeBase.moderators` array is still declared in the model but
-read by nothing (the 2026-09-12 migration granted the role to the previous
-moderators and has run everywhere); the field can be dropped.
+unused by runtime authorization. The 2026-09-12 migration grants the role to
+previous moderators; deployment completion must be checked per installation.
 
 `canViewNote(note, auth, kbConfig)`
 (`backend/helpers/knowledgeNoteVisibility.js`) asks `auth.can()` directly — the
@@ -124,7 +125,7 @@ pendingDeletionBy/At
 // Moderation — two-phase archival
 pendingArchive         Boolean (default false)
 pendingArchiveBy/At
-archivedAt             Date          // set ⇒ note is archived (hidden everywhere)
+archivedAt             Date          // set ⇒ note is archived (hidden from ordinary readers)
 archivedBy             → User
 
 // Secret scan result (raw secret never stored)
@@ -186,7 +187,7 @@ avoid wiping moderation config on a partial POST).
 Access keys for AI agents (collection `mcpkeys`): `name`, `keyHash` (sha256,
 `select: false`, unique index), `keyTail`, `createdBy → User`, `lastUsedAt`,
 `scopes` (any of `knowledge`, `knowledgeWrite`, `tickets`, `companies`, `users`,
-`mikrotik`, `mikrotikChanges`; a key stored without the field reads as
+`inventory`, `inventoryChanges`, `mikrotik`, `mikrotikChanges`, `proxmox`; a key stored without the field reads as
 `["knowledge"]`), timestamps. The key value is never stored. Full notes:
 `docs/mcp.md`, «Keys and permissions».
 
@@ -216,11 +217,14 @@ DB query is not the security boundary — the predicate is). Order of checks:
    - note company ∈ user's **accessible companies**, or
    - a linked user whose company ∈ user's accessible companies.
 
+Archived notes are denied to ordinary staff and clients, including direct-ID
+and archive-list requests. Managers and moderators can still inspect them.
+
 **Accessible companies** (`getAccessibleCompanyIds`) = the user's own company +
 every company in `responsibleForCompanies` (stored under `id`, not `_id`).
 
 **Fields the predicate needs.** `canViewNote` reads `approved`, `agent.keyId`,
-`companies`, `categories`, `users`; a query that feeds it must select them, or
+`archivedAt`, `companies`, `categories`, `users`; a query that feeds it must select them, or
 the predicate silently decides the mark or the binding is absent. `getAll` and
 `getRelated` use exclusion projections and `getOne` and the bulk handlers load
 whole documents, so all carry them. `getServiceExpiry` has a positive
@@ -260,7 +264,7 @@ only) — keep them in sync.
    archive  pendingArchive                      deletion  pendingDeletion
             │ moderator confirm ▲ decline                 │ moderator confirm ▲ decline
             ▼                                              ▼
-        archivedAt set (hidden everywhere)            hard delete (pruned from DB)
+        archivedAt set (hidden from ordinary readers)            hard delete (pruned from DB)
 ```
 
 - **Created through MCP** — an AI agent with a `knowledgeWrite` key creates a
@@ -281,19 +285,25 @@ only) — keep them in sync.
   run with the same semantics as their crons — so a leak flag clears, and renewal
   dates refresh, the moment the content changes instead of waiting for the cron.
 - **Approve** — moderator only, requires **both** confirmations in the dialog
-  (`confirmCurrent` = data is current, `confirmNoSecrets` = no secrets). Sets
-  `approved/approvedBy/approvedAt`.
+  (`confirmCurrent` = data is current, `confirmNoSecrets` = no secrets), plus
+  `expectedVersion` matching the reviewed note's `__v` (use `0` for legacy notes
+  without it). Missing, stale or archived versions return 409. The frontend
+  captures the version when opening the confirmation dialog. Successful approval
+  sets `approved/approvedBy/approvedAt`. All document saves use optimistic
+  concurrency, so an edit during moderation also rejects the stale write.
 - **Approval expiry** — daily cron reverts approvals older than
   `approvalPeriodDays` (notes without `approvedAt` and archived notes are left
   alone).
 - **Deletion** — `sendToDeletion` (manager) sets `pendingDeletion`;
   `confirmDeletion` (moderator) **hard-deletes**; `declineDeletion` (moderator)
-  clears the flag. A direct `delete` route also exists (manager-gated, no
-  moderation) but the UI drives the two-phase path.
+  clears the flag. Confirmation and rejection require a pending request;
+  deletion also checks the loaded version atomically. The legacy manager-gated
+  `delete` route now submits a deletion request instead of bypassing moderation.
 - **Archival** — `requestArchive` (manager) sets `pendingArchive`;
   `confirmArchive` (moderator) sets `archivedAt` (note vanishes from all default
   queries); `declineArchive` (moderator) clears the request; `unarchive`
-  (manager) clears `archivedAt`. Archived notes are excluded from moderation
+  (manager) clears `archivedAt`. Confirmation and rejection require a pending
+  archive request, with concurrent changes rejected. Archived notes are excluded from moderation
   counters, related-notes, AI context, and the service/approval scans — **except**
   the secrets list, which still surfaces leaks in the archive.
 
@@ -303,7 +313,7 @@ All under `/api` (mounted in `backend/routes/index.js`; defined in
 `backend/routes/internal/knowledgeNote.js`). Every route carries `isAuth`,
 `knowledgeBaseModuleIsActive`, `canReadKnowledge`; mutations add `isNotClient`
 + `canManageKnowledge`, moderation routes `canModerateKnowledge`; the
-record-level logic is re-checked **inside** the controller. Two deliberate
+moderation handlers also check their permission and lifecycle preconditions. Two deliberate
 exceptions: `moderation-summary` runs without `canModerateKnowledge` (it is
 polled for every reader and answers zeros), and one route runs without
 `canReadKnowledge` — see the table. Literal sub-paths (`form-data`, `related`, `moderation-summary`,
@@ -329,7 +339,7 @@ swallow them.
 | `POST /knowledge-notes/decline-archive/:id` | `declineArchive` | Moderator; clears request. |
 | `POST /knowledge-notes/unarchive/:id` | `unarchive` | Manager; clears `archivedAt`. |
 | `POST /knowledge-notes/:id/ignore-secret` | `ignoreSecretFinding` | Moderator; adds value hash to `ignoredHashes`, drops the finding. |
-| `POST /knowledge-notes/delete/:id` | `delete` | Manager; direct hard delete (no moderation). |
+| `POST /knowledge-notes/delete/:id` | `delete` | Manager; submits a deletion request (legacy alias). |
 
 ### Bulk moderation
 
@@ -339,7 +349,7 @@ Guards mirror the singular versions; `isModerator` is checked in the controller.
 
 | Method & path | Body | Semantics |
 | --- | --- | --- |
-| `POST /knowledge-notes/approve-multiple` | `{ ids[], confirmCurrent, confirmNoSecrets }` | Both confirmations required (422 otherwise) — bulk does not weaken the attestation. Skips archived notes. |
+| `POST /knowledge-notes/approve-multiple` | `{ ids[], confirmCurrent, confirmNoSecrets, expectedVersions: { [id]: version } }` | Both confirmations required (422 otherwise) — bulk does not weaken the attestation. Skips archived notes and missing/stale reviewed versions. |
 | `POST /knowledge-notes/confirm-deletion-multiple` | `{ ids[] }` | Hard-deletes notes that carry `pendingDeletion`. |
 | `POST /knowledge-notes/decline-deletion-multiple` | `{ ids[] }` | Clears `pendingDeletion*`. |
 | `POST /knowledge-notes/confirm-archive-multiple` | `{ ids[] }` | Sets `archivedAt`/`archivedBy`, clears `pendingArchive*`. |
@@ -351,8 +361,9 @@ iterate note-by-note rather than `updateMany`, because a skipped note must come
 back with a **human-readable reason** (`«VPN» — нет запроса на удаление`), not
 silently drop out of a count. Response:
 `{ message, processed, skipped: [{ title, reason }] }`. The precondition lives in
-the loop, so a note whose status changed while the moderator was looking at the
-list is skipped, not mis-transitioned.
+the loop, with optimistic concurrency on saves and a conditional delete.
+Changes between the read and write are reported as skipped conflicts, without
+undoing already completed items.
 
 ### Moderation counters
 
@@ -401,11 +412,14 @@ unless its preference flag is on.
 | `30 3 * * *` (daily 03:30) | Service-renewal parse | `services/serviceExpiryScanRun.js → runServiceExpiryScan` |
 
 - **Approval expiry** — `updateMany({ approved, approvedAt ≤ now − days, archivedAt: null }, …)` flips them back to unapproved when `approvalPeriodDays > 0`.
-- **Secret scan** — scans every note (`title` + `plainText`), `bulkWrite`s
+- **Secret scan** — scans every note (`title` + `plainText` + raw `content`), `bulkWrite`s
   `secretsScan.flagged/findings/scannedAt` via targeted `$set` so the moderator's
-  `ignoredHashes` survive.
+  `ignoredHashes` survive. The write matches the scanned title, content,
+  plain-text projection, agent key and ignore list, so a stale snapshot cannot
+  clear a newer finding or undo a dismissal.
 - **Service-renewal parse** — parses `content` of **non-archived** notes,
-  `bulkWrite`s `serviceExpiry.entries/scannedAt`.
+  `bulkWrite`s `serviceExpiry.entries/scannedAt` only while content is unchanged
+  and the note remains unarchived.
 
 All three write with **`timestamps: false`**, so `updatedAt` changes only when a
 person saves the note (edit or moderation action). Mongoose stamps `updatedAt`
@@ -426,7 +440,7 @@ save), so results exist immediately instead of after the next cron tick.
 
 No AI — regexes + Shannon entropy. The runner (`secretsScanRun.js`) calls
 `scanNote(note, ignoredHashes)`, which scans the title and the markdown-stripped
-`plainText`. Detection layers:
+`plainText`, plus exact-format and structural checks on raw `content`. Detection layers:
 
 1. **Known formats** — private-key blocks, AWS `AKIA…`, Google `AIza…`, Stripe
    `sk/rk_live/test_…`, Slack `xox[baprs]-…`, GitHub `gh[pousr]_…`, JWTs, and a
@@ -439,10 +453,13 @@ No AI — regexes + Shannon entropy. The runner (`secretsScanRun.js`) calls
    entropy ≥ 4.0.
 
 Output per finding: `{ category, location, maskedSnippet, hash }`. The raw secret
-is **never stored** — `maskedSnippet` keeps only head/tail (e.g. `AKIA••••1234`)
+is **never stored in findings** — `maskedSnippet` keeps only head/tail (e.g. `AKIA••••1234`)
 and `hash` is the first 16 hex of its sha256, used for dedup and the ignore-list.
 Placeholders (`example`, `changeme`, `xxxx`, all-same-char, …) are dropped;
-results capped at 25 per note. "Не секрет" stores the **value hash**, so a
+results capped at 25 per note. URL-password and secret-field structural findings
+use a fixed hidden snippet and a hash of the category plus raw content, rather
+than exposing a field value. Dismissing these findings is invalidated by any
+content edit. Other findings use a **value hash**, so a
 *different* real secret in the same note still trips on the next scan.
 
 **The `jwt` rule's left edge (2026-10-11).** The rule begins with
@@ -469,15 +486,20 @@ through `scanNote` on a copy with the helpdesk's own markers (`[скрыто]`,
 the MCP write tools check; the hourly run loads `agent.keyId` for it. Notes
 written by people are scanned as they are.
 
-**Known limit (found 2026-10-11).** The module's own scanner (hourly run and
-on-save rescan) scans the title and `plainText` only, and `plainText` drops code
-fences, link URLs and HTML. A credential inside a code fence, a link URL or an
-HTML block is therefore not flagged, while `get_knowledge_note` serves the raw
-Markdown `content`. The MCP write tools compensate on their own path (they also
-scan the raw Markdown for exact-format secrets, a password in a URL and
-secret-named fields such as `private-key="…"`, see `docs/mcp.md`, «Secret
-check»), but only for the text an agent passes: notes written by people, and a
-person's edits to an agent's note, are not covered.
+**Raw Markdown coverage.** Code fences, link URLs and HTML are checked even
+though the search projection drops them. `scanNote` combines full heuristics on
+title/plain text with exact-format rules on raw content and the shared
+`knowledgeRawSecrets.js` URL-password and secret-field checks. Raw configuration
+is not subjected to entropy/proximity heuristics, which would flag ordinary
+router settings. Findings are deduplicated and respect the ignore list.
+
+MCP full-note reads repeat the raw-content checks, including for existing notes
+whose stored flag predates this fix. The read source selects `ignoredHashes` so
+moderator dismissals remain effective. Search uses projected text and the stored
+flag; it can list a stale candidate that a full-note read then refuses. Existing
+notes acquire persisted raw-content findings on their next enabled hourly scan
+or save. The scanner is rule-based and cannot guarantee detection of every
+credential format.
 
 ## Service-renewal scanner — `backend/services/serviceExpiryScanner.js`
 
@@ -511,12 +533,15 @@ dedups across notes (keeping the nearest date per service), flags `overdue`
 When the ticket AI guide runs (`backend/services/ticketAiGuide.js`), it pulls the
 most relevant notes into the prompt:
 
-- `collectRelevantNotes({ companyId, categoryId, applicantId })` — same
-  `matchesTicketContext` restriction as `getRelated`, ranks by
-  `matchCount → type priority (backlog > instructions > info) → recency`, and
-  returns the top **5** (`MAX_NOTES`), each truncated to **1500** chars
-  (`MAX_NOTE_LENGTH`) of `plainText`. Archived notes are excluded.
-- `buildKnowledgeContext(notes)` formats them into a labelled text block
+- `collectRelevantNotes({ companyId, categoryId, applicantId, title, text })`
+  applies the same `matchesTicketContext` restrictions as `getRelated`. It first
+  selects candidates matching stems from the ticket title; if none match, it
+  tries ticket body stems, then falls back to binding matches. Ranking is
+  `title score → body score → binding matchCount → type priority
+  (backlog > instructions > info) → recency`. It returns the top **5**
+  (`MAX_NOTES`). Archived notes are excluded.
+- `buildKnowledgeContext(notes)` truncates each note's `plainText` to **1500**
+  characters (`MAX_NOTE_LENGTH`) and formats it into a labelled text block
   (`--- [Известная проблема] <title> --- …`) appended to the user prompt as a
   "приоритетный источник".
 - The chosen notes are recorded on the guide as `sources` (`_id/title/type`).
@@ -616,6 +641,20 @@ own header.
 - **Nothing legacy is left in the KB surface** — the ticket-page notes panel was
   the last consumer of `UI/knowledgeBase.css` and `BindingChips.jsx`; both are
   gone, `BindingPills.jsx` is the only binding-pill component.
+
+### Mobile document width
+
+Knowledge-base notes keep prose within the reading area. Wide tables retain their
+column widths and scroll horizontally inside the note; code blocks are bounded by
+the same container. This applies to both reading and editing, including the shared
+note viewer opened from a ticket. The mobile shell must not become wider to fit a
+table, because its horizontal overflow is clipped.
+
+Browser regression check (from the repository root, with Playwright Chromium
+installed): `node frontend/browser-tests/knowledge-note-layout/check.cjs`.
+It renders the real note components and application styles at 320, 390, 768 and
+1280 px, checks both reading and editing, and verifies that the last table column
+can be reached by horizontal scrolling.
 
 ### Ticket-page integration
 

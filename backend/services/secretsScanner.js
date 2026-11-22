@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { HEURISTIC_CATEGORIES, hasUrlPassword, secretFieldLines } = require("./knowledgeRawSecrets");
 const { withoutMarkers } = require("./portalMarkers");
 
 // Поиск утечек секретов в заметках базы знаний без ИИ — только регулярные
@@ -259,8 +260,22 @@ const scanNote = (note, ignoredHashes = []) => {
     ...scanText(seen(note.title), "title", ignoredHashes),
     ...scanText(seen(note.plainText), "content", ignoredHashes),
   ];
-  // Ограничиваем размер, чтобы не раздувать документ на «бинарных» заметках
-  return findings.slice(0, 25);
+  // Markdown contains code, URLs and HTML omitted from the search projection.
+  const content = seen(note.content || "");
+  findings.push(...scanText(content, "content", ignoredHashes)
+    .filter(finding => !HEURISTIC_CATEGORIES.has(finding.category)));
+  const rawChecks = [
+    ["url-password", hasUrlPassword(content)],
+    ["secret-field", secretFieldLines(content).length > 0],
+  ];
+  for (const [category, found] of rawChecks) {
+    const hash = hashValue(`${category}:${content}`);
+    if (found && !ignoredHashes.includes(hash)) {
+      findings.push({ category, location: "content", maskedSnippet: "[credential hidden]", hash });
+    }
+  }
+  const unique = new Set();
+  return findings.filter(finding => !unique.has(finding.hash) && unique.add(finding.hash)).slice(0, 25);
 };
 
 module.exports = { scanText, scanNote, shannonEntropy, maskSecret, hashValue, redactSecrets };

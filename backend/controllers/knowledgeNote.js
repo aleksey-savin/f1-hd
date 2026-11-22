@@ -16,6 +16,24 @@ const {
   isUnverifiedAgentDraft,
 } = require("../helpers/knowledgeNoteVisibility");
 
+const noteConflict = () => new AppError("Заметка изменилась. Обновите страницу и повторите действие.", 409);
+const isWriteConflict = (error) =>
+  error?.name === "VersionError" ||
+  error?.name === "DocumentNotFoundError" ||
+  error?.statusCode === 409;
+const requireReviewedVersion = (note, expectedVersion) => {
+  if (!Number.isInteger(expectedVersion) || expectedVersion !== (note.__v ?? 0) || note.archivedAt) {
+    throw noteConflict();
+  }
+};
+const deletePendingNote = async note => {
+  const result = await KnowledgeNote.deleteOne({
+    _id: note._id, pendingDeletion: true,
+    __v: note.__v === undefined ? { $exists: false } : note.__v,
+  });
+  if (result.deletedCount !== 1) throw noteConflict();
+};
+
 // Конфиг модерации для проверки видимости: флаг скрытия неодобренных заметок
 // и признак поиска секретов. Кто модератор — решает право `knowledge.moderate`
 // (req.auth.can), а не этот конфиг.
@@ -321,6 +339,7 @@ exports.update = async (req, res, next) => {
       note,
     });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to update knowledge note ${req.params.id}`,
@@ -332,28 +351,8 @@ exports.update = async (req, res, next) => {
   }
 };
 
-exports.delete = async (req, res, next) => {
-  try {
-    const note = await KnowledgeNote.findById(req.params.id);
-
-    if (!note) {
-      return next(new AppError(`Заметка не найдена`, 404));
-    }
-
-    await KnowledgeNote.deleteOne({ _id: req.params.id });
-
-    res.status(200).json({ message: "Заметка удалена" });
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to delete knowledge note ${req.params.id}`,
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
+// Legacy clients use the same moderated deletion workflow.
+exports.delete = (req, res, next) => exports.sendToDeletion(req, res, next);
 
 // Отправить заметку на удаление (мягко): ждёт подтверждения модератора.
 // Доступно носителям canManageKnowledge.
@@ -376,6 +375,7 @@ exports.sendToDeletion = async (req, res, next) => {
 
     res.status(200).json({ message: "Заметка отправлена на удаление", note });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to send knowledge note ${req.params.id} to deletion`,
@@ -405,10 +405,13 @@ exports.confirmDeletion = async (req, res, next) => {
       return next(new AppError(`Заметка не найдена`, 404));
     }
 
-    await KnowledgeNote.deleteOne({ _id: req.params.id });
+    if (!note.pendingDeletion) return next(noteConflict());
+
+    await deletePendingNote(note);
 
     res.status(200).json({ message: "Заметка удалена" });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to confirm deletion of knowledge note ${req.params.id}`,
@@ -439,6 +442,8 @@ exports.declineDeletion = async (req, res, next) => {
       );
     }
 
+    if (!note.pendingDeletion) return next(noteConflict());
+
     note.pendingDeletion = false;
     note.pendingDeletionBy = undefined;
     note.pendingDeletionAt = undefined;
@@ -447,6 +452,7 @@ exports.declineDeletion = async (req, res, next) => {
 
     res.status(200).json({ message: "Запрос на удаление отклонён", note });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to decline deletion of knowledge note ${req.params.id}`,
@@ -473,7 +479,7 @@ exports.approve = async (req, res, next) => {
       );
     }
 
-    const { confirmCurrent, confirmNoSecrets } = req.body;
+    const { confirmCurrent, confirmNoSecrets } = req.body || {};
     if (confirmCurrent !== true || confirmNoSecrets !== true) {
       return next(
         new AppError(`Необходимо подтвердить оба условия проверки`, 422),
@@ -488,6 +494,7 @@ exports.approve = async (req, res, next) => {
       );
     }
 
+    requireReviewedVersion(note, req.body.expectedVersion);
     note.approved = true;
     note.approvedBy = authedUser.userId;
     note.approvedAt = new Date();
@@ -496,6 +503,7 @@ exports.approve = async (req, res, next) => {
 
     res.status(200).json({ message: "Заметка отмечена как проверенная", note });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to approve knowledge note ${req.params.id}`,
@@ -528,6 +536,7 @@ exports.requestArchive = async (req, res, next) => {
 
     res.status(200).json({ message: "Запрошена архивация заметки", note });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to request archive for knowledge note ${req.params.id}`,
@@ -560,6 +569,8 @@ exports.confirmArchive = async (req, res, next) => {
       );
     }
 
+    if (!note.pendingArchive) return next(noteConflict());
+
     note.archivedAt = new Date();
     note.archivedBy = authedUser.userId;
     note.pendingArchive = false;
@@ -570,6 +581,7 @@ exports.confirmArchive = async (req, res, next) => {
 
     res.status(200).json({ message: "Заметка перемещена в архив", note });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to confirm archive for knowledge note ${req.params.id}`,
@@ -600,6 +612,8 @@ exports.declineArchive = async (req, res, next) => {
       );
     }
 
+    if (!note.pendingArchive) return next(noteConflict());
+
     note.pendingArchive = false;
     note.pendingArchiveBy = undefined;
     note.pendingArchiveAt = undefined;
@@ -608,6 +622,7 @@ exports.declineArchive = async (req, res, next) => {
 
     res.status(200).json({ message: "Запрос на архивацию отклонён", note });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to decline archive for knowledge note ${req.params.id}`,
@@ -637,6 +652,7 @@ exports.unarchive = async (req, res, next) => {
 
     res.status(200).json({ message: "Заметка восстановлена из архива", note });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to unarchive knowledge note ${req.params.id}`,
@@ -681,8 +697,13 @@ const runBulkModeration = async (req, { precondition, skipReason, apply }) => {
       skipped.push({ title: note.title, reason: skipReason });
       continue;
     }
-    await apply(note, authedUser);
-    processed.push(note.title);
+    try {
+      await apply(note, authedUser, req.body);
+      processed.push(note.title);
+    } catch (error) {
+      if (!isWriteConflict(error)) throw error;
+      skipped.push({ title: note.title, reason: "заметка изменилась; обновите список" });
+    }
   }
 
   return { processed, skipped };
@@ -720,6 +741,7 @@ const bulkModerationHandler = ({
       skipped: result.skipped,
     });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(new AppError(failure, 500, true, error));
   }
 };
@@ -735,7 +757,8 @@ exports.approveMultiple = async (req, res, next) => {
   return bulkModerationHandler({
     precondition: (note) => !note.archivedAt,
     skipReason: "в архиве",
-    apply: async (note, authedUser) => {
+    apply: async (note, authedUser, body) => {
+      requireReviewedVersion(note, body.expectedVersions?.[String(note._id)]);
       note.approved = true;
       note.approvedBy = authedUser.userId;
       note.approvedAt = new Date();
@@ -749,7 +772,7 @@ exports.approveMultiple = async (req, res, next) => {
 exports.confirmDeletionMultiple = bulkModerationHandler({
   precondition: (note) => note.pendingDeletion,
   skipReason: "нет запроса на удаление",
-  apply: (note) => note.deleteOne(),
+  apply: deletePendingNote,
   success: (count) => `Удалено: ${count}`,
   failure: "Failed to confirm deletion of knowledge notes",
 });
@@ -1004,6 +1027,7 @@ exports.ignoreSecretFinding = async (req, res, next) => {
 
     res.status(200).json({ message: "Находка помечена как не секрет", note });
   } catch (error) {
+    if (isWriteConflict(error)) return next(noteConflict());
     next(
       new AppError(
         `Failed to ignore secret finding for note ${req.params.id}`,

@@ -16,7 +16,7 @@ const runSecretsScan = async () => {
   // agent.keyId нужен scanNote: заметку агента он сканирует без пометок портала
   const notes = await KnowledgeNote.find(
     {},
-    { title: 1, plainText: 1, "agent.keyId": 1, "secretsScan.ignoredHashes": 1 },
+    { title: 1, content: 1, plainText: 1, "agent.keyId": 1, "secretsScan.ignoredHashes": 1 },
   ).lean();
 
   const scannedAt = new Date();
@@ -34,7 +34,14 @@ const runSecretsScan = async () => {
     // Точечный $set, чтобы не затереть ignoredHashes (список «не секрет» модератора)
     operations.push({
       updateOne: {
-        filter: { _id: note._id },
+        filter: {
+          _id: note._id,
+          title: note.title ?? null,
+          content: note.content ?? null,
+          plainText: note.plainText ?? null,
+          "agent.keyId": note.agent?.keyId ?? null,
+          "secretsScan.ignoredHashes": note.secretsScan?.ignoredHashes ?? null,
+        },
         update: {
           $set: {
             "secretsScan.flagged": flagged,

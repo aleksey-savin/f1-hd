@@ -63,6 +63,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
   const isEditing = mode === "edit";
 
   const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const reviewedVersion = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRequestArchiveModal, setShowRequestArchiveModal] = useState(false);
 
@@ -257,7 +258,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
 
   const verifyHandler = ({ confirmCurrent, confirmNoSecrets }, reset) =>
     lifecycleRequest(`approve/${currentNote._id}`, {
-      body: { confirmCurrent, confirmNoSecrets },
+      body: { confirmCurrent, confirmNoSecrets, expectedVersion: reviewedVersion.current },
       success: "Заметка отмечена как проверенная",
       failure: "Не удалось отметить заметку проверенной",
       onDone: () => {
@@ -449,7 +450,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         onEdit={() => enterEdit()}
         onSave={saveHandler}
         onCancel={cancelEdit}
-        onVerify={() => setShowVerifyModal(true)}
+        onVerify={() => { reviewedVersion.current = currentNote.__v ?? 0; setShowVerifyModal(true); }}
         onSendToDeletion={sendToDeletionHandler}
         onRequestArchive={() => setShowRequestArchiveModal(true)}
         onUnarchive={unarchiveHandler}

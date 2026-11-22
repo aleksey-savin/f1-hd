@@ -123,3 +123,31 @@ test("approval expiry does not stamp updatedAt", async (t) => {
   assert.equal(calls[0].update.$set.approved, false);
   assert.doesNotMatch(JSON.stringify(calls[0].update), /updatedAt/);
 });
+
+test("a stale secret scan cannot clear a newer warning or undo a dismissal", async (t) => {
+  const sift = require("sift").default;
+  withPreferences(t, { scanForSecrets: true });
+  const original = note(10, { title: "Original", content: "clean", plainText: "clean", secretsScan: { ignoredHashes: [] } });
+  t.mock.method(KnowledgeNote, "find", () => leanQuery([original]));
+  const calls = captureBulkWrite(t);
+  await runSecretsScan();
+  const { filter, update } = calls[0].ops[0].updateOne;
+  const edited = { ...original, content: "password=R00tP@ss123", secretsScan: { flagged: true, ignoredHashes: [] } };
+  if (sift(filter)(edited)) edited.secretsScan.flagged = update.$set["secretsScan.flagged"];
+  assert.equal(edited.secretsScan.flagged, true);
+  assert.equal(sift(filter)({ ...original, secretsScan: { ignoredHashes: ["dismissed"] } }), false);
+  assert.equal(sift(filter)(original), true);
+});
+
+test("service scan updates only unchanged, unarchived source content", async (t) => {
+  const sift = require("sift").default;
+  withPreferences(t, { trackServiceExpiry: true });
+  const original = note(11, { content: "original" });
+  t.mock.method(KnowledgeNote, "find", () => leanQuery([original]));
+  const calls = captureBulkWrite(t);
+  await runServiceExpiryScan();
+  const matches = sift(calls[0].ops[0].updateOne.filter);
+  assert.equal(matches({ ...original, content: "new service table" }), false);
+  assert.equal(matches({ ...original, archivedAt: new Date() }), false);
+  assert.equal(matches(original), true);
+});

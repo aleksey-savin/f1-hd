@@ -1,3 +1,4 @@
+const { isSecretField, PUBLIC_FIELDS } = require("./secretFields");
 const { redactSecrets } = require("../secretsScanner");
 
 /**
@@ -17,26 +18,6 @@ const { redactSecrets } = require("../secretsScanner");
 const SECRET = "[секрет скрыт]";
 const HIDDEN = "[скрыто]";
 const UNPARSED = "[строка скрыта: не удалось разобрать]";
-
-// Имена полей без «говорящей» подстроки, которые всё равно секрет.
-const SECRET_FIELDS = new Set(["passcode", "cak"]);
-// «pin» отдельным словом имени: pin, sim-pin, pin-number (но не ping, не spinning)
-const PIN_NAME = /(^|[-.])pin([-.]|$)/;
-const SECRET_NAME = /key|pass|secret|psk|token|community/;
-// Публичное с «key»/«pass» в имени — показывается как есть.
-const PUBLIC_FIELDS = new Set([
-  "public-key",
-  "key-size",
-  "key-type",
-  "key-usage",
-  "key-id",
-  "authentication-key-id",
-  "host-key-size",
-  "host-key-type",
-  "group-key-update",
-  "passthrough",
-  "passive",
-]);
 
 // Поля, в которых живёт код RouterOS: в нём часто зашиты пароли и токены.
 const SCRIPT_FIELDS = new Set([
@@ -90,18 +71,6 @@ const namesOnlyRule = (section) => {
     return NAMES_ONLY_KEEP;
   }
   return null;
-};
-
-// Секрет под обычным именем поля — только в своём разделе.
-const SECTION_SECRET_FIELDS = [
-  [/^\/zerotier/, new Set(["identity"])],
-  [/^\/container envs/, new Set(["value"])],
-];
-
-const isSecretField = (section, name) => {
-  if (PUBLIC_FIELDS.has(name)) return false;
-  if (SECRET_FIELDS.has(name) || SECRET_NAME.test(name) || PIN_NAME.test(name)) return true;
-  return SECTION_SECRET_FIELDS.some(([path, fields]) => path.test(section) && fields.has(name));
 };
 
 // Экспорт переносит длинные строки: «\» в конце и отступ на следующей. Чётное

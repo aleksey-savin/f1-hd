@@ -528,3 +528,17 @@ test("a draft read in full carries its own line before the content, an approved 
     assert.equal(text.includes("UNVERIFIED DRAFT"), false);
   }
 });
+
+test('raw Markdown secrets are blocked even before the next scheduled scan', () => {
+  const unsafe = note(80, { approved: true, content: '```\npassword = R00tP@ss123\n```', plainText: '', secretsScan: { flagged: false } });
+  assert.equal(isServable(unsafe), false);
+});
+
+test('raw credential dismissals are respected on full-note reads', () => {
+  const { scanNote } = require('../secretsScanner');
+  const reviewed = note(81, { approved: true, content: '[portal](https://user:tiny@host.test)' });
+  reviewed.secretsScan = { flagged: false, ignoredHashes: scanNote(reviewed).map(f => f.hash) };
+  assert.equal(isServable(reviewed), true);
+  reviewed.content = '[portal](https://user:different@host.test)';
+  assert.equal(isServable(reviewed), false);
+});
