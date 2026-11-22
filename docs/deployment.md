@@ -446,6 +446,13 @@ images. Use the production Node version supplied by the container checks.
 The deployment smoke test covers HTTP reachability only; it does not establish
 session continuity, backup recoverability or compatibility of old browser tabs.
 
+Mongoose and Better Auth must resolve the same MongoDB driver: the auth adapter
+recognizes BSON IDs by their runtime class. The backend's `mongodb` override
+keeps that dependency shared. After changing Mongoose or authentication
+dependencies, run `auth/mongoIdentity.test.js` and verify an existing browser
+session. Different BSON classes can leave IDs as objects, causing authenticated
+requests to return 404 and login to fail even while health checks pass.
+
 ## Seeds
 
 Catalogue seeds are the starting data of the inventory catalogue (attribute

@@ -15,6 +15,8 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Fixed
 
+- Restored browser sessions and login after the authentication dependency update by sharing one MongoDB driver between Mongoose and Better Auth. Mixed BSON ObjectId classes caused authenticated API requests to return 404 and login to return 500.
+
 - Knowledge-base moderation now rejects stale reviewed versions and concurrent edits. Single and bulk archive/deletion decisions enforce pending requests; the legacy delete endpoint submits a request. Archived notes are hidden from ordinary readers, including direct links.
 - Knowledge-base background scans cannot overwrite results for changed source data. Secret checks cover raw Markdown code, URLs and HTML; MCP full-note reads enforce these checks immediately for older notes while respecting moderator dismissals.
 
@@ -43,6 +45,8 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 - AI findings unsupported by the source conversation are discarded separately from supported user-review results.
 
 ### Upgrade instructions
+
+- Rebuild and restart the backend to apply the MongoDB driver alignment. No data migration, cookie reset, or secret change is required; existing sessions remain in place. The backend restart briefly interrupts API requests.
 
 - Deploy the knowledge-base frontend and backend together and reload open clients. Approval API callers must send `expectedVersion` (the displayed note's `__v`, or `0` when absent); bulk approval uses `expectedVersions` keyed by note ID. Stale/missing versions are rejected or skipped. The legacy delete API now requests moderated deletion. No data migration is required. New structural findings may require review even when an older value-based finding was dismissed. Existing notes receive persisted raw-content findings on their next enabled scan or save; MCP full-note reads check immediately. Rolling back restores the previous moderation and scanning gaps.
 
