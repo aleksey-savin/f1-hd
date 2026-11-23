@@ -39,7 +39,10 @@ test('worker repairs channel sync after interrupted settings save and filters in
   t.mock.method(Channel, 'updateMany', async (filter, update) => writes.push({ filter, update }));
   t.mock.method(Channel, 'findOneAndUpdate', async (filter, update) => writes.push({ filter, update }));
   t.mock.method(Channel, 'find', filter => { reads.push(filter); return query([]); });
-  t.mock.method(ChannelJob, 'find', () => query([]));
+  t.mock.method(ChannelJob, 'aggregate', async pipeline => {
+    assert.equal(pipeline[0].$match.provider, 'wazzup');
+    return [];
+  });
   t.mock.method(WazzupEvent, 'findOneAndUpdate', () => query(null));
   await worker.runWazzupTick();
   assert.equal(writes.length, 2);

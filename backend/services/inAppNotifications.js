@@ -1,3 +1,4 @@
+const { createHash } = require("node:crypto");
 const { htmlToPlainText } = require("@/helpers/htmlToPlainText");
 const logger = require("@/utils/logger");
 
@@ -357,9 +358,24 @@ const loadManagers = async () => {
     .lean();
 };
 
-const insert = async (items) => {
+const insert = async (items, dedupKey) => {
   if (!items.length) return 0;
   const InAppNotification = require("@/models/inAppNotification");
+  if (dedupKey) {
+    let count = 0;
+    for (const item of items) {
+      const _id = createHash("sha256").update(`${dedupKey}:${item.userId}`).digest("hex").slice(0, 24);
+      const now = new Date();
+      try {
+        const result = await InAppNotification.updateOne({ _id },
+          { $setOnInsert: { ...item, createdAt: now, updatedAt: now } }, { upsert: true, timestamps: false });
+        count += result.upsertedCount;
+      } catch (error) {
+        if (error?.code !== 11000 || !error.keyPattern?._id) throw error;
+      }
+    }
+    return count;
+  }
   const inserted = await InAppNotification.insertMany(items, { ordered: false });
   return inserted.length;
 };
@@ -509,11 +525,11 @@ const buildPushItems = ({
  * известны вызывающему, у каждого может быть своя ссылка и текст.
  * `force: true` — не гасить выключателями категории (см. buildPushItems).
  */
-const pushInApp = async ({ prefs: givenPrefs, category, force = false, ...rest }) => {
+const pushInApp = async ({ prefs: givenPrefs, category, force = false, dedupKey, ...rest }) => {
   const prefs =
     givenPrefs ?? (await require("@/models/preferences").findOne({}).lean());
   const items = buildPushItems({ ...rest, category, prefs, force });
-  const count = await insert(items);
+  const count = await insert(items, dedupKey);
   if (count) {
     logger.log("notification", "In-app notifications queued", { category, count });
   }

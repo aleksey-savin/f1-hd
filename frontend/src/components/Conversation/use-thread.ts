@@ -9,7 +9,7 @@ import type {
   MessagesPage,
 } from "@/types/conversation";
 import {
-  PAGE_SIZE,
+  olderMessagesQuery,
   changesQuery,
   mergeMessages,
   nextCursor,
@@ -38,7 +38,9 @@ export const useThread = (
   onChanged?: (changed: MessageRow[]) => void,
 ) => {
   const [messages, setMessages] = useState<MessageRow[]>(initial.items);
-  const [hasOlder, setHasOlder] = useState(initial.items.length >= PAGE_SIZE);
+  const [olderQuery, setOlderQuery] = useState(() =>
+    olderMessagesQuery(initial.items),
+  );
   const [loadingOlder, setLoadingOlder] = useState(false);
   const cursor = useRef<Cursor>({ since: initial.serverTime, afterId: null });
   const currentId = useRef(conversationId);
@@ -56,7 +58,8 @@ export const useThread = (
       removedIds.current.clear();
       accessRevoked.current = false;
       setMessages(initial.items);
-      setHasOlder(initial.items.length >= PAGE_SIZE);
+      setOlderQuery(olderMessagesQuery(initial.items));
+      setLoadingOlder(false);
       cursor.current = { since: initial.serverTime, afterId: null };
       return;
     }
@@ -110,7 +113,7 @@ export const useThread = (
       if (error instanceof ApiError && error.status === 404) {
         accessRevoked.current = true;
         setMessages([]);
-        setHasOlder(false);
+        setOlderQuery(null);
         onChangedRef.current?.([]);
         return [];
       }
@@ -128,19 +131,13 @@ export const useThread = (
   );
 
   const loadOlder = useCallback(async () => {
-    const oldest = messages[0];
-    if (!oldest || loadingOlder) return;
+    if (!olderQuery || loadingOlder || accessRevoked.current) return;
     setLoadingOlder(true);
     try {
-      const params = new URLSearchParams({
-        before: oldest.sentAt,
-        beforeSeq: String(oldest.seq),
-        limit: String(PAGE_SIZE),
-      });
       const page = await api<MessagesPage>(
-        `/api/conversations/${conversationId}/messages?${params}`,
+        `/api/conversations/${conversationId}/messages?${olderQuery}`,
       );
-      if (currentId.current !== conversationId) return;
+      if (currentId.current !== conversationId || accessRevoked.current) return;
       setMessages((current) =>
         mergeMessages(
           current,
@@ -149,11 +146,11 @@ export const useThread = (
           accessRevoked.current,
         ),
       );
-      setHasOlder(page.items.length >= PAGE_SIZE);
+      setOlderQuery(olderMessagesQuery(page.items));
     } finally {
-      setLoadingOlder(false);
+      if (currentId.current === conversationId) setLoadingOlder(false);
     }
-  }, [conversationId, messages, loadingOlder]);
+  }, [conversationId, olderQuery, loadingOlder]);
 
   /** Ответ из «Диалогов»: текст и файлы уходят multipart, строка — сразу в ленту. */
   const send = useCallback(
@@ -212,5 +209,13 @@ export const useThread = (
     );
   }, []);
 
-  return { messages, hasOlder, loadingOlder, loadOlder, poll, send, retry };
+  return {
+    messages,
+    hasOlder: Boolean(olderQuery),
+    loadingOlder,
+    loadOlder,
+    poll,
+    send,
+    retry,
+  };
 };

@@ -33,8 +33,8 @@ const mirrorAuthorName = ({ identity, message, channel, network }) => {
 };
 
 /** Блок `channel` комментария — поимённо, лишнее не проходит. */
-const commentChannel = ({ network, conversationId, messageId, direction, authorName, status }, now = new Date()) => {
-  const block = { network, conversationId, messageId, direction };
+const commentChannel = ({ network, conversationId, messageId, direction, authorName, status, editedAt, deletedAt }, now = new Date()) => {
+  const block = { network, conversationId, messageId, direction, editedAt, deletedAt };
   if (authorName) block.authorName = String(authorName).slice(0, 200);
   if (status) {
     block.status = status;

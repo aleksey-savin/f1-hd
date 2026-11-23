@@ -7,6 +7,7 @@
 const rules = require("./rules");
 const { resolveIdentity, modelDeps } = require("./identity");
 const { nextSeq, addSystemLine, userTalksHere, displayNameFor } = require("./conversationStore");
+const { withMessageLease } = require("./message-lease");
 const { mirrorToTicket } = require("./mirror");
 const { notifyWaiting } = require("./notify");
 const { shouldAlertChannelState, alertChannelState } = require("./channelAlert");
@@ -233,36 +234,57 @@ const applyNotify = async ({ conversation, message, identity }) => {
     fresh.awaitingSince && new Date(fresh.awaitingSince).getTime() === new Date(message.sentAt).getTime();
   const current = await Message.findById(message._id).select("ticketId attachMode discussionUserId").lean();
   if (!startedWait || current?.ticketId || fresh.hidden) return;
-  // Один звонок колокольчика на ожидание: несколько сообщений одного момента
-  // (фотоальбом) и повтор доставки/гонка колокольчик не дублируют
-  const claim = await Conversation.updateOne(
-    { _id: fresh._id, awaitingSince: fresh.awaitingSince, waitNotifiedAt: { $ne: fresh.awaitingSince } },
-    { $set: { waitNotifiedAt: fresh.awaitingSince } },
-  );
-  if (!claim.modifiedCount) return;
+  // Several messages in one album can share the instant that started waiting.
+  // Reserve a single source so a concurrent sibling cannot checkpoint a
+  // different audience while the first source still has pending recipients.
+  const winner = await Conversation.updateOne({
+    _id: fresh._id, awaitingSince: fresh.awaitingSince, hidden: { $ne: true },
+    waitNotifiedAt: { $ne: fresh.awaitingSince },
+    $or: [{ "waitNotification.since": { $ne: fresh.awaitingSince } }, { "waitNotification.messageId": message._id }],
+  }, { $set: { waitNotification: { since: fresh.awaitingSince, messageId: message._id } } });
+  if (!winner.matchedCount) return;
   const name = await displayNameFor(identity);
   const title =
     fresh.kind === "group"
       ? `Новое сообщение в группе «${fresh.title || rules.NETWORK_LABEL[fresh.network]}»`
       : `Новое сообщение${name ? ` от ${name}` : ""}`;
   await notifyWaiting({ conversation: fresh, message: { ...message, ...current }, title });
+  // Each recipient's bell row is idempotent; checkpoint only after all writes.
+  await Conversation.updateOne(
+    { _id: fresh._id, awaitingSince: fresh.awaitingSince },
+    { $set: { waitNotifiedAt: fresh.awaitingSince }, $unset: { waitNotification: 1 } },
+  );
 };
 
-/** Эхо нашей отправки (шлюз пометил его jobId): дополняем своё сообщение. */
-const confirmOwn = async (own, msg) => {
-  const { Message, Comment } = m();
-  const set = { status: rules.advanceStatus(own.status, "sent") };
-  if (!own.externalId) set.externalId = msg.id;
-  try {
-    await Message.updateOne({ _id: own._id }, { $set: set });
-  } catch (error) {
-    if (error?.code !== 11000) throw error;
-    await Message.updateOne({ _id: own._id }, { $set: { status: set.status } });
+// Both echo and receipt events can race with an operator retry or a newer
+// receipt. Pin the attempt and the exact status used to compute the transition.
+const recordDelivery = async (message, status, { externalId, error } = {}) => {
+  const { Message } = m();
+  const owner = { _id: message._id, channelId: message.channelId, jobId: message.jobId ?? null };
+  const next = rules.advanceStatus(message.status, status);
+  const set = {};
+  if (next !== message.status) {
+    set.status = next;
+    set.error = next === "failed" ? error || "Не доставлено" : "";
   }
-  if (own.commentId) {
-    await Comment.updateOne({ _id: own.commentId }, { $set: { "channel.status": set.status, "channel.statusAt": new Date() } });
+  if (externalId && !message.externalId) set.externalId = externalId;
+  if (Object.keys(set).length) {
+    const filter = { ...owner, status: message.status, externalId: message.externalId ?? null };
+    let result;
+    try {
+      result = await Message.updateOne(filter, { $set: set });
+    } catch (failure) {
+      if (failure?.code !== 11000 || !set.externalId) throw failure;
+      // Another message already owns this provider ID. Preserve a legitimate
+      // status transition even when the echo cannot supply its external ID.
+      delete set.externalId;
+      if (Object.keys(set).length) result = await Message.updateOne(filter, { $set: set });
+    }
+    if (result && !result.matchedCount) throw new Error("Message changed during delivery update");
   }
-  bump(own.ticketId ? [own.ticketId] : []);
+  // Replay must also repair a failed comment write when the message itself
+  // already has the event's status.
+  if (message.commentId) await require("./send-outcome").projectCommentStatus(message, owner);
 };
 
 const ingestMessage = async (event) => {
@@ -271,12 +293,12 @@ const ingestMessage = async (event) => {
   if (!channel || !channel.isActive) return { ok: false, retryable: false, error: "канал отключён или не найден" };
   const msg = event.message;
 
-  if (msg.jobId) {
-    const own = await Message.findOne({ jobId: msg.jobId }).lean();
-    if (own) {
-      await confirmOwn(own, msg);
-      return { ok: true };
-    }
+  if (msg.direction === "out" && msg.origin === "hd") {
+    const own = await Message.findOne({ channelId: channel._id, jobId: msg.jobId, origin: "hd", direction: "out" }).lean();
+    if (!own) return { ok: true, ignored: true };
+    await recordDelivery(own, "sent", { externalId: msg.id });
+    bump(own.ticketId ? [own.ticketId] : []);
+    return { ok: true };
   }
   if ((channel.settings?.ignoredChatIds || []).includes(event.chat.id)) return { ok: true, ignored: true };
 
@@ -315,66 +337,66 @@ const ingestMessage = async (event) => {
 
 const ingestEdit = async (event) => {
   const { Message, Comment } = m();
-  const message = await Message.findOne({
+  const row = await Message.findOne({
     channelId: event.channelId,
     externalChatId: event.chat.id,
     externalId: event.message.id,
-  });
-  if (!message) return { ok: true, ignored: true };
-  if (message.text === event.message.text) return { ok: true };
-  message.revisions = [...(message.revisions || []), { text: message.text, at: event.message.editedAt }];
-  message.text = event.message.text;
-  message.editedAt = event.message.editedAt;
-  await message.save();
-  if (message.commentId) {
+  }).select("_id").lean();
+  if (!row) return { ok: true, ignored: true };
+  const { text, editedAt } = event.message;
+  await withMessageLease(row._id, async (message, lease) => {
+    if (message.text !== text && (!message.editedAt || +editedAt > +message.editedAt)) {
+      await lease.assertOwned();
+      await Message.updateOne({ _id: message._id, "mappingLock.token": message.mappingLock.token }, {
+        $push: { revisions: { text: message.text, at: editedAt } },
+        $set: { text, editedAt },
+      });
+      Object.assign(message, { text, editedAt });
+    }
+    if (!message.editedAt) return;
+    // Replay repairs the mirror from the current revision, including after a
+    // crash between writes or when an older event arrives after a newer edit.
+    await lease.assertOwned();
     await Comment.updateOne(
-      { _id: message.commentId },
-      { $set: { content: rules.commentContent(message), "channel.editedAt": event.message.editedAt } },
+      message.commentId ? { _id: message.commentId } : { "channel.messageId": message._id },
+      { $set: { content: rules.commentContent(message), "channel.editedAt": message.editedAt } },
     );
-  }
-  bump(message.ticketId ? [message.ticketId] : []);
+    bump(message.ticketId ? [message.ticketId] : []);
+  });
   return { ok: true };
 };
 
 const ingestDelete = async (event) => {
   const { Message, Comment } = m();
-  const filter = { channelId: event.channelId, externalId: { $in: event.messageIds }, deletedAt: null };
+  const filter = { channelId: event.channelId, externalId: { $in: event.messageIds } };
   if (event.chat) filter.externalChatId = event.chat.id;
-  const messages = await Message.find(filter).select("_id commentId ticketId").lean();
-  if (!messages.length) return { ok: true, ignored: true };
-  const now = new Date();
-  await Message.updateMany({ _id: { $in: messages.map((x) => x._id) } }, { $set: { deletedAt: now } });
-  const commentIds = messages.map((x) => x.commentId).filter(Boolean);
-  // Текст остаётся: удаление в мессенджере — пометка, а не стирание из заявки
-  if (commentIds.length) await Comment.updateMany({ _id: { $in: commentIds } }, { $set: { "channel.deletedAt": now } });
-  bump(messages.map((x) => x.ticketId).filter(Boolean));
+  const rows = await Message.find(filter).select("_id ticketId").lean();
+  if (!rows.length) return { ok: true, ignored: true };
+  const at = event.at || new Date();
+  for (const row of rows) {
+    await withMessageLease(row._id, async (message, lease) => {
+      if (!message.deletedAt) {
+        await lease.assertOwned();
+        await Message.updateOne({ _id: row._id, "mappingLock.token": message.mappingLock.token }, { $set: { deletedAt: at } });
+      }
+      await lease.assertOwned();
+      await Comment.updateOne(
+        message.commentId ? { _id: message.commentId } : { "channel.messageId": message._id },
+        { $set: { "channel.deletedAt": message.deletedAt || at } },
+      );
+    });
+  }
+  bump(rows.map((row) => row.ticketId).filter(Boolean));
   return { ok: true };
 };
 
 const ingestStatus = async (event) => {
-  const { Message, Comment } = m();
+  const { Message } = m();
   const filter = event.jobId
-    ? { jobId: event.jobId }
+    ? { channelId: event.channelId, jobId: event.jobId, direction: "out", origin: "hd" }
     : { channelId: event.channelId, externalChatId: event.chat.id, externalId: { $in: event.messageIds } };
-  const messages = await Message.find(filter);
-  for (const message of messages) {
-    const next = rules.advanceStatus(message.status, event.status);
-    if (next === message.status) continue;
-    message.status = next;
-    if (next === "failed") message.error = event.error || "Не доставлено";
-    await message.save();
-    if (message.commentId) {
-      // Клиенту — фиксированный текст на «failed», сырую ошибку статус-события
-      // (event.error) в channel не пускаем; на остальных переходах чистим её —
-      // $set: undefined ничего не чистит (Mongoose его вырезает), нужен $unset
-      await Comment.updateOne(
-        { _id: message.commentId },
-        next === "failed"
-          ? { $set: { "channel.status": next, "channel.statusAt": new Date(), "channel.error": "Не доставлено" } }
-          : { $set: { "channel.status": next, "channel.statusAt": new Date() }, $unset: { "channel.error": 1 } },
-      );
-    }
-  }
+  const messages = await Message.find(filter).lean();
+  for (const message of messages) await recordDelivery(message, event.status, { error: event.error });
   bump(messages.map((x) => x.ticketId).filter(Boolean));
   return { ok: true };
 };
@@ -396,7 +418,7 @@ const ingestChat = async (event) => {
       { $set: set, ...(set.externalChatId ? { $addToSet: { externalAliases: conversation.externalChatId } } : {}) },
     );
   }
-  for (const participant of (event.chat.participants || []).slice(0, 200)) {
+  for (const participant of event.chat.participants || []) {
     const identity = await resolveIdentity(channel.type, participant, deps());
     await addParticipant(conversation, identity);
   }

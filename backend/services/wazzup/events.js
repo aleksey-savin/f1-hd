@@ -30,7 +30,7 @@ const publicName = raw => {
 };
 
 /** Provider boundary -> existing messaging event contract. */
-const normalizeMessage = (raw, channel, { own, attachments = [] } = {}) => {
+const normalizeMessage = (raw, channel, { own, attachments = [], receivedAt } = {}) => {
   if (!raw || typeof raw !== 'object' || raw.channelId !== channel.providerChannelId || CHAT_TYPES[raw.chatType] !== channel.type) return null;
   if (typeof raw.messageId !== 'string' || !raw.messageId || raw.messageId.length > 200 || typeof raw.chatId !== 'string' || !raw.chatId || raw.chatId.length > 200) return null;
   if (typeof raw.isEcho !== 'boolean' || !Number.isFinite(Date.parse(raw.dateTime))) return null;
@@ -39,8 +39,8 @@ const normalizeMessage = (raw, channel, { own, attachments = [] } = {}) => {
   const peer = { id: personId(channel, raw.chatId), name: publicName(contact.name), phone: channel.type === 'whatsapp' ? raw.chatId : String(contact.phone || ''), username: String(contact.username || '') };
   const chat = { id: raw.chatId, kind: group ? 'group' : 'direct', ...(!group ? { peer } : { title: String(raw.chatName || contact.name || '').slice(0, 300) }) };
   const base = { channelId: String(channel._id), at: raw.dateTime, chat };
-  if (raw.isDeleted) return { ...base, type: 'message.deleted', messageIds: [raw.messageId] };
-  if (raw.isEdited) return own?.origin === 'hd' ? null : { ...base, type: 'message.edited', message: { id: raw.messageId, text: typeof raw.text === 'string' ? raw.text : '', editedAt: new Date() } };
+  if (raw.isDeleted) return { ...base, at: receivedAt ?? raw.dateTime, type: 'message.deleted', messageIds: [raw.messageId] };
+  if (raw.isEdited) return own?.origin === 'hd' ? null : { ...base, type: 'message.edited', message: { id: raw.messageId, text: typeof raw.text === 'string' ? raw.text : '', editedAt: receivedAt ?? raw.dateTime } };
   // User API v3 does not document a group participant identity: contact is
   // chat metadata, authorId/authorName describe a CRM sender of an echo.
   // Never turn the group or an invented ':unknown' key into a person. The

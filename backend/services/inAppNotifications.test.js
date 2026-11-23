@@ -331,3 +331,28 @@ test("сборка записей вне заявок: выключенная к
   assert.equal(buildPushItems({ ...base, recipients: [mine], prefs: personal }).length, 0);
   assert.equal(buildPushItems({ ...base, recipients: [mine], prefs: personal, force: true }).length, 1);
 });
+
+test("a partial waiting-bell fan-out resumes per recipient and preserves read state", async (t) => {
+  const Notification = require("@/models/inAppNotification");
+  const { pushInApp } = require("./inAppNotifications");
+  const rows = new Map();
+  let fail = true;
+  t.mock.method(Notification, "updateOne", async ({ _id }, change, options) => {
+    assert.equal(options.upsert, true);
+    assert.equal(options.timestamps, false);
+    if (rows.has(_id)) return { upsertedCount: 0 };
+    if (rows.size && fail) { fail = false; throw new Error("write interrupted"); }
+    rows.set(_id, change.$setOnInsert);
+    return { upsertedCount: 1 };
+  });
+  const event = { prefs, category: "newTicket", kind: "conversationWaiting", title: "Waiting",
+    recipients: [user("first"), user("second")], dedupKey: "conversation-wait:chat:period" };
+  await assert.rejects(pushInApp(event), /write interrupted/);
+  const first = [...rows.values()][0];
+  first.readAt = new Date(100);
+  assert.equal(await pushInApp(event), 1);
+  assert.equal(await pushInApp(event), 0);
+  assert.equal(rows.size, 2);
+  assert.equal(+first.readAt, 100);
+  assert.equal(await pushInApp({ ...event, dedupKey: "conversation-wait:chat:next" }), 2);
+});

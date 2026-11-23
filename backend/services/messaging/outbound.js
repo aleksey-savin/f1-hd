@@ -132,7 +132,7 @@ const queueOutbound = async ({ conversation, channel, text, attachments, author,
 
 const markQueued = (commentId, messageId) =>
   require("@/models/comment").updateOne(
-    { _id: commentId },
+    { _id: commentId, "channel.status": "preparing" },
     {
       $set: { "channel.messageId": messageId, "channel.status": "queued", "channel.statusAt": new Date() },
       // Клиенту ошибка больше не видна — $set: undefined ничего не чистит, нужен $unset
@@ -271,8 +271,15 @@ const retryMessage = async ({ messageId, auth }) => {
   if (message.status !== "failed") throw fail("Повторять нечего: сообщение не в ошибке", 409);
   const channel = await channelFor(conversation || { channelId: message.channelId });
   const previous = message.jobId ? await ChannelJob.findById(message.jobId).lean() : null;
-  const resume = message.recipientPhone && previous?.result?.chatId && !previous.result.sendComplete
-    ? { ...previous.result, inFlightPart: null } : null;
+  // Terminal jobs expire. Without their original payload and checkpoint we
+  // cannot distinguish a partially delivered multipart send from a fresh one.
+  if (!previous && channel.provider === "wazzup" && (message.externalId || message.externalIds?.length)) {
+    throw fail("История отправки истекла. Проверьте переписку в Wazzup и отправьте недостающие части новым сообщением.", 409);
+  }
+  const progress = previous?.result;
+  const resume = channel.provider === "wazzup" && previous?.state !== "done" &&
+    progress?.nextPart > 0 && progress.externalIds?.length === progress.nextPart && !progress.sendComplete
+    ? { ...progress, inFlightPart: null } : null;
   const intent = {
     _id: new (require("mongoose").Types.ObjectId)(),
     channelId: channel._id,
@@ -334,6 +341,7 @@ const repairOutbound = async () => {
   const ChannelJob = require("@/models/channelJob");
   // Каналов нет вовсе (модуль выключен или ничего не подключено) — сканировать
   // нечего; без этого крон раз в минуту читал бы обе коллекции целиком впустую
+  await require("./send-outcome").repairSendOutcomes();
   await require("./remap").repairMappings();
   if (!(await Channel.exists({ isActive: true }))) return;
   const cutoff = new Date(Date.now() - 60 * 1000);
@@ -374,15 +382,15 @@ const repairOutbound = async () => {
 
   const stuck = await Comment.find({ "channel.status": "preparing", createdAt: { $lte: cutoff } }).select("_id").limit(50).lean();
   for (const comment of stuck) {
-    const message = await Message.findOne({ commentId: comment._id }).select("_id status").lean();
-    await Comment.updateOne(
-      { _id: comment._id },
-      {
-        $set: message
-          ? { "channel.messageId": message._id, "channel.status": message.status }
-          : { "channel.status": "failed", "channel.error": "Не отправлено: сбой при постановке в очередь" },
-      },
-    );
+    const message = await Message.findOne({ commentId: comment._id }).select("_id commentId").lean();
+    if (message) {
+      await require("./send-outcome").projectCommentStatus(message, { _id: message._id });
+    } else {
+      await Comment.updateOne(
+        { _id: comment._id, "channel.status": "preparing" },
+        { $set: { "channel.status": "failed", "channel.error": "Не отправлено: сбой при постановке в очередь" } },
+      );
+    }
   }
 };
 

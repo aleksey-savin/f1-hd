@@ -75,9 +75,9 @@ const sendOutbox = async settings => {
       await ChannelJob.updateOne({ _id: job._id, leaseId: batch.leaseId, result: null }, { $set: { result: {} } });
       const sender = createSender({ send: body => provider.sendMessage(apiKey, body), attachmentUrl,
         checkpoint: async progress => {
-          const claim = await ChannelJob.updateOne({ _id: job._id, leaseId: batch.leaseId }, { $set: { 'result.nextPart': progress.nextPart, 'result.inFlightPart': progress.inFlightPart, 'result.externalIds': progress.externalIds, ...(progress.chatId ? { 'result.chatId': progress.chatId } : {}), leaseUntil: new Date(Date.now() + 120_000) } });
+          const claim = await ChannelJob.updateOne({ _id: job._id, leaseId: batch.leaseId, leaseUntil: { $gt: new Date() } }, { $set: { 'result.nextPart': progress.nextPart, 'result.inFlightPart': progress.inFlightPart, 'result.externalIds': progress.externalIds, ...(progress.chatId ? { 'result.chatId': progress.chatId } : {}), leaseUntil: new Date(Date.now() + 120_000) } });
           if (!claim.matchedCount) throw new provider.ProviderError('Отправка прервана — проверьте переписку в Wazzup перед повтором');
-          if (progress.externalIds.length) await Message.updateOne({ _id: job.messageId }, { $set: { externalId: progress.externalIds[0], externalIds: progress.externalIds } });
+          if (progress.externalIds.length) await Message.updateOne({ _id: job.messageId, jobId: job._id }, { $set: { externalId: progress.externalIds[0], externalIds: progress.externalIds } });
           if (job.payload.recipient && progress.chatId && !recipientLinked) {
             await require('../messaging/first-contact').attachFirstContact(job, channel, progress);
             recipientLinked = true;
@@ -88,8 +88,8 @@ const sendOutbox = async settings => {
       if (job.payload.recipient) {
         if (!recipientLinked) await require('../messaging/first-contact').attachFirstContact(job, channel, result);
         result.recipientAttached = true;
-        result.sendComplete = true;
       }
+      result.sendComplete = true;
       await ackJobs(batch.leaseId, [{ id: job._id, ok: true, result }], { provider: 'wazzup' });
       await health(true);
     } catch (error) {
@@ -105,7 +105,12 @@ const sendOutbox = async settings => {
 const drainInbox = async settings => {
   const channels = settings?.isActive ? await Channel.find({ provider: 'wazzup', providerChannelId: { $in: settings.channelIds }, isActive: true }).lean() : [];
   const ids = channels.map(channel => channel._id);
-  const findMessage = (externalId, channelId) => Message.findOne({ channelId: channelId || { $in: ids }, $or: [{ externalId }, { externalIds: externalId }] }).lean();
+  const findMessage = async (externalId, channelId) => {
+    const matches = await Message.find({ channelId: channelId ?? { $in: ids },
+      $or: [{ externalId }, { externalIds: externalId }],
+    }).limit(2).lean();
+    return matches.length === 1 ? matches[0] : null;
+  };
   const process = createProcessor({
     findChannel: async remoteId => channels.find(channel => channel.providerChannelId === remoteId),
     findMessage,

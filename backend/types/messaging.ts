@@ -94,6 +94,7 @@ export interface IConversation {
   assigneeId: Types.ObjectId | null;
   awaitingSince: Date | null;
   waitNotifiedAt: Date | null;
+  waitNotification?: { since: Date; messageId: Types.ObjectId };
   waitTelegramNotifiedAt: Date | null;
   waitTelegramGroupNotifiedAt: Date | null;
   handled: { at: Date | null; by: Types.ObjectId | null; how: string | null };
@@ -143,6 +144,7 @@ export interface IMessage {
   status: MessageStatus;
   error: string;
   jobId: Types.ObjectId | null;
+  projectedSendJobId?: Types.ObjectId;
   editedAt: Date | null;
   revisions?: { text: string; at: Date }[];
   deletedAt: Date | null;
@@ -174,6 +176,8 @@ export interface IChannelJob {
   lastError: string;
   payload: Record<string, unknown>;
   result: unknown;
+  outcomeApplied?: boolean;
+  outcomeRetryAt?: Date;
   finishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

@@ -54,6 +54,10 @@ const conversationSchema = new Schema(
     awaitingSince: { type: Date, default: null },
     // Отметка «звонок уже был» для текущего ожидания — колокольчик не дублируется
     waitNotifiedAt: { type: Date, default: null },
+    waitNotification: {
+      type: new Schema({ since: Date, messageId: { type: Schema.Types.ObjectId, ref: "Message" } }, { _id: false }),
+      default: undefined,
+    },
     // Для каждого периода ожидания: личное напоминание и эскалация в группу.
     waitTelegramNotifiedAt: { type: Date, default: null },
     waitTelegramGroupNotifiedAt: { type: Date, default: null },

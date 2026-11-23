@@ -19,6 +19,21 @@ import { dayLabel } from "./conversation-format.js";
 /** Страница ленты: столько сообщений приезжает при открытии и по «Показать раньше». */
 export const PAGE_SIZE = 50;
 
+/**
+ * History pages arrive in (sentAt, seq) order. Capture their first row before
+ * merging them with sequence-ordered display rows or out-of-window live edits.
+ * @param {Array<Pick<MessageRow, "sentAt" | "seq">>} items
+ * @param {number} [limit]
+ */
+export const olderMessagesQuery = (items, limit = PAGE_SIZE) =>
+  items.length < limit
+    ? null
+    : new URLSearchParams({
+        before: items[0].sentAt,
+        beforeSeq: String(items[0].seq),
+        limit: String(limit),
+      }).toString();
+
 // Порядок показа — по seq: сервер нумерует сообщения диалога в порядке
 // прихода, а опрос отдаёт их в порядке ИЗМЕНЕНИЯ (правка и статус двигают
 // updatedAt), поэтому сортирует клиент (docs/messaging.md, §7)

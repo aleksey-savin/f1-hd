@@ -378,3 +378,53 @@ for (const file of [
     assert.equal((shown[0].value ?? shown[0]).pending, 3);
   });
 }
+
+test("older history advances by server pages across sequence-sorted imports", async () => {
+  const { mergeMessages, olderMessagesQuery } = await import(
+    "../util/conversation-thread.js"
+  );
+  const message = (seq, day) => ({
+    id: String(seq),
+    seq,
+    sentAt: `2026-11-${day}T00:00:00Z`,
+  });
+  const first = [message(90, "14"), message(1, "15")];
+  const older = [message(80, "13"), message(70, "14")];
+  let shown = mergeMessages(first, [message(100, "01")]);
+  let query = olderMessagesQuery(first, 2);
+  const requests = [];
+  const load = () =>
+    refreshClosure("components/Conversation/use-thread.ts", "loadOlder", {
+      conversationId: "thread",
+      currentId: { current: "thread" },
+      olderQuery: query,
+      olderMessagesQuery: (items) => olderMessagesQuery(items, 2),
+      setOlderQuery: (next) => {
+        query = next;
+      },
+      loadingOlder: false,
+      setLoadingOlder: noop,
+      mergeMessages,
+      removedIds: { current: new Set() },
+      accessRevoked: { current: false },
+      setMessages: (update) => {
+        shown = update(shown);
+      },
+      api: async (url) => {
+        const params = new URL(url, "https://hd.test").searchParams;
+        requests.push([params.get("before"), params.get("beforeSeq")]);
+        return { items: requests.length === 1 ? older : [] };
+      },
+    })();
+  await load();
+  await load();
+  assert.deepEqual(requests, [
+    [first[0].sentAt, "90"],
+    [older[0].sentAt, "80"],
+  ]);
+  assert.equal(query, null);
+  assert.deepEqual(
+    shown.map((row) => row.seq),
+    [1, 70, 80, 90, 100],
+  );
+});

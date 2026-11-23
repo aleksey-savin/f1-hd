@@ -51,6 +51,7 @@ const notifyWaiting = async ({ conversation, message, title }) => {
   const { pushInApp } = require("@/services/inAppNotifications");
   return pushInApp({
     recipients: await recipientsFor(conversation, message),
+    dedupKey: `conversation-wait:${conversation._id}:${new Date(conversation.awaitingSince).toISOString()}`,
     category: "conversationMessage",
     kind: "conversationWaiting",
     title,

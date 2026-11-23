@@ -148,7 +148,7 @@ exports.add = async (req, res, next) => {
       }).catch(async (error) => {
         logFailure("Failed to deliver comment via messenger", { ticketId: ticket._id })(error);
         await Comment.updateOne(
-          { _id: comment._id },
+          { _id: comment._id, "channel.status": "preparing" },
           { $set: { "channel.status": "failed", "channel.error": "Не отправлено: сбой при постановке в очередь" } },
         ).catch(() => {});
       });

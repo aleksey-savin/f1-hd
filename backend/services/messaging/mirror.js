@@ -68,6 +68,8 @@ const mirrorToTicketLocked = async ({ message, ticket, conversation, identity, c
         network: conversation.network,
         conversationId: conversation._id,
         messageId: message._id,
+        editedAt: message.editedAt,
+        deletedAt: message.deletedAt,
         direction: message.direction === "in" ? "in" : "out",
         authorName: mirrorAuthorName({ identity, message, channel, network: conversation.network }),
         status: message.direction === "out" ? message.status : undefined,

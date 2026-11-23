@@ -13,7 +13,9 @@ const createProcessor = deps => {
   const raw = item.payload;
   if (item.kind === 'statuses') {
     if (typeof raw.messageId !== 'string' || !['sent', 'delivered', 'read', 'error'].includes(raw.status)) return true;
-    const own = await deps.findMessage(raw.messageId);
+    const channel = raw.channelId == null ? null : await deps.findChannel(raw.channelId);
+    if (raw.channelId != null && !channel) return true;
+    const own = await deps.findMessage(raw.messageId, channel?._id);
     if (!own) return false;
     const status = await deps.status(own, { ...raw, status: raw.status === 'error' ? 'failed' : raw.status });
     const event = { type: 'message.status', channelId: String(own.channelId), status, ...(own.jobId ? { jobId: String(own.jobId) } : { chat: { id: own.externalChatId }, messageIds: [raw.messageId] }), error: raw.status === 'error' ? 'Wazzup не доставил сообщение — проверьте аккаунт и переписку в Wazzup' : '' };
@@ -32,7 +34,7 @@ const createProcessor = deps => {
   }
   const own = typeof raw.messageId === 'string' ? await deps.findMessage(raw.messageId, channel._id) : null;
   if (raw.isEcho === true && !own && await deps.hasSending(channel._id, raw.chatId)) return false;
-  let event = normalizeMessage(raw, channel, { own });
+  let event = normalizeMessage(raw, channel, { own, receivedAt: item.createdAt });
   if (!event) return true;
   // A logical HD reply may have several provider ids. Deleting any part marks
   // the logical reply; the common ingest contract keys deletion by primary id.
@@ -47,7 +49,7 @@ const createProcessor = deps => {
   if (result?.ok === false && result.retryable !== false) throw new Error('Не удалось обработать событие Wazzup');
   if (result?.ok !== false && !result?.ignored && event.type === 'message' && event.message.direction === 'in') await deps.onMessage?.(event.message.sentAt);
   if (result?.ok !== false && raw.isEcho === true && ['sent', 'delivered', 'read', 'error'].includes(raw.status)) {
-    return process({ kind: 'statuses', payload: { messageId: raw.messageId, status: raw.status, error: raw.error } });
+    return process({ kind: 'statuses', payload: { channelId: raw.channelId, messageId: raw.messageId, status: raw.status, error: raw.error } });
   }
   return true;
   };

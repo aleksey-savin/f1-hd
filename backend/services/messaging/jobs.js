@@ -1,7 +1,7 @@
 const crypto = require("node:crypto");
 const { EventEmitter } = require("node:events");
 
-const { MAX_ATTEMPTS, backoffMs, advanceStatus } = require("./rules");
+const { MAX_ATTEMPTS, backoffMs } = require("./rules");
 
 /**
  * Очередь шлюза: отправка сообщений и команды. Выдача — арендой (как очередь
@@ -17,21 +17,9 @@ const LEASE_MS = 2 * 60 * 1000;
 const COMMAND_JOB_TYPES = new Set(["login", "logout", "testProxy", "loadHistory"]);
 const MAX_PAUSE_MS = 6 * 3600 * 1000;
 
-// Wazzup checkpoints parts before the external call. A failed ack must not
-// erase that proof, otherwise a retry resends already accepted parts.
-const resultForAck = (job, result) => job.provider === 'wazzup'
-  ? { ...(job.result || {}), ...(result.result || {}) }
-  : result.result ?? null;
-
 // Долгий опрос шлюза просыпается, как только появилось задание
 const signal = new EventEmitter();
 signal.setMaxListeners(100);
-
-/** Голова очереди каждого диалога + задания без диалога. Чисто. */
-const pickHeads = (candidates, headIds, limit) => {
-  const heads = new Set(headIds.map(String));
-  return candidates.filter((job) => (!job.conversationId && !job.orderingKey) || heads.has(String(job._id))).slice(0, limit);
-};
 
 /** Поля задания после ответа шлюза. Чисто. */
 const applyAck = (job, result, now = Date.now()) => {
@@ -61,35 +49,29 @@ const enqueueJob = async (fields) => {
 };
 
 const leaseJobs = async ({ networks, provider = 'gateway', limit = 10, now = new Date() }) => {
-  const mongoose = require("mongoose");
   const ChannelJob = require("@/models/channelJob");
   const free = { $or: [{ leaseUntil: null }, { leaseUntil: { $lte: now } }] };
   const transport = provider === 'wazzup' ? { provider: 'wazzup' } : require('./transport').gatewayFilter();
-  const candidates = await ChannelJob.find({ ...transport, state: "pending", network: { $in: networks }, notBefore: { $lte: now }, ...free })
-    .sort({ createdAt: 1 })
-    .limit(limit * 5)
-    .lean();
-  const conversationIds = [...new Set(candidates.map((job) => job.conversationId).filter(Boolean).map(String))];
-  const orderingKeys = [...new Set(candidates.map((job) => job.orderingKey).filter(Boolean))];
-  const heads = conversationIds.length || orderingKeys.length
-    ? await ChannelJob.aggregate([
-        {
-          $match: {
-            state: "pending",
-            $or: [{ conversationId: { $in: conversationIds.map((id) => new mongoose.Types.ObjectId(id)) } }, { orderingKey: { $in: orderingKeys } }],
-          },
-        },
-        { $sort: { createdAt: 1 } },
-        { $group: { _id: { $ifNull: ["$orderingKey", "$conversationId"] }, jobId: { $first: "$_id" } } },
-      ])
-    : [];
-
+  // Reduce each queue to its actual head before filtering by lease or backoff.
+  // Commands without a queue key each form their own group.
+  const heads = await ChannelJob.aggregate([
+    { $match: { ...transport, state: "pending", network: { $in: networks } } },
+    { $sort: { createdAt: 1, _id: 1 } },
+    { $group: {
+      _id: { $ifNull: ["$orderingKey", "$conversationId", "$_id"] },
+      jobId: { $first: "$_id" }, createdAt: { $first: "$createdAt" },
+      notBefore: { $first: "$notBefore" }, leaseUntil: { $first: "$leaseUntil" },
+    } },
+    { $match: { notBefore: { $lte: now }, ...free } },
+    { $sort: { createdAt: 1, jobId: 1 } },
+    { $limit: limit },
+  ]);
   const leaseId = crypto.randomUUID();
   const leaseUntil = new Date(now.getTime() + LEASE_MS);
   const jobs = [];
-  for (const job of pickHeads(candidates, heads.map((row) => row.jobId), limit)) {
+  for (const job of heads) {
     const taken = await ChannelJob.findOneAndUpdate(
-      { _id: job._id, state: "pending", ...free },
+      { _id: job.jobId, state: "pending", notBefore: { $lte: now }, ...free },
       { $set: { leaseId, leaseUntil } },
       { returnDocument: "after" },
     ).lean();
@@ -117,47 +99,6 @@ const waitForJob = (networks, ms) =>
     signal.on("job", onJob);
   });
 
-/** Итог отправки — в сообщение и в комментарий, если ответ ушёл из заявки. */
-const applySendOutcome = async (job, result) => {
-  const Message = require("@/models/message");
-  const Comment = require("@/models/comment");
-  const { bus } = require("@/services/pulse");
-  const message = await Message.findById(job.messageId);
-  if (!message) return;
-  if (job.state === "done") {
-    message.status = advanceStatus(message.status, "sent");
-    message.error = "";
-    if (result?.result?.externalId && !message.externalId) message.externalId = String(result.result.externalId);
-    if (Array.isArray(result?.result?.externalIds)) message.externalIds = result.result.externalIds.map(String);
-  } else if (job.state === "failed") {
-    message.status = advanceStatus(message.status, "failed");
-    message.error = job.lastError || "Не отправлено";
-  } else {
-    message.error = job.lastError || "";
-  }
-  try {
-    await message.save();
-  } catch (error) {
-    // Эхо с тем же внешним id успело прийти раньше подтверждения без jobId —
-    // статус сохраняем, id оставляем эху (шлюз обязан метить эхо jobId)
-    if (error?.code !== 11000) throw error;
-    message.externalId = undefined;
-    await message.save();
-  }
-  if (message.commentId) {
-    // Клиенту — только фиксированный текст на «failed»; сырой job.lastError
-    // остаётся в Message.error/ChannelJob.lastError (виден только сотрудникам).
-    // $set: undefined ничего не чистит (Mongoose его вырезает) — нужен $unset
-    await Comment.updateOne(
-      { _id: message.commentId },
-      message.status === "failed"
-        ? { $set: { "channel.status": message.status, "channel.statusAt": new Date(), "channel.error": "Не доставлено" } }
-        : { $set: { "channel.status": message.status, "channel.statusAt": new Date() }, $unset: { "channel.error": 1 } },
-    );
-  }
-  bus.bump({ topics: ["conversations"], ticketIds: message.ticketId ? [message.ticketId] : [] });
-};
-
 const applyMediaOutcome = async (job, result) => {
   const Message = require("@/models/message");
   const list = result?.result?.attachments;
@@ -180,33 +121,57 @@ const applyMediaOutcome = async (job, result) => {
   );
 };
 
-const ackJobs = async (leaseId, results, { now = Date.now(), provider = 'gateway' } = {}) => {
+const ackJobs = async (leaseId, results, { now, provider = 'gateway' } = {}) => {
   const ChannelJob = require("@/models/channelJob");
   let applied = 0;
   let ignored = 0;
   for (const result of results) {
     // Сбой одного подтверждения не уносит соседей; итог в сообщение пишется отдельно, задание уже закрыто
     try {
-      let job = null;
-      try {
-        job = await ChannelJob.findOne({ _id: result?.id, leaseId, ...(provider === 'wazzup' ? { provider: 'wazzup' } : require('./transport').gatewayFilter()) });
-      } catch {
-        job = null;
+      const activeLease = () => ({
+        _id: result?.id, state: "pending", leaseId, leaseUntil: { $gt: new Date(now ?? Date.now()) },
+        ...(provider === 'wazzup' ? { provider: 'wazzup' } : require('./transport').gatewayFilter()),
+      });
+      const snapshot = await ChannelJob.findOne(activeLease());
+      if (!snapshot) {
+        ignored += 1;
+        continue;
       }
+      const patch = { ...applyAck(snapshot, result, now ?? Date.now()), leaseId: null, leaseUntil: null };
+      if (snapshot.type === "login") patch.payload = { ...snapshot.payload, value: null };
+      if (snapshot.type === "send" && snapshot.messageId && patch.state !== "pending") {
+        patch.outcomeApplied = false;
+      }
+      // A status webhook may have appended delivery evidence since our read.
+      // Merge only fields returned by the sender into the current checkpoint.
+      const fields = Object.fromEntries(Object.entries(patch).map(([key, value]) => [key, { $literal: value }]));
+      if (provider === "wazzup") {
+        const { delivery: _delivery, ...progress } = result.result || {};
+        fields.result = { $mergeObjects: ["$result", { $literal: progress }] };
+      } else {
+        fields.result = { $literal: result.result ?? null };
+      }
+      const commitFilter = activeLease();
+      if (now === undefined) commitFilter.$expr = { $gt: ["$leaseUntil", "$$NOW"] };
+      const job = await ChannelJob.findOneAndUpdate(commitFilter, [{ $set: fields }], {
+        updatePipeline: true, returnDocument: "after",
+      }).lean();
       if (!job) {
         ignored += 1;
         continue;
       }
-      Object.assign(job, applyAck(job, result, now), { leaseId: null, leaseUntil: null, result: resultForAck(job, result) });
-      // Код и пароль входа не храним ни минуты дольше нужного
-      if (job.type === "login") job.payload = { ...job.payload, value: null };
-      await job.save();
       applied += 1;
       if (COMMAND_JOB_TYPES.has(job.type)) require("@/services/pulse").bus.bump({ topics: ["channels"] });
 
       // Итог в сообщение пишется отдельно, задание уже закрыто — ошибка здесь не отменяет подтверждение
       try {
-        if (job.type === "send" && job.messageId) await applySendOutcome(job, result);
+        if (job.type === "send" && job.messageId) {
+          if (job.state === "pending") {
+            await require("@/models/message").updateOne({ _id: job.messageId, jobId: job._id, status: "queued" }, { $set: { error: job.lastError } });
+          } else {
+            await require("./send-outcome").projectSendOutcome(job);
+          }
+        }
         if (job.type === "fetchMedia" && job.messageId) await applyMediaOutcome(job, result);
       } catch (error) {
         require("@/utils/logger").log("warn", "Итог задания шлюза не записан в сообщение", { module: "messaging", jobId: String(job._id), error: error?.message });
@@ -219,4 +184,4 @@ const ackJobs = async (leaseId, results, { now = Date.now(), provider = 'gateway
   return { applied, ignored };
 };
 
-module.exports = { LEASE_MS, pickHeads, applyAck, resultForAck, enqueueJob, leaseJobs, ackJobs, waitForJob };
+module.exports = { LEASE_MS, applyAck, enqueueJob, leaseJobs, ackJobs, waitForJob };

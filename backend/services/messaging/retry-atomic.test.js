@@ -25,6 +25,7 @@ stub("@/models/preferences", { findOne: () => query({ modules: { messaging: { is
 stub("@/models/ticket", { Ticket: { findById: () => query({ _id: "ticket", isClosed: false }) } });
 stub("@/models/comment", { find: () => query([]) });
 stub("@/models/channelJob", {
+  find: () => query([]),
   findById: id => query(jobs.get(String(id))), findOne: () => query([...jobs.values()].at(-1)),
   create: async fields => {
     attempts++;
@@ -120,4 +121,43 @@ test('own initial-start retry can resume an attached partial send without readAl
   assert.equal(attempts,1);
   assert.equal(jobs.get(String(message.jobId)).result.nextPart,1);
  } finally {start.recipientOf=old;}
+});
+
+test("an existing-chat retry sends only the attachment after Wazzup accepted the text", async () => {
+  delete message.recipientPhone;
+  message.externalId = "accepted-text";
+  message.externalIds = ["accepted-text"];
+  const old = jobs.get(OLD);
+  old.payload = { chatId: "peer", text: "Document attached", attachments: [{ name: "file" }] };
+  old.result = { nextPart: 1, chatId: "peer", externalIds: ["accepted-text"], inFlightPart: 1 };
+  await retryMessage({ messageId: ID, auth });
+  const retry = jobs.get(String(message.jobId));
+  const sent = [];
+  const deliver = require("../wazzup/sender").createSender({
+    send: async part => { sent.push(part); return { messageId: "accepted-file" }; },
+    checkpoint: async () => {},
+    attachmentUrl: async () => "https://hd.example/file",
+  });
+  const result = await deliver(retry, { type: "telegram", providerTransport: "tgapi" });
+  assert.deepEqual(sent.map(part => part.contentUri), ["https://hd.example/file"]);
+  assert.deepEqual(result.externalIds, ["accepted-text", "accepted-file"]);
+  assert.equal(message.externalId, "accepted-text");
+});
+
+test("a later delivery failure on a completed legacy job starts a fresh attempt", async () => {
+  delete message.recipientPhone;
+  const old = jobs.get(OLD);
+  old.state = "done";
+  old.result = { chatId: "peer", nextPart: 1, externalIds: ["old"] };
+  await retryMessage({ messageId: ID, auth });
+  assert.equal(jobs.get(String(message.jobId)).result, undefined);
+});
+
+test("an expired Wazzup checkpoint cannot restart a message with accepted parts", async () => {
+  jobs.clear();
+  delete message.recipientPhone;
+  message.externalIds = ["accepted-text"];
+  await assert.rejects(retryMessage({ messageId: ID, auth }), { statusCode: 409 });
+  assert.equal(attempts, 0);
+  assert.equal(message.status, "failed");
 });

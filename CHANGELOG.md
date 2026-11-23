@@ -19,6 +19,10 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Fixed
 
+- Messenger delivery keeps unrelated chats moving during backoff, rejects acknowledgements from expired leases and reconciles delivery results with ticket comments after an interruption. Retrying a partial Wazzup reply in an existing chat preserves the parts already accepted by the provider.
+- Messenger echoes and status updates are scoped to their channel. Replayed edits and deletions repair ticket mirrors, and retrying a waiting notification preserves per-recipient delivery. Group participant sync processes up to 500 participants.
+- Loading older conversation history continues across out-of-order imports.
+
 - Linking a Proxmox node to an inventory card now requires a shared company and detects concurrent changes to the node owner or link.
 
 - MCP initialization reports the application build version.
@@ -57,6 +61,8 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 - AI findings unsupported by the source conversation are discarded separately from supported user-review results.
 
 ### Upgrade instructions
+
+- On backend startup the messaging job model declares an index for unfinished delivery repairs. The repair worker reconciles retained terminal send jobs in batches, including jobs created before the upgrade. No manual data migration or provider resend is required.
 
 - Grant **Заявки → Запись** in global system settings to enable MCP ticket mutations for a key. Keys already granted `ticketsWrite` gain ticket creation, editing and permanent deletion according to the creator’s permissions. Review those grants before deploying. Grant **Proxmox → Запись** for Proxmox resource management. Before rolling back, revoke API-issued keys whose scopes consist entirely of write scopes unknown to the older backend (for example, `proxmoxWrite` alone). Older backends interpret an entirely unknown scope list as knowledge-base read access.
 

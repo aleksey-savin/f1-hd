@@ -29,12 +29,15 @@ const channelJobSchema = new Schema(
     lastError: { type: String, default: "" },
     payload: { type: Schema.Types.Mixed, default: {} },
     result: { type: Schema.Types.Mixed, default: null },
+    outcomeApplied: Boolean,
+    outcomeRetryAt: Date,
     finishedAt: { type: Date, default: null },
   },
   { timestamps: true, minimize: false },
 );
 
 channelJobSchema.index({ state: 1, network: 1, notBefore: 1, createdAt: 1 });
+channelJobSchema.index({ type: 1, state: 1, outcomeApplied: 1, outcomeRetryAt: 1, finishedAt: 1 });
 channelJobSchema.index({ conversationId: 1, state: 1, createdAt: 1 });
 channelJobSchema.index({ orderingKey: 1, state: 1, createdAt: 1 }, { partialFilterExpression: { orderingKey: { $type: "string" } } });
 // repairOutbound.orphans ищет "уже есть задание на это сообщение?" по messageId

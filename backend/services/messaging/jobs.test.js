@@ -2,35 +2,9 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { pickHeads, applyAck, resultForAck } = require("./jobs");
+const { applyAck } = require("./jobs");
 
 const NOW = Date.parse("2026-09-24T10:00:00Z");
-
-test('Wazzup failure/rate ack retains accepted multipart progress and delivery evidence', () => {
-  const progress = { nextPart: 1, inFlightPart: null, externalIds: ['sent-first'], delivery: { 'sent-first': 'read' } };
-  assert.deepEqual(resultForAck({ provider: 'wazzup', result: progress }, { ok: false }), progress);
-  assert.deepEqual(resultForAck({ provider: 'wazzup', result: progress }, { ok: true, result: { externalId: 'sent-first' } }), { ...progress, externalId: 'sent-first' });
-  assert.equal(resultForAck({ provider: 'gateway', result: progress }, { ok: false }), null);
-});
-
-test("only the head of each conversation's queue is handed out", () => {
-  const candidates = [
-    { _id: "j1", conversationId: "c1" },
-    { _id: "j2", conversationId: "c1" },
-    { _id: "j3", conversationId: null }, // вход, выход — без диалога
-    { _id: "j4", conversationId: "c2" },
-  ];
-  // j0 — более старое задание c1 ждёт повтора: j1 и j2 не головы
-  assert.deepEqual(pickHeads(candidates, ["j0", "j4"], 10).map((job) => job._id), ["j3", "j4"]);
-  assert.deepEqual(pickHeads(candidates, ["j1", "j4"], 10).map((job) => job._id), ["j1", "j3", "j4"]);
-  assert.deepEqual(pickHeads(candidates, ["j1", "j4"], 2).map((job) => job._id), ["j1", "j3"]);
-});
-
-test("first contact is ordered by recipient before a conversation exists", () => {
-  const candidates = [{ _id: "first", conversationId: null, orderingKey: "phone:tg:79145550142" },
-    { _id: "second", conversationId: null, orderingKey: "phone:tg:79145550142" }, { _id: "command", conversationId: null }];
-  assert.deepEqual(pickHeads(candidates, ["first"], 10).map((job) => job._id), ["first", "command"]);
-});
 
 test("a successful ack finishes the job", () => {
   const patch = applyAck({ attempts: 0 }, { ok: true }, NOW);

@@ -48,3 +48,30 @@ test('only accepted incoming messages contribute incoming-message health', async
   assert.equal(accepted.length, 1);
   assert.equal(new Date(accepted[0]).toISOString(), '2026-11-10T01:00:00.000Z');
 });
+
+test('replaying a saved Wazzup edit retains its original event time', async () => {
+  const edits = [];
+  const process = createProcessor({
+    findChannel: async () => channel,
+    findMessage: async () => null,
+    ingest: async event => { edits.push(event.message.editedAt); return { ok: true }; },
+  });
+  const item = { kind: 'messages', createdAt: new Date('2026-11-10T02:00:00Z'),
+    payload: { channelId: 'max-id', messageId: 'msg', chatId: 'peer', chatType: 'max', isEcho: false,
+      type: 'text', text: 'Revised', dateTime: '2026-11-10T01:00:00Z', isEdited: true } };
+  await process(item);
+  await process(item);
+  assert.deepEqual(edits, [item.createdAt, item.createdAt]);
+});
+
+test('a status carrying a channel ID uses only that selected account', async () => {
+  const lookups = [];
+  const process = createProcessor({
+    findChannel: async id => id === channel.providerChannelId ? channel : null,
+    findMessage: async (...args) => { lookups.push(args); return null; },
+  });
+  const receipt = { messageId: 'remote-id', status: 'read' };
+  assert.equal(await process({ kind: 'statuses', payload: { ...receipt, channelId: 'unselected' } }), true);
+  assert.equal(await process({ kind: 'statuses', payload: { ...receipt, channelId: 'max-id' } }), false);
+  assert.deepEqual(lookups, [['remote-id', channel._id]]);
+});

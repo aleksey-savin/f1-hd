@@ -1,6 +1,6 @@
 # Messaging («Диалоги») — Implementation Notes
 
-_Last updated: 2026-11-11. Current backend contracts include direct gateway
+_Last updated: 2026-11-23. Current backend contracts include direct gateway
 channels and Wazzup v3. The original design and mockup are in
 `docs/superpowers/specs/2026-09-24-omnichannel-dialogs-design.md`; verify these
 implementation notes against the code._
@@ -129,7 +129,7 @@ Limits: text ≤ 20 000 chars, ≤ 20 attachments per message, ≤ 100 ids per
 | `type` | Fields | Notes |
 |---|---|---|
 | `message` | `chat` (below); `message.id`, `.direction` (`in`\|`out`), `.origin`, `.jobId`, `.sender`, `.kind`, `.text`, `.attachments[]`, `.replyToId`, `.sentAt`, `.imported`, `.form.fields[]` (≤30, label ≤100, value ≤5000) | Inbound: `origin` is left to the server (only the literal `"form"` may be sent); `sender` is required. Outbound: `origin` defaults to `"device"`, must be `device`\|`hd`; `hd` requires `jobId` (see below). |
-| `message.edited` | `chat` (kind optional), `message.id`, `message.text`, `message.editedAt` | No-op if the text is unchanged. |
+| `message.edited` | `chat` (kind optional), `message.id`, `message.text`, `message.editedAt` | Replay reconciles the ticket comment with the stored edit. |
 | `message.deleted` | `chat` (optional), `messageIds[]` (1–100) | A mark (`deletedAt`), not an erase — the mirrored comment keeps its text. |
 | `message.status` | `status` (`sent`\|`delivered`\|`read`\|`failed`), `error`, either `jobId` **or** `chat`+`messageIds` | Status only advances (`advanceStatus`, `rules.js`), never regresses. |
 | `chat` | `chat` (kind optional; `participants[]` ≤500; `migratedToChatId`) | Metadata/participants sync; ignored if the conversation is not known yet. |
@@ -152,7 +152,7 @@ Message IDs still deduplicate delivery independently of author identity.
 `origin` meaning: `"device"` = sent from the corporate phone/app directly (not
 through HD) — mirrored under `Channel.serviceUserId` (§4); `"hd"` + `jobId` =
 the gateway's echo of a message HD itself queued — it confirms delivery of an
-existing `Message`, it never creates a new one (`confirmOwn`, `ingest.js`).
+existing `Message` on the event channel. Job-based status updates use the same channel boundary.
 
 `imported: true` marks history backfill: such messages are stored and shown in
 the chat, but never start or clear the waiting clock (`nextAwaiting`) and are
@@ -230,18 +230,15 @@ called by the gateway (`POST /gateway/events`) and the Wazzup inbox worker
 - **The "waiting" bell** (`notifyWaiting`, `services/messaging/notify.js`):
   category `conversationMessage`, kind `conversationWaiting`
   (`EXTRA_KINDS`, `models/inAppNotification.js`), link
-  `/conversations/<id>`. Recipients: the conversation's `assigneeId` if set,
-  else the responsibles of `companyId` if known, else everyone holding
-  `conversation.manage`. **Skipped entirely while
-  `Preferences.modules.messaging.isActive` is false** (`applyNotify`,
-  `ingest.js`) — the module being off must not ring a bell that leads to a page
-  nobody can open. **One bell per wait**: `applyNotify` claims the send
-  atomically (`Conversation.updateOne` on `{_id, awaitingSince,
-  waitNotifiedAt: {$ne: awaitingSince}}` → `$set waitNotifiedAt`), so a racing
-  duplicate delivery of the same event never fires twice for the same waiting
-  period. `inAppNotifications`' `insert`/`pushInApp` return the number of
-  documents **actually inserted** (`InAppNotification.insertMany(...).length`),
-  not the recipient count — a muted or already-covered recipient doesn't count.
+  `/conversations/<id>`. Among global readers, the assignee takes priority,
+  followed by company responsibles, then staff who manage conversations. The
+  owner of a personal free discussion also qualifies if they can read the
+  inbox. The messaging module and the recipient’s in-app preferences apply.
+  The first eligible source message reserves the wait, including when several messages share a timestamp.
+  Each recipient has one notification ID per conversation and waiting period.
+  Ingest records `waitNotifiedAt` after writing the notifications. If delivery
+  stops partway, replay completes pending recipients and preserves existing
+  notifications, including their read state.
 - **Telegram waiting reminders** (`services/messaging/waiting-notifications.js`)
   run in the existing ten-second notification cron, independently of comment
   delivery. An unanswered conversation gets one personal reminder after two
@@ -283,11 +280,10 @@ Types and payloads (`models/channelJob.js`, `services/messaging/jobs.js`):
 
 **Leasing** (`leaseJobs`): a 2-minute lease (`LEASE_MS`) per batch (`leaseId`),
 one `findOneAndUpdate` per job so two pollers never take the same one.
-**Head-of-conversation ordering**: among pending jobs that belong to a
-conversation, only the single oldest per `conversationId` is eligible in a
-batch (`pickHeads`) — a later reply can never race ahead of one still waiting
-on a retry; jobs without a `conversationId` (login/logout/test/history) are
-always eligible.
+**Head-of-conversation ordering**: the oldest pending job in each conversation or
+first-contact recipient queue determines whether that queue is ready. Batch
+limits apply to eligible queue heads, so a delayed or leased head blocks only
+its own queue. Standalone commands are independently eligible.
 
 **Ack** (`ackJobs`): `POST /gateway/jobs/ack {leaseId, results: [{id, ok,
 error?, retryAfterMs?, retryable?, result?}]}`. Outcomes (`applyAck`,
@@ -300,32 +296,31 @@ error?, retryAfterMs?, retryable?, result?}]}`. Outcomes (`applyAck`,
   backoff(attempts)`, backoff = 30s → 2min → 8min → 30min → 30min
   (`BACKOFF_MS`).
 
-`ackJobs` isolates every result: one entry that fails to look up (unknown id,
-lease already expired) or to save is counted in `ignored` and never stops the
-rest of the batch; a failure while writing the outcome into the linked
-`Message`/`Comment` is caught and logged separately — the job's own ack still
-stands either way.
+Each acknowledgement updates a pending job only while its lease ID and expiry
+still match. An obsolete acknowledgement counts as `ignored`. Other results
+in the batch can proceed. A terminal send outcome is durable before the
+message and ticket comment are updated. The repair worker processes up to 50
+retained terminal sends per pass, including older jobs without a completion
+marker. It reconciles the current attempt, preserving later delivery states,
+and marks the job’s outcome applied. Recovery uses the stored job result and
+does not dispatch another message.
 
 **The repair cron** — `messagingRepair`, every minute (`backend/app.js`, next
 to the other `jobs.register` registrations; 50 s watchdog) →
-`services/messaging/outbound.js#repairOutbound`. It returns immediately when
-`Channel.exists({isActive: true})` is false, so an idle deployment doesn't scan
-anything every minute. Otherwise it finds outbound messages stuck
+`services/messaging/outbound.js#repairOutbound`. It repairs delivery outcomes and message mappings even when channels are inactive.
+With an active channel it also finds outbound messages stuck
 `status:"queued", jobId:null` for over 60 s (≤50 at a time): fails them if
 their channel is inactive; otherwise **links** an already-existing job for
 that message when the earlier crash happened after `enqueueJob` but before the
 message was updated with its id (it never enqueues a second job for the same
 message); otherwise enqueues a fresh one. It also finds comments stuck at
 `channel.status:"preparing"` for over 60 s (≤50) and either copies in the
-linked message's id/status or marks them `failed`. Three partial indexes back
-these two queries and the job-lookup inside them without scanning a whole
-collection — see §8.
+linked message’s ID and status or marks them `failed`. Section 8 lists the
+indexes for these scans and the job lookup.
 
-**Client-visible delivery errors** (`Comment.channel.error`, written by
-`applySendOutcome` above, `ingestStatus` (§4's ingest, `message.status`
-events) and `retryMessage`/`markQueued` (`services/messaging/outbound.js`)):
-the client only ever sees the fixed string **«Не доставлено»**, and only once
-the linked message's status becomes `failed`. A comment whose delivery never
+**Client-visible delivery errors.** `projectCommentStatus` in
+`services/messaging/send-outcome.js` sets `Comment.channel.error` to
+**«Не доставлено»** when the linked message has failed. A comment whose delivery never
 even got enqueued gets a different fixed string, **«Не отправлено: сбой при
 постановке в очередь»** (`controllers/comment.js`'s fallback, also written
 verbatim — never a raw error — by `repairOutbound`'s stuck-comment branch).
@@ -427,7 +422,8 @@ into a neighboring router:
   `read` exposes only messages assigned to tickets where the viewer is or was
   responsible (`messagingReaderIds` retains historical membership). `readAll`
   exposes the full inbox independently of ticket-reading permissions. Neither
-  grants sending. Unresolved/free messages are visible only to global readers.
+  grants sending. Global readers see unresolved and free messages. A restricted
+  reader can also see their own personal free discussion, as described below.
 - **reply** = inbox read + `conversation.reply`, plus module switch. Restricted
   senders must currently be responsible for the open linked ticket; global
   readers may reply globally, including free discussion. Closed tickets cannot
@@ -459,11 +455,11 @@ into a neighboring router:
 | `GET /conversations/outgoing/request/:requestId` | start | Recover the same receipt after a lost HTTP response |
 | `GET /conversations/:id` | read | Full card: conversation, channel, counterpart, participants, linked HD contact, that contact's other channels, bound/open tickets (`ticket.boundAt` — when the binding started) |
 | `GET /conversations/:id/messages` | read | A page of messages (`before`+`beforeSeq` chronological, or `changedSince`(+`afterId`) for polling — see below) |
-| `GET /conversations/:id/ticket-draft` | read | Draft **HTML** description + guessed applicant/company/source from selected messages |
+| `GET /conversations/:id/ticket-draft` | manage | Draft **HTML** description + guessed applicant/company/source from selected messages |
 | `POST /conversations/:id/seen` | read | Read watermark; enqueues `markRead` when applicable |
 | `POST /conversations/:id/messages` | reply | Send a reply (multipart `attachments`) |
-| `POST /conversations/:id/handled` | reply | Clear "awaiting" without a reply |
-| `POST /messages/:id/retry` | start or ticket messaging | Retry a failed message through accessible conversation or ticket; service rechecks the matching permission and scope |
+| `POST /conversations/:id/handled` | manage | Clear "awaiting" without a reply |
+| `POST /messages/:id/retry` | reply or ticket messaging | Retry a failed message through accessible conversation or ticket; service rechecks the matching permission and scope |
 | `POST /conversations/:id/assign` | manage | Set/clear the assignee |
 | `POST /conversations/:id/bind` | manage | Bind a **direct** chat to an open ticket |
 | `POST /conversations/:id/unbind` | manage | End a live binding |
@@ -604,14 +600,17 @@ parts. Unsupported direct gateways reject quoting instead of silently dropping i
 (`GET /conversations/:id/messages?changedSince=<ISO>&afterId=<id>`, both query
 params, `afterId` optional): rows are sorted by `{updatedAt, _id}` — an edit or
 a status change bumps `updatedAt`, not `sentAt` — so this is **change order**,
-not display order; the client sorts by `seq` itself before rendering. Without
+not display order; the client sorts by `seq` itself before rendering. Older
+history uses the oldest `(sentAt, seq)` from the server’s chronological page.
+An imported message can arrive with a high sequence number and an old send
+time, so its display position cannot serve as the history cursor. Without
 `afterId` the filter is `updatedAt >= since` (at-least-once; the client
 de-dupes by message id). With `afterId` it narrows to `updatedAt > since OR
 (updatedAt == since AND _id > afterId)`, so rows sharing the exact same
 `updatedAt` are neither skipped nor repeated. A **full** page
-(`items.length === limit`) returns `{items, hasMore:true, serverTime: <last
+(the database returned `limit` rows, including rows reported in `removedIds`) returns `{items, hasMore:true, serverTime: <last
 row's updatedAt>, afterId: <last row's _id>}` — feed both straight back to
-keep draining the same page. A **partial/empty** page returns `{items,
+continue even when `items` is empty. A **partial/empty** database page returns `{items,
 hasMore:false, serverTime: <time captured before the query ran>}` — use that
 as the next poll's `since`, with no `afterId`, so anything that lands in the
 gap between the query and the response isn't missed.
@@ -627,8 +626,8 @@ without a conversation remains author-scoped. The ticket's own tier is enough
 to retry a ticket reply even where inbox visibility would deny the conversation.
 `validateDeliverRoute` (`services/messaging/outbound.js`)
 and `prepareOrigin` (inherited by `ticketDraft`, `services/messaging/origin.js`)
-re-check **both** their own permission (`ticket.sendMessage` for
-`validateDeliverRoute`, `conversation.read` for `prepareOrigin`/`ticketDraft`)
+re-check **both** their own permissions (ticket messaging for
+`validateDeliverRoute`, both `conversation.readAll` and `conversation.manage` for `prepareOrigin`/`ticketDraft`)
 **and** the module switch themselves — because these two are also reachable
 from ticket-side code that never goes through this router at all (a ticket
 comment delivered "via" a messenger, `deliverComment`; "Create ticket" from
@@ -843,8 +842,9 @@ rules.
   `{createdAt: 1}` partial on the orphan query's own equality fields
   (`direction:"out", origin:"hd", status:"queued", jobId:null`,
   `hd_queued_no_job_createdAt`); `channeljobs` gets a plain `{messageId: 1}`
-  for the repair's per-message job lookup. `repairOutbound` itself also returns
-  immediately when `Channel.exists({isActive:true})` is false.
+  for per-message job lookup. The job model also indexes `type`, `state`,
+  `outcomeApplied`, `outcomeRetryAt` and `finishedAt` for delivery repair.
+  The active-channel check applies to outbound enqueue recovery.
 
 
 ## 9. Wazzup operations
@@ -912,8 +912,10 @@ and retries processing failures with backoff up to one hour. Statuses and
 own-message echoes that arrive before the send response wait for correlation
 (up to one day). Invalid events or events for unselected channels are ignored.
 Incoming messages, device echoes, edits, deletions and delivery statuses all
-pass through common ingest and ticket mirroring; no separate conversation
-store is created.
+pass through common ingest and ticket mirroring. Wazzup edits use the stored inbox
+arrival time so replay cannot give an old edit a new timestamp. Statuses with a
+channel ID are matched within that account. Without one, a provider message ID
+must resolve unambiguously across the selected accounts.
 
 **Group authors in User API v3.** `telegroup`, `whatsgroup` and `maxgroup`
 are accepted, but their incoming author is currently unknown (`sender: null`).
@@ -947,8 +949,13 @@ IDs belonging to the logical reply. A 429 can retry automatically using
 `Retry-After` (bounded to six hours). A timeout, missing response ID or crash
 with an in-flight part leaves acceptance unknown and fails the job without
 an automatic resend. Staff must inspect the conversation in Wazzup before
-using the existing manual retry action, which creates a new delivery attempt;
-late receipts for the previous attempt cannot mark the new attempt delivered.
+using manual retry for a part with uncertain acceptance. A retry of an
+interrupted send preserves the accepted part IDs and continues from the saved
+position for existing conversations and first contacts. If dispatch completed
+and the provider subsequently reported delivery failure, manual retry starts
+a fresh attempt and clears the old delivery IDs. If the job has expired
+and the message retains evidence of accepted parts, HD reports a conflict.
+Check the conversation in Wazzup and send any missing parts as a new message.
 
 **Media.** Incoming downloads accept only HTTPS URLs on exactly
 `store.wazzup24.com` or `store.wazzup24.ru`, without credentials or an explicit
@@ -957,12 +964,14 @@ lower of `Channel.settings.maxMediaMb` and 50 MiB, checked both from
 `Content-Length` and while streaming. Oversized attachments are marked
 `skipped`; an expired 404/410 URL is marked `failed`; other download failures
 retry through the durable event queue. Accepted bytes go into HD storage.
-Outgoing attachments use the public HD
+Outgoing attachments use the HD
 `/uploads/direct/:name/:filename` endpoint for both local and S3-backed uploads.
 It streams the bytes in a single response, supports GET/HEAD, preserves the
 original filename through Content-Disposition and applies the upload sandbox
-headers. It exposes the same public upload keys as `/uploads/:name`, never the
-private-artifact namespace. Wazzup's content store rejected our otherwise valid
+headers. Message attachments require a permitted session or a one-hour
+signature for the named file on the direct provider URL. The ordinary
+`/uploads/:name` route checks the reader’s session for those files. Other
+public uploads keep their existing access rules. Wazzup's content store rejected our otherwise valid
 presigned S3 URLs with `BAD_RESPONSE`; direct HD responses were accepted in a
 targeted live check with PNG and a synthetic `.conf` file on 2026-11-11.
 

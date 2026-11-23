@@ -69,6 +69,7 @@ const messageSchema = new Schema(
     },
     error: { type: String, default: "" },
     jobId: { type: Schema.Types.ObjectId, ref: "ChannelJob", default: null },
+    projectedSendJobId: { type: Schema.Types.ObjectId, ref: "ChannelJob" },
     editedAt: { type: Date, default: null },
     revisions: { type: [{ _id: false, text: String, at: Date }], default: undefined },
     deletedAt: { type: Date, default: null },
