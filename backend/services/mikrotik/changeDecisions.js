@@ -38,13 +38,14 @@ function createDecisions({ store, notifier, events, now = () => new Date(), log 
     if (event && change?.mikrotik) await events?.record?.(change.mikrotik, event.kind, { ...event, at: now() });
   };
 
-  async function decide({ changeId, userId, decision, comment, channel, canApprove }) {
+  async function decide({ changeId, userId, decision, comment, channel, canApprove, expectedStatus }) {
     const change = await store.load(changeId);
     if (!change) return refuse("not_found");
     const at = now();
     const planned = planDecision(change, { userId, decision, channel, comment, canApprove: Boolean(canApprove), now: at });
     if (!planned.ok) return refuse(planned.code);
 
+    if (expectedStatus !== undefined && change.status !== expectedStatus) return refuse("closed");
     const { patch } = planned;
     // «Утверждено» без пола у последнего шага: следующего нет
     const final = patch.status === STATUS.queued;

@@ -3,7 +3,7 @@
 const { validateProposal, PLACEHOLDERS } = require("./changeRules");
 const { displayCommand, hasForbiddenChars } = require("./changeRender");
 const { STATUS, planSteps, isFinal } = require("./changeSteps");
-const { norm, matches, redactedBefore } = require("./changeMatch");
+const { norm, matches, redactedBefore, addIdentity } = require("./changeMatch");
 const { maskText } = require("../mcp/maskText");
 
 const MAX_TITLE = 200;
@@ -17,13 +17,6 @@ const HOUR_MS = 3600 * 1000;
 
 // Поля, которых у строк может не быть в ответе API (пустые и служебные не печатаются)
 const OPTIONAL_PARAMS = new Set(["comment", "disabled", "timeout", "place-before", "copy-from"]);
-// Что считается «уже есть» при add; для прочих разделов роутер откажет сам
-const UNIQUE_KEYS = {
-  "/ip firewall address-list": ["list", "address"],
-  "/ip dns static": ["name", "address"],
-  "/ip dhcp-server lease": ["address"],
-  "/interface wireguard peers": ["public-key"],
-};
 const FIREWALL = new Set(["/ip firewall filter", "/ip firewall raw", "/ipv6 firewall filter", "/ipv6 firewall raw"]);
 const FIREWALL_REASON = "changes input firewall rules: may cut off the device";
 const PLACEHOLDER_VALUES = new Set(Object.values(PLACEHOLDERS));
@@ -212,11 +205,10 @@ function createProposals({ store, readMenus, now = () => new Date() }) {
       }
 
       if (command.action === "add") {
-        const keys = UNIQUE_KEYS[command.path];
-        if (keys && keys.every((k) => command.params[k] !== undefined && !PLACEHOLDER_VALUES.has(command.params[k]))) {
-          if (rows.some((row) => keys.every((k) => row[k] !== undefined && norm(row[k]) === norm(command.params[k])))) {
-            problems.push(`command ${n}: an entry with ${keys.map((k) => `${k}=${command.params[k]}`).join(" ")} already exists in ${command.path}`);
-          }
+        const identity = addIdentity(command);
+        if (identity && rows.some((row) => matches(row, identity))) {
+          const fields = Object.entries(identity).map(([name, value]) => `${name}=${value}`).join(" ");
+          problems.push(`command ${n}: an entry with ${fields} already exists in ${command.path}`);
         }
       } else {
         const hit = rows.filter((row) => matches(row, command.where));
@@ -263,8 +255,9 @@ function createProposals({ store, readMenus, now = () => new Date() }) {
         if (seen.has(key)) problems.push(`commands ${seen.get(key)} and ${i + 1} target the same row`);
         else seen.set(key, i + 1);
       }
-      const keys = UNIQUE_KEYS[c.path];
-      if (c.action === "add" && keys && keys.every((k) => c.params[k] !== undefined && !PLACEHOLDER_VALUES.has(c.params[k]))) {
+      const identity = addIdentity(c);
+      if (identity) {
+        const keys = Object.keys(identity);
         const key = `${c.path}\n${keys.map((k) => norm(c.params[k])).join("\n")}`;
         if (keyed.has(key)) problems.push(`commands ${keyed.get(key)} and ${i + 1} add the same entry (${keys.map((k) => `${k}=${c.params[k]}`).join(" ")})`);
         else keyed.set(key, i + 1);

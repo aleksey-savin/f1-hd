@@ -82,6 +82,10 @@ const DONE_TOAST = {
  */
 const MikrotikChangePage = () => {
   const change = useLoaderData();
+  return <ChangeDetail key={change._id} change={change} />;
+};
+
+const ChangeDetail = ({ change }) => {
   const can = useCan();
   const refresh = useRefreshRoute();
   const showToast = useToastStore((state) => state.showToast);
@@ -130,12 +134,16 @@ const MikrotikChangePage = () => {
     setAct(
       my.action === "confirm"
         ? {
+            id: change._id,
+            status: change.status,
             action: "confirm",
             title: "Подтвердить запрос?",
             description: `После вашего подтверждения запрос уйдёт на утверждение${nextApprover ? `: ${nextApprover}` : ""}.`,
             confirmLabel: "Подтвердить",
           }
         : {
+            id: change._id,
+            status: change.status,
             action: "approve",
             title: apply.title,
             description: apply.body,
@@ -145,7 +153,7 @@ const MikrotikChangePage = () => {
 
   // Очередь ушла от человека, пока диалог открыт (решил другой, срок вышел)
   const dialogStale =
-    (act && !my.action) ||
+    (act && act.action !== my.action) ||
     (dialog === "reject" && !my.action) ||
     (dialog === "cancel" && !my.canCancel);
   useEffect(() => {
@@ -343,7 +351,7 @@ const MikrotikChangePage = () => {
       {/* Подтвердить / утвердить: первый шаг при втором согласующем — без
           применения, поэтому и текст другой */}
       <ConfirmDialog
-        open={Boolean(act)}
+        open={Boolean(act) && !dialogStale}
         onOpenChange={(value) => !value && setAct(null)}
         title={act?.title}
         description={act?.description}
@@ -352,7 +360,7 @@ const MikrotikChangePage = () => {
         isLoading={busy}
         onConfirm={() =>
           run(
-            () => decideChange(change._id, "approve"),
+            () => decideChange(act.id, "approve", undefined, act.status),
             DONE_TOAST[act?.action],
           )
         }

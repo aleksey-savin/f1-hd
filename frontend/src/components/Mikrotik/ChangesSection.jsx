@@ -43,7 +43,11 @@ const rowMeta = (change, timeZone) => {
 // Раздел «Изменения» страницы записи: запросы ИИ-агентов по этому устройству,
 // новые сверху; строка ведёт на страницу запроса. Список читается при показе и
 // по пульсу темы `mikrotikChanges` — своего таймера нет.
-const ChangesSection = ({ recordId, deviceName }) => {
+const ChangesSection = ({ recordId, deviceName }) => (
+  <RecordChangeHistory key={recordId} recordId={recordId} deviceName={deviceName} />
+);
+
+const RecordChangeHistory = ({ recordId, deviceName }) => {
   const [changes, setChanges] = useState([]);
   const [loaded, setLoaded] = useState(false);
   // Первая загрузка не удалась: «запросов нет» утверждать нельзя

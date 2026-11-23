@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Mikrotik = require("@/models/mikrotik");
+const { activeRecord } = require("@/services/mikrotik/artifactLifecycle");
 const MikrotikArtifact = require("@/models/mikrotikArtifact");
 require("@/models/company");
 require("@/models/inventory/clientDevice");
@@ -140,14 +141,15 @@ const exportRow = (artifact) => ({
   routerOsVersion: artifact.routerOsVersion || null,
 });
 
-const listExports = async (id) =>
-  (
-    await MikrotikArtifact.find({ mikrotik: id, type: "export" })
-      .sort({ createdAt: -1 })
-      .limit(MAX_EXPORTS)
-      .select("createdAt trigger routerOsVersion")
-      .lean()
-  ).map(exportRow);
+const listExports = async (id) => {
+  if (!await activeRecord(id)) return [];
+  const exports = await MikrotikArtifact.find({ writeState: null, mikrotik: id, type: "export" })
+    .sort({ createdAt: -1 })
+    .limit(MAX_EXPORTS)
+    .select("createdAt trigger routerOsVersion")
+    .lean();
+  return exports.map(exportRow);
+};
 
 const loadDevice = async (id, { days, locations = false }) => {
   if (!mongoose.isValidObjectId(id)) return null;
@@ -255,7 +257,8 @@ const MISSING_FILE = new Set(["NoSuchKey", "NotFound", "ENOENT"]);
 /** Сохранённый экспорт устройства, вычищенный; null — такого экспорта нет. */
 const loadExportConfig = async (deviceId, artifactId) => {
   if (!mongoose.isValidObjectId(deviceId) || !mongoose.isValidObjectId(artifactId)) return null;
-  const artifact = await MikrotikArtifact.findOne({ _id: artifactId, mikrotik: deviceId, type: "export" })
+  if (!await activeRecord(deviceId)) return null;
+  const artifact = await MikrotikArtifact.findOne({ writeState: null, _id: artifactId, mikrotik: deviceId, type: "export" })
     .select("storageKey createdAt trigger routerOsVersion")
     .lean();
   if (!artifact) return null;

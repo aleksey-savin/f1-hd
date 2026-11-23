@@ -55,6 +55,10 @@ export interface IMikrotikFirmwareState {
   lastErrorAt?: Date;
   cveCount?: number;
   claimedAt?: Date;
+  pendingTicketId?: Types.ObjectId;
+  pendingTitle?: string;
+  pendingDescription?: string;
+  pendingCategoryId?: Types.ObjectId | null;
   ticketId?: Types.ObjectId;
   items: IMikrotikFirmwareStateItem[];
   allSafeCommentedAt?: Date;

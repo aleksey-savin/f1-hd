@@ -16,7 +16,7 @@
 - **Комплектующие следуют за хостом.** При переносе, выдаче или смене статуса ПК агентской операцией прикреплённые устройства едут вместе с ним, и в предложении они перечислены поимённо. Отказаться можно: `withComponents: false` или `exceptComponentIds[]`. Моё прочтение ответа: ручные формы не меняются.
 - **Связь «заявки ↔ техника» в v1 приблизительная.** Считается по заявителю: заявки человека, за которым числится устройство (`ticketSource.js:74`), плюс прямой `relatedClientDeviceId`, где он есть. В ответе агенту это помечено как оценка.
 
-Образцы в коде: MCP-сервер `backend/services/mcp/server.js` (семейства по scope, `guard`, JSON Schema без zod), запись с `requester` (`services/mcp/requester.js`, `knowledgeWriteTools.js`), конвейер предложений Mikrotik (`models/mikrotikChange.js`, `services/mikrotik/change*.js`, `docs/mikrotik-changes.md`).
+Образцы в коде: MCP-сервер `backend/services/mcp/server.js` (семейства по scope, `guard`, JSON Schema без zod), запись с `requester` (`services/mcp/requester.js`, `knowledgeWriteTools.js`), конвейер предложений Mikrotik (`models/mikrotikChange.js`, `services/mikrotik/change*.js`, [MikroTik change requests](../../mikrotik-management.md#agent-change-requests)).
 
 ## Решения исполнителя (мои, проверить)
 

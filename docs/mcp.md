@@ -1331,8 +1331,7 @@ the request.
 
 ### Device journal — what the agent leaves and what it can read
 
-Added 2026-10-11. The journal itself is described in
-`docs/mikrotik-management.md` («Device journal»). The MCP side:
+The [monitoring guide](mikrotik-management.md#monitoring-downtime-and-tickets) describes the device journal. MCP contributes the following events and queries.
 
 - **Written for the agent.** `routes/mcp.js` passes `events: eventLog()` to the
   three Mikrotik factories. The actor is the key: `{ type: "mcpKey", keyId,
@@ -1610,8 +1609,7 @@ assembled in `routes/mcp.js` as `tools.mikrotikChanges`. These are the agent's
 whole write surface: propose, read status, list. Applying, approving and
 cancelling exist only for people in HD. The request life cycle, acceptance
 rules, executor, worker and security model are in
-[`docs/mikrotik-changes.md`](./mikrotik-changes.md); this section covers only
-the tool layer.
+[Agent change requests](mikrotik-management.md#agent-change-requests).
 
 **Family gate.** `toolFamilies().mikrotikChanges` = key scope `mikrotikChanges`
 **and** `modules.mikrotik`. The scopes are independent: a key with only

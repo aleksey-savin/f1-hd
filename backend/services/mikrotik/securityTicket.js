@@ -1,3 +1,4 @@
+const { Types } = require("mongoose");
 const Mikrotik = require("../../models/mikrotik");
 const { Ticket } = require("../../models/ticket");
 const Preferences = require("../../models/preferences");
@@ -188,49 +189,79 @@ const syncOpenTicket = async (ticket, state, endangered, prefs) => {
   }
 };
 
-// Клейм → создание → штамп. Провал создания откатывает клейм (guarded), повтор —
-// на следующем прогоне. Фильтры на null матчат и отсутствующее поле — состояние
-// чистится только через $unset, так что это ожидаемо.
-const claimAndCreate = async (endangered, cfg, ctx) => {
-  const claimed = await MikrotikFirmwareState.findOneAndUpdate(
-    { _id: STATE_ID, ticketId: null, claimedAt: null },
-    { $set: { claimedAt: new Date() } },
-    { new: false },
-  );
-  if (!claimed) return; // заявка уже есть или параллельный прогон опередил
-
-  const items = endangered.map((e) => ({
-    recordId: e.record._id,
-    description: itemDescription(e),
-    safe: false,
-  }));
-
-  const ticket = await createMikrotikSystemTicket({
-    title: `Уязвимая прошивка RouterOS: устройств под угрозой — ${endangered.length}`,
-    description: buildDescription(endangered, ctx),
-    categoryId: cfg.categoryId || null,
-    checklist: items,
-  });
-
+// Older workers stored only a timestamp. Recognize the original generated
+// open ticket and rebuild its checklist mapping from the saved device links.
+const recoverLegacyClaim = async (state) => {
+  const ticket = await Ticket.findOne({
+    source: "Мониторинг устройств",
+    title: /^Уязвимая прошивка RouterOS: устройств под угрозой — [0-9]+$/,
+    description: /^Найдены устройства Mikrotik с прошивкой, подверженной известным /,
+    createdAt: { $gte: state.claimedAt },
+    isClosed: false,
+  }).select("description");
+  const guard = { _id: STATE_ID, claimedAt: state.claimedAt, pendingTicketId: null, ticketId: null };
   if (!ticket) {
-    await MikrotikFirmwareState.updateOne(
-      { _id: STATE_ID, ticketId: null },
-      { $unset: { claimedAt: "" } },
-    );
+    await MikrotikFirmwareState.updateOne(guard, { $unset: { claimedAt: "" } });
     return;
   }
+  const items = [];
+  for (const block of ticket.description.split("<b>").slice(1)) {
+    const link = block.match(/\/devices\/mikrotik\/records\/([a-f\d]{24})"/i);
+    const header = block.match(/^(.*?)<\/b> (.*?)<br\/>RouterOS (.*?)<br\/>/s);
+    if (link && header) {
+      const description = `${header[1]} ${header[2]}: RouterOS ${header[3]}`;
+      items.push({ recordId: link[1], description, safe: false });
+    }
+  }
+  await MikrotikFirmwareState.updateOne(guard, {
+    $set: { ticketId: ticket._id, items }, $unset: { claimedAt: "" },
+  });
+};
 
+// Store the ticket ID and its complete initial contents in one write. Both
+// sides of an interrupted insert can then be retried using Mongo's unique _id.
+const claimAndCreate = async (state, endangered, cfg, ctx) => {
+  if (!state.pendingTicketId) {
+    if (!endangered.length) return;
+    const items = endangered.map((e) => ({
+      recordId: e.record._id, description: itemDescription(e), safe: false,
+    }));
+    state = await MikrotikFirmwareState.findOneAndUpdate(
+      { _id: STATE_ID, ticketId: null, claimedAt: null, pendingTicketId: null },
+      { $set: {
+        claimedAt: new Date(),
+        pendingTicketId: new Types.ObjectId(),
+        pendingTitle: `Уязвимая прошивка RouterOS: устройств под угрозой — ${endangered.length}`,
+        pendingDescription: buildDescription(endangered, ctx),
+        pendingCategoryId: cfg.categoryId || null,
+        items,
+      } },
+      { new: true },
+    );
+    if (!state) return;
+  }
+
+  let ticket = await Ticket.findById(state.pendingTicketId).select("_id");
+  if (!ticket) {
+    ticket = await createMikrotikSystemTicket({
+      ticketId: state.pendingTicketId,
+      title: state.pendingTitle,
+      description: state.pendingDescription,
+      categoryId: state.pendingCategoryId,
+      checklist: state.items,
+    });
+    if (!ticket) return;
+  }
   await MikrotikFirmwareState.updateOne(
-    { _id: STATE_ID, claimedAt: { $ne: null }, ticketId: null },
+    { _id: STATE_ID, pendingTicketId: state.pendingTicketId, ticketId: null },
     {
-      $set: { ticketId: ticket._id, items },
-      $unset: { claimedAt: "", allSafeCommentedAt: "" },
+      $set: { ticketId: ticket._id },
+      $unset: {
+        pendingTicketId: "", pendingTitle: "", pendingDescription: "", pendingCategoryId: "",
+        claimedAt: "", allSafeCommentedAt: "",
+      },
     },
   );
-  logger.log("info", "Mikrotik security ticket created", {
-    ticketId: ticket._id,
-    devices: endangered.length,
-  });
 };
 
 // Точка входа (вызывается суточным прогоном после обновления кэшей). Never
@@ -249,6 +280,13 @@ const syncSecurityTicket = async (ctx) => {
       { upsert: true, new: true },
     );
 
+    if (state.claimedAt && !state.pendingTicketId && !state.ticketId) {
+      // Give an old worker time to finish during a rolling deployment.
+      if (Date.now() - state.claimedAt.getTime() < 15 * 60_000) return;
+      await recoverLegacyClaim(state);
+      state = await MikrotikFirmwareState.findById(STATE_ID);
+    }
+
     if (state.ticketId) {
       const ticket = await Ticket.findById(state.ticketId).select(
         "num isClosed",
@@ -264,7 +302,7 @@ const syncSecurityTicket = async (ctx) => {
         closed: Boolean(ticket),
       });
       await MikrotikFirmwareState.updateOne(
-        { _id: STATE_ID },
+        { _id: STATE_ID, ticketId: state.ticketId },
         {
           $set: { items: [] },
           $unset: { ticketId: "", claimedAt: "", allSafeCommentedAt: "" },
@@ -272,8 +310,7 @@ const syncSecurityTicket = async (ctx) => {
       );
     }
 
-    if (!endangered.length) return;
-    await claimAndCreate(endangered, cfg, ctx);
+    await claimAndCreate(state, endangered, cfg, ctx);
   } catch (error) {
     logger.log("error", "Mikrotik security ticket sync failed", {
       error: error.message,

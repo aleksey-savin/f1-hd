@@ -44,7 +44,7 @@ const run = async () => {
     MikrotikOutage.find({}).lean(),
     MikrotikUpgradeJob.find({}).lean(),
     MikrotikChange.find({}).lean(),
-    MikrotikArtifact.find({ type: "export" }).sort({ createdAt: 1 }).lean(),
+    MikrotikArtifact.find({ writeState: null, type: "export" }).sort({ createdAt: 1 }).lean(),
   ]);
   const byDevice = new Map();
   for (const artifact of artifacts) {

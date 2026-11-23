@@ -648,8 +648,7 @@ deliberate data rollback; it is not the W5a runtime rollback procedure.
 ### Mikrotik changes proposed by AI agents
 
 A key with the «Изменения Mikrotik» access can propose configuration changes
-that people approve in HD before anything reaches a router. Implementation
-notes: `docs/mikrotik-changes.md`.
+that people approve in HD before anything reaches a router. See [Agent change requests](mikrotik-management.md#agent-change-requests).
 
 - **Migration `2026-10-10-grantApproveChanges`**
   (`backend/scripts/grantApproveChanges.js`, after `2026-10-01-grantUpgradeFirmware`

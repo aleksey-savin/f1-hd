@@ -2,6 +2,23 @@
 // Без моделей и ввода-вывода.
 const { redactRow } = require("./liveState");
 
+const { PLACEHOLDERS } = require("./changeRules");
+
+// Что считается «уже есть» при add; для прочих разделов роутер откажет сам
+const UNIQUE_KEYS = {
+  "/ip firewall address-list": ["list", "address"],
+  "/ip dns static": ["name", "address"],
+  "/ip dhcp-server lease": ["address"],
+  "/interface wireguard peers": ["public-key"],
+};
+const generatedValues = new Set(Object.values(PLACEHOLDERS));
+
+function addIdentity(command) {
+  const keys = UNIQUE_KEYS[command.path];
+  if (command.action !== "add" || !keys || !keys.every((key) => command.params[key] !== undefined && !generatedValues.has(command.params[key]))) return null;
+  return Object.fromEntries(keys.map((key) => [key, command.params[key]]));
+}
+
 const BOOL = { true: "yes", false: "no" };
 // true/false и yes/no — одно и то же значение
 const norm = (v) => BOOL[String(v)] || String(v);
@@ -116,4 +133,4 @@ function diffField(path, fresh, stored, names = null) {
 
 const sameConfig = (path, fresh, stored) => diffField(path, fresh, stored) === null;
 
-module.exports = { norm, stripDots, matches, redactedBefore, MENU_VOLATILE, GLOBAL_VOLATILE, volatileFor, diffField, sameConfig, parseDuration };
+module.exports = { addIdentity, norm, stripDots, matches, redactedBefore, MENU_VOLATILE, GLOBAL_VOLATILE, volatileFor, diffField, sameConfig, parseDuration };

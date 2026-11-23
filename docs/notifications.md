@@ -156,8 +156,7 @@ HTML-escaped because the outbox sends with `parse_mode` HTML, and the e-mail
 body is HTML as well (escaped text, `<br>`, a link built from the base URL).
 A new request notifies the first step's person from the MCP tool
 `propose_mikrotik_change`; every final status, `needs_attention` included, has
-its own title and summary. Details:
-`docs/mikrotik-changes.md`, «Notifications».
+its own title and summary. See [review and notification delivery](mikrotik-management.md#proposing-and-reviewing).
 
 The two channel gates that skipped the cron entirely when neither e-mail nor
 Telegram was configured are gone (`app.js` and the three early returns in the

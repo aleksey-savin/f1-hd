@@ -222,9 +222,8 @@ const createMikrotikChangeTools = ({ proposals, store, notifier, events, baseUrl
     }
     const limit = Number.isInteger(args?.limit) ? Math.min(Math.max(args.limit, 1), MAX_LIMIT) : DEFAULT_LIMIT;
     // Запросы устройств, которых читающие инструменты не покажут, отсеиваем
-    const found = (await store.listChanges({ deviceId, status: args?.status || null, limit: MAX_LIMIT * 5 }))
-      .filter((c) => deviceName(devices, c.mikrotik))
-      .slice(0, limit);
+    const deviceIds = deviceId ? [deviceId] : devices.map((device) => String(device._id));
+    const found = await store.listChanges({ deviceIds, status: args?.status || null, limit });
     logCall(caller, "list_mikrotik_changes", { device: deviceId ? deviceName(devices, deviceId) : null, found: found.length, outcome: "listed" }, started);
     if (!found.length) return textResult("No change requests match.");
     const names = await peopleOf(found);
@@ -255,10 +254,10 @@ const mongoChangeStore = {
     // Запросы приходят только от ключей MCP; секреты WireGuard (select: false) не читаются
     return MikrotikChange.findOne({ ...filter, "requestedVia.keyId": { $exists: true } }).select("-timeline").lean();
   },
-  async listChanges({ deviceId, status, limit }) {
+  async listChanges({ deviceIds, status, limit }) {
     const MikrotikChange = require("@/models/mikrotikChange");
-    const filter = { "requestedVia.keyId": { $exists: true }, ...(deviceId ? { mikrotik: deviceId } : {}), ...(status ? { status } : {}) };
-    return MikrotikChange.find(filter).select("-timeline").sort({ createdAt: -1 }).limit(limit).lean();
+    const filter = { "requestedVia.keyId": { $exists: true }, mikrotik: { $in: deviceIds }, ...(status ? { status } : {}) };
+    return MikrotikChange.find(filter).select("-timeline").sort({ createdAt: -1, _id: -1 }).limit(limit).lean();
   },
   async people(ids) {
     const User = require("@/models/user");

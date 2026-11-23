@@ -309,6 +309,12 @@ const drift = async (mutate, changes, expectCommand) => {
   return h;
 };
 
+test("add rechecks the approved unique fields before backup or execution", async () => {
+  await drift((h) => {
+    h.rows[AL].push({ ".id": "*C", ...addCmd().params, comment: "added after approval" });
+  }, null, 2);
+});
+
 test("сверка: строка set исчезла", async () => {
   const h = await drift((x) => { x.rows[AL] = [clone(rowB)]; }, null, 1);
   assert.match(h.doc().failure, /не найдена/);
@@ -756,6 +762,27 @@ test("sweep: ключи с истёкшим сроком стираются", as
   assert.equal(h.doc("k1").wireguard.presharedKey, undefined);
   assert.equal(h.doc("k1").wireguard.publicKey, "P");
   assert.equal(h.doc("k2").wireguard.privateKey, "enc(a)");
+});
+
+test("scheduled sweep erases expired keys while the module is disabled and MongoDB is connected", async (t) => {
+  const Module = require("node:module");
+  const { runChangeSweep, mongoStore } = require("./changeWorker");
+  const enabled = t.mock.fn(async () => false);
+  const purge = t.mock.method(mongoStore, "purgeKeys", async () => 1);
+  let connected = false;
+  const load = Module._load;
+  t.mock.method(Module, "_load", function (name, ...args) {
+    if (name === "mongoose") return { connection: { readyState: connected ? 1 : 0 } };
+    if (name === "./enabled") return { mikrotikEnabled: enabled };
+    return load.call(this, name, ...args);
+  });
+  await runChangeSweep();
+  assert.equal(purge.mock.callCount(), 0);
+  assert.equal(enabled.mock.callCount(), 0);
+  connected = true;
+  await runChangeSweep();
+  assert.equal(purge.mock.callCount(), 1);
+  assert.ok(purge.mock.calls[0].arguments[0] instanceof Date);
 });
 
 test("sweep: сбой одного шага не мешает остальным", async () => {

@@ -91,6 +91,10 @@ const mikrotikFirmwareStateSchema = new Schema(
     cveCount: Number,
     // "security-ticket"
     claimedAt: Date,
+    pendingTicketId: Schema.Types.ObjectId,
+    pendingTitle: String,
+    pendingDescription: String,
+    pendingCategoryId: Schema.Types.ObjectId,
     ticketId: { type: Schema.Types.ObjectId, ref: "Ticket" },
     items: [stateItemSchema],
     allSafeCommentedAt: Date,

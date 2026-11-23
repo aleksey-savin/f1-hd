@@ -9,7 +9,7 @@ const { STATUS, isOpen } = require("./changeSteps");
 const { statusEvent } = require("./changeEvents");
 const { apiWords } = require("./changeRender");
 const { PLACEHOLDERS } = require("./changeRules");
-const { norm, matches, redactedBefore, diffField } = require("./changeMatch");
+const { norm, matches, redactedBefore, diffField, addIdentity } = require("./changeMatch");
 const { FAILURES, TEXTS: EXEC } = require("./changeExecutor");
 const { executorMode } = require("./changeExecutorMode");
 const { isUpgrading } = require("./upgradeGuard");
@@ -281,6 +281,8 @@ function createChangeWorker({ store, readMenus, readRights, executor, backup, no
       const rows = menus.get(command.path);
       if (!rows) return drift(`раздел не читается: ${line(read.get(command.path)?.error || "нет ответа", 120)}`);
       if (command.action === "add") {
+        const identity = addIdentity(command);
+        if (identity && rows.some((row) => matches(row, identity))) return drift("запись с такими уникальными полями уже существует");
         plan.push({ command, id: null });
         continue;
       }
@@ -765,13 +767,17 @@ function mongoWorker({ log } = {}) {
 
 // Точки входа для расписания (app.js): рубильник модуля, готовность базы, один экземпляр на процесс
 let worker = null;
-async function ready() {
-  const mongoose = require("mongoose");
-  if (mongoose.connection.readyState !== 1) return null;
-  if (!(await require("./enabled").mikrotikEnabled())) return null;
-  return (worker ||= mongoWorker({ log: require("@/utils/logger") }));
+const databaseReady = () => require("mongoose").connection.readyState === 1;
+const getWorker = () => (worker ||= mongoWorker({ log: require("@/utils/logger") }));
+
+async function runChangeTick() {
+  if (databaseReady() && await require("./enabled").mikrotikEnabled()) return getWorker().tick();
 }
-const runChangeTick = async () => (await ready())?.tick();
-const runChangeSweep = async () => (await ready())?.sweep();
+
+async function runChangeSweep() {
+  if (!databaseReady()) return;
+  if (await require("./enabled").mikrotikEnabled()) return getWorker().sweep();
+  await mongoStore.purgeKeys(new Date());
+}
 
 module.exports = { createChangeWorker, lazyExecutor, mongoWorker, mongoStore, runChangeTick, runChangeSweep };

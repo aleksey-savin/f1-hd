@@ -1,6 +1,7 @@
 import type { Types } from "mongoose";
 
 export interface IMikrotikArtifact {
+  writeState?: "uploading" | "discarding";
   mikrotik: Types.ObjectId;
   type: "backup" | "export";
   trigger: "manual" | "scheduled" | "pre-upgrade";

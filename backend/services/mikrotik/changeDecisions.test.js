@@ -256,3 +256,20 @@ test("общий шаг («любой с правом»): решает перв�
   const second = await decisions.decide({ changeId: "c1", userId: "other", decision: "approve", channel: "telegram", canApprove: true });
   assert.deepEqual([second.ok, second.code], [false, "closed"]);
 });
+
+
+test("portal confirmation cannot approve a later shared step after concurrent progress", async () => {
+  const { decisions, store } = make(baseChange({
+    status: "awaiting_responsible",
+    steps: [
+      { role: "requester", user: "req", decision: "approve" },
+      { role: "approver", user: null, decision: null },
+    ],
+  }));
+  const result = await decisions.decide({
+    changeId: "c1", userId: "req", decision: "approve", channel: "portal",
+    canApprove: true, expectedStatus: "awaiting_requester",
+  });
+  assert.equal(result.code, "closed");
+  assert.equal(store.state.calls.length, 0);
+});

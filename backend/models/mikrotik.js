@@ -28,6 +28,7 @@ const buildScheduleDefinition = () => ({
 // Router) — in which case clientDevice is unset and companyId/label identify it.
 const mikrotikSchema = new Schema(
   {
+    deleting: Boolean,
     // Unset for standalone devices. Uniqueness among inventory-backed records is
     // enforced by the partial index below (standalone records are excluded, so
     // multiple of them don't collide on a missing value).

@@ -1,9 +1,9 @@
-const crypto = require("crypto");
 const mongoose = require("mongoose");
 
 const Mikrotik = require("../../models/mikrotik");
 const MikrotikArtifact = require("../../models/mikrotikArtifact");
-const MikrotikDownloadCode = require("../../models/mikrotikDownloadCode");
+const { issueCode, verifyCode, revokeArtifactCodes } = require("../../services/mikrotik/downloadCodes");
+const { activeRecord, findOwnedArtifact, removeArtifact, purgeArtifacts } = require("../../services/mikrotik/artifactLifecycle");
 const MikrotikUpgradeJob = require("../../models/mikrotikUpgradeJob");
 const ClientDevice = require("../../models/inventory/clientDevice");
 const DeviceModel = require("../../models/inventory/deviceModel");
@@ -29,6 +29,7 @@ const {
 } = require("../../services/mikrotik/connector");
 const storage = require("../../services/storage");
 const { decryptArtifact } = require("../../services/crypto/artifactBox");
+const { buildNetworkReport } = require("../../services/mikrotik/networkReport");
 const { computeNextRun } = require("../../services/mikrotik/schedule");
 const {
   assertPublicHost,
@@ -81,11 +82,6 @@ const { resolveTimezone } = require("../../utils/datetime");
 const {
   soleConfigurationId,
 } = require("../../services/inventory/modelConfigurations");
-
-// Config exports contain device secrets, so downloading one requires a step-up
-// email OTP: a 6-digit code, valid 10 minutes, single-use, max 5 tries.
-const DOWNLOAD_CODE_TTL_MS = 10 * 60 * 1000;
-const MAX_DOWNLOAD_CODE_ATTEMPTS = 5;
 
 // "petr@example.com" -> "p***@example.com" (don't echo the full address back).
 const maskEmail = (email) => {
@@ -573,7 +569,7 @@ const summarizeArtifacts = async (recordIds) => {
   const map = new Map();
   if (!recordIds.length) return map;
   const rows = await MikrotikArtifact.aggregate([
-    { $match: { mikrotik: { $in: recordIds } } },
+    { $match: { mikrotik: { $in: recordIds }, writeState: null } },
     {
       $group: {
         _id: { mikrotik: "$mikrotik", type: "$type" },
@@ -1772,10 +1768,12 @@ exports.deleteRecord = async (req, res, next) => {
     const conflict = await dependentsConflict(record);
     if (conflict) return next(conflict);
 
-    await Mikrotik.deleteOne({ _id: record._id });
+    await Mikrotik.updateOne({ _id: record._id }, { $set: { deleting: true } });
+    await purgeArtifacts(record._id);
     await deleteOutages(record._id);
     await deleteTraffic(record._id);
     await eventLog().removeFor(record._id);
+    await Mikrotik.deleteOne({ _id: record._id });
 
     logger.log("info", "Mikrotik record deleted", {
       actor: req.userId,
@@ -1786,7 +1784,7 @@ exports.deleteRecord = async (req, res, next) => {
 
     res.status(200).json({ message: "Устройство удалено из мониторинга" });
   } catch (error) {
-    next(new AppError("Failed to delete mikrotik record", 500, true, error));
+    next(error instanceof AppError ? error : new AppError("Failed to delete mikrotik record", 500, true, error));
   }
 };
 
@@ -1836,46 +1834,6 @@ exports.getActivity = async (req, res, next) => {
   }
 };
 
-// Sorting IP strings lexically puts "46.x" after "192.x" and "10.0.0.1" before
-// "1.0.0.10" — compare by octets instead. The mask is the low-order part of the
-// key so /30 and /24 on the same address keep a stable order.
-const addressSortKey = (value) => {
-  const [ip = "", mask = ""] = String(value || "").split("/");
-  const octets = ip.split(".").map((part) => Number(part) || 0);
-  while (octets.length < 4) octets.push(0);
-  return (
-    octets.slice(0, 4).reduce((acc, part) => acc * 256 + part, 0) * 64 +
-    (Number(mask) || 0)
-  );
-};
-
-const byAddress = (a, b) => addressSortKey(a) - addressSortKey(b);
-
-// Overlapping networks are ranked by how much they demand attention, so the
-// page reads top-down and stops being interesting at a predictable point.
-const OVERLAP_RANK = { addressClash: 0, maskOverlap: 1, sharedNetwork: 2 };
-
-// The fleet-wide IP plan: every address of every managed record, plus a
-// breakdown of which networks overlap and why.
-//
-// Disabled addresses are returned too (the previous `disabled === "false"`
-// filter hid them everywhere): a disabled address is an ordinary spare, and it
-// matters when working out why a tunnel refuses to come up. They take no part
-// in overlap detection — a disabled address collides with nothing.
-//
-// Empty sub-documents (an `_id` and nothing else — the poller creates them;
-// there are 36 in the live data) are skipped: that is not an address.
-//
-// Overlaps carry a REASON, because one repeated `network` string covers three
-// unrelated facts:
-//   addressClash  — two devices hold the same address. Broken.
-//   maskOverlap   — one network, several masks (/24 swallowing a /30). Broken.
-//   sharedNetwork — different addresses, shared network: the two ends of a GRE
-//                   tunnel, a management VLAN across a stack of switches, one
-//                   upstream ISP subnet. Normally fine.
-// On live data 14 networks repeat and 3 of them are faults, while the previous
-// report highlighted all 34 rows identically — that is, told them apart not at
-// all.
 exports.networksReport = async (req, res, next) => {
   try {
     const records = await Mikrotik.find({})
@@ -1883,92 +1841,7 @@ exports.networksReport = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    const entries = [];
-    for (const record of records) {
-      for (const address of record.addresses || []) {
-        if (!address.address) continue;
-        entries.push({
-          id: String(address._id),
-          recordId: String(record._id),
-          deviceName: record.name || "",
-          address: address.address,
-          network: address.network || "",
-          interface: address.interface || "",
-          comment: address.comment || "",
-          disabled: address.disabled === "true",
-        });
-      }
-    }
-
-    const byNetwork = new Map();
-    for (const entry of entries) {
-      if (entry.disabled || !entry.network) continue;
-      const group = byNetwork.get(entry.network);
-      if (group) group.push(entry);
-      else byNetwork.set(entry.network, [entry]);
-    }
-
-    const overlaps = [];
-    for (const [network, group] of byNetwork) {
-      if (group.length < 2) continue;
-
-      const timesSeen = new Map();
-      for (const entry of group) {
-        timesSeen.set(entry.address, (timesSeen.get(entry.address) || 0) + 1);
-      }
-      const clashing = [...timesSeen.entries()]
-        .filter(([, count]) => count > 1)
-        .map(([address]) => address)
-        .sort(byAddress);
-
-      const masks = [
-        ...new Set(
-          group.map((entry) => entry.address.split("/")[1]).filter(Boolean),
-        ),
-      ].sort((a, b) => Number(a) - Number(b));
-
-      const kind = clashing.length
-        ? "addressClash"
-        : masks.length > 1
-          ? "maskOverlap"
-          : "sharedNetwork";
-
-      // The flat list carries the same reason, so a row in the registry can
-      // show its dot without the client rebuilding the grouping.
-      for (const entry of group) entry.overlap = kind;
-
-      overlaps.push({
-        network,
-        kind,
-        clashing,
-        masks,
-        deviceCount: new Set(group.map((entry) => entry.deviceName)).size,
-        addresses: [...group].sort((a, b) => byAddress(a.address, b.address)),
-      });
-    }
-
-    overlaps.sort(
-      (a, b) =>
-        OVERLAP_RANK[a.kind] - OVERLAP_RANK[b.kind] ||
-        byAddress(a.network, b.network),
-    );
-
-    entries.sort(
-      (a, b) =>
-        byAddress(a.address, b.address) ||
-        a.deviceName.localeCompare(b.deviceName, "ru"),
-    );
-
-    res.status(200).json({
-      entries,
-      overlaps,
-      totals: {
-        devices: new Set(entries.map((entry) => entry.deviceName)).size,
-        addresses: entries.length,
-        disabled: entries.filter((entry) => entry.disabled).length,
-        networks: byNetwork.size,
-      },
-    });
+    res.status(200).json(buildNetworkReport(records));
   } catch (error) {
     next(new AppError("Failed to generate networks report", 500, true, error));
   }
@@ -1979,11 +1852,11 @@ exports.networksReport = async (req, res, next) => {
 // List a device's stored backups/exports (metadata only). Optional ?type filter.
 exports.listArtifacts = async (req, res, next) => {
   try {
-    const record = await Mikrotik.findById(req.params.recordId).select("_id");
+    const record = await activeRecord(req.params.recordId);
     if (!record) {
       return next(new AppError("Устройство не найдено", 404));
     }
-    const query = { mikrotik: record._id };
+    const query = { mikrotik: record._id, writeState: null };
     if (req.query.type === "backup" || req.query.type === "export") {
       query.type = req.query.type;
     }
@@ -2030,13 +1903,10 @@ exports.createExportNow = async (req, res, next) => {
 
 // Step 1 of the 2FA download: email the requesting user a fresh 6-digit code and
 // store its hash. Replaces any previous code for this (user, artifact). Never
-// returns the code; in non-prod it's logged (dev email is off) so it's testable.
+// returns or logs the code.
 exports.requestDownloadCode = async (req, res, next) => {
   try {
-    const artifact = await MikrotikArtifact.findOne({
-      _id: req.params.artifactId,
-      mikrotik: req.params.recordId,
-    });
+    const artifact = await findOwnedArtifact(req.params.recordId, req.params.artifactId);
     if (!artifact) {
       return next(new AppError("Файл не найден", 404));
     }
@@ -2048,19 +1918,12 @@ exports.requestDownloadCode = async (req, res, next) => {
       );
     }
 
-    const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-    const codeHash = crypto.createHash("sha256").update(code).digest("hex");
-
-    await MikrotikDownloadCode.deleteMany({
-      user: user._id,
-      artifact: artifact._id,
-    });
-    await MikrotikDownloadCode.create({
-      user: user._id,
-      artifact: artifact._id,
-      codeHash,
-      expiresAt: new Date(Date.now() + DOWNLOAD_CODE_TTL_MS),
-    });
+    const code = await issueCode(user._id, artifact._id);
+    // Deletion may have revoked codes between the ownership check and the upsert.
+    if (!await findOwnedArtifact(req.params.recordId, artifact._id)) {
+      await revokeArtifactCodes(artifact._id);
+      return next(new AppError("Файл не найден", 404));
+    }
 
     // Queue the email (delivered by the mail outbox cron, services/mail/outbox).
     await new Notification({
@@ -2073,14 +1936,6 @@ exports.requestDownloadCode = async (req, res, next) => {
         `Код действует 10 минут и работает один раз. ` +
         `Если вы не запрашивали скачивание — просто проигнорируйте это письмо.</div>`,
     }).save();
-
-    if (process.env.NODE_ENV !== "production") {
-      logger.log("info", "Mikrotik download code (non-prod)", {
-        code,
-        artifactId: artifact._id,
-        userId: user._id,
-      });
-    }
 
     logger.log("info", "Mikrotik download code requested", {
       actor: req.userId,
@@ -2100,10 +1955,7 @@ exports.requestDownloadCode = async (req, res, next) => {
 // fetches without depending on bucket CORS. The code is single-use.
 exports.downloadArtifact = async (req, res, next) => {
   try {
-    const artifact = await MikrotikArtifact.findOne({
-      _id: req.params.artifactId,
-      mikrotik: req.params.recordId,
-    });
+    const artifact = await findOwnedArtifact(req.params.recordId, req.params.artifactId);
     if (!artifact) {
       return next(new AppError("Файл не найден", 404));
     }
@@ -2113,29 +1965,10 @@ exports.downloadArtifact = async (req, res, next) => {
       return next(new AppError("Введите 6-значный код из письма", 400));
     }
 
-    const record = await MikrotikDownloadCode.findOne({
-      user: req.userId,
-      artifact: artifact._id,
-    });
-    if (!record || record.expiresAt <= new Date()) {
-      return next(new AppError("Код не найден или истёк — запросите новый", 401));
-    }
-    if (record.attempts >= MAX_DOWNLOAD_CODE_ATTEMPTS) {
-      await MikrotikDownloadCode.deleteOne({ _id: record._id });
-      return next(
-        new AppError("Слишком много попыток — запросите новый код", 429),
-      );
-    }
-
-    const codeHash = crypto.createHash("sha256").update(code).digest("hex");
-    if (codeHash !== record.codeHash) {
-      record.attempts += 1;
-      await record.save();
-      return next(new AppError("Неверный код", 401));
-    }
-
-    // Valid — single use.
-    await MikrotikDownloadCode.deleteOne({ _id: record._id });
+    const result = await verifyCode(req.userId, artifact._id, code);
+    if (result === "expired") return next(new AppError("Код не найден или истёк — запросите новый", 401));
+    if (result === "locked") return next(new AppError("Слишком много попыток — запросите новый код", 429));
+    if (result !== "verified") return next(new AppError("Неверный код", 401));
 
     // Stored bytes are envelope-encrypted (see artifactBox); decrypt to plaintext
     // before streaming. Legacy pre-encryption artifacts pass through unchanged.
@@ -2170,16 +2003,12 @@ exports.downloadArtifact = async (req, res, next) => {
 // Delete a stored artifact (DB doc + underlying file).
 exports.deleteArtifact = async (req, res, next) => {
   try {
-    const artifact = await MikrotikArtifact.findOne({
-      _id: req.params.artifactId,
-      mikrotik: req.params.recordId,
-    });
+    const artifact = await findOwnedArtifact(req.params.recordId, req.params.artifactId);
     if (!artifact) {
       return next(new AppError("Файл не найден", 404));
     }
 
-    await storage.deleteArtifact(artifact.storageKey);
-    await MikrotikArtifact.deleteOne({ _id: artifact._id });
+    await removeArtifact(artifact);
 
     logger.log("info", "Mikrotik artifact deleted", {
       actor: req.userId,
@@ -2198,7 +2027,7 @@ exports.deleteArtifact = async (req, res, next) => {
 // Save the backup/export schedules + retention, recomputing each nextRunAt.
 exports.updateSchedules = async (req, res, next) => {
   try {
-    const record = await Mikrotik.findById(req.params.recordId);
+    let record = await Mikrotik.findById(req.params.recordId);
     if (!record) {
       return next(new AppError("Устройство не найдено", 404));
     }
@@ -2206,7 +2035,7 @@ exports.updateSchedules = async (req, res, next) => {
     const prefs = await Preferences.findOne({}).lean();
     const timezone = prefs?.timezone;
 
-    record.schedules = record.schedules || {};
+    const fields = {};
     for (const type of ["backup", "export"]) {
       const input = req.body?.[type];
       if (!input) continue;
@@ -2217,15 +2046,16 @@ exports.updateSchedules = async (req, res, next) => {
         weekday: clampInt(input.weekday, 0, 6, current.weekday ?? 1),
         dayOfMonth: clampInt(input.dayOfMonth, 1, 28, current.dayOfMonth ?? 1),
         keepLast: clampInt(input.keepLast, 1, 365, current.keepLast ?? 10),
-        lastRunAt: current.lastRunAt,
-        lastSuccessAt: current.lastSuccessAt,
-        lastError: current.lastError,
       };
       nextSchedule.nextRunAt = computeNextRun(nextSchedule, new Date(), timezone);
-      record.schedules[type] = nextSchedule;
+      for (const [key, value] of Object.entries(nextSchedule)) {
+        fields[`schedules.${type}.${key}`] = value;
+      }
     }
-    record.markModified("schedules");
-    await record.save();
+    if (Object.keys(fields).length) {
+      record = await Mikrotik.findByIdAndUpdate(record._id, { $set: fields }, { new: true });
+      if (!record) return next(new AppError("Устройство не найдено", 404));
+    }
 
     logger.log("info", "Mikrotik schedules updated", {
       actor: req.userId,

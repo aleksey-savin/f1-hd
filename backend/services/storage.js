@@ -185,7 +185,7 @@ const s3ArtifactKey = (key) => `${S3_ARTIFACT_PREFIX}${path.basename(key)}`;
 
 // Store an artifact. Prefers S3 when configured; otherwise writes to the private
 // local dir. Returns where it landed so the caller can persist it.
-const putArtifact = async (key, buffer, contentType) => {
+const putArtifact = async (key, buffer, contentType, signal) => {
   if (s3Client) {
     await s3Client.send(
       new PutObjectCommand({
@@ -195,11 +195,12 @@ const putArtifact = async (key, buffer, contentType) => {
         ContentType: contentType,
         ...sseUploadOptions,
       }),
+      { abortSignal: signal },
     );
     return { storage: "s3" };
   }
   await fs.promises.mkdir(PRIVATE_ARTIFACTS_DIR, { recursive: true });
-  await fs.promises.writeFile(privateArtifactPath(key), buffer);
+  await fs.promises.writeFile(privateArtifactPath(key), buffer, { signal });
   return { storage: "local" };
 };
 
@@ -232,25 +233,17 @@ const presignArtifact = async (key) => {
   return getSignedUrl(s3Client, command, { expiresIn: PRESIGN_TTL_SECONDS });
 };
 
-// Delete an artifact from wherever it lives. Tolerant — never throws if gone.
-const deleteArtifact = async (key) => {
-  const local = privateArtifactPath(key);
-  if (fs.existsSync(local)) {
-    await fs.promises.unlink(local).catch((error) => {
-      if (error.code !== "ENOENT") {
-        logger.warn(`Failed to delete local artifact ${key}: ${error.message}`);
-      }
-    });
+// Use the recorded backend and retain the metadata when storage is unavailable.
+const deleteArtifact = async (key, backend) => {
+  if (backend === "s3") {
+    if (!s3Client) throw new Error("S3 is not configured for artifact deletion");
+    await s3Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: s3ArtifactKey(key) }));
+    return;
   }
-  if (s3Client) {
-    try {
-      await s3Client.send(
-        new DeleteObjectCommand({ Bucket: bucket, Key: s3ArtifactKey(key) }),
-      );
-    } catch (error) {
-      logger.warn(`Failed to delete S3 artifact ${key}: ${error.message}`);
-    }
-  }
+  if (backend !== "local") throw new Error("Unknown artifact storage location");
+  await fs.promises.unlink(privateArtifactPath(key)).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+  });
 };
 
 // --- Файлы, которые сервер сохраняет сам (вложения из мессенджеров) ---------

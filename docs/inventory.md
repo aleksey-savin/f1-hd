@@ -70,10 +70,10 @@ map below; whichever prefix a request touches decides which right is asked.
   bypass branch anywhere — a full-access role simply carries the whole staff
   dictionary. Proposal routes use their own requester/approval rules rather than
   blanket inventory or MikroTik read/manage rights; see [AI-agent inventory changes](#8-ai-agent-inventory-changes)
-  and `mikrotik-changes.md`.
+  and [MikroTik change requests](mikrotik-management.md#agent-change-requests).
 - **Mikrotik** shares the `/api/inventory` prefix but is gated by its own module
   switch — turning the inventory module off does **not** stop monitoring (see
-  `mikrotik-management.md`, «Integration switch»).
+  [MikroTik module and permissions](mikrotik-management.md#enable-the-module-and-grant-access)).
 
 **A path that matches no prefix would run with no right at all**, so the
 composition walks the routes of every sub-router on boot and **throws** when one
@@ -562,13 +562,11 @@ query, never in the browser:
 | `/vendors` | Vendor | hard | reads open to any staff account (select data) |
 | `/suppliers` | Supplier | hard, **guarded** | reads require `supplier.read`. `getAll` appends `purchases[]` — one bucket per `{year, companyId}` with `companyName`, `deviceCount`, `totalSpent`, `deliveryCount`, `lastPurchaseAt`; no flat totals, the list sums the buckets under the year and company picked in its toolbar. The year comes from `purchasedAt` **in UTC** (calendar date, stored at UTC midnight — a business-timezone year would push the first of January into the previous one); positions without a date land in `year: null`. Document counts are distinct **within a bucket**, so one delivery note split across two companies counts twice in the all-companies slice. `getOne` additionally returns `deliveries[]` — devices grouped by `purchaseDocument` with `{document, purchasedAt, company, total, positions[]}`. Deleting a supplier with purchases is **409** («за поставщиком числится N устройств…») — disable it instead, it stays in the purchase history. Components are counted as ordinary positions (`parentDeviceId` is deliberately not filtered): a part is bought on its own, not as a line inside an assembly |
 
-**Mikrotik** (`/mikrotik-devices`) — record-centric monitoring and management,
-mounted under `/api/inventory` but gated by its **own** module
-(`modules.mikrotik`, gate `mikrotikIsActive`), not by the inventory module; full detail in `mikrotik-management.md`. The
-inventory-facing parts are `POST /records/:recordId/link-inventory` /
-`create-inventory` (attach or build a `ClientDevice` for a verified record) and
-the legacy `:clientDeviceId` routes retained on the backend. The current device
-card uses `MonitoringPanel` with a record link; the old monitoring tab is gone.
+**MikroTik** monitoring routes have their own module switch under
+`/api/inventory/mikrotik-devices`. Use `POST /records/:recordId/link-inventory`
+to attach an inventory card or `POST /records/:recordId/create-inventory` to
+create one for a verified monitoring record. The inventory card shows the
+monitoring summary and links to that record. [MikroTik management](mikrotik-management.md)
 
 **Photo uploads** (`middleware/imageUpload.js`) use the shared storage service:
 S3 when configured, otherwise the local uploads volume. The MIME-type allowlist
@@ -732,8 +730,7 @@ documented in each component's own header.
   monitoring opens the monitoring form prefilled and pre-bound:
   `/devices/mikrotik/add?clientDeviceId=…` (it links through the existing
   `records/:recordId/link-inventory` right after the connection check, then returns
-  to the device card). **The legacy `:clientDeviceId` Mikrotik endpoints now have
-  no caller** — see `mikrotik-management.md`.
+  to the device card).
 - **Proxmox monitoring** — `/devices/proxmox/guests` and `/nodes` share the
   record-list layout and availability bar used by MikroTik. State, guest OS and
   one «Агент» filter are applied on the server before pagination. Guest names

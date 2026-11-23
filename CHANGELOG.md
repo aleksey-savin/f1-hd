@@ -19,6 +19,12 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Fixed
 
+- MikroTik approvals, WireGuard QR codes and device history stay with the selected record during portal navigation. MCP request lists apply device visibility before the result limit.
+- MikroTik change execution rechecks add uniqueness. Scheduled exports respect transit maintenance and concurrent schedule edits. Firmware-ticket creation recovers after backend interruptions. The network report detects nested subnets and distinguishes devices with identical names.
+- MikroTik export downloads consume email codes atomically and enforce the attempt limit across concurrent requests. Record deletion cleans up private export files and codes. Expired WireGuard secrets are erased while monitoring is disabled.
+
+- Consolidated MikroTik management and agent change requests in the [MikroTik module guide](docs/mikrotik-management.md), with corrected instructions for Compose configuration, encryption key selection and Proxmox node network links.
+
 - Messenger delivery keeps unrelated chats moving during backoff, rejects acknowledgements from expired leases and reconciles delivery results with ticket comments after an interruption. Retrying a partial Wazzup reply in an existing chat preserves the parts already accepted by the provider.
 - Messenger echoes and status updates are scoped to their channel. Replayed edits and deletions repair ticket mirrors, and retrying a waiting notification preserves per-recipient delivery. Group participant sync processes up to 500 participants.
 - Loading older conversation history continues across out-of-order imports.
@@ -61,6 +67,8 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 - AI findings unsupported by the source conversation are discarded separately from supported user-review results.
 
 ### Upgrade instructions
+
+- Update the MikroTik portal and all backend writers together, then reload open clients. Request a fresh export download code after upgrading. Before deleting a monitoring record, save any exports needed for recovery. To review exports orphaned by earlier deletions or abandoned uploads older than 15 minutes, run `node scripts/repairMikrotikOrphanExports.js` in the backend environment. Review and back up any required files before running with `--apply`. Firmware-ticket recovery recognizes older interrupted tickets by their generated title and description. If staff edited those fields, check for a duplicate after the next firmware sync.
 
 - On backend startup the messaging job model declares an index for unfinished delivery repairs. The repair worker reconciles retained terminal send jobs in batches, including jobs created before the upgrade. No manual data migration or provider resend is required.
 

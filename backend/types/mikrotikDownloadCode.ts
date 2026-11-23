@@ -1,6 +1,7 @@
 import type { Types } from "mongoose";
 
 export interface IMikrotikDownloadCode {
+  _id: string;
   user: Types.ObjectId;
   artifact: Types.ObjectId;
   codeHash: string;

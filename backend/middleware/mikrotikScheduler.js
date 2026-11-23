@@ -5,60 +5,47 @@ const Preferences = require("../models/preferences");
 const { mikrotikEnabled } = require("../services/mikrotik/enabled");
 const { createArtifact } = require("../services/mikrotik/artifacts");
 const { computeNextRun } = require("../services/mikrotik/schedule");
-const { isUpgrading } = require("../services/mikrotik/upgradeGuard");
+const { quietUnderUpgrade } = require("../services/mikrotik/upgradeGuard");
 const logger = require("../utils/logger");
 
 // How many devices to process concurrently per batch.
 const BATCH_SIZE = 5;
-// Only config exports are scheduled — binary backups aren't supported over
-// RouterOS's CLI-only SSH (see services/mikrotik/artifacts.js).
-const TYPES = ["export"];
 const ACTIVE_FREQUENCIES = ["daily", "weekly", "monthly"];
 
-// Runs one due schedule (config export) for a device, then advances its run
-// state. Failures are recorded on the schedule (never thrown) so one bad device
-// can't stop the tick.
-const runDueSchedule = async (record, type, timezone) => {
-  const schedule = record.schedules[type];
-  const now = new Date();
+// Reserve the observed slot before SSH. Another tick or a schedule edit can
+// win the comparison without inheriting any writes from this stale snapshot.
+const processRecord = async (record, timezone, now) => {
+  const schedule = record.schedules.export;
+  if (schedule.nextRunAt > now) return;
+  const due = Boolean(schedule.nextRunAt);
+  const changes = {
+    "schedules.export.nextRunAt": computeNextRun(schedule, now, timezone),
+  };
+  if (due) changes["schedules.export.lastRunAt"] = now;
+  const claim = await Mikrotik.updateOne(
+    {
+      _id: record._id,
+      "schedules.export.frequency": schedule.frequency,
+      "schedules.export.nextRunAt": schedule.nextRunAt ?? null,
+    },
+    { $set: changes },
+  );
+  if (!due || !claim.matchedCount) return;
+
+  const run = { _id: record._id, "schedules.export.lastRunAt": now };
   try {
     await createArtifact(record, { trigger: "scheduled" });
-    schedule.lastRunAt = now;
-    schedule.lastSuccessAt = now;
-    schedule.lastError = undefined;
   } catch (error) {
-    schedule.lastRunAt = now;
-    schedule.lastError = error.message;
+    await Mikrotik.updateOne(run, { $set: { "schedules.export.lastError": error.message } });
     logger.log("warn", "Mikrotik scheduled artifact failed", {
-      recordId: record._id,
-      type,
-      error: error.message,
+      recordId: record._id, type: "export", error: error.message,
     });
-  } finally {
-    schedule.nextRunAt = computeNextRun(schedule, new Date(), timezone);
-    record.markModified("schedules");
-    await record.save();
+    return;
   }
-};
-
-// For one device, run whichever schedules are due (nextRunAt in the past). A
-// missing nextRunAt (e.g. a legacy record) is computed without running.
-const processRecord = async (record, timezone, now) => {
-  for (const type of TYPES) {
-    const schedule = record.schedules?.[type];
-    if (!schedule || schedule.frequency === "off") continue;
-
-    if (!schedule.nextRunAt) {
-      schedule.nextRunAt = computeNextRun(schedule, now, timezone);
-      record.markModified("schedules");
-      await record.save();
-      continue;
-    }
-
-    if (schedule.nextRunAt <= now) {
-      await runDueSchedule(record, type, timezone);
-    }
-  }
+  await Mikrotik.updateOne(run, {
+    $set: { "schedules.export.lastSuccessAt": now },
+    $unset: { "schedules.export.lastError": "" },
+  });
 };
 
 // Background job: run every device whose config-export schedule is due.
@@ -71,18 +58,19 @@ const runMikrotikScheduler = async () => {
     return;
   }
 
-  const records = (
-    await Mikrotik.find({
-      "schedules.export.frequency": { $in: ACTIVE_FREQUENCIES },
-    })
-  ).filter((record) => !isUpgrading(record));
-  if (records.length === 0) {
-    return;
-  }
-
+  const scheduled = await Mikrotik.find({
+    "schedules.export.frequency": { $in: ACTIVE_FREQUENCIES },
+  });
+  if (!scheduled.length) return;
+  const jumpIds = [...new Set(scheduled.filter((r) => r.jumpRecordId).map((r) => String(r.jumpRecordId)))];
+  const transits = jumpIds.length
+    ? await Mikrotik.find({ _id: { $in: jumpIds } }).select("upgrade")
+    : [];
+  const byId = new Map(transits.map((r) => [String(r._id), r]));
   const prefs = await Preferences.findOne({}).lean();
   const timezone = prefs?.timezone;
   const now = new Date();
+  const records = scheduled.filter((record) => !quietUnderUpgrade(record, byId, now));
 
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
     const batch = records.slice(i, i + BATCH_SIZE);

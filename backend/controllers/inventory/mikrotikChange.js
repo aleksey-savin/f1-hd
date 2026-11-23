@@ -98,9 +98,9 @@ function createController({ decisions, repo, buildClientConfig, decryptSecret, n
   };
 
   const decide = wrap("decide mikrotik change", async (req, res, next) => {
-    const { decision } = req.body || {};
+    const { decision, expectedStatus } = req.body || {};
     const comment = parseComment(req.body?.comment);
-    if ((decision !== "approve" && decision !== "reject") || !comment.ok) {
+    if ((decision !== "approve" && decision !== "reject") || !comment.ok || (expectedStatus !== undefined && !isOpen(expectedStatus))) {
       return next(new AppError("Некорректное решение", 400));
     }
     if (!validId(req.params.id) || (await hidden(req))) return next(new AppError(MESSAGES.not_found, 404));
@@ -109,6 +109,7 @@ function createController({ decisions, repo, buildClientConfig, decryptSecret, n
       userId: viewerOf(req).userId,
       decision,
       comment: comment.value,
+      ...(expectedStatus === undefined ? {} : { expectedStatus }),
       channel: "portal",
       canApprove: viewerOf(req).canApprove,
     });

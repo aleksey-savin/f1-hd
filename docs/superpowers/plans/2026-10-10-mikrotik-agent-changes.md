@@ -558,7 +558,7 @@ PersistentKeepalive = 25
 ### Task 14: Документация
 
 **Files:**
-- Create: `docs/mikrotik-changes.md` (английский, без интерфейса: модель, статусы, правила приёма, исполнитель, безопасность, пределы, известные ограничения, таблица тестов)
+- Document the workflow in [MikroTik change requests](../../mikrotik-management.md#agent-change-requests) (английский, без интерфейса: модель, статусы, правила приёма, исполнитель, безопасность, пределы, известные ограничения, таблица тестов)
 - Modify: `docs/mcp.md` (семья `mikrotikChanges`, три инструмента), `docs/mikrotik-management.md` (ссылка, политика `write` у учётной записи), `docs/notifications.md` (категория, правило «колокольчик всегда»), `docs/deployment.md` (миграция раздачи права), `docs/ux-ui-changelog.md`
 
 - [ ] **Step 1:** написать; проверить, что названия функций и путей в доках совпадают с кодом (`grep`).

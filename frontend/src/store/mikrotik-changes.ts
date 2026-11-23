@@ -1,5 +1,5 @@
 import { api, ApiError } from "@/lib/api";
-import type { ChangeView } from "@/types/mikrotikChange";
+import type { ChangeStatus, ChangeView } from "@/types/mikrotikChange";
 
 // Запросы ИИ-агентов на изменение Mikrotik: вызовы API страницы запроса и
 // раздела «Изменения». Состояния здесь нет — страница читает запрос загрузчиком
@@ -19,10 +19,11 @@ export const decideChange = (
   id: string,
   decision: "approve" | "reject",
   comment?: string,
+  expectedStatus?: ChangeStatus,
 ): Promise<ChangeView> =>
   api<ChangeView>(`${BASE}/mikrotik-changes/${id}/decision`, {
     method: "POST",
-    body: comment ? { decision, comment } : { decision },
+    body: { decision, comment, expectedStatus },
   });
 
 export const cancelChange = (id: string): Promise<ChangeView> =>

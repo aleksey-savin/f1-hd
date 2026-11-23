@@ -1,5 +1,7 @@
 const crypto = require("crypto");
+const { pruneArtifacts, storeExport } = require("./artifactLifecycle");
 
+const Mikrotik = require("../../models/mikrotik");
 const MikrotikArtifact = require("../../models/mikrotikArtifact");
 const {
   buildSshParams,
@@ -49,21 +51,6 @@ const sanitizeBaseName = (value) =>
 const timestampForName = (date, timeZone) =>
   formatInAppTimezone(date, timeZone, "yyyy-MM-dd-HHmm");
 
-// Retention: keep only the newest `keepLast` artifacts of a type; delete the
-// rest from storage and the DB. Runs after every successful create.
-const pruneArtifacts = async (record, type) => {
-  const keepLast = record.schedules?.[type]?.keepLast ?? 10;
-  if (!keepLast || keepLast < 1) return;
-  const stale = await MikrotikArtifact.find({ mikrotik: record._id, type })
-    .sort({ createdAt: -1 })
-    .skip(keepLast)
-    .select("_id storageKey");
-  for (const doc of stale) {
-    await storage.deleteArtifact(doc.storageKey);
-    await MikrotikArtifact.deleteOne({ _id: doc._id });
-  }
-};
-
 // Create a .rsc config export for a record over SSH (`/export` over stdout —
 // nothing is written to the device), store it, record its metadata, prune
 // retention, and pin the SSH host key TOFU. Throws on failure (SSRF / connection
@@ -89,8 +76,7 @@ const configChangeEvent = async (previous, buffer, recordId) => {
 
 // Binary `.backup` artifacts are intentionally NOT supported: RouterOS's SSH is
 // CLI-only (no SFTP subsystem, and exec runs only RouterOS commands, so `scp` is
-// refused), so a binary file cannot be pulled over SSH. The .rsc export is a
-// complete, restorable (`/import`) configuration and serves as the backup.
+// refused). The .rsc export contains the commands visible to the RouterOS account.
 const createArtifact = async (
   record,
   { trigger = "manual", userId = null } = {},
@@ -114,6 +100,7 @@ const createArtifact = async (
   // Hash the new config and grab the previous export's hash for change detection.
   const contentHash = configHash(buffer);
   const previous = await MikrotikArtifact.findOne({
+    writeState: null,
     mikrotik: record._id,
     type: "export",
   })
@@ -125,30 +112,21 @@ const createArtifact = async (
   // of the last scheduled run: the device has just proved it can be copied, and
   // the stale error otherwise hangs on the record until the next scheduled run.
   const pinHostKey = hostKey && !record.credentials.sshHostKey;
-  const staleError = Boolean(record.schedules?.export?.lastError);
-  if (pinHostKey) record.credentials.sshHostKey = hostKey;
-  if (staleError) {
-    record.schedules.export.lastError = undefined;
-    record.markModified("schedules");
+  if (pinHostKey) {
+    record.credentials.sshHostKey = hostKey;
+    await record.save();
   }
-  if (pinHostKey || staleError) await record.save();
   if (pinHostKey) await eventLog().record(record._id, "pinned", { data: { what: "ssh" } });
 
   // Envelope-encrypt the config before it leaves the process, so what lands in S3
-  // / on disk is ciphertext an operator can't read without MIKROTIK_ENC_KEY (an
+  // / on disk is ciphertext an operator can't read without the application encryption key (an
   // .rsc may contain secrets). `size` stays the plaintext length — that's what the
   // 2FA download decrypts and streams back.
-  const { storage: storageBackend } = await storage.putArtifact(
-    storageKey,
-    encryptArtifact(buffer),
-    "application/octet-stream",
-  );
-
   const fileName = `${sanitizeBaseName(
     record.name || record.credentials.host,
   )}-${timestampForName(new Date(), prefs?.timezone)}.rsc`;
 
-  const artifact = await MikrotikArtifact.create({
+  const artifact = await storeExport({
     mikrotik: record._id,
     type: "export",
     trigger,
@@ -156,10 +134,17 @@ const createArtifact = async (
     fileName,
     size: buffer.length,
     contentHash,
-    storage: storageBackend,
     routerOsVersion: record.currentFirmware,
     createdBy: userId || undefined,
-  });
+  }, encryptArtifact(buffer));
+
+  if (trigger !== "scheduled" && record.schedules?.export?.lastError) {
+    await Mikrotik.updateOne({
+      _id: record._id,
+      "schedules.export.lastRunAt": record.schedules.export.lastRunAt ?? null,
+      "schedules.export.lastError": record.schedules.export.lastError,
+    }, { $unset: { "schedules.export.lastError": "" } });
+  }
 
   // The device journal: the copy itself, and what differs from the previous one.
   // Read the previous file BEFORE pruning — pruning may be what removes it.

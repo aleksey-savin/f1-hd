@@ -36,6 +36,7 @@ export interface IMikrotikOutage {
 }
 
 export interface IMikrotik {
+  deleting?: boolean;
   // Unset for standalone devices (e.g. Cloud Hosted Router).
   clientDevice?: Types.ObjectId;
   // Standalone identity, used when there is no clientDevice.

@@ -4,7 +4,7 @@
 
 **Goal:** The Telegram AI agent can propose inventory changes as one package of operations. The person who asked (the requester) approves or rejects the package with Telegram buttons, and HD then applies it with the same rules as the portal forms.
 
-**Architecture:** Mirror the Mikrotik change pipeline (`docs/mikrotik-changes.md`) without its router parts.
+**Architecture:** Mirror the Mikrotik change pipeline ([MikroTik change requests](../../mikrotik-management.md#agent-change-requests)) without its router parts.
 
 - **Write logic moves out of controllers.** Today the inventory write logic sits inside Express handlers. It moves into `services/inventory/{deviceOps,catalogOps}.js`, the controllers become thin callers, and behavior does not change.
 - **Operation registry.** `services/inventory/changeOps.js` describes each operation kind: required right, check, apply, Russian text, and refs between operations in one package.

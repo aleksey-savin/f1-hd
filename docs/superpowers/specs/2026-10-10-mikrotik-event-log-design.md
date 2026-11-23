@@ -88,7 +88,7 @@
 
 ## Документация
 
-`docs/mikrotik-management.md` (раздел про журнал: модель, каталог, источники, пределы), `docs/mcp.md` (новый инструмент, что пишется от агента), `docs/mikrotik-changes.md` (точки эмиссии), `docs/ux-ui-guide.md` + changelog — после макета. Заметки — на английском, без UI.
+`docs/mikrotik-management.md` (раздел про журнал: модель, каталог, источники, пределы), `docs/mcp.md` (новый инструмент, что пишется от агента), [MikroTik change requests](../../mikrotik-management.md#agent-change-requests) (точки эмиссии), `docs/ux-ui-guide.md` + changelog — после макета. Заметки — на английском, без UI.
 
 ## Проверка
 

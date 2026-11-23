@@ -8,6 +8,8 @@ const Schema = mongoose.Schema;
 // prunes to the schedule's keepLast per (mikrotik, type).
 const mikrotikArtifactSchema = new Schema(
   {
+    // Published and legacy exports have no writeState.
+    writeState: { type: String, enum: ["uploading", "discarding"] },
     mikrotik: {
       type: Schema.Types.ObjectId,
       ref: "Mikrotik",

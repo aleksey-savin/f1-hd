@@ -158,6 +158,7 @@ const createMikrotikTicket = async (
 // чек-листе. Пункты чек-листа не mandatory, чтобы человек мог убрать
 // неактуальный. Never throws.
 const createMikrotikSystemTicket = async ({
+  ticketId,
   title,
   description,
   categoryId = null,
@@ -178,6 +179,7 @@ const createMikrotikSystemTicket = async ({
     const now = new Date();
 
     const ticket = new Ticket({
+      _id: ticketId,
       title,
       description: description || "",
       categoryId: categoryId || null,

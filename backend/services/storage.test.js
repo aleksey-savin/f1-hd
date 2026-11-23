@@ -14,6 +14,9 @@ for (const name of ["S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_BUCKET_NAME"
   delete process.env[name];
 }
 
+const privateDir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "hd-private-exports-"));
+process.env.MIKROTIK_ARTIFACTS_DIR = privateDir;
+test.after(() => fs.rmSync(privateDir, { recursive: true, force: true }));
 const storage = require("./storage");
 
 const handle = (engine, file) =>
@@ -126,4 +129,18 @@ test("openObject streams local upload bytes and reports their length", async () 
   } finally {
     await storage.deleteObject(saved.name);
   }
+});
+
+test("private local exports delete idempotently and a missing S3 connection cannot acknowledge deletion", async () => {
+  const key = storage.newObjectName("test", "fixture.rsc", "");
+  const saved = await storage.putArtifact(key, Buffer.from("fixture"), "application/octet-stream");
+  try {
+    assert.equal(saved.storage, "local");
+    await assert.rejects(storage.deleteArtifact(key, "s3"), /S3 is not configured/);
+    assert.deepEqual(await storage.getArtifactBuffer(key), Buffer.from("fixture"));
+  } finally {
+    await storage.deleteArtifact(key, "local");
+  }
+  await storage.deleteArtifact(key, "local");
+  await assert.rejects(storage.getArtifactBuffer(key), /not found/);
 });

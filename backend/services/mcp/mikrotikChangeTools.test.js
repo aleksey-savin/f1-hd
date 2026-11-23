@@ -57,9 +57,9 @@ const build = ({ changes = [change()], proposeResult, devices = DEVICES, notifie
   const store = {
     listDevices: async () => devices,
     findChange: async (ref) => changes.find((c) => String(c.number) === ref || String(c._id) === ref) || null,
-    listChanges: async ({ deviceId, status, limit }) =>
+    listChanges: async ({ deviceIds, status, limit }) =>
       changes
-        .filter((c) => (!deviceId || String(c.mikrotik) === deviceId) && (!status || c.status === status))
+        .filter((c) => deviceIds.includes(String(c.mikrotik)) && (!status || c.status === status))
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, limit),
     people: async (ids) => new Map([...PEOPLE].filter(([id]) => ids.map(String).includes(id))),
@@ -415,4 +415,11 @@ test("journal: a refusal for a device HD cannot name is not journaled", async ()
   });
   await tools.propose({ ...INPUT, device: "NOPE" }, caller);
   assert.equal(written.length, 0);
+});
+
+
+test("global list finds older visible requests after a device is removed", async () => {
+  const hidden = Array.from({ length: 101 }, () => change({ mikrotik: DEVICE_B, createdAt: new Date("2026-11-01") }));
+  const { tools } = build({ devices: [DEVICES[0]], changes: [...hidden, change()] });
+  assert.match(text(await tools.list({ limit: 1 }, caller)), /GW-MSK01/);
 });

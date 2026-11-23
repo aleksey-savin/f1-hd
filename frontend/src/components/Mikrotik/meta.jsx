@@ -75,7 +75,7 @@ export const OVERLAP_ORDER = ["addressClash", "maskOverlap", "sharedNetwork"];
  */
 export const overlapReason = (overlap) => {
   if (overlap.kind === "addressClash") {
-    return `${overlap.clashing.join(", ")} — на разных устройствах`;
+    return `${overlap.clashing.join(", ")} — адрес назначен несколько раз`;
   }
   if (overlap.kind === "maskOverlap") {
     const [widest, ...rest] = overlap.masks;
