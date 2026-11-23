@@ -1,3 +1,4 @@
+import useLiveFetcher from "./use-live-fetcher";
 import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -187,28 +188,29 @@ export function GuestSecurityReport({ report }) {
     </>
   );
 }
-export default function GuestSecurity({ id, canCheck, guestType }) {
+export default function GuestSecurity({
+  id,
+  canCheck,
+  guestType,
+  paused = false,
+}) {
   const reader = useFetcher(),
     writer = useFetcher();
   const path = `${ROOT}/resources/${id}?section=security`;
-  const report = reader.data?.report;
+  const { data, load } = useLiveFetcher(reader, path, {
+    enabled: !paused && writer.state === "idle",
+    maxStaleMs: scanActive(reader.data?.report) ? 5000 : 60000,
+    cadenceMs: scanActive(reader.data?.report) ? 5000 : undefined,
+  });
+  const report = data?.report;
   const busy = scanActive(report) || writer.state !== "idle";
   useEffect(() => {
-    reader.load(path);
-  }, [path]);
+    load(path);
+  }, [load, path]);
   useEffect(() => {
     if (writer.state === "idle" && writer.data && !writer.data.error)
-      reader.load(path);
-  }, [writer.state, writer.data, path]);
-  useEffect(() => {
-    const timer = setInterval(
-      () => {
-        if (reader.state === "idle") reader.load(path);
-      },
-      scanActive(report) ? 5000 : 60000,
-    );
-    return () => clearInterval(timer);
-  }, [path, reader.state, report?.status]);
+      load(path);
+  }, [writer.state, writer.data, load, path]);
   return (
     <Section
       title="Безопасность гостевой ОС"
@@ -232,16 +234,9 @@ export default function GuestSecurity({ id, canCheck, guestType }) {
       }
     >
       <Feedback
-        data={
-          reader.data?.error
-            ? reader.data
-            : writer.data?.error
-              ? writer.data
-              : null
-        }
+        data={data?.error ? data : writer.data?.error ? writer.data : null}
       />
-      {reader.data?.error ? null : reader.state === "loading" &&
-        !reader.data ? (
+      {data?.error ? null : reader.state === "loading" && !data ? (
         <p className="text-sm text-muted-foreground">
           Загружаем результат проверки…
         </p>

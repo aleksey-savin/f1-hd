@@ -79,11 +79,12 @@ test("no change → no run; change → exactly one run", async () => {
   assert.equal(runs.length, 1);
 });
 
-test("no baseline: the first snapshot is adopted silently", () => {
-  const { runs, consumer } = setup({ baseline: null });
+test("no baseline stays pending while paused", async () => {
+  const { runs, consumer } = setup({ baseline: null, enabled: false });
   consumer.onSnapshot(snap(9, { tickets: 9 }));
   assert.equal(runs.length, 0);
-  consumer.onSnapshot(snap(10, { tickets: 10 }));
+  consumer.setEnabled(true);
+  await flush();
   assert.equal(runs.length, 1);
 });
 
@@ -205,4 +206,77 @@ test("dispose stops everything", () => {
   time.advance(20_000);
   consumer.onSnapshot(snap(11, { tickets: 11 }));
   assert.equal(runs.length, 1);
+});
+
+test("a resolved false refresh is retried on the next pulse", async () => {
+  let calls = 0;
+  const { consumer } = setup({ run: async () => { calls++; return calls > 1; } });
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  await flush();
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  await flush();
+  assert.equal(calls, 2);
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  await flush();
+  assert.equal(calls, 2);
+});
+
+test("ticket access denial revalidates once, retries failure, and detects a later denial", async () => {
+  let calls = 0;
+  const { consumer } = setup({ watch: { topics: [], ticketId: 't' }, run: () => ++calls !== 1 });
+  consumer.onSnapshot(snap(5, {}, { t: null }));
+  await flush();
+  assert.equal(calls, 1);
+  consumer.onSnapshot(snap(5, {}, { t: null }));
+  await flush();
+  assert.equal(calls, 2);
+  consumer.onSnapshot(snap(6, {}, { t: null }));
+  await flush();
+  assert.equal(calls, 2);
+  consumer.onSnapshot(snap(6, {}, { t: 5 }));
+  consumer.onSnapshot(snap(6, {}, { t: null }));
+  await flush();
+  assert.equal(calls, 3);
+});
+
+test("data without a request cursor is refreshed after the first pulse", async () => {
+  const { consumer, runs } = setup({ baseline: null });
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  await flush();
+  assert.equal(runs.length, 1);
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  await flush();
+  assert.equal(runs.length, 1);
+});
+
+test("session invalidation prevents an older successful refresh certifying new-session data", async () => {
+  let finish, calls = 0;
+  const { consumer } = setup({ run: () => { calls++; return new Promise(resolve => { finish = resolve; }); } });
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  consumer.invalidate();
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  finish(true);
+  await flush();
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  assert.equal(calls, 2);
+  finish(true);
+  await flush();
+});
+
+test("an unresolved old-session refresh cannot block or settle the new session's refresh", async () => {
+  const finish = [];
+  const { consumer } = setup({ run: () => new Promise(resolve => finish.push(resolve)) });
+  consumer.onSnapshot(snap(9, { tickets: 9 }));
+  consumer.invalidate();
+  consumer.onSnapshot(snap(10, { tickets: 10 }));
+  assert.equal(finish.length, 2);
+  finish[0](true);
+  await flush();
+  consumer.onSnapshot(snap(11, { tickets: 11 }));
+  assert.equal(finish.length, 2, 'obsolete completion must not release a newer in-flight refresh');
+  finish[1](true);
+  await flush();
+  assert.equal(finish.length, 3);
+  finish[2](true);
+  await flush();
 });

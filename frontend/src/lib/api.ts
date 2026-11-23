@@ -79,8 +79,9 @@ export async function api<T = unknown>(
     },
   );
 
+  assertBrowserSessionCurrent(generation, signal);
+
   if (response.status === 401) {
-    assertBrowserSessionCurrent(generation, signal);
     clearSession();
     onUnauthorized();
     throw new ApiError(401, null, "Требуется вход");
@@ -92,6 +93,7 @@ export async function api<T = unknown>(
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
+    assertBrowserSessionCurrent(generation, signal);
     throw new ApiError(
       response.status,
       payload,
@@ -100,5 +102,7 @@ export async function api<T = unknown>(
     );
   }
 
-  return response.status === 204 ? (null as T) : ((await response.json()) as T);
+  const result = response.status === 204 ? null : await response.json();
+  assertBrowserSessionCurrent(generation, signal);
+  return result as T;
 }

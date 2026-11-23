@@ -1,11 +1,6 @@
 import { Link, useSearchParams } from "@/components/app/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  useFetcher,
-  useLoaderData,
-  useNavigation,
-  useRevalidator,
-} from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useFetcher, useLoaderData, useNavigation } from "react-router";
 import {
   RiBuildingLine,
   RiComputerLine,
@@ -370,12 +365,6 @@ export default function ProxmoxList() {
   });
   const selected = selection.selectedIds;
   const selecting = selection.isActive;
-  const revalidator = useRevalidator();
-  const wasSelecting = useRef(false);
-  useEffect(() => {
-    if (wasSelecting.current && !selecting) revalidator.revalidate();
-    wasSelecting.current = selecting;
-  }, [selecting, revalidator]);
   const selectionReason = selection.loading
     ? "Загружаем выбранные ВМ"
     : companySelectionReason(selection.selectedItems);
@@ -390,7 +379,7 @@ export default function ProxmoxList() {
         item.visibleOperation.cancelRequested),
   );
   useRefresh(
-    pendingOperation || cancelTarget || assign || selecting
+    pendingOperation || cancelTarget || assign || selecting || agentEditor
       ? 0
       : operationRunning
         ? 3000

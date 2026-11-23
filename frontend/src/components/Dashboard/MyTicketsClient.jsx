@@ -94,6 +94,7 @@ const MyTicketsClient = () => {
     } catch (error) {
       // Хвост блока: не приехал — открытые заявки всё равно на месте.
       console.error("Не удалось загрузить закрытые заявки:", error);
+      return false;
     }
   };
 

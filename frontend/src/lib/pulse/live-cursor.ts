@@ -82,6 +82,7 @@ export type LiveConsumer = {
   /** The data now corresponds to this cursor (e.g. a loader's X-Pulse-Cursor) */
   markFresh: (cursor: PulseCursor | null) => void;
   dispose: () => void;
+  invalidate: () => void;
 };
 
 export const createLiveConsumer = (options: ConsumerOptions): LiveConsumer => {
@@ -101,6 +102,9 @@ export const createLiveConsumer = (options: ConsumerOptions): LiveConsumer => {
   let running = false;
   let disposed = false;
   let timer: unknown = null;
+  let denialPending = false;
+  let denialGeneration = 0;
+  let generation = 0;
 
   // Forward only within one epoch: a slower refetch must not roll back the
   // cursor a newer load already set
@@ -113,12 +117,8 @@ export const createLiveConsumer = (options: ConsumerOptions): LiveConsumer => {
 
   const evaluate = () => {
     if (disposed || !latest) return;
-    // No baseline yet (first load raced the first pulse): adopt silently
-    if (!baseline) {
-      baseline = cursorOf(latest);
-      return;
-    }
-    const dirty =
+    // A mount-time snapshot cannot certify data fetched before that snapshot.
+    const dirty = !baseline || denialPending ||
       hasMoved(latest, baseline, options.watch) || now() - freshAt >= maxStaleMs;
     if (!dirty || !enabled || running) return;
 
@@ -139,13 +139,16 @@ export const createLiveConsumer = (options: ConsumerOptions): LiveConsumer => {
     // Everything up to the snapshot that triggered the run is in the new data;
     // a change after it shows up as a newer revision and runs again
     const target = cursorOf(latest);
+    const targetDenial = denialGeneration;
+    const targetGeneration = generation;
     running = true;
     lastRunAt = now();
 
     const settle = (ok: boolean) => {
+      if (disposed || targetGeneration !== generation) return;
       running = false;
-      if (disposed) return;
       if (ok) {
+        if (targetDenial === denialGeneration) denialPending = false;
         advance(target);
         freshAt = now();
         evaluate();
@@ -162,7 +165,7 @@ export const createLiveConsumer = (options: ConsumerOptions): LiveConsumer => {
       return;
     }
     Promise.resolve(result).then(
-      () => settle(true),
+      (value) => settle(value !== false),
       (error) => {
         console.warn("live update skipped:", error);
         settle(false);
@@ -172,6 +175,13 @@ export const createLiveConsumer = (options: ConsumerOptions): LiveConsumer => {
 
   return {
     onSnapshot: (snapshot) => {
+      const id = options.watch.ticketId;
+      if (id && snapshot.tickets[id] === null && latest?.tickets[id] !== null) {
+        denialPending = true;
+        denialGeneration++;
+      } else if (id && typeof snapshot.tickets[id] === "number") {
+        denialPending = false;
+      }
       latest = snapshot;
       evaluate();
     },
@@ -183,6 +193,16 @@ export const createLiveConsumer = (options: ConsumerOptions): LiveConsumer => {
       if (!cursor) return;
       advance(cursor);
       freshAt = now();
+    },
+    invalidate: () => {
+      generation++;
+      running = false;
+      baseline = null;
+      latest = null;
+      denialPending = false;
+      lastRunAt = Number.NEGATIVE_INFINITY;
+      if (timer !== null) clearTimer(timer);
+      timer = null;
     },
     dispose: () => {
       disposed = true;

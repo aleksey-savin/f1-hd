@@ -62,7 +62,8 @@ const TicketsPanel = ({ deviceId, onEmpty }) => {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${deviceId}/tickets`,
       );
-      if (response.ok) setData(await response.json());
+      if (!response.ok) return false;
+      setData(await response.json());
     },
     { enabled: !isLoading, minIntervalMs: 30_000 },
   );

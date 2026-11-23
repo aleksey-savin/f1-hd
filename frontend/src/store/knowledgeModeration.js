@@ -39,6 +39,7 @@ const useKnowledgeModerationStore = create((set) => ({
       });
     } catch {
       // сеть — оставляем прежние счётчики (фоновый запрос, не действие пользователя)
+      return false;
     }
   },
 }));

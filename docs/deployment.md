@@ -107,6 +107,12 @@ them. Where it shows:
   it, in the same words, in the "Building images" / "Pulling images" line;
 - open browser tabs — after an update they offer to reload.
 
+Frontend and backend images must carry the same build identity. This also
+applies to backend-only hotfixes: if the backend identity changes, rebuild the
+frontend with the same `APP_VERSION` and `APP_COMMIT`. Otherwise a freshly
+reloaded browser still shows the update banner. Verify the ID embedded in the
+served frontend bundle against `/api/app-version` after deployment.
+
 In pull mode a version that differs from `IMAGE_TAG` (a pre-release tag, for
 example) is reported as a warning, not an error.
 

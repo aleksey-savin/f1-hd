@@ -798,3 +798,41 @@ test("background access refresh cannot adopt changed cookies or a late previous 
   await assert.rejects(background, aborted);
   assert.equal(session.confirmedUserId(), null);
 });
+
+test("successful API responses from an obsolete session are discarded, including delayed bodies", async () => {
+  setup();
+  session.confirmBrowserSession(me());
+  let finish;
+  globalThis.fetch = () => new Promise(resolve => { finish = resolve; });
+  const pending = api('/api/pulse');
+  clearSession();
+  session.confirmBrowserSession(me('bob', 's2'));
+  finish(json({ access: { userId: 'alice' }, notifications: { unreadCount: 7 } }));
+  await assert.rejects(pending, { name: 'AbortError' });
+
+  let body;
+  globalThis.fetch = async () => ({ status: 200, ok: true, json: () => new Promise(resolve => { body = resolve; }) });
+  const delayed = api('/api/pulse');
+  await new Promise(setImmediate);
+  clearSession();
+  body({ notifications: { unreadCount: 9 } });
+  await assert.rejects(delayed, { name: 'AbortError' });
+});
+
+test("a session change clears pulse, presence and notification state", async () => {
+  const pulse = (await import('../store/pulse.ts')).default;
+  const notifications = (await import('../store/notifications.ts')).default;
+  const presence = (await import('../store/work-statuses.js')).default;
+  setup();
+  session.confirmBrowserSession(me());
+  pulse.getState().ingest({ epoch: 'e', rev: 8, topics: {}, tickets: {}, pollMs: 10000, appVersion: 'v1', access: { userId: 'alice', version: 'old' } });
+  notifications.setState({ unreadCount: 7, items: [{ _id: 'private' }], open: true, isLoaded: true });
+  presence.setState({ users: [{ _id: 'private-colleague' }], isLoaded: true });
+  clearSession();
+  assert.equal(pulse.getState().snapshot, null);
+  assert.equal(pulse.getState().access, null);
+  assert.deepEqual(notifications.getState().items, []);
+  assert.equal(notifications.getState().unreadCount, 0);
+  assert.equal(notifications.getState().open, false);
+  assert.deepEqual(presence.getState().users, []);
+});

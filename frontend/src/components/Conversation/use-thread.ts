@@ -72,17 +72,19 @@ export const useThread = (
 
   const poll = useCallback(async () => {
     const id = conversationId;
-    if (pollingId.current === id || accessRevoked.current) return [];
+    if (pollingId.current === id) return false;
+    if (accessRevoked.current) return [];
     pollingId.current = id;
     try {
       let changed: MessageRow[] = [];
       let revoked = false;
+      let needsDrain = false;
       for (let round = 0; round < MAX_DRAIN_ROUNDS; round += 1) {
         const page = await api<MessagesChanges>(
           `/api/conversations/${id}/messages?${changesQuery(cursor.current)}`,
         );
         // Пока ждали ответ, открыли другой диалог — чужое в ленту не льём
-        if (currentId.current !== id) return [];
+        if (currentId.current !== id) return false;
         for (const message of page.items) removedIds.current.delete(message.id);
         for (const removed of page.removedIds ?? [])
           removedIds.current.add(removed);
@@ -96,14 +98,15 @@ export const useThread = (
         );
         const next = nextCursor(page);
         cursor.current = { since: next.since, afterId: next.afterId };
-        if (!next.drain) break;
+        needsDrain = next.drain;
+        if (!needsDrain) break;
       }
       if (changed.length || revoked) {
         onChangedRef.current?.(changed);
       }
-      return changed;
+      return needsDrain ? false : changed;
     } catch (error) {
-      if (currentId.current !== id) return [];
+      if (currentId.current !== id) return false;
       if (error instanceof ApiError && error.status === 404) {
         accessRevoked.current = true;
         setMessages([]);

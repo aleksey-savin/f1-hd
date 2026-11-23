@@ -57,6 +57,7 @@ const useDashboardTicketsStore = create((set) => ({
       });
     } catch (error) {
       console.warn("Фоновое обновление главной пропущено:", error);
+      return false;
     }
   },
 }));

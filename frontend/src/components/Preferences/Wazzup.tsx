@@ -97,9 +97,12 @@ export default function Wazzup({
       );
       if (!controller.signal.aborted && liveRequest.current === controller) {
         setServer({ value: data.wazzup, revision: ++sequence.current });
+      } else {
+        return false;
       }
     } catch {
       // Тихое обновление сохраняет последний снимок и результат ручной проверки.
+      return false;
     } finally {
       if (liveRequest.current === controller) liveRequest.current = null;
     }

@@ -1,3 +1,4 @@
+import { onBrowserSessionChange } from "@/util/browser-session.js";
 import { create } from "zustand";
 
 import type { PulseSnapshot } from "@/lib/pulse/live-cursor";
@@ -93,3 +94,7 @@ const usePulseStore = create<PulseState>()((set, get) => ({
 }));
 
 export default usePulseStore;
+
+onBrowserSessionChange(() => {
+  usePulseStore.setState({ snapshot: null, access: null, appVersion: null, pollMs: 10_000 });
+});

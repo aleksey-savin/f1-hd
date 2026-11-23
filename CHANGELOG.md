@@ -15,6 +15,9 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Fixed
 
+- Live updates reject responses from obsolete sessions and clear session-specific pulse, notification and presence state. Failed or incomplete refreshes retry without advancing their revision; missing request baselines and revoked ticket access trigger revalidation.
+- Pulse write hooks notify both old and new ticket/inbox references and detect insert-only upserts while preserving query return shapes. Proxmox background refreshes use the shared pulse, pause with hidden tabs and editors, and retain displayed section data on errors; knowledge-base selection pauses live refreshes.
+
 - Restored browser sessions and login after the authentication dependency update by sharing one MongoDB driver between Mongoose and Better Auth. Mixed BSON ObjectId classes caused authenticated API requests to return 404 and login to return 500.
 
 - Knowledge-base moderation now rejects stale reviewed versions and concurrent edits. Single and bulk archive/deletion decisions enforce pending requests; the legacy delete endpoint submits a request. Archived notes are hidden from ordinary readers, including direct links.
@@ -46,7 +49,7 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Upgrade instructions
 
-- Rebuild and restart the backend to apply the MongoDB driver alignment. No data migration, cookie reset, or secret change is required; existing sessions remain in place. The backend restart briefly interrupts API requests.
+- Rebuild and restart the backend to apply the MongoDB driver alignment. Build the frontend with the same build identity so the update banner clears after reloading. No data migration, cookie reset, or secret change is required; existing sessions remain in place. The restart briefly interrupts requests.
 
 - Deploy the knowledge-base frontend and backend together and reload open clients. Approval API callers must send `expectedVersion` (the displayed note's `__v`, or `0` when absent); bulk approval uses `expectedVersions` keyed by note ID. Stale/missing versions are rejected or skipped. The legacy delete API now requests moderated deletion. No data migration is required. New structural findings may require review even when an older value-based finding was dismissed. Existing notes receive persisted raw-content findings on their next enabled scan or save; MCP full-note reads check immediately. Rolling back restores the previous moderation and scanning gaps.
 

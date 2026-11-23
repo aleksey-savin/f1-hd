@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 type PlannedWorksState = {
   works: PlannedWork[];
   loaded: boolean;
-  load: () => Promise<void>;
+  load: () => Promise<false | void>;
 };
 
 const usePlannedWorksStore = create<PlannedWorksState>()((set) => ({
@@ -29,6 +29,7 @@ const usePlannedWorksStore = create<PlannedWorksState>()((set) => ({
     } catch (error) {
       console.warn("Плановые работы для главной не загрузились:", error);
       set({ loaded: true });
+      return false;
     }
   },
 }));

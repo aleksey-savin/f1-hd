@@ -260,7 +260,7 @@ const useTicketFilterStore = create((set, get) => ({
       // Транзиентный сбой на фоновом опросе ожидаем (сон вкладки, обрыв связи):
       // тихо пропускаем цикл, следующий подтянет свежие данные.
       console.warn("Фоновое обновление заявок пропущено:", error);
-      return;
+      return false;
     }
     set((state) => {
       const next = { ...state, originalList: data.tickets ?? [] };

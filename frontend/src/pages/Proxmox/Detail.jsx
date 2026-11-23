@@ -26,7 +26,7 @@ import {
 } from "react-icons/ri";
 import AnchorRail from "@/components/app/AnchorRail";
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
-import FormOutlet from "@/components/app/FormOutlet";
+import FormOutlet, { useSheetOpen } from "@/components/app/FormOutlet";
 import FormSheet from "@/components/app/FormSheet";
 import { FormActions } from "@/components/app/FormLayout";
 import { SectionEditButton } from "@/components/app/Panel";
@@ -159,6 +159,8 @@ export default function ProxmoxDetail() {
     [value, setValue] = useState(""),
     [reason, setReason] = useState(""),
     [editError, setEditError] = useState("");
+  const sheetOpen = useSheetOpen();
+  const [sectionEditing, setSectionEditing] = useState(false);
   const [activeOperation, setActiveOperation] = useState(undefined);
   const [operationStatusError, setOperationStatusError] = useState(null);
   const [cancelOperation, setCancelOperation] = useState(null);
@@ -191,7 +193,16 @@ export default function ProxmoxDetail() {
   const crumbCompany = kind === "companies" ? null : item.company;
   const Icon = icons[kind] || RiServerLine;
   const from = useCrumbFrom(crumbTitle);
-  useRefresh(60000);
+  const livePaused = Boolean(
+    edit ||
+      operation ||
+      cancelOperation ||
+      agentEditor ||
+      busy ||
+      sheetOpen ||
+      sectionEditing,
+  );
+  useRefresh(livePaused ? 0 : 60000);
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
       setEdit(null);
@@ -804,6 +815,7 @@ export default function ProxmoxDetail() {
           )}
           {kind === "guests" && (
             <GuestSecurity
+              paused={livePaused}
               key={id}
               id={id}
               canCheck={
@@ -816,6 +828,7 @@ export default function ProxmoxDetail() {
           )}
           {kind === "nodes" && (
             <NodeSecurity
+              paused={livePaused}
               key={id}
               id={id}
               item={item}
@@ -847,6 +860,7 @@ export default function ProxmoxDetail() {
           )}
           {kind === "guests" && (
             <Backups
+              paused={livePaused}
               key={id}
               id={id}
               refreshKey={item.lastBackupAt}
@@ -960,11 +974,13 @@ export default function ProxmoxDetail() {
           )}
           {kind === "guests" && (
             <Operations
+              paused={livePaused}
               id={id}
               version={fetcher.data}
               currentOperation={latestOperation}
               onActiveChange={setActiveOperation}
               onStatusError={setOperationStatusError}
+              onEditingChange={setSectionEditing}
             />
           )}
           {resource && <History id={id} type="events" />}

@@ -70,6 +70,7 @@ const MonitoringOffline = () => {
       setData(await response.json());
     } catch (error) {
       console.error("Не удалось загрузить состояние мониторинга:", error);
+      return false;
     }
   };
 

@@ -40,6 +40,7 @@ const REPLACES = new Set(["replaceOne", "findOneAndReplace"]);
 const PRE_READ_LIMIT = 1000;
 
 const PENDING = Symbol("pulse");
+const UNWRAP_RESULT = Symbol("pulseUnwrapResult");
 
 // The logger is required lazily: model files load this plugin, and scripts that
 // only need a model should not spin up log transports.
@@ -163,9 +164,14 @@ const idsFromDoc = (doc, field) => {
   return [idString(value)].filter(Boolean);
 };
 
+const resultInserted = (result) => Boolean(
+  result?.upsertedCount > 0 || result?.upsertedId || result?.lastErrorObject?.upserted,
+);
+
 /** Did a query write change anything, judging by its result? */
 const resultChanged = (result) => {
   if (result === null || result === undefined) return false;
+  if (resultInserted(result)) return true;
   if (typeof result.modifiedCount === "number" || typeof result.upsertedCount === "number") {
     return (result.modifiedCount || 0) + (result.upsertedCount || 0) > 0;
   }
@@ -201,12 +207,19 @@ function pulsePlugin(schema, options = {}) {
   if (!spec) throw new Error(`pulsePlugin: no spec for model "${options.model}"`);
   const bus = options.bus || defaultBus;
 
-  schema.pre("save", function classifyPulseSave() {
+  schema.pre("save", async function classifyPulseSave() {
     try {
-      this.$locals.pulse = classifySave(this, spec);
+      const pulse = classifySave(this, spec);
+      this.$locals.pulse = pulse;
+      const fields = [spec.ticket, spec.user].filter((field) => field && field !== "self" && this.isModified(field));
+      if (pulse.meaningful && !this.isNew && fields.length) {
+        let query = this.constructor.findById(this._id).select(fields.join(" ")).lean();
+        if (this.$session()) query = query.session(this.$session());
+        pulse.previous = await query;
+      }
     } catch (error) {
       warn("pulse: save classification failed", error);
-      this.$locals.pulse = { topics: allTopics(spec), meaningful: true };
+      this.$locals.pulse = { topics: allTopics(spec), meaningful: true, unknownRefs: true };
     }
   });
 
@@ -216,8 +229,8 @@ function pulsePlugin(schema, options = {}) {
       if (!pulse?.meaningful) return;
       emit(bus, spec, {
         topics: pulse.topics,
-        ticketIds: idsFromDoc(doc, spec.ticket),
-        userIds: idsFromDoc(doc, spec.user),
+        ticketIds: pulse.unknownRefs ? [] : [...idsFromDoc(pulse.previous, spec.ticket), ...idsFromDoc(doc, spec.ticket)],
+        userIds: pulse.unknownRefs ? [] : [...idsFromDoc(pulse.previous, spec.user), ...idsFromDoc(doc, spec.user)],
       });
     } catch (error) {
       warn("pulse: save emit failed", error);
@@ -229,57 +242,74 @@ function pulsePlugin(schema, options = {}) {
   schema.pre(QUERY_WRITES, { document: false, query: true }, async function classifyPulseQuery() {
     try {
       const op = this.op;
+      // Driver metadata distinguishes an inserted upsert from a duplicate even
+      // when the caller asks for the pre-image (which is null on insertion).
+      if (this.getOptions().upsert && ["findOneAndUpdate", "findOneAndReplace"].includes(op)) {
+        this[UNWRAP_RESULT] = !this.getOptions().includeResultMetadata;
+        this.setOptions({ includeResultMetadata: true });
+      }
       const classified = classifyUpdate(op, this.getUpdate(), spec);
       const state = { ...classified, ticketIds: null, userIds: null };
       this[PENDING] = state;
-      if (!classified.meaningful || !tracksRefs(spec)) return;
+      if ((!classified.meaningful && !this.getOptions().upsert) || !tracksRefs(spec)) return;
 
       const filter = this.getFilter();
-      if (spec.ticket) {
-        state.ticketIds = idsFromFilter(filter, spec.ticket === "self" ? "_id" : spec.ticket);
-      }
+      if (spec.ticket) state.ticketIds = idsFromFilter(filter, spec.ticket === "self" ? "_id" : spec.ticket);
       if (spec.user) state.userIds = idsFromFilter(filter, spec.user);
 
-      // Ids not in the filter: read them before the write (a delete removes them).
-      // Ticket "self" ids come from the returned document or fall back to "any".
-      const field = spec.ticket && spec.ticket !== "self" && !state.ticketIds
-        ? spec.ticket
-        : spec.user && !state.userIds
-          ? spec.user
-          : null;
-      if (!field) return;
-      const rows = await this.model
-        .find(filter)
-        .select(field)
-        .limit(PRE_READ_LIMIT + 1)
-        .lean();
-      if (rows.length > PRE_READ_LIMIT) return;
-      const ids = [...new Set(rows.flatMap((row) => idsFromDoc(row, field)))];
-      if (field === spec.ticket) state.ticketIds = ids;
-      else state.userIds = ids;
+      // A reference-changing write needs both images, even if its filter pins
+      // the old reference. Keep row ids: reparenting can invalidate that filter.
+      const entries = updateEntries(this.getUpdate());
+      const fields = [spec.ticket, spec.user].filter((field) => field && field !== "self");
+      state.refsChanged = !DELETES.has(op) && fields.some((field) =>
+        REPLACES.has(op) || Array.isArray(this.getUpdate()) || entries.some(({ path, op: operator, value }) =>
+          path === field || path.startsWith(`${field}.`) || field.startsWith(`${path}.`) ||
+          (operator === "$rename" && value === field)));
+      const needsRead = fields.some((field) => field === spec.ticket ? !state.ticketIds : !state.userIds);
+      if (!fields.length || (!needsRead && !state.refsChanged)) return;
+      let query = this.model.find(filter).select(fields.join(" ")).limit(PRE_READ_LIMIT + 1).lean();
+      if (this.getOptions().session) query = query.session(this.getOptions().session);
+      const rows = await query;
+      if (rows.length > PRE_READ_LIMIT) {
+        state.unknownRefs = true;
+        return;
+      }
+      state.rowIds = rows.map((row) => row._id);
+      if (spec.ticket !== "self") state.ticketIds = rows.flatMap((row) => idsFromDoc(row, spec.ticket));
+      if (spec.user) state.userIds = rows.flatMap((row) => idsFromDoc(row, spec.user));
     } catch (error) {
       warn("pulse: query classification failed", error);
-      this[PENDING] = { topics: allTopics(spec), meaningful: true, ticketIds: null, userIds: null };
+      this[PENDING] = { topics: allTopics(spec), meaningful: true, ticketIds: null, userIds: null, unknownRefs: true };
     }
   });
 
-  schema.post(QUERY_WRITES, { document: false, query: true }, function emitPulseQuery(result) {
+  schema.post(QUERY_WRITES, { document: false, query: true }, async function emitPulseQuery(result) {
     try {
       const state = this[PENDING];
-      if (!state?.meaningful || !resultChanged(result)) return;
-      const doc = resultDoc(result);
-      const fromDoc = (field) =>
-        doc && typeof doc === "object" && !("modifiedCount" in doc) && !("deletedCount" in doc)
-          ? idsFromDoc(doc, field)
-          : [];
-      emit(bus, spec, {
-        topics: state.topics,
-        ticketIds: state.ticketIds?.length ? state.ticketIds : fromDoc(spec.ticket),
-        userIds: state.userIds?.length ? state.userIds : fromDoc(spec.user),
-      });
+      const inserted = resultInserted(result);
+      if (state && (state.meaningful || inserted) && resultChanged(result)) {
+        const doc = resultDoc(result);
+        const rows = doc && typeof doc === "object" && !("modifiedCount" in doc) && !("deletedCount" in doc) ? [doc] : [];
+        const insertedId = result?.upsertedId || result?.lastErrorObject?.upserted;
+        const rowIds = [...(state.rowIds || []), ...(insertedId ? [insertedId] : [])];
+        if ((state.refsChanged || inserted) && tracksRefs(spec) && !state.unknownRefs && rowIds.length) {
+          let query = this.model.find({ _id: { $in: rowIds } }).select([spec.ticket === "self" ? "_id" : spec.ticket, spec.user].filter(Boolean).join(" ")).lean();
+          if (this.getOptions().session) query = query.session(this.getOptions().session);
+          rows.push(...await query);
+        }
+        const refs = (field, previous) => state.unknownRefs ? [] :
+          [...new Set([...(previous || []), ...rows.flatMap((row) => idsFromDoc(row, field))])];
+        emit(bus, spec, {
+          topics: inserted ? allTopics(spec) : state.topics,
+          ticketIds: refs(spec.ticket, state.ticketIds),
+          userIds: refs(spec.user, state.userIds),
+        });
+      }
     } catch (error) {
       warn("pulse: query emit failed", error);
+      emit(bus, spec, { topics: allTopics(spec), ticketIds: [], userIds: [] });
     }
+    if (this[UNWRAP_RESULT]) return mongoose.overwriteMiddlewareResult(resultDoc(result));
   });
 
   schema.post("insertMany", function emitPulseInsertMany(docs) {

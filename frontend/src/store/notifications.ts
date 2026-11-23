@@ -1,3 +1,4 @@
+import { onBrowserSessionChange } from "@/util/browser-session.js";
 import { create } from "zustand";
 
 import { api } from "@/lib/api";
@@ -206,3 +207,9 @@ const useNotificationsStore = create<NotificationsState>()((set, get) => ({
 }));
 
 export default useNotificationsStore;
+
+onBrowserSessionChange(() => {
+  listSeq++;
+  useNotificationsStore.setState({ unreadCount: 0, unreadByCategory: {}, latestAt: null,
+    items: [], isLoaded: false, isLoading: false, nextBefore: null, open: false });
+});

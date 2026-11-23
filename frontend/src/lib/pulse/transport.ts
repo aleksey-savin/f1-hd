@@ -48,7 +48,7 @@ export const createPollingTransport = ({
 
   const tick = async (): Promise<void> => {
     timer = null;
-    if (!active) return;
+    if (!active || !visible()) return;
     if (inFlight) {
       queued = true;
       return;

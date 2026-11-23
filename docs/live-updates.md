@@ -1,6 +1,6 @@
 # Live updates (pulse) — Implementation Notes
 
-_Last updated: 2026-09-13. How open pages learn that their data changed on the
+_Last updated: 2026-11-23. How open pages learn that their data changed on the
 server. Interface rules (what pauses, what never toasts) live in
 `docs/ux-ui-guide.md`; this file covers the mechanism. A snapshot, not a spec —
 verify against the code._
@@ -32,8 +32,9 @@ In-memory, no I/O. `createBus()` / singleton `bus`:
 - One global monotonic `rev`; each topic stores the `rev` of its last bump, so
   one cursor number compares against any topic.
 - Topics: `tickets`, `presence`, `team`, `mikrotik`, `approval`, `knowledge`,
-  `conversations`, `channels`, `mikrotikChanges`, `inventoryChanges` (the last four staff-only:
-  not in `CLIENT_TOPICS`, `controllers/pulse.js`).
+  `conversations`, `channels`, `mikrotikChanges`, `inventoryChanges`, `userReview`,
+  `proxmox`. End users receive only `tickets` and `approval`; the remaining topics
+  are staff-only (`CLIENT_TOPICS`, `controllers/pulse.js`).
 - Per ticket: an LRU `Map<ticketId, rev>` (5000 entries). An evicted ticket
   reports the newest evicted revision (`ticketFloor`) — conservative, never
   "unchanged" by mistake. A write whose ticket is unknown bumps `anyTicketRev`,
@@ -74,17 +75,28 @@ compile time, so a global plugin would silently miss models required first. In
 `models/ticket.js` it is registered after `touchActivity`.
 
 Models: Ticket, Comment, TicketLog, Work, User, Absence, ProductionCalendar,
-Mikrotik, MikrotikArtifact, KnowledgeNote, ServicePlanReport, ServicePlan,
-InAppNotification.
+Mikrotik, MikrotikArtifact, MikrotikUpgradeJob, MikrotikEvent, MikrotikChange,
+InventoryChange, KnowledgeNote, ServicePlanReport, ServicePlan, InAppNotification,
+Conversation, Message, ChannelIdentity and Channel. Proxmox and User Review use
+explicit service-level bumps instead of model plugins.
 
 - `save`: `pre` classifies `directModifiedPaths()` with their new values into
   `$locals.pulse`; `post` bumps (post hooks run only after a successful write).
+  Changing a ticket/inbox reference pre-reads its old value, using the document's
+  session when present, and notifies both old and new references.
 - Query writes (`updateOne/Many`, `findOneAndUpdate/Replace/Delete` incl.
   `findById*`, `replaceOne`, `deleteOne/Many`; document `deleteOne()` /
   `updateOne()` run as these queries): update keys are classified once per
   query. Ticket ids come from `getFilter()._id` (scalar / `$in` / `$eq`);
   Comment/Work/inbox ids not pinned by the filter are pre-read with a lean
   `find(filter).select(field)` capped at 1000 (over the cap → "any ticket").
+  Reference-changing queries retain affected row IDs and read their new
+  references after the write, so changes to the original filter do not hide the
+  destination. Reads retain the query session; failures or the 1000-row cap fall
+  back to a conservative all-ticket/all-inbox bump.
+  Insert-only upserts bump on actual insertion, including a requested pre-image
+  of `null`. The plugin uses driver metadata internally and preserves the caller's
+  original return shape. Duplicate `$setOnInsert` operations stay silent.
   Bumps only when `modifiedCount/upsertedCount/deletedCount > 0` or a document
   came back. Note: Mongoose timestamps make a same-value `updateOne` report
   `modifiedCount: 1` — such writes still bump (harmless, rare).
@@ -118,13 +130,17 @@ from other processes (the legacy Mongo-writing telegram bot), manual mongosh.
   request's effective permissions, grant rights and account audience/admin flags
   (`services/accessVersion.js`); `/api/me` returns the same `accessVersion`.
   It needs no extra database query or role-change event.
-- `Cache-Control: no-store`. Cost: `attachSession` reads + O(1) memory.
+- `Cache-Control: no-store`. Base cost: session/authentication work and memory
+  counters. Changed watched tickets add access-check queries; initial/full inbox
+  synchronization and changed inboxes also query the notification summary.
 
 ### `X-Pulse-Cursor` on every internal API response
 
 A middleware in `routes/index.js` (before `attachSession`) stamps the cursor at
 request start — before the handler reads data. A route loader keeps it as its
-baseline, so its own action's bump does not trigger a second heavy reload.
+baseline so a change concurrent with that read remains detectable. A mutation's
+request-start header alone does not certify data read after the mutation; the
+subsequent data request needs its own baseline.
 Exposed via `Access-Control-Expose-Headers` for a cross-origin dev setup.
 
 ## Frontend
@@ -133,16 +149,27 @@ Exposed via `Access-Control-Expose-Headers` for a cross-origin dev setup.
   `live-cursor.test.js`). A consumer keeps a **baseline** cursor and is dirty
   when a watched topic/ticket revision exceeds it, the epoch differs, or
   `maxStaleMs` (default 10 min) passed. The baseline advances only when the
-  refetch actually runs (to the snapshot that triggered it; forward-only), so a
-  change that arrives while paused (`enabled: false`, still running,
+  refetch succeeds (to the snapshot that triggered it; forward-only), so a
+  change that arrives while paused (`enabled: false`, hidden tab, still running,
   `minIntervalMs`) is applied as soon as the pause ends. A failed run keeps the
-  baseline and retries on the next pulse. No baseline yet → the first snapshot
-  is adopted silently.
+  baseline and retries on the next pulse. A callback that handled a failure,
+  skipped an in-flight request, or only partially drained changes returns
+  **`false`**; resolving `undefined` means success. Without a request baseline,
+  the first pulse triggers a conservative refresh instead of claiming that
+  earlier data includes newer revisions.
+  A watched ticket changing to `null` triggers one revalidation even without a
+  numeric revision increase. Failed attempts retry; a successfully handled denial
+  does not create a reload loop. Session changes invalidate consumer baselines.
 - `lib/pulse/transport.ts` — `PulseTransport {start, stop, poke}`; polling
   implementation: no requests while the tab is hidden, an immediate pulse on
-  becoming visible, exponential backoff up to 60 s on errors.
+  becoming visible, exponential backoff up to 60 s on errors. Queued requests
+  also check visibility before starting. PulseLoop aborts its in-flight request
+  on unmount; successful API bodies are checked against the browser-session
+  generation before they can update stores.
 - `store/pulse.ts` — last `snapshot`, `appVersion`, `pollMs`, ticket watch
-  refcounts (`watchTicket`), requested faster cadences (`requestCadence`).
+  refcounts (`watchTicket`), requested faster cadences (`requestCadence`). Session
+  changes clear pulse identity/cursor, notification data and colleague presence;
+  existing consumer subscriptions invalidate their baselines and refresh again.
 - `components/app/PulseLoop.tsx` — mounted once in `layout/Root.jsx` for a
   signed-in person. Delay = `min(pollMs, cadences)`, never below 3 s. Every
   5 min the request goes without a cursor to resync the bell summary. Hands
@@ -156,13 +183,18 @@ Exposed via `Access-Control-Expose-Headers` for a cross-origin dev setup.
   route error is revalidated after refresh so a newly granted permission can
   reopen the page. Failed refreshes retry on the next pulse.
 - `hooks/use-live-topic.ts` — `useLiveTopic(topics, onChange, { enabled,
-  ticketId, baseline, maxStaleMs, minIntervalMs })`. Subscribes to the store
-  outside React (a pulse re-renders nothing). Initial baseline: the loader
-  cursor if given, else the last pulse (not newer than the page's own fetch).
+  ticketId, baseline, maxStaleMs, minIntervalMs, cadenceMs })`. Subscribes to the store
+  outside React (the subscription itself does not re-render the page).
+  Initial baseline is only the supplied data-request cursor. It pauses while the
+  tab is hidden. `cadenceMs` requests a faster shared pulse only while the
+  consumer is enabled and visible; it creates no separate polling loop.
 - `hooks/use-live-route-revalidate.ts` — same, but the change re-runs the route
   loader through `useDeferredRevalidate` (`components/app/use-refresh-route.js`):
-  only when the revalidator and every fetcher are idle (React Router crashes
-  with "Did not find corresponding fetcher result" otherwise).
+  only when the revalidator and every fetcher are idle, the tab is visible and
+  the consumer remains enabled (React Router can otherwise lose fetcher results).
+  `lib/pulse/deferred-refresh.ts` retains queued requests through pauses, reports
+  failures as `false`, and releases pending promises on disposal. Router error
+  state is checked because `revalidate()` can resolve after a loader failure.
 - `components/User/PresenceSync.tsx` — the only fetcher of
   `/api/users/work-statuses` (staff); the rail, «Команда сейчас», the users
   list (`mergePresence`), the user card and the navbar's own status read
@@ -186,19 +218,24 @@ Exposed via `Access-Control-Expose-Headers` for a cross-origin dev setup.
 | Dashboard monitoring offline | mikrotik | block `load` | — |
 | Dashboard scheduled works, client closed tickets | tickets | block `load` | 30 s min |
 | KB moderation counts (dashboard + KB) | knowledge | `knowledgeModeration.refresh` | moderators only |
-| KB list | knowledge | `fetch({ silent: true })`; silent refetch on return | — |
+| KB list | knowledge | `fetch({ silent: true })`; silent refetch on return | paused during selection |
 | User card tickets | tickets | deferred revalidate | 30 s min, paused under a sheet |
 | Team calendar | team + presence | `silentFetch` | 30 s min |
 | Client device monitoring / tickets panels | mikrotik / tickets | panel refetch | 5 min max staleness / 30 s min |
 | Approval pipeline / report / preview | approval | `silentRefresh` / `load` | 20 s min; report paused while busy |
+| User Review list/analysis, summary and ticket findings | userReview | deferred route revalidate / API refresh | failed API refresh preserves displayed data and retries |
+| Inventory change request / dashboard block | inventoryChanges | deferred route revalidate / block reload | request baseline from loader |
+| Proxmox list/detail | proxmox | deferred route revalidate | editor, dialog, sheet and selection pauses; 60 s fallback, 3 s while list operations are pending |
+| Proxmox backups/security/operations sections | proxmox | shared fetcher refresh | 60 s fallback for backups/security, 15 s for operations; 5 s pending security / 3 s active operations |
 | «Диалоги» list | conversations | `store/conversations.silentRefresh` | 5 s min |
 | «Диалоги» open thread | conversations | `changedSince` poll (`use-thread.ts`), then deferred card revalidate if anything changed | `requestCadence(3000)` while open |
 | «Диалоги» navigation badge | conversations | `refreshCounts` (`CountsSync`) | 15 s min; module + `conversation.read` only |
 | Connection settings («Диалоги») | channels | direct channel list reload; proxy-test job read; saved Wazzup metadata reload (`GET /preferences/wazzup`), preserving its draft | `requestCadence(2000)` while a login or a proxy test is pending |
 
-Deliberately not live: archive, reports, catalogs, roles, templates, preferences
-— except connection settings within preferences («Диалоги»), which are live
-via the `channels` topic (row above). Wazzup refreshes saved account/health
+Most historical reports, catalogs, roles, templates and preferences do not
+subscribe. Exceptions include the approval report, the knowledge-base list's
+archive mode, and connection settings within preferences («Диалоги»), which are
+live via the topics above. Wazzup refreshes saved account/health
 metadata without resetting its draft; discovering accounts through the
 provider API still requires the explicit check action.
 
@@ -211,7 +248,19 @@ provider API still requires the explicit check action.
    `useLiveRouteRevalidate(topic, { baseline: data.pulse })` for loader pages
    (return `response.headers.get("X-Pulse-Cursor")` from the loader).
 3. The refetch must be silent: no spinner, no error banner over shown data.
-4. Never add a `setInterval` for live data.
+   Return its promise, and return `false` for handled failures or skipped work.
+   A background failure must not be acknowledged as fresh data.
+4. Pass the data request's `X-Pulse-Cursor` when available. A mount-time pulse
+   snapshot is not a valid substitute. Proxmox resource responses carry this as
+   `pulse`; its fetcher adapter waits for both request completion and committed
+   data, preserving the previous display on a background error.
+5. Never add a separate interval for passive live data. Use `cadenceMs` and
+   `maxStaleMs` with the shared transport. Local display clocks and an explicitly
+   initiated, bounded discovery-session progress check are separate concerns.
+
+A parent route revalidation can also reload its active fetchers. Proxmox section
+baselines prevent later redundant refreshes where possible, but a parent and
+child already responding to the same transition may both request fresh data.
 
 ## Pitfalls
 
@@ -230,7 +279,11 @@ provider API still requires the explicit check action.
 
 ## Tests
 
-`backend/services/pulse.test.js`, `backend/services/pulsePlugin.test.js`
+`backend/services/pulse.test.js`, `backend/services/pulsePlugin.test.js`,
+`backend/services/pulsePlugin.integration.test.js`
 (hydrated real models — `directModifiedPaths` naming is Mongoose's; exact
 `monitorState.js` update shapes), `frontend/src/lib/pulse/live-cursor.test.js`.
+Additional behavior checks cover `frontend/src/lib/pulse/live-hook.test.js`,
+`deferred-refresh.test.js`, `frontend/src/store/live-refresh-results.test.js`,
+`frontend/src/util/browser-session.test.js` and the Proxmox fetcher/response tests.
 Run `cd backend && pnpm test`; `cd frontend && node --test src/lib/pulse/live-cursor.test.js`.

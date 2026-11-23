@@ -1,6 +1,6 @@
 import { Link } from "@/components/app/navigation";
-import { useCallback, useEffect } from "react";
-import { useFetcher } from "react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { useCan } from "@/store/authed-user";
@@ -11,13 +11,34 @@ import type { ReviewPage, ReviewProposal } from "@/types/userReview";
 export default function UserReviewSection({ ticketId }: { ticketId: string }) {
   const can = useCan();
   const enabled = can({ userReview: ["read"] });
-  const { load, data } = useFetcher<ReviewPage<ReviewProposal>>();
-  const refresh = useCallback(() => {
-    if (enabled)
-      return load(`/users/review/ticket/${encodeURIComponent(ticketId)}`);
-  }, [enabled, load, ticketId]);
+  const [snapshot, setData] = useState<{
+    ticketId: string;
+    value: ReviewPage<ReviewProposal>;
+  }>();
+  const data = snapshot?.ticketId === ticketId ? snapshot.value : undefined;
+  const request = useRef<AbortController | null>(null);
+  const refresh = useCallback(async () => {
+    if (!enabled) return false;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    try {
+      const value = await api<ReviewPage<ReviewProposal>>(
+        `/api/user-review/proposals?ticketId=${encodeURIComponent(ticketId)}&status=all`,
+        { signal: controller.signal },
+      );
+      if (controller.signal.aborted || request.current !== controller)
+        return false;
+      setData({ ticketId, value });
+    } catch {
+      return false;
+    } finally {
+      if (request.current === controller) request.current = null;
+    }
+  }, [enabled, ticketId]);
   useEffect(() => {
     void refresh();
+    return () => request.current?.abort();
   }, [refresh]);
   useLiveTopic("userReview", refresh, { enabled });
   if (!enabled || !data?.items?.length) return null;

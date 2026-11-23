@@ -69,6 +69,7 @@ const ApprovalReport = () => {
     } catch (loadError) {
       console.warn("Отчёт не загрузился:", loadError);
       setError("Не удалось открыть отчёт. Проверьте соединение и повторите.");
+      return false;
     }
   };
 

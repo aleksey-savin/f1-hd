@@ -11,7 +11,7 @@ const useLiveRouteRevalidate = (
   topics: string | readonly string[],
   options: Parameters<typeof useLiveTopic>[2] = {},
 ) => {
-  const revalidate = useDeferredRevalidate();
+  const revalidate = useDeferredRevalidate({ enabled: options.enabled ?? true });
   useLiveTopic(topics, revalidate, options);
 };
 

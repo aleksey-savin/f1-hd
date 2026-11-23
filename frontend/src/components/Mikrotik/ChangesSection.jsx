@@ -60,6 +60,7 @@ const ChangesSection = ({ recordId, deviceName }) => {
       // Тихое обновление не затирает уже показанный список
       console.warn("Mikrotik changes: list failed", error);
       setFailed(true);
+      return false;
     } finally {
       setLoaded(true);
     }

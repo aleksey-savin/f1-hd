@@ -1,3 +1,4 @@
+import { onBrowserSessionChange } from "@/util/browser-session.js";
 import { create } from "zustand";
 
 import { api } from "@/lib/api";
@@ -28,6 +29,7 @@ const useWorkStatusesStore = create((set, get) => ({
       await get().fetch();
     } catch (error) {
       console.warn("work-statuses: пропущено обновление:", error);
+      return false;
     }
   },
   toggleRail: () =>
@@ -39,3 +41,7 @@ const useWorkStatusesStore = create((set, get) => ({
 }));
 
 export default useWorkStatusesStore;
+
+onBrowserSessionChange(() => {
+  useWorkStatusesStore.setState({ users: [], isLoaded: false });
+});

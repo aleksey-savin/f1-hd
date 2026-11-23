@@ -1,6 +1,8 @@
+import { useSheetOpen } from "@/components/app/FormOutlet";
+import useLiveRouteRevalidate from "@/hooks/use-live-route-revalidate";
 import { useNavigate } from "@/components/app/navigation";
-import { cloneElement, isValidElement, useEffect, useId } from "react";
-import { useLocation, useRevalidator } from "react-router";
+import { cloneElement, isValidElement, useId } from "react";
+import { useLocation } from "react-router";
 import AppField from "@/components/app/Field";
 import Segmented from "@/components/app/Segmented";
 import { Input } from "@/components/ui/input";
@@ -187,18 +189,12 @@ export function Status({ item }) {
   );
 }
 export function useRefresh(milliseconds = 60000) {
-  const revalidator = useRevalidator();
-  useEffect(() => {
-    if (!milliseconds) return undefined;
-    const timer = setInterval(() => {
-      if (
-        document.visibilityState === "visible" &&
-        revalidator.state === "idle"
-      )
-        revalidator.revalidate();
-    }, milliseconds);
-    return () => clearInterval(timer);
-  }, [milliseconds, revalidator]);
+  const sheetOpen = useSheetOpen();
+  useLiveRouteRevalidate("proxmox", {
+    enabled: Boolean(milliseconds) && !sheetOpen,
+    maxStaleMs: milliseconds || 60000,
+    cadenceMs: milliseconds && milliseconds < 10000 ? milliseconds : undefined,
+  });
 }
 export function Properties({ items }) {
   return (

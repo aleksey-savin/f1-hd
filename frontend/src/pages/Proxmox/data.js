@@ -1,3 +1,8 @@
+import {
+  browserSessionGeneration,
+  assertBrowserSessionCurrent,
+} from "@/util/browser-session";
+import { readResourceResponse } from "./resource-response";
 import { redirect } from "react-router";
 import { api } from "@/lib/api";
 import { guestAgentActionResult } from "./guest-agent-presentation";
@@ -89,6 +94,13 @@ export async function formLoader({ request, params }) {
     },
   };
 }
+async function readResource(path, { signal }) {
+  const generation = browserSessionGeneration();
+  const response = await api(path, { signal, raw: true });
+  return readResourceResponse(response, () =>
+    assertBrowserSessionCurrent(generation, signal),
+  );
+}
 export async function resourceLoader({ params, request }) {
   const url = new URL(request.url);
   const section = url.searchParams.get("section");
@@ -106,29 +118,29 @@ export async function resourceLoader({ params, request }) {
     throw new Response("Неизвестный раздел", { status: 404 });
   try {
     if (section === "exposure")
-      return await api(`/api/proxmox/guests/${params.id}/exposure`, {
+      return await readResource(`/api/proxmox/guests/${params.id}/exposure`, {
         signal: request.signal,
       });
     if (section === "security")
-      return await api(
+      return await readResource(
         `/api/proxmox/${url.searchParams.get("kind") === "nodes" ? "nodes" : "guests"}/${params.id}/security`,
         { signal: request.signal },
       );
     if (section === "operations") {
       const cursor = url.searchParams.get("cursor") || "";
       const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-      const result = await api(
+      const result = await readResource(
         `/api/proxmox/guests/${params.id}/operations${query}`,
         { signal: request.signal },
       );
       return { ...result, resourceId: params.id, requestedCursor: cursor };
     }
-    return await api(
+    return await readResource(
       `/api/proxmox/resources/${params.id}/${section}?${url.searchParams}`,
       { signal: request.signal },
     );
   } catch (error) {
-    if (error.status === 401) throw error;
+    if (error.status === 401 || error.name === "AbortError") throw error;
     return { error: true, message: error.message };
   }
 }

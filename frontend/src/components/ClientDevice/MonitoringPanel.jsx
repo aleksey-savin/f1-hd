@@ -82,7 +82,8 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/records/${recordId}`,
       );
-      if (response.ok) setRow(await response.json());
+      if (!response.ok) return false;
+      setRow(await response.json());
     },
     { enabled: Boolean(recordId) && !isLoading, maxStaleMs: 5 * 60_000 },
   );

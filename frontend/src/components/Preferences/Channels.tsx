@@ -61,6 +61,7 @@ const Channels = ({ prefs }: { prefs: Prefs }) => {
     } catch (error) {
       console.warn("Каналы не загрузились:", error);
       setLoadFailed(true);
+      return false;
     }
   }, []);
 
@@ -298,7 +299,9 @@ const Channels = ({ prefs }: { prefs: Prefs }) => {
           if (!next) setOpenId(null);
         }}
         organization={prefs.contacts?.title ?? ""}
-        onChanged={reload}
+        onChanged={async () => {
+          await reload();
+        }}
       />
     </>
   );

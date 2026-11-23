@@ -205,7 +205,7 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       // Транзиентный сетевой сбой на фоновом опросе ожидаем (сон вкладки,
       // обрыв связи) — тихо пропускаем цикл, следующий подтянет данные.
       console.warn("Фоновое обновление устройств Mikrotik пропущено:", error);
-      return;
+      return false;
     }
 
     const originalList = Array.isArray(data) ? data : [];
@@ -237,10 +237,11 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       const response = await fetch(`${API}/upgrades/current`, {
         headers: authHeaders(),
       });
-      if (!response.ok) return;
+      if (!response.ok) return false;
       set({ currentUpgrade: await response.json() });
     } catch {
       // фоновая загрузка по пульсу: сбой сети молча переживаем
+      return false;
     }
   },
   // План для диалога подтверждения: кто и до чего обновится, кто пропущен.

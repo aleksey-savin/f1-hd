@@ -1,3 +1,4 @@
+import useLiveFetcher from "./use-live-fetcher";
 import CancelOperationDialog, {
   canCancelOperation,
 } from "./CancelOperationDialog";
@@ -18,37 +19,33 @@ export default function Operations({
   currentOperation,
   onActiveChange,
   onStatusError,
+  onEditingChange,
+  paused = false,
 }) {
   const [snapshot, setSnapshot] = useState(null);
   const [cancelOperation, setCancelOperation] = useState(null);
   const [review, setReview] = useState(null),
     [reason, setReason] = useState("");
+  useEffect(() => {
+    onEditingChange?.(Boolean(review || cancelOperation));
+    return () => onEditingChange?.(false);
+  }, [review, cancelOperation, onEditingChange]);
   const fetcher = useFetcher(),
     history = useFetcher(),
     more = useFetcher(),
     can = useCan();
   const path = `${ROOT}/resources/${id}?section=operations`;
-  const { load } = history;
+  const pending =
+    currentOperation?.active &&
+    ["queued", "dispatching", "running"].includes(currentOperation.state);
+  const { data: historyData, load } = useLiveFetcher(history, path, {
+    enabled: !paused && !review && !cancelOperation,
+    maxStaleMs: pending ? 3000 : 15000,
+    cadenceMs: pending ? 3000 : undefined,
+  });
   useEffect(() => {
     load(path);
-    const timer = setInterval(
-      () => {
-        if (document.visibilityState !== "hidden") load(path);
-      },
-      currentOperation?.active &&
-        ["queued", "dispatching", "running"].includes(currentOperation.state)
-        ? 3000
-        : 15000,
-    );
-    return () => clearInterval(timer);
-  }, [
-    load,
-    path,
-    version,
-    fetcher.data,
-    currentOperation?.active,
-    currentOperation?.state,
-  ]);
+  }, [load, path, version, fetcher.data]);
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
       setReview(null);
@@ -56,7 +53,7 @@ export default function Operations({
     }
   }, [fetcher.state, fetcher.data]);
   useEffect(() => {
-    const data = history.data;
+    const data = historyData;
     if (!data || data.error || data.resourceId !== id) return;
     setSnapshot((previous) => {
       const old = previous?.id === id ? previous : null;
@@ -72,7 +69,7 @@ export default function Operations({
         expanded: old?.expanded || false,
       };
     });
-  }, [history.data, id]);
+  }, [historyData, id]);
   useEffect(() => {
     const data = more.data;
     if (!data || data.error || data.resourceId !== id) return;
@@ -97,14 +94,14 @@ export default function Operations({
   const total = data?.total || 0;
   const loading = !data && history.state !== "idle";
   const moreBusy = more.state !== "idle";
-  const error = history.data?.error
-    ? history.data.message
+  const error = historyData?.error
+    ? historyData.message
     : more.data?.error
       ? more.data.message
       : null;
   useEffect(() => {
-    onStatusError?.(history.data?.error ? history.data.message : null);
-  }, [history.data, onStatusError]);
+    onStatusError?.(historyData?.error ? historyData.message : null);
+  }, [historyData, onStatusError]);
   const loadMore = () =>
     more.load(`${path}&cursor=${encodeURIComponent(cursor)}`);
   const submit = (operation, extra = {}) =>

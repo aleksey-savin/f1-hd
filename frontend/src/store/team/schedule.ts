@@ -25,7 +25,7 @@ type ScheduleState = {
   isLoading: boolean;
   error: string | null;
   fetch: () => void;
-  silentFetch: () => Promise<void>;
+  silentFetch: () => Promise<false | void>;
   setPeriod: (patch: { from: string; to: string }) => void;
   resetPeriod: () => void;
   setView: (view: ScheduleView) => void;
@@ -44,7 +44,7 @@ let requestSeq = 0;
 // без плашки ошибки поверх показанных данных; пропущенное подтянет следующее
 const doFetch = async (get: Getter, set: Setter, silent = false) => {
   const { from, to, company, subdivision, search } = get();
-  if (!from || !to) return;
+  if (!from || !to) return false;
 
   const requestId = ++requestSeq;
   if (!silent) set({ isLoading: true });
@@ -61,12 +61,12 @@ const doFetch = async (get: Getter, set: Setter, silent = false) => {
     const data = (await api(
       `/api/team/schedule?${query}`,
     )) as TeamScheduleResponse;
-    if (requestId !== requestSeq) return;
+    if (requestId !== requestSeq) return false;
     set({ data, isLoading: false, error: null });
   } catch (error) {
-    if (requestId !== requestSeq) return;
+    if (requestId !== requestSeq) return false;
     console.warn("Табель не загрузился:", error);
-    if (silent) return;
+    if (silent) return false;
     set({
       isLoading: false,
       error: "Не удалось загрузить графики. Проверьте соединение и повторите.",

@@ -1,65 +1,49 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useFetchers, useRevalidator } from "react-router";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { UNSAFE_DataRouterContext, useFetchers, useRevalidator } from "react-router";
+import { createDeferredRefresh } from "@/lib/pulse/deferred-refresh";
 
-/**
- * Перечитать данные маршрута, когда это безопасно; промис — когда перечитали.
- *
- * Ревалидировать можно только когда все fetcher'ы страницы простаивают: иначе
- * роутер теряет их результаты («Did not find corresponding fetcher result»).
- * Поэтому просьба запоминается флагом и исполняется, как только станет можно, —
- * а не отбрасывается, если в этот момент шло сохранение.
- *
- * Пользуются `useRefreshRoute` (после действия мимо роутера) и живые
- * обновления (hooks/use-live-route-revalidate.ts) — тем промис и нужен, чтобы
- * не просить следующую ревалидацию, пока не закончилась эта.
- */
-export const useDeferredRevalidate = () => {
+/** Revalidate only while visible, enabled and all router fetchers are idle. */
+export const useDeferredRevalidate = ({ enabled = true } = {}) => {
   const revalidator = useRevalidator();
   const fetchers = useFetchers();
-  const [wanted, setWanted] = useState(false);
-  const waiters = useRef([]);
-
-  const idle =
-    revalidator.state === "idle" &&
-    fetchers.every((fetcher) => fetcher.state === "idle");
+  const router = useContext(UNSAFE_DataRouterContext)?.router;
+  const [visible, setVisible] = useState(() => document.visibilityState !== "hidden");
+  const queue = useRef(null);
+  const run = useRef(null);
+  run.current = async () => {
+    await revalidator.revalidate();
+    // React Router resolves revalidate() even when a loader enters an error boundary.
+    return !router?.state.errors;
+  };
+  const ready = enabled && visible && revalidator.state === "idle" &&
+    fetchers.every(fetcher => fetcher.state === "idle");
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
 
   useEffect(() => {
-    if (!wanted || !idle) return;
-    setWanted(false);
-    const settled = waiters.current;
-    waiters.current = [];
-    Promise.resolve(revalidator.revalidate()).finally(() =>
-      settled.forEach((resolve) => resolve()),
-    );
-  }, [wanted, idle]);
+    const current = createDeferredRefresh(() => run.current());
+    queue.current = current;
+    current.setReady(readyRef.current);
+    const onVisibility = () => {
+      const next = document.visibilityState !== "hidden";
+      if (!next) current.setReady(false);
+      setVisible(next);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      current.dispose();
+      queue.current = null;
+    };
+  }, []);
 
-  return useCallback(
-    () =>
-      new Promise((resolve) => {
-        waiters.current.push(resolve);
-        setWanted(true);
-      }),
-    [],
-  );
+  useEffect(() => { queue.current?.setReady(ready); }, [ready]);
+  return useCallback(() => queue.current?.request() ?? Promise.resolve(false), []);
 };
 
-/**
- * Перечитать данные маршрута после действия, которое прошло МИМО роутера.
- *
- * Загрузки файлов и прочие прямые `fetch` меняют то, что нарисовано из данных
- * загрузчика (аватар в навбаре, обои страницы), но роутер об этом не знает —
- * до сих пор такие экраны просили перезагрузить страницу руками.
- *
- *   const refresh = useRefreshRoute();
- *   ...
- *   await upload();
- *   refresh();
- */
+/** Manual mutations can share the same deferred route refresh. */
 const useRefreshRoute = () => {
   const revalidate = useDeferredRevalidate();
-  return () => {
-    void revalidate();
-  };
+  return () => { void revalidate(); };
 };
-
 export default useRefreshRoute;

@@ -216,12 +216,12 @@ const JournalSection = ({ recordId, deviceName }) => {
   const load = async ({ silent = false } = {}) => {
     const id = ++request.current;
     const page = await fetchEvents(recordId, { group });
-    if (id !== request.current) return;
+    if (id !== request.current) return false;
     setLoaded(true);
     if (!page) {
       // Тихое обновление не затирает уже показанную ленту
       setFailed(true);
-      return;
+      return false;
     }
     setFailed(false);
     setTotal(page.total);

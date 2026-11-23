@@ -66,6 +66,7 @@ const AgentChanges = () => {
       console.error("Не удалось загрузить запросы ИИ-агентов:", error);
       // Старые строки не оставляем: запрос могли решить в другом месте
       setMikrotikItems([]);
+      return false;
     }
   }, []);
 
@@ -75,6 +76,7 @@ const AgentChanges = () => {
     } catch (error) {
       console.error("Не удалось загрузить предложения по технике:", error);
       setInventoryItems([]);
+      return false;
     }
   }, []);
 

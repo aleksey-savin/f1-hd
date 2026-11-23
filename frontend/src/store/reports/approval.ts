@@ -17,7 +17,7 @@ type ApprovalState = {
   error: string | null;
   fetch: () => void;
   /** Фоновый опрос: без скелета и без гашения уже показанных данных. */
-  silentRefresh: () => void;
+  silentRefresh: () => Promise<false | void>;
 };
 
 type Getter = () => ApprovalState;
@@ -34,11 +34,12 @@ const doFetch = async (get: Getter, set: Setter, silent = false) => {
     const response = await fetch(`${API}/api/approval/pipeline`);
     if (!response.ok) throw new Error(`approval pipeline ${response.status}`);
     const data = (await response.json()) as PipelineResponse;
-    if (requestId !== requestSeq) return;
+    if (requestId !== requestSeq) return false;
     set({ data, isLoading: false, error: null });
   } catch (error) {
-    if (requestId !== requestSeq) return;
+    if (requestId !== requestSeq) return false;
     console.warn("Конвейер согласования не загрузился:", error);
+    if (silent) return false;
     set({
       isLoading: false,
       error: "Не удалось загрузить конвейер. Проверьте соединение и повторите.",

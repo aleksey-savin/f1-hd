@@ -2,11 +2,11 @@ import { useEffect, useRef } from "react";
 
 import {
   createLiveConsumer,
-  cursorOf,
   parseCursor,
   type LiveConsumer,
 } from "@/lib/pulse/live-cursor";
 import usePulseStore from "@/store/pulse";
+import { onBrowserSessionChange } from "@/util/browser-session.js";
 
 type LiveTopicOptions = {
   /** false pauses: a change is remembered and applied when it turns true */
@@ -17,6 +17,8 @@ type LiveTopicOptions = {
   baseline?: string | null;
   maxStaleMs?: number;
   minIntervalMs?: number;
+  /** Request faster shared polling while this consumer is enabled and visible. */
+  cadenceMs?: number;
 };
 
 /**
@@ -43,6 +45,7 @@ const useLiveTopic = (
     baseline = null,
     maxStaleMs,
     minIntervalMs,
+    cadenceMs,
   } = options;
 
   const run = useRef(onChange);
@@ -59,16 +62,16 @@ const useLiveTopic = (
     const consumer = createLiveConsumer({
       watch: { topics: topicsKey ? topicsKey.split(",") : [], ticketId },
       run: () => run.current(),
-      // Loader cursor when there is one; otherwise the last pulse is no newer
-      // than this mount, so the page's own fetch already includes it
-      baseline:
-        parseCursor(baselineRef.current) ??
-        cursorOf(usePulseStore.getState().snapshot),
-      enabled: enabledRef.current,
+      // Only the data request's cursor certifies which changes it includes.
+      baseline: parseCursor(baselineRef.current),
+      enabled: enabledRef.current && document.visibilityState !== "hidden",
       maxStaleMs,
       minIntervalMs,
     });
     consumerRef.current = consumer;
+    const syncVisibility = () => consumer.setEnabled(enabledRef.current && document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", syncVisibility);
+    const releaseSession = onBrowserSessionChange(() => consumer.invalidate());
     const release = ticketId
       ? usePulseStore.getState().watchTicket(ticketId)
       : undefined;
@@ -79,6 +82,8 @@ const useLiveTopic = (
     });
     return () => {
       unsubscribe();
+      document.removeEventListener("visibilitychange", syncVisibility);
+      releaseSession();
       release?.();
       consumer.dispose();
       consumerRef.current = null;
@@ -86,8 +91,25 @@ const useLiveTopic = (
   }, [topicsKey, ticketId, maxStaleMs, minIntervalMs]);
 
   useEffect(() => {
-    consumerRef.current?.setEnabled(enabled);
+    consumerRef.current?.setEnabled(enabled && document.visibilityState !== "hidden");
   }, [enabled]);
+
+  useEffect(() => {
+    let release: (() => void) | undefined;
+    const sync = () => {
+      release?.();
+      release = undefined;
+      if (enabled && cadenceMs && document.visibilityState !== "hidden") {
+        release = usePulseStore.getState().requestCadence(cadenceMs);
+      }
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      document.removeEventListener("visibilitychange", sync);
+      release?.();
+    };
+  }, [enabled, cadenceMs]);
 
   useEffect(() => {
     consumerRef.current?.markFresh(parseCursor(baseline));

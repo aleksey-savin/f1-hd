@@ -1,3 +1,4 @@
+import useLiveFetcher from "./use-live-fetcher";
 import { useEffect } from "react";
 import { useFetcher } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -11,29 +12,29 @@ import {
   cveOtherCounts,
 } from "./guest-security-presentation";
 
-export default function NodeSecurity({ id, item, canCheck }) {
+export default function NodeSecurity({ id, item, canCheck, paused = false }) {
   const reader = useFetcher(),
     writer = useFetcher();
   const path = `${ROOT}/resources/${id}?section=security&kind=nodes`;
-  const report = reader.data?.report;
+  const { data, load } = useLiveFetcher(reader, path, {
+    enabled: !paused && writer.state === "idle",
+    maxStaleMs: ["queued", "checking"].includes(reader.data?.report?.status)
+      ? 5000
+      : 60000,
+    cadenceMs: ["queued", "checking"].includes(reader.data?.report?.status)
+      ? 5000
+      : undefined,
+  });
+  const report = data?.report;
   const pending =
     ["queued", "checking"].includes(report?.status) || writer.state !== "idle";
   useEffect(() => {
-    reader.load(path);
-  }, [path]);
+    load(path);
+  }, [load, path]);
   useEffect(() => {
     if (writer.state === "idle" && writer.data && !writer.data.error)
-      reader.load(path);
-  }, [writer.state, writer.data, path]);
-  useEffect(() => {
-    const timer = setInterval(
-      () => {
-        if (reader.state === "idle") reader.load(path);
-      },
-      pending ? 5000 : 60000,
-    );
-    return () => clearInterval(timer);
-  }, [path, pending, reader.state]);
+      load(path);
+  }, [writer.state, writer.data, load, path]);
   const count = cveAlertCount(report),
     updates = report?.updates || [];
   const stale =
@@ -57,13 +58,7 @@ export default function NodeSecurity({ id, item, canCheck }) {
     <>
       <Section title="Безопасность" id="security" action={check}>
         <Feedback
-          data={
-            reader.data?.error
-              ? reader.data
-              : writer.data?.error
-                ? writer.data
-                : null
-          }
+          data={data?.error ? data : writer.data?.error ? writer.data : null}
         />
         <p
           className={`text-base font-medium ${count && !stale ? "text-destructive" : "text-foreground"}`}

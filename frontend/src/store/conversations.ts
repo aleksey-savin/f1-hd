@@ -48,9 +48,9 @@ type ConversationsState = Filters & {
   setHidden: (hidden: boolean) => void;
   resetFilters: () => void;
   load: () => Promise<void>;
-  silentRefresh: () => Promise<void>;
+  silentRefresh: () => Promise<false | void>;
   loadMore: () => Promise<void>;
-  refreshCounts: () => Promise<void>;
+  refreshCounts: () => Promise<false | void>;
   /** Диалог открыт и отмечен прочитанным — непрочитанное в строке гаснет сразу. */
   markRead: (id: string) => void;
 };
@@ -133,7 +133,7 @@ const useConversationsStore = create<ConversationsState>()((set, get) => ({
       const data = await api<ConversationListResponse>(
         listUrl(get(), { limit }),
       );
-      if (mine !== generation) return;
+      if (mine !== generation) return false;
       set({
         items: data.items,
         counts: data.counts,
@@ -141,12 +141,13 @@ const useConversationsStore = create<ConversationsState>()((set, get) => ({
         status: "ready",
       });
     } catch (error) {
-      if (mine !== generation) return;
+      if (mine !== generation) return false;
       console.warn("conversations: пропущено обновление списка:", error);
       // Этот вызов обогнал ещё не завершённый load() (та же generation) —
       // без сброса список остался бы в "loading" навечно, как отказавший
       // сам load(). Обычный тихий отказ (статус уже "ready") — молчим и дальше
       if (get().status === "loading") set({ status: "error" });
+      return false;
     }
   },
 
@@ -186,6 +187,7 @@ const useConversationsStore = create<ConversationsState>()((set, get) => ({
       set({ counts: data.counts });
     } catch (error) {
       console.warn("conversations: пропущено обновление счётчиков:", error);
+      return false;
     }
   },
 

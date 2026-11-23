@@ -19,6 +19,7 @@ const MIN_DELAY_MS = 3_000;
 const PulseLoop = () => {
   useEffect(() => {
     let lastFullAt = 0;
+    const controller = new AbortController();
 
     const transport = createPollingTransport({
       request: async () => {
@@ -31,7 +32,7 @@ const PulseLoop = () => {
         const ticketIds = Object.keys(watched);
         if (ticketIds.length) params.set("ticket", ticketIds.join(","));
 
-        const message = await api<PulseMessage>(`/api/pulse?${params}`);
+        const message = await api<PulseMessage>(`/api/pulse?${params}`, { signal: controller.signal });
         if (full) lastFullAt = Date.now();
         usePulseStore.getState().ingest(message);
         if (message.notifications) {
@@ -58,6 +59,7 @@ const PulseLoop = () => {
     return () => {
       unsubscribe();
       transport.stop();
+      controller.abort();
     };
   }, []);
 

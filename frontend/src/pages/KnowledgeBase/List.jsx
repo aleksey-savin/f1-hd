@@ -120,6 +120,7 @@ const KnowledgeBaseList = () => {
   }, [location.key]);
   useLiveTopic("knowledge", () =>
     useKnowledgeNotesStore.getState().fetch({ silent: true }),
+    { enabled: store.selectedIds.length === 0 },
   );
 
   // Deep links carry the company ID; resolve its visible label from scoped data.

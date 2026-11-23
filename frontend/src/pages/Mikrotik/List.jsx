@@ -103,9 +103,12 @@ const MikrotikDevices = () => {
   // обновления прошивки едет тем же пульсом — вместе со списком.
   useLiveTopic(
     "mikrotik",
-    () => {
-      filterStore.silentRefresh();
-      filterStore.fetchCurrentUpgrade();
+    async () => {
+      const results = await Promise.all([
+        filterStore.silentRefresh(),
+        filterStore.fetchCurrentUpgrade(),
+      ]);
+      return results.every((result) => result !== false);
     },
     { maxStaleMs: 5 * 60_000 },
   );

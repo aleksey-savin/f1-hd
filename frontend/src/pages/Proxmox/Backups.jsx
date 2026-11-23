@@ -1,3 +1,4 @@
+import useLiveFetcher from "./use-live-fetcher";
 import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 import { RiShieldCheckLine } from "react-icons/ri";
@@ -5,22 +6,17 @@ import { Button } from "@/components/ui/button";
 import { ROOT } from "./data";
 import { Section, Feedback, date, bytes } from "./shared";
 
-export default function Backups({ id, refreshKey, action }) {
+export default function Backups({ id, refreshKey, action, paused = false }) {
   const reader = useFetcher();
-  const { load } = reader;
   const [limit, setLimit] = useState(20);
   const path = `${ROOT}/resources/${id}?section=backups`;
+  const { data, load } = useLiveFetcher(reader, path, {
+    enabled: !paused,
+    maxStaleMs: 60000,
+  });
   useEffect(() => {
     load(path);
   }, [load, path, refreshKey]);
-  useEffect(() => {
-    if (reader.state !== "idle") return;
-    const timer = setInterval(() => {
-      if (document.visibilityState !== "hidden") load(path);
-    }, 60000);
-    return () => clearInterval(timer);
-  }, [load, path, reader.state]);
-  const data = reader.data;
   const busy = reader.state !== "idle";
   const items = data?.items || [];
   const errors = data?.errors || [];
