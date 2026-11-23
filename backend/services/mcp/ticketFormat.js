@@ -18,6 +18,8 @@ const clip = (text, max) =>
 
 const safe = (value, max) => clip(maskText(value), max);
 
+const writeReference = (row) => row._id ? ` [id ${row._id}, revision ${row.updatedAt ? new Date(row.updatedAt).toISOString() : "legacy"}]` : "";
+
 // Чужой текст — данные, а не указания: каждая строка начинается с «> », чтобы
 // подделка вида «## Comments (3)» не выглядела разделом ответа.
 const quote = (text) => String(text).split("\n").map((line) => `> ${line}`).join("\n");
@@ -90,7 +92,7 @@ const formatTicketRow = (entry, index, ctx) => {
   return lines.join("\n   ");
 };
 
-const formatTicketDetail = (detail, ctx) => {
+const formatTicketDetail = (detail, ctx, includeWriteRefs = false) => {
   const { ticket } = detail;
   const directory = ctx.directory;
   const company = directory.companies.get(String(ticket.company?._id || ""));
@@ -101,6 +103,7 @@ const formatTicketDetail = (detail, ctx) => {
     `applicant: ${personLabel(ticket.applicantId, ctx)}`,
     `responsibles: ${(ticket.responsibles || []).map((r) => nameOf(r)).join(", ") || "—"}`,
   ];
+  if (includeWriteRefs) out.push(`ticket version: ${ticket.version ?? 0}`);
   if (detail.routineTaskTitle) out.push(`routine task: ${maskText(detail.routineTaskTitle)}`);
   out.push(
     `created: ${iso(ticket.createdAt)}; processed: ${iso(ticket.processedAt)}; started: ${iso(ticket.startedAt)}; closed: ${ticket.isClosed ? iso(ticket.finishedAt) : "—"}; deadline: ${iso(ticket.deadline)}`,
@@ -125,7 +128,7 @@ const formatTicketDetail = (detail, ctx) => {
   out.push("", `## Comments (${detail.comments.length})`);
   for (const comment of detail.comments) {
     out.push(
-      `- ${iso(comment.createdAt)} · ${personLabel(comment.createdBy, ctx)}:`,
+      `- ${iso(comment.createdAt)} · ${personLabel(comment.createdBy, ctx)}${includeWriteRefs ? writeReference(comment) : ""}:`,
       quote(safe(comment.content, MAX_COMMENT) || "(empty)"),
     );
   }
@@ -136,7 +139,7 @@ const formatTicketDetail = (detail, ctx) => {
       const performer = nameOf(work.finishedBy?._id ? work.finishedBy : work.executor);
       const minutes = Math.round((work.durationMs || 0) / 60_000);
       out.push(
-        `- ${iso(work.startedAt)} → ${iso(work.finishedAt)} (${minutes} min, ${work.visitRequired ? "on-site" : "remote"}) · ${performer}:`,
+        `- ${iso(work.startedAt)} → ${iso(work.finishedAt)} (${minutes} min, ${work.visitRequired ? "on-site" : "remote"}) · ${performer}${includeWriteRefs ? writeReference(work) : ""}:`,
         quote(safe(work.description, MAX_COMMENT) || "(empty)"),
       );
     }

@@ -85,3 +85,23 @@ test("guest inventory link endpoint rejects without changing legacy link", async
   assert.equal(s.saved.length, 0);
   assert.equal(s.rows[0].clientDeviceId, company);
 });
+
+test("inventory linking requires a company and guards concurrent ownership changes", async t => {
+  const s = setup(t);
+  const node = s.rows[0];
+  node.kind = "node";
+  const cardId = "333333333333333333333333";
+  const card = { _id: cardId, companyId: null };
+  t.mock.method(Resource, "findById", async () => node);
+  t.mock.method(require("../../models/inventory/clientDevice"), "findById", async () => card);
+  t.mock.method(require("../../models/preferences"), "findOne", () => ({ lean: async () => ({ modules: { inventory: { isActive: true } } }) }));
+  s.req.params.id = node._id;
+  s.req.body.clientDeviceId = cardId;
+  await assert.rejects(controller.inventory(s.req, s.res), /Компания/);
+  assert.deepEqual(s.saved, []);
+  node.companyId = company;
+  card.companyId = company;
+  await controller.inventory(s.req, s.res);
+  assert.deepEqual(node.$where, { companyId: company, clientDeviceId: null });
+  assert.equal(node.clientDeviceId, cardId);
+});

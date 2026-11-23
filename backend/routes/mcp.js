@@ -65,6 +65,7 @@ const loadContext = async () => {
 const inventoryProposals = createInventoryProposals({ store: inventoryProposalStore, ops: inventoryChangeOps, now: () => new Date() });
 
 module.exports = buildMcpRouter({
+  log,
   requireKey: createRequireMcpKey({
     findKeyByHash: (keyHash) =>
       McpKey.findOne({ keyHash }).select("name lastUsedAt scopes").lean(),
@@ -74,9 +75,11 @@ module.exports = buildMcpRouter({
   }),
   handle: createMcpRequestHandler({
     tools: {
+      proxmoxWrite: { resolveActor: proxmoxSource.resolveActor, management: require("@/services/proxmox/resource-management") },
       proxmox: createProxmoxTools({ source: proxmoxSource }),
       knowledge: createKnowledgeTools({ ...knowledgeSource, baseUrl: process.env.ADDRESS, log }),
       knowledgeWrite: createKnowledgeWriteTools({ source: knowledgeWriteSource, baseUrl: process.env.ADDRESS, log }),
+      ticketsWrite: require("@/services/mcp/ticketWriteSource").mutate,
       tickets: createTicketTools({ source: ticketSource, baseUrl: process.env.ADDRESS, log }),
       directory: createDirectoryTools({ source: directorySource, log }),
       inventory: createInventoryTools({ source: inventorySource, baseUrl: process.env.ADDRESS, log }),

@@ -8,11 +8,8 @@ const requireCan = (req, action) => {
     fail("Недостаточно прав", 403);
 };
 const actor = (req) => req.auth.userId || req.userId;
-const getResource = async (id) => {
-  const r = await Resource.findById(read.validId(id));
-  if (!r) fail("Ресурс не найден", 404);
-  return r;
-};
+const managementActor = (req) => ({ userId: actor(req), can: req.auth.can });
+const { getResource, setCompany, setMonitoring, setMaintenance, setInventoryLink } = require("../services/proxmox/resource-management");
 const validateJump = async (req, endpoints) => {
   for (const ep of endpoints || [])
     if (ep.transport === "mikrotik") {
@@ -133,44 +130,9 @@ exports.archive = async (req, res) => {
   res.json({ message: "Подключение архивировано" });
 };
 exports.company = async (req, res) => {
-  const ids = req.body.ids || [req.params.id];
-  if (!Array.isArray(ids) || !ids.length || ids.length > 10000)
-    fail("Выберите до 10000 ресурсов");
-  ids.forEach(read.validId);
-  const companyId = req.body.companyId
-    ? await core.activeCompany(read.validId(req.body.companyId))
-    : null;
-  const kind = req.params.kind === "nodes" ? "node" : "guest";
-  if (kind === "node" && !companyId) fail("Узел должен иметь владельца");
-  const resources = await Resource.find({ _id: { $in: ids }, kind, archived: false });
-  if (resources.length !== ids.length) fail("Ресурс не найден", 404);
-  for (const r of resources)
-    if (r.kind === 'node' && r.clientDeviceId && String(r.companyId) !== String(companyId))
-      fail("Сначала отвяжите карточку инвентаря", 409);
-  const companyEvents = require('../services/proxmox/company-events');
-  const names = await companyEvents.namesFor([...resources.map(r => r.companyId), companyId]);
-  const completedIds = [];
-  try {
-  for (const r of resources) {
-    const companyChange = { from: companyEvents.snapshot(r.companyId, names), to: companyEvents.snapshot(companyId, names) };
-    r.$where = { companyId: r.companyId ?? null, clientDeviceId: r.clientDeviceId ?? null, archived: false };
-    r.companyId = companyId;
-    await r.save();
-    completedIds.push(String(r._id));
-    await core.event(
-      r,
-      "companyChanged",
-      companyEvents.message(companyChange),
-      actor(req),
-      { companyChange },
-    );
-  }
-  } catch {
-    return res.json({ error: true, completedIds,
-      message: `Компания сохранена для ${completedIds.length} из ${resources.length} ресурсов. Сбой записи или журнала; обновите список перед повтором.`,
-    });
-  }
-  res.json({ items: resources.map(read.view), completedIds });
+  const result = await setCompany(req.body.ids || [req.params.id],
+    req.params.kind === "nodes" ? "node" : "guest", req.body.companyId, managementActor(req));
+  res.json(result.error ? result : { items: result.resources.map(read.view), completedIds: result.completedIds });
 };
 exports.guestMonitoring = async (req, res) => {
   const r = await getResource(req.params.id);
@@ -189,31 +151,8 @@ exports.guestMonitoring = async (req, res) => {
 exports.resourceMonitoring = async (req, res) => {
   requireCan(req, "read");
   requireCan(req, "manage");
-  const resource = await getResource(req.params.id);
-  if (!["guest", "node"].includes(resource.kind) || resource.archived)
-    fail("Выберите действующую ВМ или узел", 422);
-  if (typeof req.body.monitoringEnabled !== "boolean")
-    fail("Укажите состояние мониторинга");
-  resource.monitoringEnabled = req.body.monitoringEnabled;
-  resource.failedPolls = 0;
-  resource.failureAt = undefined;
-  resource.thresholdSince = {};
-  await resource.save();
-  if (!resource.monitoringEnabled)
-    await require("../services/proxmox/monitor").recoverResource(resource);
-  const connection = await Connection.findById(resource.connectionId);
-  if (connection)
-    await require("../services/proxmox/availability").observe(
-      resource,
-      connection,
-    );
-  await core.event(
-    resource,
-    "monitoringChanged",
-    resource.monitoringEnabled ? "Мониторинг включён" : "Мониторинг выключен",
-    actor(req),
-  );
-  res.json({ item: read.view(resource) });
+  const item = await setMonitoring(req.params.id, req.body.monitoringEnabled, managementActor(req));
+  res.json({ item: read.view(item) });
 };
 exports.guestAgent = async (req, res) => {
   requireCan(req, "read");
@@ -364,61 +303,12 @@ exports.checkNodeSecurity = async (req, res) => {
   res.status(202).json({ report: require("../services/proxmox/cve-policy").applyCvePolicy(report, await Preferences.findOne({}).lean()) });
 };
 exports.maintenance = async (req, res) => {
-  const r = await getResource(req.params.id);
-  let value = null;
-  if (req.body.until) {
-    const from = new Date(req.body.from || Date.now()),
-      until = new Date(req.body.until);
-    if (
-      !Number.isFinite(+from) ||
-      !Number.isFinite(+until) ||
-      until <= from ||
-      until <= new Date()
-    )
-      fail("Укажите корректный интервал");
-    const reason = String(req.body.reason || "").trim();
-    if (!reason || reason.length > 500) fail("Укажите причину обслуживания");
-    value = { from, until, reason };
-  }
-  r.maintenance = value;
-  await r.save();
-  await core.event(
-    r,
-    "maintenance",
-    value ? "Запланировано обслуживание" : "Обслуживание отменено",
-    actor(req),
-  );
-  res.json({ item: read.view(r) });
+  const item = await setMaintenance(req.params.id, req.body, managementActor(req));
+  res.json({ item: read.view(item) });
 };
 exports.inventory = async (req, res) => {
-  if (!req.auth.can({ device: ["manage"] }))
-    fail("Нет права управления техникой", 403);
-  const p = await Preferences.findOne({}).lean();
-  if (!p?.modules?.inventory?.isActive) fail("Модуль инвентаря выключен", 409);
-  const r = await getResource(req.params.id);
-  if (r.kind !== 'node')
-    fail('С карточкой инвентаря можно связать только узел Proxmox', 422);
-  if (req.body.clientDeviceId) {
-    const card = await require("../models/inventory/clientDevice").findById(
-      read.validId(req.body.clientDeviceId),
-    );
-    if (!card || String(card.companyId) !== String(r.companyId))
-      fail("Компания карточки должна совпадать с компанией ресурса");
-    r.clientDeviceId = card._id;
-  } else r.clientDeviceId = undefined;
-  try {
-    await r.save();
-  } catch (e) {
-    if (e.code === 11000) fail("Карточка уже связана с другим ресурсом", 409);
-    throw e;
-  }
-  await core.event(
-    r,
-    "inventoryLinked",
-    "Изменена связь с инвентарём",
-    actor(req),
-  );
-  res.json({ item: read.view(r) });
+  const item = await setInventoryLink(req.params.id, req.body.clientDeviceId, managementActor(req));
+  res.json({ item: read.view(item) });
 };
 exports.companyResources = async (req, res) => {
   const rows = await Resource.find({

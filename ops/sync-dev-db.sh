@@ -70,7 +70,7 @@ DUMP_MODE="${DUMP_MODE:-auto}"        # auto | remote (mongodump on prod) | tunn
 # agent of the source installation. KEEP_LOCAL ones are preserved on the dev
 # side; NEVER_COPIED ones are dropped there.
 KEEP_LOCAL=(preferences channels channeljobs taxisettings wazzupsettings wazzupevents)
-NEVER_COPIED=(authSessions authVerifications mcpkeys mikrotikdownloadcodes impersonationCodes telegramPairingCodes taxitrips taxiemployees)
+NEVER_COPIED=(authSessions authVerifications mcpkeys mcpticketwrites mikrotikdownloadcodes impersonationCodes telegramPairingCodes taxitrips taxiemployees)
 EXCLUDE_COLLECTIONS=("${KEEP_LOCAL[@]}" "${NEVER_COPIED[@]}")
 EXCLUDE_FLAGS=()
 for collection in "${EXCLUDE_COLLECTIONS[@]}"; do EXCLUDE_FLAGS+=("--excludeCollection=$collection"); done

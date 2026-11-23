@@ -109,12 +109,12 @@ test("resources pair reading with writing only where writing exists", () => {
     MCP_RESOURCES.map(({ label, read, write }) => [label, read, write ?? null]),
     [
       ["База знаний", "knowledge", "knowledgeWrite"],
-      ["Заявки", "tickets", null],
+      ["Заявки", "tickets", "ticketsWrite"],
       ["Компании", "companies", null],
       ["Пользователи", "users", null],
       ["Инвентарь", "inventory", "inventoryChanges"],
       ["Mikrotik", "mikrotik", "mikrotikChanges"],
-      ["Proxmox", "proxmox", null],
+      ["Proxmox", "proxmox", "proxmoxWrite"],
     ],
   );
 });
@@ -172,10 +172,10 @@ test("the scanning-off hint names both approved notes and agent drafts", () => {
 test("a key's access is named per resource", () => {
   assert.equal(
     scopeAccessLabel(["knowledge", "knowledgeWrite", "tickets", "mikrotik"]),
-    "база знаний (чтение и запись), заявки и Mikrotik (чтение)",
+    "база знаний (чтение и запись), заявки (чтение) и Mikrotik (чтение)",
   );
   assert.equal(scopeAccessLabel(["knowledge"]), "база знаний (чтение)");
-  assert.equal(scopeAccessLabel(["tickets", "users"]), "заявки и пользователи");
+  assert.equal(scopeAccessLabel(["tickets", "users"]), "заявки (чтение) и пользователи");
   // Ключ, сохранённый с записью без чтения, показывается как есть
   assert.equal(scopeAccessLabel(["mikrotikChanges"]), "Mikrotik (запись)");
   assert.equal(scopeAccessLabel(null), "база знаний (чтение)");
@@ -186,7 +186,7 @@ test("a key's access is named per resource", () => {
 test("scopeAccessLabel puts companies and users between tickets and Mikrotik", () => {
   assert.equal(
     scopeAccessLabel(["mikrotik", "users", "companies", "tickets"]),
-    "заявки, компании, пользователи и Mikrotik (чтение)",
+    "заявки (чтение), компании, пользователи и Mikrotik (чтение)",
   );
 });
 
@@ -215,4 +215,18 @@ test("values are quoted safely: a quote in the address cannot break the config",
   const snippet = openClawConfig('https://hd.example.ru/api/mcp"x', "hd_mcp_1");
 
   assert.ok(snippet.includes('url: "https://hd.example.ru/api/mcp\\"x",'));
+});
+
+test("ticket writing pairs with reading in create and edit dialogs", () => {
+  assert.deepEqual(toggleScope([], "ticketsWrite", true), ["tickets", "ticketsWrite"]);
+  assert.deepEqual(toggleScope(["tickets", "ticketsWrite"], "tickets", false), []);
+  assert.deepEqual(withReadForWrite(["ticketsWrite"]), ["tickets", "ticketsWrite"]);
+  assert.equal(scopeAccessLabel(["tickets", "ticketsWrite"]), "заявки (чтение и запись)");
+});
+
+test("Proxmox writing includes reading when an administrator saves a key", () => {
+  assert.deepEqual(toggleScope([], "proxmoxWrite", true), ["proxmox", "proxmoxWrite"]);
+  assert.deepEqual(withReadForWrite(["proxmoxWrite"]), ["proxmox", "proxmoxWrite"]);
+  assert.deepEqual(toggleScope(["proxmox", "proxmoxWrite"], "proxmox", false), []);
+  assert.equal(scopeAccessLabel(["proxmox", "proxmoxWrite"]), "Proxmox (чтение и запись)");
 });

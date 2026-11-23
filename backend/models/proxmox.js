@@ -151,6 +151,7 @@ const Event = model(
     resourceId: ref("ProxmoxResource"),
     companyId: ref("Company"),
     actorId: ref("User"),
+    mcpKeyId: ref("McpKey"),
     kind: String,
     message: String,
     companyChange: {

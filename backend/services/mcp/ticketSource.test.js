@@ -172,9 +172,9 @@ test("authorId of an empty value is null", () => {
 // пинил его до сих пор только текст в доках. Здесь он зафиксирован строками:
 // лишнее поле в select() уронит тест, а не уедет агенту.
 const SEARCH_SELECT = "num title description source state isClosed categoryId company applicantId createdAt finishedAt closingComment";
-const DETAIL_SELECT = `${SEARCH_SELECT} processedAt startedAt deadline routineTask relatedClientDeviceId comments responsibles._id responsibles.firstName responsibles.lastName customFields.name customFields.type customFields.value checklist.description checklist.checked`;
-const COMMENT_SELECT = "content createdBy createdAt";
-const WORK_SELECT = "description visitRequired startedAt finishedAt finishedBy._id finishedBy.firstName finishedBy.lastName executor._id executor.firstName executor.lastName";
+const DETAIL_SELECT = `${SEARCH_SELECT} version processedAt startedAt deadline routineTask relatedClientDeviceId comments responsibles._id responsibles.firstName responsibles.lastName customFields.name customFields.type customFields.value checklist.description checklist.checked`;
+const COMMENT_SELECT = "content createdBy createdAt updatedAt";
+const WORK_SELECT = "updatedAt description visitRequired startedAt finishedAt finishedBy._id finishedBy.firstName finishedBy.lastName executor._id executor.firstName executor.lastName";
 const DEVICE_SELECT = "deviceModelId deviceTypeId serialNumber inventoryNumber status attributes";
 const STATS_SELECT = "categoryId company._id applicantId source createdAt finishedAt isClosed";
 

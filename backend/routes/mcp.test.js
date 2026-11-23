@@ -174,6 +174,7 @@ const buildApp = ({
   logs = [],
   source = ticketSource,
   proxmoxAuthorized = true,
+  ticketsWrite = async () => ({ id: "record" }),
 } = {}) => {
   const log = (level, message, meta) => logs.push(meta);
   const knowledge = createKnowledgeTools({
@@ -227,9 +228,10 @@ const buildApp = ({
     log,
   });
 
-  const proxmox = createProxmoxTools({ source: { authorize: async () => proxmoxAuthorized, list: async () => ({ items: [{ status: "unknown" }] }) } });
+  const proxmox = createProxmoxTools({ source: { resolveActor: async () => proxmoxAuthorized ? { scopes: ["proxmox"] } : null, list: async () => ({ items: [{ status: "unknown" }] }) } });
 
   const router = buildMcpRouter({
+    log,
     requireKey: createRequireMcpKey({
       findKeyByHash: async (hash) =>
         hash === sha256(KEY)
@@ -239,7 +241,7 @@ const buildApp = ({
       log: () => {},
     }),
     handle: createMcpRequestHandler({
-      tools: { knowledge, knowledgeWrite, tickets, directory, inventory, inventoryChanges, mikrotik, mikrotikChanges, proxmox },
+      tools: { knowledge, knowledgeWrite, tickets, ticketsWrite, directory, inventory, inventoryChanges, mikrotik, mikrotikChanges, proxmox },
       loadContext: async () => ({ modules, timezone: "Asia/Vladivostok", systemAccounts: { unidentifiedId: null, robotIds: [] } }),
       onError: () => {},
       log,
@@ -527,6 +529,7 @@ test("a 2025-11-25 client initializes and receives the server instructions", asy
 
     assert.equal(status, 200);
     assert.equal(message.result.serverInfo.name, "hd-helpdesk");
+    assert.equal(message.result.serverInfo.version, require("../utils/buildInfo").buildInfo.version);
     assert.match(message.result.instructions, /search_knowledge_base/);
   });
 });
@@ -846,6 +849,68 @@ test("Proxmox tools require scope and module and enforce owner authorization on 
     assert.equal(call.message.result.isError, true);
   });
   await withServer(buildApp({ scopes: ["proxmox"], modules: { ...modules, proxmox: false } }), async (base) => {
+    assert.equal((await rpc(base, "tools/list", {})).status, 403);
+  });
+});
+
+test("key lookup and request setup failures return a neutral JSON error", async () => {
+  const fail = () => { throw new Error("internal database address"); };
+  for (const failure of ["requireKey", "handle"]) {
+    const app = express();
+    const logs = [];
+    app.use("/api/mcp", buildMcpRouter({
+      log: (...entry) => logs.push(entry),
+      requireKey: (req, res, next) => {
+        req.mcpKey = { _id: "key" };
+        next();
+      },
+      handle: (req, res) => res.sendStatus(200),
+      [failure]: fail,
+    }));
+    await withServer(app, async (base) => {
+      const response = await fetch(base + "/api/mcp", { method: "POST" });
+      assert.equal(response.status, 500);
+      assert.match(response.headers.get("content-type"), /application\/json/);
+      assert.doesNotMatch(await response.text(), /internal database address/);
+      assert.equal(logs.length, 1);
+    });
+  }
+});
+
+test("ticket writes are opt-in and work tools require time tracking", async () => {
+  for (const timeTracking of [false, true]) {
+    await withServer(buildApp({ scopes: ["ticketsWrite"], modules: { ...MODULES_ON, timeTracking } }), async (base) => {
+      const reply = await rpc(base, "tools/list", {});
+      const names = reply.message.result.tools.map(t => t.name).sort();
+      const kinds = timeTracking ? ["work", "comment"] : ["comment"];
+      assert.deepEqual(names, ["add_ticket", "update_ticket", "delete_ticket", ...kinds.flatMap(kind => ["add", "update", "delete"].map(action => action + "_ticket_" + kind))].sort());
+      const valid = await callTool(base, "add_ticket_comment", { num: 1, content: "test", requestId: "test-request" });
+      assert.deepEqual(JSON.parse(toolText(valid)), { id: "record" });
+      const bad = await callTool(base, "add_ticket_comment", { num: 1, content: "test" });
+      assert.ok(bad.error || bad.result?.isError);
+      const emptyPatch = await callTool(base, "update_ticket_comment", {
+        num: 1, id: "66bb00000000000000000001", revision: "legacy", requestId: "test-request",
+      });
+      assert.ok(emptyPatch.error || emptyPatch.result?.isError);
+
+    });
+  }
+});
+
+test("Proxmox management tools require their own scope and the enabled modules", async () => {
+  const modules = { ...MODULES_ON, proxmox: true };
+  const mandatory = ["set_proxmox_company", "set_proxmox_maintenance", "set_proxmox_monitoring"];
+  for (const inventory of [true, false]) {
+    await withServer(buildApp({ scopes: ["proxmoxWrite"], modules: { ...modules, inventory } }), async base => {
+      const { message } = await rpc(base, "tools/list", {});
+      assert.deepEqual(message.result.tools.map(tool => tool.name).sort(),
+        [...mandatory, ...(inventory ? ["set_proxmox_inventory_link"] : [])].sort());
+      assert.ok(message.result.tools.every(tool => tool.annotations.readOnlyHint === false));
+      const invalid = await callTool(base, "set_proxmox_maintenance", { id: MIKROTIK_DEVICE._id });
+      assert.ok(invalid.error || invalid.result?.isError);
+    });
+  }
+  await withServer(buildApp({ scopes: ["proxmoxWrite"], modules: { ...modules, proxmox: false } }), async base => {
     assert.equal((await rpc(base, "tools/list", {})).status, 403);
   });
 });

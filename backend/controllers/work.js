@@ -8,63 +8,15 @@ const { Ticket } = require("../models/ticket");
 const TicketLog = require("../models//ticketLog");
 const Company = require("../models/company");
 const ServicePlanReport = require("../models/finances/servicePlanReport");
-const TicketCategory = require("../models/ticketCategory");
 
 const { AppError } = require("../middleware/errorHandling");
 const { previewWork } = require("../services/workPreview");
 const { assertTicketsAccessible } = require("../services/ticketAccess");
-const { validateWorkTaxiLinks } = require("../services/taxi/integration");
 const { ticketTier, ticketListFilter } = require("@/services/ticketScope");
 
 /** Суммы и условия тарифа — своё право, а не сочетание двух (спека 2026-09-11). */
 const canSeeMoney = (req) => req.auth.can({ work: ["readCost"] });
-const taxiDecision = (ids, requested, previous = "pending") => {
-  if (requested !== undefined && !["pending", "none", "linked"].includes(requested)) {
-    throw new AppError("Некорректное решение о поездке", 400);
-  }
-  return ids.length ? "linked" : (requested ?? previous) === "none" ? "none" : "pending";
-};
-
-/**
- * Можно ли править эту работу. Своими считаем троих, а не одного автора:
- * запланированную работу заводит один человек, а подтверждает фактом другой —
- * исполнитель, — и правило «только автор» разорвало бы этот обычный ход.
- *
- * Чужую работу правит тот, у кого есть на это право. Ограничение по заявкам
- * отдельное и стоит раньше: без него номер чужой работы открывал бы её вовсе.
- */
-const canEditWork = (work, { userId, can }) =>
-  can({ work: ["manage"] }) ||
-  [work.createdBy?._id, work.executor?._id, work.finishedBy?._id]
-    .filter(Boolean)
-    .some((id) => id.toString() === userId);
-
-/**
- * Работа не тарифицируется, если ХОТЬ ОДНА её заявка льготной категории.
- * По всем заявкам, а не по первой: одна работа вешается сразу на несколько
- * заявок (массовое добавление, «Связанные заявки»), и категории у них разные.
- * То же правило — в `workOvertime.isExcludedFromOvertime`.
- */
-const isAlwaysWithinPlan = async (ticketIds) => {
-  const tickets = await Ticket.find({ _id: { $in: ticketIds.filter(Boolean) } })
-    .select("categoryId")
-    .lean();
-
-  const categoryIds = tickets
-    .map((ticket) => ticket.categoryId)
-    .filter(Boolean);
-
-  if (categoryIds.length === 0) {
-    return false;
-  }
-
-  const exempt = await TicketCategory.countDocuments({
-    _id: { $in: categoryIds },
-    alwaysWithinPlan: true,
-  });
-
-  return exempt > 0;
-};
+const { canEditWork, canDeleteWork, isAlwaysWithinPlan, applyWorkTaxiDecision } = require("../services/workMutationPolicy");
 
 exports.getTicketWorks = async (req, res, next) => {
   try {
@@ -267,10 +219,7 @@ exports.add = async (req, res, next) => {
       },
     });
 
-    work.taxiTripIds = await validateWorkTaxiLinks({
-      auth: req.auth, work, taxiTripIds: req.body.taxiTripIds,
-    }) ?? [];
-    work.taxiDecision = work.visitRequired && work.startedAt && work.finishedAt ? taxiDecision(work.taxiTripIds, req.body.taxiDecision) : "pending";
+    await applyWorkTaxiDecision(req.auth, work, req.body.taxiTripIds, req.body.taxiDecision);
     await work.save();
 
     // добавляем запись в лог по каждой привязанной заявке: одна работа может
@@ -457,11 +406,8 @@ exports.update = async (req, res, next) => {
 
     // Проверяем итоговую компанию/исполнителя даже при правке без поля такси:
     // иначе смена компании оставила бы привязанной поездку другого клиента.
-    work.taxiTripIds = await validateWorkTaxiLinks({
-      auth: req.auth, work,
-      taxiTripIds: req.body.taxiTripIds ?? work.taxiTripIds ?? [],
-    });
-    work.taxiDecision = work.visitRequired && work.startedAt && work.finishedAt ? taxiDecision(work.taxiTripIds, req.body.taxiDecision, hadActualVisit ? work.taxiDecision : "pending") : "pending";
+    await applyWorkTaxiDecision(req.auth, work, req.body.taxiTripIds ?? work.taxiTripIds ?? [],
+      req.body.taxiDecision, hadActualVisit ? work.taxiDecision : "pending");
 
     await work.save();
 
@@ -492,8 +438,6 @@ exports.update = async (req, res, next) => {
 
 exports.delete = async (req, res, next) => {
   try {
-    const { userId, can } = req.auth;
-
     const work = await Work.findById(req.body._id);
 
     if (!work) {
@@ -511,10 +455,7 @@ exports.delete = async (req, res, next) => {
     // Удаление строже правки: только автор либо тот, кому доверены чужие работы.
     // `createdBy` бывает пустым у старых работ — сравнение через опциональную
     // цепочку, иначе вместо 403 получался бы 500.
-    if (
-      !can({ work: ["manage"] }) &&
-      work.createdBy?._id?.toString() !== userId
-    ) {
+    if (!canDeleteWork(work, req.auth)) {
       return next(
         new AppError(
           `Work can only be deleted by the creator or an administrator`,

@@ -506,6 +506,7 @@ const ticketSchema = new Schema(
     // Токен оптимистичной блокировки. Инкрементится только пользовательскими
     // мутациями жизненного цикла/редактирования (см. controllers/ticket.js),
     // поэтому комментарии и фоновые ИИ-записи не вызывают ложных конфликтов.
+    mcpPendingWrite: { type: String, select: false },
     version: {
       type: Number,
       default: 0,

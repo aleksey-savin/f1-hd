@@ -7,6 +7,8 @@ const Schema = mongoose.Schema;
 const ticketLogSchema = new Schema(
     {
         ticket: Number,
+        mcpKeyId: Schema.Types.ObjectId,
+        actorId: Schema.Types.ObjectId,
         ticketId: {
             type: Schema.Types.ObjectId,
             ref: 'Ticket',

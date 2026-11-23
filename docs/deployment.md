@@ -261,15 +261,13 @@ up without it; `./deploy.sh logs tg-service` shows why.
 
 ### AI agents (MCP)
 
-AI agents (OpenClaw and other MCP clients) read the knowledge base, tickets and Mikrotik devices
-through `${APP_PUBLIC_URL}/api/mcp`. Nothing goes into `.env`: an administrator
-creates a key in Settings, it is shown once, and deleting it revokes access
-immediately. A key carries permissions — «База знаний», «Заявки», «Mikrotik» and/or «Изменения Mikrotik»; a key
-stored before permissions existed reads as «База знаний» only. The
-knowledge-base half answers only while that module is on, and only with
-approved notes that have no leak flag; ticket tools have no module gate of
-their own and mask phone numbers, e-mail addresses and detected credentials in
-every free-text field they return. Full implementation notes: `docs/mcp.md`.
+Create an agent key under **Настройки системы → Интеграции → Доступ ИИ-агентов**
+and copy the displayed endpoint and key into the MCP client. HD shows the key
+once. Deleting it revokes access on the next request. Choose read access for
+the knowledge base, tickets, directories, inventory, Mikrotik or Proxmox.
+Write access is available for tickets, ticket comments, ticket works (with time tracking), Proxmox resource metadata, knowledge notes, and inventory and Mikrotik
+change proposals. Keys issued before scopes existed retain knowledge-base
+reading. See [MCP access](./mcp.md) for module gates and per-tool permissions.
 
 The reverse proxy needs no extra settings: every call is a POST whose short
 `text/event-stream` answer closes with the result. OpenClaw configuration:

@@ -23,6 +23,7 @@ const RATE_LIMIT_MAX = 120;
 const buildMcpRouter = ({
   requireKey,
   handle,
+  log,
   rateLimitMax = RATE_LIMIT_MAX,
 }) => {
   const limiter = rateLimit({
@@ -59,6 +60,16 @@ const buildMcpRouter = ({
       status: 404,
       code: "ERR_404",
       message: "Endpoint not found",
+    });
+  });
+
+  router.use((error, req, res, next) => {
+    if (res.headersSent) return next(error);
+    log("error", "MCP request failed", { error: error.message });
+    return res.status(500).json({
+      error: true,
+      status: 500,
+      message: "Не удалось обработать запрос MCP",
     });
   });
 

@@ -437,21 +437,28 @@ const OWN_FIELDS = {
   // то же, что вычищается из companies.emailDomains. Поле нужно только для
   // защиты от повторной обработки входящего письма, индекс по нему разреженный.
   tickets: {
-    fields: ["realSender", "emailMessageId"],
-    masks: ["realSender", "emailMessageId"],
+    fields: ["realSender", "emailMessageId", "mcpPendingWrite"],
+    masks: ["realSender", "emailMessageId", "mcpPendingWrite"],
     apply(doc, ctx) {
       delete doc.emailMessageId;
+      delete doc.mcpPendingWrite;
       if (!filled(doc.realSender)) return;
       const [email] = doc.realSender.match(EMAIL_IN_TEXT) || [];
       doc.realSender = email ? maskedEmailValue(email, ctx) : UNKNOWN_PERSON.firstName;
     },
   },
   comments: {
-    fields: ["emailMessageId"],
-    masks: ["emailMessageId"],
+    fields: ["emailMessageId", "mcpPendingWrite"],
+    masks: ["emailMessageId", "mcpPendingWrite"],
     apply(doc) {
       delete doc.emailMessageId;
+      delete doc.mcpPendingWrite;
     },
+  },
+  works: {
+    fields: ["mcpPendingWrite"],
+    masks: ["mcpPendingWrite"],
+    apply(doc) { delete doc.mcpPendingWrite; },
   },
   // Запись об устройстве остаётся как есть, секрет в ней — нет
   clientdevices: {
@@ -661,7 +668,7 @@ const USER_COLLECTIONS = ["users", "users_before_banned"];
 // повторена здесь, чтобы скрипт был безопасен и на копии, сделанной иначе.
 const EMPTIED = [
   'routerexposuresnapshots', 'guestexposures',
-  "authSessions", "authVerifications", "mcpkeys", "mikrotikdownloadcodes", "impersonationCodes", "telegramPairingCodes",
+  "authSessions", "authVerifications", "mcpkeys", "mcpticketwrites", "mikrotikdownloadcodes", "impersonationCodes", "telegramPairingCodes",
   // Секреты двухфакторной проверки и личности в мессенджерах
   "authTwoFactors", "channelidentities",
   // Корпоративные поездки и личности Яндекса не переносятся на стенд:

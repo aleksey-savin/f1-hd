@@ -1,19 +1,16 @@
 # MCP Access — Implementation Notes
 
-_Last updated: 2026-10-20. This document covers the `/api/mcp` endpoint end to
-end: keys and permissions, the request path, the knowledge-base, ticket and
-Mikrotik tools, data protection and how to test the module. It is a snapshot, not a
-spec — verify against the code before relying on any detail._
+_Reviewed against the MCP implementation on 2026-11-23._
 
 ## Overview
 
-`POST /api/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io)
-endpoint that lets the organisation's staff-only AI agent (OpenClaw) read HD's
-knowledge base, tickets and Mikrotik devices, and, with separate accesses, write: save knowledge-base notes (`knowledgeWrite`), propose Mikrotik configuration changes that people approve in HD (`mikrotikChanges`) and propose inventory changes that the requester approves in Telegram (`inventoryChanges`); everything else is read-only. It is one endpoint inside the backend, not a
-separate service: no OAuth, no per-person login — a key belongs to the
-organisation, the same way a Telegram bot token does.
+Staff agents connect to `POST /api/mcp` using an organisation-issued bearer key.
+Each key can read selected resources across the knowledge base, tickets, company
+and user directories, inventory, Mikrotik and Proxmox. Separate scopes allow
+agents to save knowledge notes, manage tickets, comments, work records and Proxmox resource metadata, and submit inventory and Mikrotik proposals.
+Proxmox also checks the key creator's current staff permissions on every call.
 
-Two design specs cover the decisions behind this module:
+Earlier design decisions are recorded in:
 
 - `docs/superpowers/specs/2026-09-17-kb-mcp-access-design.md` — the endpoint
   itself, keys, transport, and the two knowledge-base tools (approved
@@ -96,18 +93,19 @@ Chain on `POST /`: `requireKey` → per-key rate limiter → `handle`.
 
 ```js
 {
-  modules: { knowledgeBase, timeTracking, inventory, mikrotik },  // booleans
+  modules: { knowledgeBase, timeTracking, inventory, mikrotik, proxmox },  // booleans
   timezone,                                             // resolveTimezone(prefs)
   systemAccounts: { unidentifiedId, robotIds },         // ids as strings, or null/[]
 }
 ```
 
-Tools never read `Preferences` themselves. `toolFamilies({ scopes, modules })`
+Some tools recheck settings during execution, including Proxmox authorization. `toolFamilies({ scopes, modules })`
 (`services/mcp/server.js`) then decides what this request can register:
 
 ```js
 knowledge = scopes.includes("knowledge") && Boolean(modules.knowledgeBase);
 knowledgeWrite = scopes.includes("knowledgeWrite") && Boolean(modules.knowledgeBase);
+ticketsWrite = scopes.includes("ticketsWrite"); // work mutations also require time tracking
 tickets   = scopes.includes("tickets");   // no module gate — tickets are core
 mikrotik  = scopes.includes("mikrotik") && Boolean(modules.mikrotik);
 companies = scopes.includes("companies");
@@ -115,6 +113,8 @@ users = scopes.includes("users");
 inventory = scopes.includes("inventory") && Boolean(modules.inventory);
 mikrotikChanges = scopes.includes("mikrotikChanges") && Boolean(modules.mikrotik);
 inventoryChanges = scopes.includes("inventoryChanges") && Boolean(modules.inventory);
+proxmox = scopes.includes("proxmox") && Boolean(modules.proxmox);
+proxmoxWrite = scopes.includes("proxmoxWrite") && Boolean(modules.proxmox);
 ```
 
 If **no** family is available, `createMcpRequestHandler` answers `403`
@@ -130,11 +130,9 @@ middleware gated the whole route: the module gate now lives inside tool
 registration, because a `tickets`-scoped key must keep working while the
 knowledge-base module is off.
 
-`buildHdServer` composes the first line of the instructions from the write
-families: when the key can write, `Access to the organisation's IT helpdesk:
-reading, and you can also <save knowledge base notes> [and] <propose
-configuration changes that people approve>.` (one or both phrases); a read-only
-key gets `common[0]`.
+`buildHdServer` names the enabled write capabilities in the opening instruction:
+saving knowledge notes, managing tickets, comments, work records and Proxmox metadata, proposing inventory changes and proposing Mikrotik
+configuration changes. Read-only keys receive the default opening instruction.
 `INSTRUCTIONS.knowledgeWrite` is added for the family, followed by
 `knowledgeWriteWithRead` or `knowledgeWriteOnly` depending on whether the key
 also has the `knowledge` family (see «Knowledge base write tools»).
@@ -146,7 +144,7 @@ also has the `knowledge` family (see «Knowledge base write tools»).
 
 - `createMcpHandler(factory, { maxSubscriptions: 0, onerror })` — stateless, a
   fresh `McpServer` per request (`buildHdServer`), server info
-  `{ name: "hd-helpdesk", version }` (from `package.json`). No subscriptions,
+  `{ name: "hd-helpdesk", version }` (the image build version, or `dev` in a source checkout). No subscriptions,
   no long-lived streams.
 - OpenClaw 2026.9.4 bundles `@modelcontextprotocol/sdk@1.30.0` (protocol
   2025-11-25) and is served on the SDK's **legacy stateless path**: every
@@ -186,12 +184,8 @@ length of the text the agent receives. It is separate from each tool's own
 `"MCP tool call"` line (filters, counts, duration) and exists to see which
 tools are expensive for the agent — see «Token cost» below.
 
-One gap remains outside `guard()`'s reach: a failure in `loadContext` or in the
-key lookup (before a tool, or even an `McpServer`, exists) still falls through
-to the app's shared error handler (`errorResponse`), which puts the **raw**
-error message in the JSON body — the same pre-existing behaviour as any other
-route-setup failure in this codebase. Ruled acceptable for a staff-only
-audience (`.superpowers/sdd/2026-09-17-mcp-tickets/progress.md`, Task 9).
+Failures during key lookup or request setup are logged as `MCP request failed`.
+The router returns HTTP 500 with a generic JSON message.
 
 ## Token cost
 
@@ -270,7 +264,7 @@ fire, so they were left alone; the expensive answers are the Mikrotik ones.
 Collection `mcpkeys`: `name` (required, trimmed, ≤100), `keyHash` (sha256,
 `select: false`, unique index), `keyTail` (last 4 characters, for display),
 `createdBy → User`, `lastUsedAt` (`Date`, default `null`), `scopes`
-(`["knowledge" | "knowledgeWrite" | "tickets" | "companies" | "users" | "inventory" | "inventoryChanges" | "mikrotik" | "mikrotikChanges"]`, default `["knowledge"]`), timestamps. The key
+(`["knowledge" | "knowledgeWrite" | "tickets" | "ticketsWrite" | "companies" | "users" | "inventory" | "inventoryChanges" | "mikrotik" | "mikrotikChanges" | "proxmox" | "proxmoxWrite"]`, default `["knowledge"]`), timestamps. The key
 value itself is **never stored** — only its hash and tail.
 
 `services/mcp/keys.js`:
@@ -278,7 +272,7 @@ value itself is **never stored** — only its hash and tail.
 - `issueMcpKey()` — `generateMcpKey()` (`hd_mcp_` + 64 hex,
   `utils/apiKeyGenerator.js`) plus its sha256 (`keyHash`) and last-4
   (`keyTail`). The plaintext value exists only in the create response.
-- `MCP_SCOPES = ["knowledge", "knowledgeWrite", "tickets", "companies", "users", "inventory", "inventoryChanges", "mikrotik", "mikrotikChanges"]` (frozen, this exact order). Stored strings did not change, so no migration. The backend keeps scopes independent (as for `mikrotik` / `mikrotikChanges`): a key with `knowledgeWrite` alone can create notes and update them by id, but sees neither `search_knowledge_base` nor `get_knowledge_note`, and its instructions say so (`INSTRUCTIONS.knowledgeWriteOnly`, see «Knowledge base write tools»). The settings client pairs write with read per resource (`frontend/src/util/mcp-keys.ts`: `toggleScope` — write adds read, removing read removes write) and passes the scopes through `withReadForWrite` before every create and update request, so a key issued or saved there has both; a write-only key stored earlier is read back as stored and becomes paired on its next save.
+- `MCP_SCOPES = ["knowledge", "knowledgeWrite", "tickets", "ticketsWrite", "companies", "users", "inventory", "inventoryChanges", "mikrotik", "mikrotikChanges", "proxmox", "proxmoxWrite"]` (frozen, this exact order). Stored strings did not change, so no migration. The backend keeps scopes independent (as for `mikrotik` / `mikrotikChanges`): a key with `knowledgeWrite` alone can create notes and update them by id, but sees neither `search_knowledge_base` nor `get_knowledge_note`, and its instructions say so (`INSTRUCTIONS.knowledgeWriteOnly`, see «Knowledge base write tools»). The settings client pairs write with read per resource (`frontend/src/util/mcp-keys.ts`: `toggleScope` — write adds read, removing read removes write) and passes the scopes through `withReadForWrite` before every create and update request, so a key issued or saved there has both; a write-only key stored earlier is read back as stored and becomes paired on its next save.
 - `normalizeScopes(scopes)` — filters an arbitrary array down to known scopes
   in `MCP_SCOPES` order; an empty, missing or all-unknown input becomes
   `["knowledge"]`. This is what makes a key stored before `scopes` existed
@@ -329,10 +323,9 @@ logged):
 Deleting **is** revoking — `requireMcpKey` looks the key up on every request,
 there is no cache, so the very next call with a deleted key gets `401`.
 
-The Settings UI for permissions waits for mockup approval (see the tickets
-spec's Status line); a key created through Settings today gets the default
-`scopes: ["knowledge"]`. Granting `tickets` currently requires calling
-`/mcp-keys` or `/mcp-keys/update` directly with an explicit `scopes` body.
+Administrators grant or revoke scopes in **Настройки системы → Интеграции →
+Доступ ИИ-агентов**. The same resource table is used when issuing a key and
+editing its permissions. Existing clients pick up the new scopes on their next request.
 
 ## Knowledge base tools
 
@@ -963,7 +956,7 @@ get a number. Sections, in order:
   and collapsed to one line.
 - **Checklist** — `- [x]`/`- [ ]` per item, description masked and collapsed
   to one line.
-- **Comments (`N`)** — **all**, oldest first, each `instant · person:`
+- **Comments (`N`)** — **all**, oldest first, each with its timestamp and author (plus ID and revision for ticket-write keys)
   followed by the content on its own quoted lines (masked, capped 4,000
   chars, every line prefixed with `> ` — see «Untrusted text is fenced»).
   Loaded by `{ ticketId }` **and** the ticket's own `comments` array ids
@@ -973,7 +966,7 @@ get a number. Sections, in order:
 - **Works (`N`)** — only while `modules.timeTracking.isActive`: performer
   (`finishedBy` if set, else `executor`), start/finish instants, duration
   in minutes (`workDurationMs`, `backend/services/workSummary.js`),
-  on-site/remote (`visitRequired`), description masked, capped at
+  on-site/remote (`visitRequired`), ID and revision for ticket-write keys, description masked, capped at
   4,000 chars and quoted on its own lines. No `finances`, no `withinPlan`,
   no money anywhere.
 - **Devices (`N`)** — only while `modules.inventory.isActive`: the
@@ -1050,6 +1043,51 @@ resolution).
 
 Rendered as a Markdown table (`ticketFormat.js#formatStats`):
 `| <groupBy> | tickets | open | closed | median hours to close | share |`.
+
+## Ticket write tools
+
+Enable **Заявки → Запись** for the key in global system settings. The UI also
+selects reading. The independent API scope is `ticketsWrite`. Granting
+`tickets` alone exposes only read tools. Every mutation reloads the key and
+resolves its creator's current staff permissions and access to the ticket.
+New tickets use the staff form defaults and the key creator as applicant. Selecting another applicant or explicitly choosing a company requires `ticket.createForOthers`. Editing requires `ticket.manage`; permanent deletion requires `ticket.delete`. Deletion cleans up attachments, remote-support connections, conversation bindings and work links. A shared work stays on its other tickets.
+
+| Tool | Fields specific to the operation |
+| --- | --- |
+| `add_ticket` | `description`; optional `title`, `deadline`, `applicantId`, `companyId`, `categoryId` |
+| `update_ticket` | `num`, `expectedVersion`, and at least one of `title`, `description`, `deadline` |
+| `delete_ticket` | `num`, `expectedVersion` |
+| `add_ticket_comment` | `content` |
+| `update_ticket_comment` | `id`, `revision`, `content` |
+| `delete_ticket_comment` | `id`, `revision` |
+| `add_ticket_work` | `description`, `startedAt`, `finishedAt`, optional `visitRequired` |
+| `update_ticket_work` | `id`, `revision`, and at least one of the four work fields |
+| `delete_ticket_work` | `id`, `revision` |
+
+Ticket creation and editing return `num` and `version`. A writer can also read the version from `get_ticket`. Supply this integer as `expectedVersion` to edit or delete a ticket. A successful deletion returns its number and `deleted: true`.
+
+All comment and work tools require the ticket number (`num`). Every write requires a unique `requestId` of 8–100
+letters, digits, underscores or hyphens. Retry an interrupted operation with
+the same arguments and request ID. Creating or updating a comment or work returns the
+record ID and its new revision. Use the exact revision shown by `get_ticket`
+or returned by a write. Older records without timestamps use `legacy`.
+A stale edit requires a fresh read and a new request ID.
+
+Comments use the normal ticket discussion and notification queue. The key's
+creator can change their own comments. Changing another author's comment
+requires `ticket.manage`. Email and conversation mirrors are source-managed.
+These tools accept text and do not send a message through a conversation channel.
+
+Work tools require active time tracking and `work.read`. Adding a completed
+work requires `work.log`. Updating or deleting requires `work.log` or
+`work.manage` and access to every linked ticket. Staff work ownership rules,
+category-based plan treatment and taxi-link validation apply. Timestamps are
+ISO 8601 instants with an offset. Work creation uses the key creator as performer.
+
+Ticket history records the key ID and staff actor. Standalone Mongo installations
+store request receipts in `mcpticketwrites`. A request claims the record
+revision before updating ticket references and history. Replaying the same
+request finishes interrupted steps. Receipts retain a digest of the arguments.
 
 ## Directory tools
 
@@ -1230,6 +1268,45 @@ leaves retired devices (`decommissioned`, `disposed`) out, like `warrantyExpired
 Every check returns `{count, items, note?}`; `summary` computes `count` only
 (`limit: 0`). A line names the subject (device, model, type, attribute) and ends
 with its id; the `ticketHeavy` limit applies to devices and models separately.
+
+## Proxmox tools
+
+The `proxmox` scope and active module enable four read tools. Before each call,
+`proxmoxSource.resolveActor` reloads the key and its creator and checks the module
+again. The creator must still be an eligible staff account with `proxmox.read`.
+A discovered tool can therefore refuse execution after an account or role change.
+
+| Tool | Input | Result |
+| --- | --- | --- |
+| `list_proxmox_resources` | Required `kind` (node, guest or storage), optional `search`, `companyId`, `page`, `pageSize` | Resource summaries with ownership, status, freshness and usage |
+| `get_proxmox_resource` | Resource `id` | Selected resource and related nodes, guests and storage. An unknown ID returns a null item. |
+| `get_proxmox_metrics` | Resource `id`, optional `timeframe` (hour, day, week, month or year) | Live RRD samples. The default period is one day. |
+| `get_proxmox_events` | Resource `id`, optional `page`, `pageSize` | Newest events first. Guest operation history is excluded. |
+
+Use HD resource IDs from the list. A guest's company and its host node's
+company are independent. A stale or unknown reading does not establish downtime.
+
+### Proxmox write tools
+
+Grant **Proxmox → Запись** on the key in global system settings. The UI pairs
+it with reading. An API-issued key can hold `proxmoxWrite` independently and
+use known HD resource IDs. Every call rechecks the module, key and staff
+creator, who needs both `proxmox.read` and `proxmox.manage`.
+
+| Tool | Arguments in addition to resource `id` | Effect |
+| --- | --- | --- |
+| `set_proxmox_company` | `kind` (node or guest), `companyId` | Assign an active company. A guest accepts null to clear its tenant. A node needs an owner and must be unlinked from inventory before changing owners. |
+| `set_proxmox_monitoring` | `monitoringEnabled` (boolean) | Enable or pause monitoring for one active node or guest. Pausing recovers its active incidents. |
+| `set_proxmox_maintenance` | `window` with `until`, `reason` and optional `from`, or null | Schedule or clear resource maintenance. Dates are ISO instants. The start defaults to now. |
+| `set_proxmox_inventory_link` | `clientDeviceId` or null | Link or unlink a physical node's inventory card. Requires active inventory, `device.manage` and matching companies. |
+
+These calls use HD's resource-management services. Each completed event records
+the staff actor and MCP key ID. With both key scopes and management permission,
+`get_proxmox_resource` also returns the monitoring flag and maintenance dates.
+The node inventory card ID is visible there when inventory is active and the
+creator has device management permission. A failed call can follow a saved change, for
+example when event logging fails. Check the HD resource card or read back the setting before repeating a write.
+Guest power, backups and connection administration use separate HD workflows.
 
 ## Mikrotik tools
 
@@ -1726,7 +1803,7 @@ never read from Mongo, regardless of what any formatter does with it later:
 | Entity | Selected | Excludes (by omission) |
 |---|---|---|
 | Ticket (search) | `num title description source state isClosed categoryId company applicantId createdAt finishedAt closingComment` | `htmlDescription`, `realSender`, `attachments`, legacy `applicant` snapshot, AI fields (`aiGuide`, `aiTerms`, `aiSpeech`, `aiCategory`, `aiTitle`), `notifications` |
-| Ticket (detail, adds) | `processedAt startedAt deadline routineTask relatedClientDeviceId comments responsibles._id/firstName/lastName customFields.name/type/value checklist.description/checked` | `responsibles.email`, `responsibles.phone` |
+| Ticket (detail, adds) | `version processedAt startedAt deadline routineTask relatedClientDeviceId comments responsibles._id/firstName/lastName customFields.name/type/value checklist.description/checked` | `responsibles.email`, `responsibles.phone` |
 | `company` (embedded on the ticket) | `_id, alias` only — the schema embeds nothing else | phones, address, map link, e-mail domains, API keys, service plans, people snapshots (these live on the `Company` document, which this path never populates — unlike the separate, out-of-scope `GET /api/tickets/:num` leak) |
 | `User` (directory) | `firstName lastName position isEndUser isServiceAccount isCloudTelephony company._id` | `email`, `phone`, photos, `telegramBot`, `workStatus`, `finances`, `subdivision` |
 | `Company` (directory) | `alias fullTitle` | `phones`, `address`, `linkToMap`, `location`, `emailDomains`, `apiKeys`, `servicePlans`, `users`, `responsibles`, `clientsSideResponsibles` |
@@ -1830,9 +1907,10 @@ From the spec, still current:
 - Similarity is lexical (`find_similar_tickets`): the same problem described
   with different words is only found if the agent searches again with other
   words.
-- Comments with no `ticketId` at all (from before the field existed) are not
-  loaded by either half of the `$or` — only comments *missing from the
-  array* but *carrying* `ticketId` are recovered.
+- Older comments are discoverable through either their `ticketId` or the
+  ticket's `comments` array. A comment with neither link cannot be located
+  through a ticket. For a legacy comment linked only by the array, mutations
+  require that a single ticket references it.
 - A key with `tickets` reads every ticket of every company — there are no
   per-key company/user allowlists.
 - Masking also **over-masks**: the inherited scanner rules redact technical
@@ -1905,6 +1983,9 @@ Added after implementation and live verification:
 | `middleware/requireMcpKey.test.js` | format/hash lookup/hourly touch/401 paths |
 | `services/mcp/mikrotikChangeTools.test.js` | the three change tools over a fake service and store: success / refusal text, steps and channels, per-command results, the `needs_attention` warning, WireGuard link, quoting, device visibility, list filters, logging without parameter values, no id or key in any output |
 | `frontend/src/util/mcp-keys.test.js`, `frontend/src/util/knowledgeNoteAgent.test.js` | pure helpers of the key permissions (resource pairing, `toggleScope`, `withReadForWrite`, access phrases, the scanning-off hint) and of the note origin line |
+| `services/mcp/ticketWriteSource.integration.test.js` | With `HD_MCP_WRITE_INTEGRATION=1`, uses the local development MongoDB or an isolated instance selected by `HD_MCP_TEST_MONGO_URI`. Exercises all nine mutations, the production HTTP mount, access checks, audit history, retries, legacy revisions and interrupted writes in a temporary database. |
+| `services/mcp/proxmoxWrite.integration.test.js` | With `HD_MCP_WRITE_INTEGRATION=1` and local development MongoDB, exercises key issuance, all four writes through the production HTTP mount, read-back, role changes, scope edits, revocation and event attribution. |
+| `services/mcp/proxmoxTools.test.js`, `services/mcp/proxmoxSource.test.js` | Per-call authorization, account eligibility, scope revocation and resource projections |
 | `routes/mcp.test.js` | the whole route over the **real SDK** with a 2025-11-25 client: `405`/`401`/`403`, tool lists by scope×module, a ticket read masking a phone and linking to HD, `initialize`, `tools/list`, scope leak checks (flagged/unapproved ids never appear), per-key call attribution, schema rejection, `429` over the per-key limit, `404` with no fallthrough below `/api/mcp`, the failure-guard's neutral error + log line, and that the write tools need both the `knowledgeWrite` scope and the module (a write-only key with the module off gets `403`; the schema rejects an extra argument); the note instructions by key — write-only (no «search first», no `search_knowledge_base`, the sentence about missing reading), read + write, read-only — and the write tools' «not available» answer not naming a search tool |
 
 Run a single file: `node --test <file>`. Full backend suite:

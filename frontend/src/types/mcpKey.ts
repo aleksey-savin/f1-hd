@@ -4,7 +4,7 @@
 
 /** Доступы ключа: чтение и запись по ресурсам (совпадает с backend MCP_SCOPES). */
 export type McpScope =
-  | "proxmox" | "knowledge" | "knowledgeWrite" | "tickets" | "companies" | "users" | "inventory" | "inventoryChanges" | "mikrotik" | "mikrotikChanges";
+  | "proxmox" | "proxmoxWrite" | "knowledge" | "knowledgeWrite" | "tickets" | "ticketsWrite" | "companies" | "users" | "inventory" | "inventoryChanges" | "mikrotik" | "mikrotikChanges";
 
 export type McpKeyRow = {
   _id: string;

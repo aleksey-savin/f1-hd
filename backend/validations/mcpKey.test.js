@@ -68,3 +68,10 @@ test("update: id and at least one known scope are required", async () => {
   assert.deepEqual((await run(mcpKeyValidation.update, { _id: "nope", scopes: ["tickets"] })).errors, ["_id"]);
   assert.deepEqual((await run(mcpKeyValidation.update, { _id: "66aa00000000000000000001" })).errors, ["scopes"]);
 });
+
+
+test("Proxmox writing is accepted independently on key creation and editing", async () => {
+  const scopes = ["proxmoxWrite"];
+  assert.deepEqual((await run(mcpKeyValidation.create, { name: "Resource management", scopes })).errors, []);
+  assert.deepEqual((await run(mcpKeyValidation.update, { _id: "66aa00000000000000000001", scopes })).errors, []);
+});

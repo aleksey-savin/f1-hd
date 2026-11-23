@@ -152,7 +152,7 @@ const createTicketTools = ({ source, baseUrl, log }) => {
         : null;
       logCall(caller, "get_ticket", { num, found: Boolean(detail) }, started);
       if (!detail) return errorResult(`Ticket #${args.num} not found. Use a number from search_tickets.`);
-      return textResult(formatTicketDetail(detail, ctx));
+      return textResult(formatTicketDetail(detail, ctx, context.scopes?.includes("ticketsWrite")));
     },
 
     findSimilar: async (args = {}, caller, context) => {

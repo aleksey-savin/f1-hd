@@ -71,6 +71,7 @@ is outside that stack, stop its database writers separately before syncing.
   `channels`, `channeljobs`, `taxisettings`.
 - Live credentials, dropped on the target: `authSessions`, `authVerifications`,
   `mcpkeys`, `mikrotikdownloadcodes`, `impersonationCodes`, `telegramPairingCodes`.
+- MCP ticket-write receipts (`mcpticketwrites`) are installation-specific and are dropped with the agent keys. Masking also clears pending request markers on comments and works.
 - Corporate taxi records, dropped on the target: `taxitrips`, `taxiemployees`. The development installation uses its own
   corporate credentials and employee mappings; production trips and employee mappings are not copied there.
 

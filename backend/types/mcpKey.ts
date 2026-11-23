@@ -8,7 +8,7 @@ export interface IMcpKey {
   createdBy?: Types.ObjectId;
   lastUsedAt: Date | null;
   /** У ключей, выданных до появления доступов, поля нет — читаются как `["knowledge"]`. */
-  scopes?: ("knowledge" | "tickets" | "companies" | "users" | "mikrotik" | "mikrotikChanges" | "inventory" | "inventoryChanges" | "knowledgeWrite")[];
+  scopes?: ("knowledge" | "tickets" | "ticketsWrite" | "companies" | "users" | "mikrotik" | "mikrotikChanges" | "inventory" | "inventoryChanges" | "knowledgeWrite" | "proxmox" | "proxmoxWrite")[];
   createdAt: Date;
   updatedAt: Date;
 }

@@ -18,9 +18,9 @@ const { systemIds, systemValues } = require("@/services/inventory/systemDeviceAt
  */
 
 const SEARCH_FIELDS = "num title description source state isClosed categoryId company applicantId createdAt finishedAt closingComment";
-const DETAIL_FIELDS = `${SEARCH_FIELDS} processedAt startedAt deadline routineTask relatedClientDeviceId comments responsibles._id responsibles.firstName responsibles.lastName customFields.name customFields.type customFields.value checklist.description checklist.checked`;
+const DETAIL_FIELDS = `${SEARCH_FIELDS} version processedAt startedAt deadline routineTask relatedClientDeviceId comments responsibles._id responsibles.firstName responsibles.lastName customFields.name customFields.type customFields.value checklist.description checklist.checked`;
 const STATS_FIELDS = "categoryId company._id applicantId source createdAt finishedAt isClosed";
-const WORK_FIELDS = "description visitRequired startedAt finishedAt finishedBy._id finishedBy.firstName finishedBy.lastName executor._id executor.firstName executor.lastName";
+const WORK_FIELDS = "updatedAt description visitRequired startedAt finishedAt finishedBy._id finishedBy.firstName finishedBy.lastName executor._id executor.firstName executor.lastName";
 // ОС — системный атрибут устройства: attributes выбираются, наружу уходит только она
 const DEVICE_FIELDS = "deviceModelId deviceTypeId serialNumber inventoryNumber status attributes";
 const DEVICE_POPULATE = [
@@ -63,7 +63,7 @@ exports.loadTicketDetail = async (num, { works, devices, applicantIsSystem }) =>
   // Комментарии — и по ticketId, и по массиву заявки: письма до 2026-07-08 в
   // массив не попадали, но ticketId у них есть.
   const commentsQuery = Comment.find({ $or: [{ ticketId: ticket._id }, { _id: { $in: ticket.comments || [] } }] })
-    .select("content createdBy createdAt")
+    .select("content createdBy createdAt updatedAt")
     .sort({ createdAt: 1 })
     .lean();
 

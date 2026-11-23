@@ -8,7 +8,7 @@ const { bus } = require("../pulse");
 const enabled = async () =>
   Boolean((await Preferences.findOne({}).lean())?.modules?.proxmox?.isActive);
 const bump = () => bus.bump({ topics: ["proxmox"] });
-const event = async (resource, kind, message, actorId, { companyChange } = {}) => {
+const event = async (resource, kind, message, actorId, { companyChange, mcpKeyId } = {}) => {
   await Event.create({
     resourceId: resource?.kind ? resource._id : undefined,
     connectionId: resource?.kind ? resource.connectionId : resource?._id,
@@ -16,6 +16,7 @@ const event = async (resource, kind, message, actorId, { companyChange } = {}) =
     kind,
     message,
     actorId,
+    mcpKeyId,
     companyChange,
   });
   bump();

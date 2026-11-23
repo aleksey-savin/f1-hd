@@ -6,7 +6,7 @@ test("every Proxmox tool rechecks access and never reads after revocation", asyn
   let allowed = true;
   let checks = 0;
   let reads = 0;
-  const source = { authorize: async (keyId) => { checks++; assert.equal(keyId, "key"); return allowed; } };
+  const source = { resolveActor: async (keyId, scope) => { checks++; assert.equal(keyId, "key"); assert.equal(scope, "proxmox"); return allowed ? { scopes: ["proxmox"] } : null; } };
   for (const method of ["list", "detail", "metrics", "events"]) {
     source[method] = async () => { reads++; return { status: "unknown", tenant: "B", owner: "A" }; };
   }

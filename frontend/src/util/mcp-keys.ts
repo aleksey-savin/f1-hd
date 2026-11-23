@@ -21,12 +21,12 @@ export type McpResource = {
 // инструменты записи; хранятся доступы прежними строками (backend MCP_SCOPES).
 export const MCP_RESOURCES: McpResource[] = [
   { key: "knowledge", label: "База знаний", dative: "базе знаний", read: "knowledge", write: "knowledgeWrite" },
-  { key: "tickets", label: "Заявки", dative: "заявкам", read: "tickets" },
+  { key: "tickets", label: "Заявки", dative: "заявкам", read: "tickets", write: "ticketsWrite" },
   { key: "companies", label: "Компании", dative: "компаниям", read: "companies" },
   { key: "users", label: "Пользователи", dative: "пользователям", read: "users" },
   { key: "inventory", label: "Инвентарь", dative: "инвентарю", read: "inventory", write: "inventoryChanges" },
   { key: "mikrotik", label: "Mikrotik", dative: "Mikrotik", read: "mikrotik", write: "mikrotikChanges" },
-  { key:"proxmox",label:"Proxmox",dative:"Proxmox",read:"proxmox" },
+  { key: "proxmox", label: "Proxmox", dative: "Proxmox", read: "proxmox", write: "proxmoxWrite" },
 ];
 
 const SCOPE_ORDER: McpScope[] = MCP_RESOURCES.flatMap(({ read, write }) => (write ? [read, write] : [read]));
@@ -90,7 +90,7 @@ const heldResources = (scopes?: McpScope[] | null) => {
 
 /** Первая буква строчная; имя собственное «Mikrotik» остаётся с заглавной. */
 export const lowerFirst = (text: string): string =>
-  text.startsWith("Mikrotik") ? text : text.replace(/^./, (first) => first.toLowerCase());
+  text.startsWith("Mikrotik") || text.startsWith("Proxmox") ? text : text.replace(/^./, (first) => first.toLowerCase());
 
 /** «база знаний (чтение и запись), заявки и Mikrotik (чтение)» — доступ ключа словами. */
 export const scopeAccessLabel = (scopes?: McpScope[] | null): string =>

@@ -4,6 +4,7 @@ const Schema = mongoose.Schema;
 
 const workSchema = new Schema(
   {
+    mcpPendingWrite: { type: String, select: false },
     description: {
       type: String,
       required: false,

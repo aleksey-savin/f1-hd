@@ -6,6 +6,10 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 
 ### Added
 
+- MCP keys with the new opt-in `proxmoxWrite` scope can manage resource company assignment, monitoring, maintenance windows and physical node inventory links. Events record the staff actor and key.
+
+- MCP keys can add, update, and delete tickets, comments and work records with the new opt-in `ticketsWrite` scope. Writes use the key creator’s current ticket access. Work tools require active time tracking.
+
 - Proxmox management and bulk actions for virtual machines and company devices. Links between a node and network devices are edited through the node menu.
 - Support for custom equipment assemblies and device-specific attributes separate from model attributes.
 - First contact from a ticket using the requester's phone number without a prior chat; new conversations with an HD user or an arbitrary phone number. The `ticket.sendMessage` permission allows sending from an accessible ticket without access to the Conversations section.
@@ -14,6 +18,11 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 - Main navigation moved to a sidebar. Breadcrumbs show the page hierarchy, with a separate button to return to the navigation origin.
 
 ### Fixed
+
+- Linking a Proxmox node to an inventory card now requires a shared company and detects concurrent changes to the node owner or link.
+
+- MCP initialization reports the application build version.
+- MCP guest listings return only public resource rows and pagination. Key lookup and request setup failures return a generic error while the backend logs the cause.
 
 - Live updates reject responses from obsolete sessions and clear session-specific pulse, notification and presence state. Failed or incomplete refreshes retry without advancing their revision; missing request baselines and revoked ticket access trigger revalidation.
 - Pulse write hooks notify both old and new ticket/inbox references and detect insert-only upserts while preserving query return shapes. Proxmox background refreshes use the shared pulse, pause with hidden tabs and editors, and retain displayed section data on errors; knowledge-base selection pauses live refreshes.
@@ -48,6 +57,8 @@ Changes relevant to people upgrading and maintaining an installation. Newest ver
 - AI findings unsupported by the source conversation are discarded separately from supported user-review results.
 
 ### Upgrade instructions
+
+- Grant **Заявки → Запись** in global system settings to enable MCP ticket mutations for a key. Keys already granted `ticketsWrite` gain ticket creation, editing and permanent deletion according to the creator’s permissions. Review those grants before deploying. Grant **Proxmox → Запись** for Proxmox resource management. Before rolling back, revoke API-issued keys whose scopes consist entirely of write scopes unknown to the older backend (for example, `proxmoxWrite` alone). Older backends interpret an entirely unknown scope list as knowledge-base read access.
 
 - Rebuild and restart the backend to apply the MongoDB driver alignment. Build the frontend with the same build identity so the update banner clears after reloading. No data migration, cookie reset, or secret change is required; existing sessions remain in place. The restart briefly interrupts requests.
 

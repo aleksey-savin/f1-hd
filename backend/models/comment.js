@@ -4,6 +4,7 @@ const Schema = mongoose.Schema;
 
 const commentSchema = new Schema(
   {
+    mcpPendingWrite: { type: String, select: false },
     content: {
       type: String,
       trim: true,

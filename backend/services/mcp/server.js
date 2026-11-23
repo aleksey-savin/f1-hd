@@ -5,7 +5,9 @@ const {
 } = require("@modelcontextprotocol/server");
 const { toNodeHandler } = require("@modelcontextprotocol/node");
 
-const { version } = require("../../package.json");
+const { registerProxmoxWrites } = require("./proxmoxWriteTools");
+const { registerTicketWrites } = require("./ticketWriteTools");
+const { buildInfo } = require("../../utils/buildInfo");
 const { TOOL_NAMES: INVENTORY_TOOLS } = require("./inventoryTools");
 const { FINDING_KINDS } = require("./inventoryFindings");
 const { STATE_CHECKS } = require("../mikrotik/liveState");
@@ -29,7 +31,7 @@ const { KIND_NAMES, PROPOSE_DESCRIPTION: INVENTORY_PROPOSE_DESCRIPTION } = requi
  * проекте не используется (docs/typescript-guide.md).
  */
 
-const SERVER_INFO = { name: "hd-helpdesk", version };
+const SERVER_INFO = { name: "hd-helpdesk", version: buildInfo.version };
 
 const SEARCH_SCHEMA = fromJsonSchema({
   type: "object",
@@ -565,10 +567,12 @@ const toolFamilies = ({ scopes, modules }) => ({
   knowledge: scopes.includes("knowledge") && Boolean(modules.knowledgeBase),
   knowledgeWrite: scopes.includes("knowledgeWrite") && Boolean(modules.knowledgeBase),
   tickets: scopes.includes("tickets"),
+  ticketsWrite: scopes.includes("ticketsWrite"),
   companies: scopes.includes("companies"),
   users: scopes.includes("users"),
   inventory: scopes.includes("inventory") && Boolean(modules.inventory),
   inventoryChanges: scopes.includes("inventoryChanges") && Boolean(modules.inventory),
+  proxmoxWrite: scopes.includes("proxmoxWrite") && Boolean(modules.proxmox),
   proxmox: scopes.includes("proxmox") && Boolean(modules.proxmox),
   mikrotik: scopes.includes("mikrotik") && Boolean(modules.mikrotik),
   mikrotikChanges: scopes.includes("mikrotikChanges") && Boolean(modules.mikrotik),
@@ -610,6 +614,8 @@ const guard = ({ log, caller, tool, run }) => async (args) => {
 const buildHdServer = ({ tools, caller, context, log }) => {
   const families = toolFamilies(context);
   const canDo = [
+    families.proxmoxWrite && "manage Proxmox resource metadata",
+    families.ticketsWrite && (context.modules.timeTracking ? "create, update and delete tickets, comments and work records" : "create, update and delete tickets and comments"),
     families.knowledgeWrite && "save knowledge base notes",
     families.inventoryChanges && "propose inventory changes that the requester approves",
     families.mikrotikChanges && "propose configuration changes that people approve",
@@ -625,13 +631,15 @@ const buildHdServer = ({ tools, caller, context, log }) => {
     ...(families.knowledgeWrite && families.knowledge ? INSTRUCTIONS.knowledgeWriteWithRead : []),
     ...(families.knowledgeWrite && !families.knowledge ? INSTRUCTIONS.knowledgeWriteOnly : []),
     ...(families.tickets ? INSTRUCTIONS.tickets : []),
+    ...(families.ticketsWrite ? ["Change a ticket record only on the user's request. Use the HD number and reviewed ticket version for ticket changes, or the record ID and revision for comments and works. After a timeout retry the identical request ID and arguments. Ticket comments are visible to ticket participants and can trigger normal notifications."] : []),
     ...(families.companies ? INSTRUCTIONS.companies : []),
     ...(families.users ? INSTRUCTIONS.users : []),
     ...(families.inventory ? INSTRUCTIONS.inventory : []),
     ...(families.inventoryChanges ? INSTRUCTIONS.inventoryChanges : []),
     ...(families.inventoryChanges && !families.inventory ? INSTRUCTIONS.inventoryChangesOnly : []),
     ...(families.mikrotik ? INSTRUCTIONS.mikrotik : []),
-    ...(families.proxmox ? ["Proxmox tools only read. A guest tenant and its physical node owner are independent companies. Unknown or stale state is not evidence of downtime. Use resource ids from list_proxmox_resources; never infer tenant from placement."] : []),
+    ...(families.proxmoxWrite ? ["Change only the resource and fields the user requested. Use HD resource IDs. Guest power operations are unavailable."] : []),
+    ...(families.proxmox ? ["A guest tenant and its physical node owner are independent companies. Unknown or stale state is not evidence of downtime. Use resource ids from list_proxmox_resources; never infer tenant from placement."] : []),
     ...(families.mikrotikChanges ? INSTRUCTIONS.mikrotikChanges : []),
     ...(families.mikrotikChanges && !families.mikrotik ? INSTRUCTIONS.mikrotikChangesOnly : []),
   ].join("\n");
@@ -674,6 +682,8 @@ const buildHdServer = ({ tools, caller, context, log }) => {
     register("update_knowledge_note", "Change a knowledge base note written by an agent", "Change a note that an agent created: pass only the fields to change. The note becomes an unverified draft again. Notes written by people cannot be changed.", KNOWLEDGE_WRITE_SCHEMAS.update, tools.knowledgeWrite.update, NOTE_WRITE_ANNOTATIONS);
   }
 
+  if (families.ticketsWrite) registerTicketWrites(register, tools.ticketsWrite, context.modules.timeTracking);
+
   if (families.tickets) {
     register("search_tickets", "Search tickets", "Find tickets by words, number, status (open/closed), company, user, category and creation dates. Returns the total and, per ticket, status, company, applicant, category, dates, a masked snippet and a link.", TICKET_SCHEMAS.search, tools.tickets.search);
     register("get_ticket", "Read a ticket", "Read one ticket by number: header, description, questionnaire answers, checklist, all comments, works and related devices. Contacts and credentials are masked.", TICKET_SCHEMAS.get, tools.tickets.getTicket);
@@ -702,6 +712,8 @@ const buildHdServer = ({ tools, caller, context, log }) => {
     register("get_inventory_change", "Read an inventory proposal", "Status of a proposal by id: the result of every operation, expiry and the decision.", INVENTORY_CHANGE_SCHEMAS.get, tools.inventoryChanges.get);
     register("list_inventory_changes", "List inventory proposals", "List proposals made by agents, newest first, optionally by status: id, title, status and creation time.", INVENTORY_CHANGE_SCHEMAS.list, tools.inventoryChanges.list);
   }
+
+  if (families.proxmoxWrite) registerProxmoxWrites(register, tools.proxmoxWrite, context.modules.inventory);
 
   if (families.proxmox) {
     const schema = (properties, required = []) => fromJsonSchema({ type: "object", properties, required, additionalProperties: false });

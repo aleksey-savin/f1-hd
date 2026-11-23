@@ -192,3 +192,12 @@ test("stats: a table with names and an empty median dash", () => {
   assert.match(text, /Tickets: 3 \(open 1, closed 2\), grouped by category \(company: Ромашка\)/);
   assert.match(text, /\| Оргтехника \| 3 \| 1 \| 2 \| 2 \| 100% \|/);
 });
+
+
+test("ticket write references preserve milliseconds and handle records without timestamps", () => {
+  const detail = { ticket: leakyTicket(), comments: [{ _id: "comment-id", updatedAt: new Date("2026-11-23T01:02:03.457Z") }], works: [{ _id: "work-id" }] };
+  const writeText = formatTicketDetail(detail, ctx, true);
+  assert.match(writeText, /comment-id, revision 2026-11-23T01:02:03.457Z/);
+  assert.match(writeText, /work-id, revision legacy/);
+  assert.doesNotMatch(formatTicketDetail(detail, ctx), /comment-id|work-id/);
+});
